@@ -1,0 +1,58 @@
+# Root level gitignore for POS System Monorepo
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment variables (root level)
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Documentation build outputs (if generating docs)
+docs/_build/
+docs/.vuepress/dist/
+docs/.vitepress/dist/
+
+# Shared dependencies (if using workspace)
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+.nyc_output/
+test-results/
+
+# Lock files (optional - uncomment if you want to ignore lock files)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
