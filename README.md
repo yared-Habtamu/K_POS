@@ -115,10 +115,13 @@ web/
 │   ├── utils/
 │   ├── assets/
 │   ├── styles/
-│   └── main.jsx
+│   └── main.tsx
 │
 ├── public/
-├── vite.config.js
+├── vite.config.ts
+├── tsconfig.json
+├── eslint.config.js
+├── .gitignore
 ├── package.json
 └── README.md
 ```

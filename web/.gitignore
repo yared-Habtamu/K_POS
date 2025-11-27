@@ -7,9 +7,15 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules/
-dist/
-dist-ssr/
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build outputs
+dist
+dist-ssr
+build
 *.local
 
 # Environment variables
@@ -18,20 +24,11 @@ dist-ssr/
 .env.development.local
 .env.test.local
 .env.production.local
-.env.*.local
-
-# Build outputs
-build/
-*.tsbuildinfo
-
-# Testing
-coverage/
-.nyc_output/
-test-results/
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
 .idea
 .DS_Store
 *.suo
@@ -39,3 +36,68 @@ test-results/
 *.njsproj
 *.sln
 *.sw?
+
+# Testing
+coverage
+*.lcov
+.nyc_output
+
+# TypeScript
+*.tsbuildinfo
+
+# Vite
+.vite
+vite.config.*.timestamp-*
+
+# Temporary files
+*.tmp
+*.temp
+.cache
+
+# OS files
+Thumbs.db
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional stylelint cache
+.stylelintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache
+.parcel-cache
+
+# Next.js (if migrating in future)
+.next
+out
+
+# Nuxt.js (if migrating in future)
+.nuxt
+
+# Storybook build outputs
+storybook-static
+
+# Temporary folders
+tmp/
+temp/
