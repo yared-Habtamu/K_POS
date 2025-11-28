@@ -1,0 +1,309 @@
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { motion } from 'framer-motion';
+import { useCartStore } from '@/stores/cartStore';
+import { useAuthStore } from '@/stores/authStore';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { toast } from '@/hooks/use-toast';
+import { ReceiptPreview } from './ReceiptPreview';
+import type { PaymentMethod, DiscountType, Sale, Receipt } from '@/types';
+import {
+  Banknote,
+  CreditCard,
+  Smartphone,
+  Building2,
+  Wallet,
+  Percent,
+  DollarSign,
+  Plus,
+  X,
+  Receipt as ReceiptIcon,
+  Loader2,
+} from 'lucide-react';
+
+const paymentMethods: { value: PaymentMethod; label: string; icon: React.ElementType }[] = [
+  { value: 'cash', label: 'cash', icon: Banknote },
+  { value: 'card', label: 'card', icon: CreditCard },
+  { value: 'telebirr', label: 'telebirr', icon: Smartphone },
+  { value: 'cbe_bank', label: 'cbe_bank', icon: Building2 },
+  { value: 'wallet', label: 'wallet', icon: Wallet },
+];
+
+interface PaymentPanelProps {
+  canApplyDiscount?: boolean;
+}
+
+export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
+  const { t } = useTranslation();
+  const { user } = useAuthStore();
+  const {
+    items,
+    paymentMethod,
+    discount,
+    extraCharges,
+    setPaymentMethod,
+    setCartDiscount,
+    removeCartDiscount,
+    addExtraCharge,
+    removeExtraCharge,
+    clearCart,
+    getSubtotal,
+    getDiscountAmount,
+    getExtraChargesTotal,
+    getTax,
+    getTotal,
+  } = useCartStore();
+
+  const [discountType, setDiscountType] = useState<DiscountType>('percentage');
+  const [discountValue, setDiscountValue] = useState('');
+  const [newChargeName, setNewChargeName] = useState('');
+  const [newChargeAmount, setNewChargeAmount] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [currentReceipt, setCurrentReceipt] = useState<Receipt | null>(null);
+
+  const handleApplyDiscount = () => {
+    const value = parseFloat(discountValue);
+    if (value > 0) {
+      setCartDiscount(discountType, value);
+      setDiscountValue('');
+    }
+  };
+
+  const handleAddCharge = () => {
+    if (newChargeName && parseFloat(newChargeAmount) > 0) {
+      addExtraCharge({
+        id: `charge-${Date.now()}`,
+        name: newChargeName,
+        amount: parseFloat(newChargeAmount),
+      });
+      setNewChargeName('');
+      setNewChargeAmount('');
+    }
+  };
+
+  const handleCompleteSale = async () => {
+    if (items.length === 0) {
+      toast({
+        title: 'Empty Cart',
+        description: 'Add items to complete a sale',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+
+    // Simulate processing
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    const saleId = `SALE-${Date.now()}`;
+    const receiptId = `RCP-${Date.now().toString(36).toUpperCase()}`;
+
+    // Create receipt
+    const receipt: Receipt = {
+      id: receiptId,
+      saleId,
+      qrCodeData: JSON.stringify({
+        receiptId,
+        total: getTotal(),
+        date: new Date().toISOString(),
+        shop: 'Kiya Supermarket',
+      }),
+      shopName: 'Kiya Supermarket',
+      shopAddress: 'Addis Ababa, Ethiopia',
+      shopPhone: '+251 911 234 567',
+      items,
+      subtotal: getSubtotal(),
+      discount: discount ? {
+        ...discount,
+        amount: getDiscountAmount(),
+      } : undefined,
+      extraCharges,
+      tax: getTax(),
+      total: getTotal(),
+      paymentMethod,
+      cashierName: user?.name || 'Unknown',
+      date: new Date(),
+      receiptHeader: 'Thank you for shopping with us!',
+      receiptSlogan: 'Quality products at affordable prices',
+    };
+
+    setCurrentReceipt(receipt);
+    setShowReceipt(true);
+    setIsProcessing(false);
+
+    toast({
+      title: t('sale_complete'),
+      description: `Receipt: ${receiptId}`,
+    });
+  };
+
+  const handleCloseReceipt = () => {
+    setShowReceipt(false);
+    setCurrentReceipt(null);
+    clearCart();
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Payment Method */}
+      <div className="space-y-2">
+        <Label>{t('payment_method')}</Label>
+        <div className="grid grid-cols-3 gap-2">
+          {paymentMethods.map((method) => {
+            const Icon = method.icon;
+            return (
+              <Button
+                key={method.value}
+                variant={paymentMethod === method.value ? 'default' : 'outline'}
+                className="h-auto py-3 flex flex-col items-center gap-1"
+                onClick={() => setPaymentMethod(method.value)}
+              >
+                <Icon className="h-5 w-5" />
+                <span className="text-xs">{t(method.label)}</span>
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Discount Section */}
+      {canApplyDiscount && (
+        <div className="space-y-2">
+          <Label>{t('discount')}</Label>
+          {discount ? (
+            <div className="flex items-center gap-2 p-2 bg-accent rounded-lg">
+              <span className="flex-1 text-sm">
+                {discount.type === 'percentage' ? `${discount.value}%` : `${discount.value} ETB`} off
+              </span>
+              <Button variant="ghost" size="sm" onClick={removeCartDiscount}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <Select value={discountType} onValueChange={(v) => setDiscountType(v as DiscountType)}>
+                <SelectTrigger className="w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="percentage">
+                    <div className="flex items-center gap-1">
+                      <Percent className="h-3 w-3" />
+                      %
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="fixed">
+                    <div className="flex items-center gap-1">
+                      <DollarSign className="h-3 w-3" />
+                      ETB
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                type="number"
+                placeholder="Value"
+                value={discountValue}
+                onChange={(e) => setDiscountValue(e.target.value)}
+                className="flex-1"
+              />
+              <Button onClick={handleApplyDiscount} size="icon">
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Extra Charges */}
+      <div className="space-y-2">
+        <Label>{t('extra_charges')}</Label>
+        {extraCharges.map((charge) => (
+          <div key={charge.id} className="flex items-center gap-2 p-2 bg-accent rounded-lg">
+            <span className="flex-1 text-sm">{charge.name}</span>
+            <span className="text-sm font-medium">{charge.amount} ETB</span>
+            <Button variant="ghost" size="sm" onClick={() => removeExtraCharge(charge.id)}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        ))}
+        <div className="flex gap-2">
+          <Input
+            placeholder="Charge name"
+            value={newChargeName}
+            onChange={(e) => setNewChargeName(e.target.value)}
+            className="flex-1"
+          />
+          <Input
+            type="number"
+            placeholder="Amount"
+            value={newChargeAmount}
+            onChange={(e) => setNewChargeAmount(e.target.value)}
+            className="w-24"
+          />
+          <Button onClick={handleAddCharge} size="icon">
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="space-y-2 pt-4">
+        <Button
+          className="w-full h-14 text-lg font-bold"
+          onClick={handleCompleteSale}
+          disabled={items.length === 0 || isProcessing}
+        >
+          {isProcessing ? (
+            <>
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Processing...
+            </>
+          ) : (
+            <>
+              <ReceiptIcon className="mr-2 h-5 w-5" />
+              {t('complete_sale')} - {getTotal().toFixed(2)} {t('etb')}
+            </>
+          )}
+        </Button>
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={clearCart}
+          disabled={items.length === 0}
+        >
+          {t('clear_cart')}
+        </Button>
+      </div>
+
+      {/* Receipt Dialog */}
+      <Dialog open={showReceipt} onOpenChange={setShowReceipt}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('receipt_preview')}</DialogTitle>
+          </DialogHeader>
+          {currentReceipt && (
+            <ReceiptPreview receipt={currentReceipt} onClose={handleCloseReceipt} />
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
