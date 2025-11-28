@@ -28,7 +28,8 @@ import StockManagement from "./pages/store-keeper/StockManagement";
 import BarcodeManagement from "./pages/store-keeper/BarcodeManagement";
 
 // Admin Pages
-import AdminDashboard from "./pages/admin/AdminDashboard";
+import MainAdmin from "./pages/admin/MainAdmin";
+import MartManagement from "./pages/admin/MartManagement";
 
 const queryClient = new QueryClient();
 
@@ -71,10 +72,9 @@ const App = () => (
           <Route path="/store-keeper/pictures" element={<BarcodeManagement />} />
           
           {/* Admin Routes */}
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/shops" element={<AdminDashboard />} />
-          <Route path="/admin/reports" element={<AdminDashboard />} />
-          <Route path="/admin/settings" element={<AdminDashboard />} />
+          <Route path="/admin" element={<MainAdmin />} />
+          <Route path="/admin/shops" element={<MartManagement />} />
+          <Route path="/admin/reports" element={<MainAdmin />} />
           
           <Route path="*" element={<NotFound />} />
         </Routes>

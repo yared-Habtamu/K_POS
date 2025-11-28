@@ -62,10 +62,8 @@ const roleNavItems: Record<UserRole, NavItem[]> = {
     { label: 'products', icon: Image, path: '/store-keeper/pictures' },
   ],
   system_admin: [
-    { label: 'dashboard', icon: LayoutDashboard, path: '/admin' },
     { label: 'shop', icon: Building2, path: '/admin/shops' },
     { label: 'reports', icon: BarChart3, path: '/admin/reports' },
-    { label: 'settings', icon: Settings, path: '/admin/settings' },
   ],
 };
 
