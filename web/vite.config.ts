@@ -13,6 +13,8 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Alias framer-motion to a local shim to avoid dependency resolution issues
+      "framer-motion": path.resolve(__dirname, "./src/lib/framer-motion-shim.tsx"),
     },
   },
 }));

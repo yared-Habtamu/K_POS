@@ -29,7 +29,6 @@ import {
   Search,
   Plus,
   Barcode,
-  Image as ImageIcon,
   Warehouse,
   Store,
   ArrowRight,
@@ -89,54 +88,7 @@ export default function StockManagement() {
           <p className="text-muted-foreground">Manage store and supermarket stock levels</p>
         </div>
 
-        {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Products</p>
-                    <p className="text-2xl font-bold">{products.length}</p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-primary/10 text-primary">
-                    <Package className="h-6 w-6" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">In Warehouse</p>
-                    <p className="text-2xl font-bold">{products.reduce((sum, p) => sum + p.storeQuantity, 0)}</p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-warning/10 text-warning">
-                    <Warehouse className="h-6 w-6" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">In Supermarket</p>
-                    <p className="text-2xl font-bold">{products.reduce((sum, p) => sum + p.supermarketQuantity, 0)}</p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-success/10 text-success">
-                    <Store className="h-6 w-6" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
+        {/* Dashboard stats removed from inventory page to avoid duplication; inventory page focuses on stock management */}
 
         {/* Search */}
         <Card>
@@ -153,76 +105,54 @@ export default function StockManagement() {
           </CardContent>
         </Card>
 
-        {/* Products Table */}
+        {/* Inventory grid: search at top and image cards */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Package className="h-5 w-5" />
-              Stock Management
+              Inventory
               <Badge variant="secondary" className="ml-2">{filteredProducts.length}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">Image</TableHead>
-                    <TableHead>{t('product_name')}</TableHead>
-                    <TableHead>{t('category')}</TableHead>
-                    <TableHead className="text-center">{t('store_quantity')}</TableHead>
-                    <TableHead className="w-10"></TableHead>
-                    <TableHead className="text-center">{t('supermarket_quantity')}</TableHead>
-                    <TableHead>{t('barcode')}</TableHead>
-                    <TableHead className="text-right">{t('actions')}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredProducts.map((product) => (
-                    <TableRow key={product.id}>
-                      <TableCell>
-                        {product.pictureUrl ? (
-                          <img src={product.pictureUrl} alt="" className="w-10 h-10 rounded-lg object-cover" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                            <ImageIcon className="w-5 h-5 text-muted-foreground" />
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-medium">{product.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{product.category}</Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="secondary" className="bg-warning/10 text-warning border-warning/20">
-                          <Warehouse className="w-3 h-3 mr-1" />
-                          {product.storeQuantity}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="secondary" className="bg-success/10 text-success border-success/20">
-                          <Store className="w-3 h-3 mr-1" />
-                          {product.supermarketQuantity}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-mono text-xs">{product.barcode || '-'}</span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button variant="outline" size="sm" onClick={() => openAddStockDialog(product)}>
-                            <Plus className="h-3 w-3 mr-1" />
-                            {t('add_stock')}
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredProducts.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-6 col-span-full">No products found</p>
+              )}
+
+              {filteredProducts.map((product) => {
+                const sold = Math.max(0, (product.storeQuantity ?? 0) - (product.supermarketQuantity ?? 0));
+                const remaining = product.supermarketQuantity ?? product.quantity ?? 0;
+                return (
+                  <div key={product.id} className="p-3 rounded-lg bg-accent/50 flex flex-col items-start gap-3">
+                    {product.pictureUrl ? (
+                      <img src={product.pictureUrl} alt="" className="w-full h-32 rounded-lg object-cover" />
+                    ) : (
+                      <div className="w-full h-32 rounded-lg bg-muted flex items-center justify-center">
+                        <Package className="w-8 h-8 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="w-full flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{product.name}</p>
+                        <p className="text-xs text-muted-foreground">{product.category}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium">Sold</p>
+                        <p className="text-xs text-muted-foreground">{sold}</p>
+                        <p className="text-sm font-medium mt-2">Remaining</p>
+                        <p className="text-xs text-muted-foreground">{remaining}</p>
+                      </div>
+                    </div>
+                    <div className="w-full flex justify-end">
+                      <Button variant="outline" size="sm" onClick={() => openAddStockDialog(product)}>
+                        <Plus className="h-3 w-3 mr-1" />
+                        {t('add_stock')}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
