@@ -16,9 +16,12 @@ import DailyReport from "./pages/cashier/DailyReport";
 
 // Owner Pages
 import OwnerDashboard from "./pages/owner/OwnerDashboard";
+import OwnerAlerts from "./pages/owner/Alerts";
 import ProductManagement from "./pages/owner/ProductManagement";
 import EmployeeManagement from "./pages/owner/EmployeeManagement";
 import ExpenseManagement from "./pages/owner/ExpenseManagement";
+import OwnerSettings from "./pages/owner/Settings";
+import Inventory from "./pages/Inventory";
 
 // Manager Pages
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
@@ -54,9 +57,8 @@ const App = () => (
           <Route path="/owner/inventory" element={<StockManagement />} />
           <Route path="/owner/employees" element={<EmployeeManagement />} />
           <Route path="/owner/expenses" element={<ExpenseManagement />} />
-          <Route path="/owner/reports" element={<OwnerDashboard />} />
-          <Route path="/owner/customers" element={<OwnerDashboard />} />
-          <Route path="/owner/settings" element={<OwnerDashboard />} />
+          <Route path="/owner/alerts" element={<OwnerAlerts />} />
+          <Route path="/owner/settings" element={<OwnerSettings />} />
           
           {/* Manager Routes */}
           <Route path="/manager" element={<ManagerDashboard />} />
@@ -70,11 +72,15 @@ const App = () => (
           <Route path="/store-keeper/add-stock" element={<StockManagement />} />
           <Route path="/store-keeper/barcode" element={<BarcodeManagement />} />
           <Route path="/store-keeper/pictures" element={<BarcodeManagement />} />
+
+          {/* Generic Inventory route (top-level) */}
+          <Route path="/inventory" element={<Inventory />} />
           
           {/* Admin Routes */}
           <Route path="/admin" element={<MainAdmin />} />
           <Route path="/admin/shops" element={<MartManagement />} />
           <Route path="/admin/reports" element={<MainAdmin />} />
+          {/* Generic Inventory route removed (reverted) */}
           
           <Route path="*" element={<NotFound />} />
         </Routes>

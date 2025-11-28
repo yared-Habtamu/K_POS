@@ -1,5 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Search } from 'lucide-react';
 import { RoleLayout } from '@/components/layout/RoleLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,8 +13,6 @@ import {
   ShoppingCart,
   Package,
   TrendingUp,
-  AlertTriangle,
-  Clock,
   ArrowUpRight,
   ArrowDownRight,
 } from 'lucide-react';
@@ -27,7 +29,7 @@ import {
 } from 'recharts';
 
 // Mock data for charts
-const salesData = [
+const dailyData = [
   { name: 'Mon', sales: 4500 },
   { name: 'Tue', sales: 5200 },
   { name: 'Wed', sales: 4800 },
@@ -35,6 +37,28 @@ const salesData = [
   { name: 'Fri', sales: 7200 },
   { name: 'Sat', sales: 8500 },
   { name: 'Sun', sales: 5900 },
+];
+
+const weeklyData = [
+  { name: 'Week 1', sales: 12000 },
+  { name: 'Week 2', sales: 15000 },
+  { name: 'Week 3', sales: 9000 },
+  { name: 'Week 4', sales: 18000 },
+];
+
+const monthlyData = [
+  { name: 'January', sales: 42000 },
+  { name: 'February', sales: 38000 },
+  { name: 'March', sales: 45000 },
+  { name: 'April', sales: 47000 },
+  { name: 'May', sales: 52000 },
+  { name: 'June', sales: 49000 },
+  { name: 'July', sales: 53000 },
+  { name: 'August', sales: 55000 },
+  { name: 'September', sales: 50000 },
+  { name: 'October', sales: 57000 },
+  { name: 'November', sales: 60000 },
+  { name: 'December', sales: 65000 },
 ];
 
 const topProducts = [
@@ -47,10 +71,13 @@ const topProducts = [
 
 export default function OwnerDashboard() {
   const { t } = useTranslation();
-  const { products, getLowStockProducts, getExpiringProducts } = useProductStore();
-  
+  const [range, setRange] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+  const { products, getLowStockProducts, searchProducts } = useProductStore();
+  const [search, setSearch] = useState('');
+
+  const filteredProducts = search ? searchProducts(search) : products;
   const lowStock = getLowStockProducts();
-  const expiring = getExpiringProducts(7);
+  const chartData = range === 'daily' ? dailyData : range === 'weekly' ? weeklyData : monthlyData;
 
   const stats = [
     {
@@ -141,13 +168,21 @@ export default function OwnerDashboard() {
             transition={{ delay: 0.4 }}
           >
             <Card>
-              <CardHeader>
-                <CardTitle>{t('this_week')} Sales</CardTitle>
+              <CardHeader className="flex items-center justify-between">
+                <CardTitle>{(range === 'daily' ? 'Daily' : range === 'monthly' ? 'Monthly' : 'Weekly') + ' Sales'}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" className={`${range === 'daily' ? 'bg-primary text-primary-foreground' : 'border border-border text-muted-foreground'} h-8 px-3`}
+                    onClick={() => setRange('daily')}>Daily</Button>
+                  <Button size="sm" className={`${range === 'weekly' ? 'bg-primary text-primary-foreground' : 'border border-border text-muted-foreground'} h-8 px-3`}
+                    onClick={() => setRange('weekly')}>Weekly</Button>
+                  <Button size="sm" className={`${range === 'monthly' ? 'bg-primary text-primary-foreground' : 'border border-border text-muted-foreground'} h-8 px-3`}
+                    onClick={() => setRange('monthly')}>Monthly</Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={salesData}>
+                    <LineChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                       <XAxis dataKey="name" className="text-xs" />
                       <YAxis className="text-xs" />
@@ -205,94 +240,7 @@ export default function OwnerDashboard() {
           </motion.div>
         </div>
 
-        {/* Alerts Row */}
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Low Stock Alert */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-          >
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-warning" />
-                  {t('low_stock')} {t('alerts')}
-                  <Badge variant="secondary" className="ml-auto">{lowStock.length}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {lowStock.slice(0, 5).map((product) => (
-                    <div key={product.id} className="flex items-center justify-between p-2 rounded-lg bg-accent/50">
-                      <div className="flex items-center gap-3">
-                        {product.pictureUrl ? (
-                          <img src={product.pictureUrl} alt="" className="w-10 h-10 rounded-lg object-cover" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                            <Package className="w-5 h-5 text-muted-foreground" />
-                          </div>
-                        )}
-                        <div>
-                          <p className="font-medium text-sm">{product.name}</p>
-                          <p className="text-xs text-muted-foreground">{product.category}</p>
-                        </div>
-                      </div>
-                      <Badge variant="destructive">{product.supermarketQuantity} left</Badge>
-                    </div>
-                  ))}
-                  {lowStock.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-4">No low stock alerts</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Expiring Products */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7 }}
-          >
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-destructive" />
-                  {t('expiring_soon')}
-                  <Badge variant="secondary" className="ml-auto">{expiring.length}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {expiring.slice(0, 5).map((product) => (
-                    <div key={product.id} className="flex items-center justify-between p-2 rounded-lg bg-accent/50">
-                      <div className="flex items-center gap-3">
-                        {product.pictureUrl ? (
-                          <img src={product.pictureUrl} alt="" className="w-10 h-10 rounded-lg object-cover" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                            <Package className="w-5 h-5 text-muted-foreground" />
-                          </div>
-                        )}
-                        <div>
-                          <p className="font-medium text-sm">{product.name}</p>
-                          <p className="text-xs text-muted-foreground">{product.quantity} units</p>
-                        </div>
-                      </div>
-                      <Badge variant="destructive">
-                        {product.expiryDate && new Date(product.expiryDate).toLocaleDateString()}
-                      </Badge>
-                    </div>
-                  ))}
-                  {expiring.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-4">No expiring products</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
+        
       </div>
     </RoleLayout>
   );

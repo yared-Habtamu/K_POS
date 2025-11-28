@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
+import { useEffect } from 'react';
 import { RoleLayout } from '@/components/layout/RoleLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Switch } from '@/components/ui/switch';
 import { toast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -55,6 +57,23 @@ const mockEmployees = [
 export default function EmployeeManagement() {
   const { t } = useTranslation();
   const [employees, setEmployees] = useState(mockEmployees);
+  const [permissions, setPermissions] = useState<Record<string, {
+    managerItemMgmt: boolean;
+    managerDiscount: boolean;
+    cashierDiscount: boolean;
+    storeKeeperItemMgmt: boolean;
+  }>>(() => {
+    const map: Record<string, any> = {};
+    mockEmployees.forEach(e => {
+      map[e.id] = {
+        managerItemMgmt: false,
+        managerDiscount: false,
+        cashierDiscount: false,
+        storeKeeperItemMgmt: false,
+      };
+    });
+    return map;
+  });
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -139,6 +158,41 @@ export default function EmployeeManagement() {
       case 'store_keeper': return 'outline';
       default: return 'secondary';
     }
+  };
+
+  // keep permissions map in sync when employees change
+  useEffect(() => {
+    setPermissions(prev => {
+      const next = { ...prev } as Record<string, any>;
+      employees.forEach(e => {
+        if (!next[e.id]) {
+          next[e.id] = {
+            managerItemMgmt: false,
+            managerDiscount: false,
+            cashierDiscount: false,
+            storeKeeperItemMgmt: false,
+          };
+        }
+      });
+      // remove keys for deleted employees
+      Object.keys(next).forEach(k => {
+        if (!employees.find(e => e.id === k)) delete next[k];
+      });
+      return next;
+    });
+  }, [employees]);
+
+  const togglePermission = (employeeId: string, key: string, label: string, value: boolean) => {
+    setPermissions(prev => ({
+      ...prev,
+      [employeeId]: {
+        ...prev[employeeId],
+        [key]: value,
+      },
+    }));
+
+    const emp = employees.find(e => e.id === employeeId);
+    toast({ title: `${label} ${value ? 'enabled' : 'disabled'} for ${emp?.name ?? 'user'}` });
   };
 
   return (
@@ -254,6 +308,89 @@ export default function EmployeeManagement() {
                   <SelectItem value="store_keeper">{t('store_keeper')}</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Permissions Section (assignable per person) */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Permissions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {/* Manager permissions */}
+              <div>
+                <p className="text-sm font-semibold">Manager Permissions</p>
+                <p className="text-xs text-muted-foreground mb-3">Assign manager-level permissions to specific people</p>
+                <div className="grid gap-3">
+                  {employees.filter(e => e.role === 'manager').map(emp => (
+                    <div key={emp.id} className="flex items-center justify-between">
+                      <div>
+                        <p className={`text-sm font-medium ${permissions[emp.id]?.managerItemMgmt ? 'text-success' : ''}`}>{emp.name}</p>
+                        <p className="text-xs text-muted-foreground">Item Management</p>
+                      </div>
+                      <Switch
+                        checked={!!permissions[emp.id]?.managerItemMgmt}
+                        onCheckedChange={(v) => togglePermission(emp.id, 'managerItemMgmt', 'Manager Item Management', !!v)}
+                      />
+                    </div>
+                  ))}
+
+                  {employees.filter(e => e.role === 'manager').map(emp => (
+                    <div key={`mgrdisc-${emp.id}`} className="flex items-center justify-between">
+                      <div>
+                        <p className={`text-sm font-medium ${permissions[emp.id]?.managerDiscount ? 'text-success' : ''}`}>{emp.name}</p>
+                        <p className="text-xs text-muted-foreground">Discount Approval</p>
+                      </div>
+                      <Switch
+                        checked={!!permissions[emp.id]?.managerDiscount}
+                        onCheckedChange={(v) => togglePermission(emp.id, 'managerDiscount', 'Manager Discount Approval', !!v)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Cashier permissions */}
+              <div>
+                <p className="text-sm font-semibold">Cashier Permissions</p>
+                <p className="text-xs text-muted-foreground mb-3">Assign cashier-level permissions to specific people</p>
+                <div className="grid gap-3">
+                  {employees.filter(e => e.role === 'cashier').map(emp => (
+                    <div key={emp.id} className="flex items-center justify-between">
+                      <div>
+                        <p className={`text-sm font-medium ${permissions[emp.id]?.cashierDiscount ? 'text-success' : ''}`}>{emp.name}</p>
+                        <p className="text-xs text-muted-foreground">Discount Approval</p>
+                      </div>
+                      <Switch
+                        checked={!!permissions[emp.id]?.cashierDiscount}
+                        onCheckedChange={(v) => togglePermission(emp.id, 'cashierDiscount', 'Cashier Discount Approval', !!v)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Store keeper permissions */}
+              <div>
+                <p className="text-sm font-semibold">Store Keeper Permissions</p>
+                <p className="text-xs text-muted-foreground mb-3">Assign warehouse permissions to specific people</p>
+                <div className="grid gap-3">
+                  {employees.filter(e => e.role === 'store_keeper').map(emp => (
+                    <div key={emp.id} className="flex items-center justify-between">
+                      <div>
+                        <p className={`text-sm font-medium ${permissions[emp.id]?.storeKeeperItemMgmt ? 'text-success' : ''}`}>{emp.name}</p>
+                        <p className="text-xs text-muted-foreground">Item Management</p>
+                      </div>
+                      <Switch
+                        checked={!!permissions[emp.id]?.storeKeeperItemMgmt}
+                        onCheckedChange={(v) => togglePermission(emp.id, 'storeKeeperItemMgmt', 'Store Keeper Item Management', !!v)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
