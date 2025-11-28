@@ -1,0 +1,271 @@
+import { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import { motion } from 'framer-motion';
+import { RoleLayout } from '@/components/layout/RoleLayout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { toast } from '@/hooks/use-toast';
+import { useProductStore } from '@/stores/productStore';
+import type { Product } from '@/types';
+import JsBarcode from 'jsbarcode';
+import {
+  Barcode,
+  Search,
+  Printer,
+  RefreshCw,
+  Package,
+  Image as ImageIcon,
+  QrCode,
+} from 'lucide-react';
+
+export default function BarcodeManagement() {
+  const { t } = useTranslation();
+  const { products, updateProduct, getProductByBarcode } = useProductStore();
+  const [search, setSearch] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const barcodeRef = useRef<SVGSVGElement>(null);
+
+  const filteredProducts = products.filter(p =>
+    p.name.toLowerCase().includes(search.toLowerCase()) ||
+    p.barcode?.includes(search)
+  );
+
+  useEffect(() => {
+    if (selectedProduct?.barcode && barcodeRef.current) {
+      JsBarcode(barcodeRef.current, selectedProduct.barcode, {
+        format: 'CODE128',
+        width: 2,
+        height: 80,
+        displayValue: true,
+        fontSize: 14,
+        margin: 10,
+      });
+    }
+  }, [selectedProduct]);
+
+  const generateBarcode = async (product: Product) => {
+    const newBarcode = `${Date.now()}`.slice(-12);
+    await updateProduct(product.id, { barcode: newBarcode });
+    setSelectedProduct({ ...product, barcode: newBarcode });
+    toast({
+      title: 'Barcode Generated',
+      description: `New barcode: ${newBarcode}`,
+    });
+  };
+
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow || !selectedProduct) return;
+
+    const barcodeHtml = barcodeRef.current?.outerHTML || '';
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Barcode - ${selectedProduct.name}</title>
+          <style>
+            @page { size: 50mm 30mm; margin: 2mm; }
+            body { 
+              font-family: Arial, sans-serif; 
+              text-align: center;
+              padding: 4mm;
+            }
+            .label {
+              border: 1px dashed #ccc;
+              padding: 2mm;
+            }
+            .shop-name { font-size: 10pt; font-weight: bold; margin-bottom: 2mm; }
+            .item-name { font-size: 8pt; margin: 2mm 0; }
+            .price { font-size: 10pt; font-weight: bold; }
+            svg { max-width: 100%; height: auto; }
+          </style>
+        </head>
+        <body>
+          <div class="label">
+            <div class="shop-name">KIYA SUPERMARKET</div>
+            ${barcodeHtml}
+            <div class="item-name">${selectedProduct.name}</div>
+            <div class="price">${selectedProduct.sellingPrice} ETB</div>
+          </div>
+          <script>window.onload = () => { window.print(); window.close(); }</script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const openBarcodeDialog = (product: Product) => {
+    setSelectedProduct(product);
+    setIsDialogOpen(true);
+  };
+
+  const handleScan = () => {
+    // In real app, this would interface with hardware scanner
+    // For demo, we'll use the search input
+    if (search && /^\d+$/.test(search)) {
+      const product = getProductByBarcode(search);
+      if (product) {
+        openBarcodeDialog(product);
+      } else {
+        toast({
+          title: 'Not Found',
+          description: 'No product found with this barcode',
+          variant: 'destructive',
+        });
+      }
+    }
+  };
+
+  return (
+    <RoleLayout allowedRoles={['store_keeper']}>
+      <div className="space-y-6">
+        {/* Header */}
+        <div>
+          <h1 className="text-2xl font-bold">{t('barcode')} Management</h1>
+          <p className="text-muted-foreground">Generate, scan, and print product barcodes</p>
+        </div>
+
+        {/* Scanner Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <QrCode className="h-5 w-5" />
+              Barcode Scanner
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-4">
+              <div className="relative flex-1">
+                <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Scan or enter barcode..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleScan()}
+                  className="pl-10 h-12 text-lg font-mono"
+                  autoFocus
+                />
+              </div>
+              <Button onClick={handleScan} className="h-12 px-6">
+                <Search className="mr-2 h-4 w-4" />
+                Search
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Products Grid */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filteredProducts.map((product) => (
+            <motion.div
+              key={product.id}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.2 }}
+            >
+              <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer" onClick={() => openBarcodeDialog(product)}>
+                {/* Product Image */}
+                <div className="aspect-square relative bg-muted">
+                  {product.pictureUrl ? (
+                    <img src={product.pictureUrl} alt={product.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Package className="w-16 h-16 text-muted-foreground/50" />
+                    </div>
+                  )}
+                  {!product.barcode && (
+                    <Badge variant="destructive" className="absolute top-2 right-2">
+                      No Barcode
+                    </Badge>
+                  )}
+                </div>
+                <CardContent className="p-4">
+                  <h3 className="font-medium truncate">{product.name}</h3>
+                  <p className="text-sm text-muted-foreground">{product.category}</p>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="font-bold text-primary">{product.sellingPrice} ETB</span>
+                    {product.barcode && (
+                      <span className="text-xs font-mono text-muted-foreground">{product.barcode}</span>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Barcode Dialog */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{t('barcode')} Management</DialogTitle>
+            </DialogHeader>
+            {selectedProduct && (
+              <div className="space-y-4">
+                {/* Product Info */}
+                <div className="flex items-center gap-4 p-4 rounded-xl bg-accent/50">
+                  {selectedProduct.pictureUrl ? (
+                    <img src={selectedProduct.pictureUrl} alt="" className="w-16 h-16 rounded-lg object-cover" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center">
+                      <Package className="w-8 h-8 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-medium">{selectedProduct.name}</p>
+                    <p className="text-sm text-muted-foreground">{selectedProduct.category}</p>
+                    <p className="text-lg font-bold text-primary">{selectedProduct.sellingPrice} ETB</p>
+                  </div>
+                </div>
+
+                {/* Barcode Preview */}
+                {selectedProduct.barcode ? (
+                  <div className="barcode-label text-center">
+                    <p className="font-bold text-sm mb-2">KIYA SUPERMARKET</p>
+                    <svg ref={barcodeRef} className="mx-auto"></svg>
+                    <p className="text-xs mt-1">{selectedProduct.name}</p>
+                    <p className="font-bold">{selectedProduct.sellingPrice} ETB</p>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 bg-muted rounded-xl">
+                    <Barcode className="w-16 h-16 mx-auto text-muted-foreground/50 mb-2" />
+                    <p className="text-muted-foreground">No barcode assigned</p>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    className="flex-1"
+                    onClick={() => generateBarcode(selectedProduct)}
+                  >
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    {selectedProduct.barcode ? 'Regenerate' : 'Generate'}
+                  </Button>
+                  {selectedProduct.barcode && (
+                    <Button className="flex-1" onClick={handlePrint}>
+                      <Printer className="mr-2 h-4 w-4" />
+                      Print Label
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
+    </RoleLayout>
+  );
+}
