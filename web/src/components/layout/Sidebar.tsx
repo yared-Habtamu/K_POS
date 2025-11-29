@@ -44,6 +44,7 @@ const roleNavItems: Record<UserRole, NavItem[]> = {
     { label: 'inventory', icon: Package, path: '/manager/inventory' },
     { label: 'assets', icon: Boxes, path: '/manager/assets' },
     { label: 'reports', icon: BarChart3, path: '/manager/reports' },
+    { label: 'alerts', icon: AlertTriangle, path: '/alerts' },
   ],
   owner: [
     { label: 'dashboard', icon: LayoutDashboard, path: '/owner' },
@@ -52,7 +53,8 @@ const roleNavItems: Record<UserRole, NavItem[]> = {
     { label: 'inventory', icon: Boxes, path: '/inventory' },
     { label: 'employees', icon: Users, path: '/owner/employees' },
     { label: 'expenses', icon: Wallet, path: '/owner/expenses' },
-    { label: 'alerts', icon: AlertTriangle, path: '/owner/alerts' },
+    { label: 'alerts', icon: AlertTriangle, path: '/alerts' },
+    { label: 'reports', icon: BarChart3, path: '/owner/reports' },
     { label: 'settings', icon: Settings, path: '/owner/settings' },
   ],
   store_keeper: [
@@ -60,6 +62,7 @@ const roleNavItems: Record<UserRole, NavItem[]> = {
     { label: 'add_stock', icon: ClipboardList, path: '/store-keeper/add-stock' },
     { label: 'barcode', icon: Barcode, path: '/store-keeper/barcode' },
     { label: 'products', icon: Image, path: '/store-keeper/pictures' },
+    { label: 'alerts', icon: AlertTriangle, path: '/alerts' },
   ],
   system_admin: [
     { label: 'shop', icon: Building2, path: '/admin/shops' },
