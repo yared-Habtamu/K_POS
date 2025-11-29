@@ -22,7 +22,11 @@ import {
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
-export function Header() {
+interface HeaderProps {
+  onToggleSidebar?: () => void;
+}
+
+export function Header({ onToggleSidebar }: HeaderProps) {
   const { t, i18n } = useTranslation();
   const { user, logout } = useAuthStore();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -51,7 +55,7 @@ export function Header() {
   return (
     <header className="h-16 glass-strong border-b border-border/50 flex items-center justify-between px-4 md:px-6">
       {/* Mobile menu button */}
-      <Button variant="ghost" size="icon" className="md:hidden">
+      <Button variant="ghost" size="icon" className="md:hidden" onClick={() => onToggleSidebar?.()}>
         <Menu className="h-5 w-5" />
       </Button>
 

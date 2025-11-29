@@ -27,6 +27,11 @@ interface SidebarProps {
   role: UserRole;
 }
 
+interface SidebarPropsExtended extends SidebarProps {
+  mobileOpen?: boolean;
+  onClose?: () => void;
+}
+
 interface NavItem {
   label: string;
   icon: React.ElementType;
@@ -67,13 +72,14 @@ const roleNavItems: Record<UserRole, NavItem[]> = {
   ],
 };
 
-export function Sidebar({ role }: SidebarProps) {
+export function Sidebar({ role, mobileOpen, onClose }: SidebarPropsExtended) {
   const { t } = useTranslation();
   const location = useLocation();
   const navItems = roleNavItems[role];
 
   return (
-    <aside className="hidden md:flex w-64 flex-col glass-strong border-r border-border/50">
+    <>
+      <aside className="sidebar-desktop w-64 flex-col glass-strong border-r border-border/50">
       {/* Logo */}
       <div className="h-16 flex items-center px-6 border-b border-border/50">
         <div className="flex items-center gap-3">
@@ -124,6 +130,46 @@ export function Sidebar({ role }: SidebarProps) {
           Smart POS v2.1
         </div>
       </div>
-    </aside>
+      </aside>
+
+      {mobileOpen && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+          <aside className="absolute left-0 top-0 bottom-0 w-64 glass border-r border-border/50">
+            <div className="h-16 flex items-center px-6 border-b border-border/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-glow">
+                  <Store className="w-5 h-5 text-primary-foreground" />
+                </div>
+                <div>
+                  <h1 className="font-bold text-lg text-foreground">{t('app_name')}</h1>
+                  <p className="text-xs text-muted-foreground capitalize">{t(role)}</p>
+                </div>
+              </div>
+            </div>
+
+            <nav className="py-4 px-3 space-y-1 overflow-y-auto">
+              {navItems.map((item) => {
+                const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path + '/'));
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={onClose}
+                    className={cn(
+                      'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200',
+                      isActive ? 'bg-primary text-primary-foreground shadow-glow' : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                    )}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    <span>{t(item.label)}</span>
+                  </NavLink>
+                );
+              })}
+            </nav>
+          </aside>
+        </div>
+      )}
+    </>
   );
 }
