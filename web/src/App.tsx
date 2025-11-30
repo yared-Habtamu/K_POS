@@ -31,6 +31,7 @@ import MEmployeeManagement from "./pages/manager/MEmployeeManagement";
 // Store Keeper Pages
 import StockManagement from "./pages/store-keeper/StockManagement";
 import BarcodeManagement from "./pages/store-keeper/BarcodeManagement";
+import ProductAdd from "./pages/store-keeper/ProductAdd";
 
 // Admin Pages
 import MainAdmin from "./pages/admin/MainAdmin";
@@ -73,6 +74,7 @@ const App = () => (
           
           {/* Store Keeper Routes */}
           <Route path="/store-keeper" element={<StockManagement />} />
+          <Route path="/store-keeper/products/add" element={<ProductAdd />} />
           <Route path="/store-keeper/add-stock" element={<StockManagement />} />
           <Route path="/store-keeper/barcode" element={<BarcodeManagement />} />
           <Route path="/store-keeper/pictures" element={<BarcodeManagement />} />

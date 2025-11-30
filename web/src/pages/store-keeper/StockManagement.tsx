@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { RoleLayout } from '@/components/layout/RoleLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -83,9 +84,20 @@ export default function StockManagement() {
     <RoleLayout allowedRoles={['store_keeper']}>
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold">{t('inventory')}</h1>
-          <p className="text-muted-foreground">Manage store and supermarket stock levels</p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">{t('inventory')}</h1>
+            <p className="text-muted-foreground">Manage store and supermarket stock levels</p>
+          </div>
+
+          <div>
+            <Link to="/store-keeper/products/add">
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                {t('add_product')}
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* Dashboard stats removed from inventory page to avoid duplication; inventory page focuses on stock management */}

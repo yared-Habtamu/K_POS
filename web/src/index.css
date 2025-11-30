@@ -127,6 +127,17 @@
     @apply bg-gradient-to-br from-accent to-accent/50;
   }
 
+  /* Ensure desktop sidebar displays even if Tailwind responsive classes aren't applied */
+  .sidebar-desktop {
+    display: none;
+  }
+
+  @media (min-width: 768px) {
+    .sidebar-desktop {
+      display: flex;
+    }
+  }
+
   .text-gradient {
     @apply bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent;
   }
