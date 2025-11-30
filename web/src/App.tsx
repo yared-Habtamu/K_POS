@@ -9,6 +9,7 @@ import "@/i18n";
 import Login from "./pages/Login";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import ReportPage from './pages/ReportPage';
 
 // Cashier Pages
 import CashierPOS from "./pages/cashier/CashierPOS";
@@ -25,7 +26,8 @@ import Inventory from "./pages/Inventory";
 
 // Manager Pages
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
-
+import ManagerAssets from "./pages/manager/Assets";
+import MEmployeeManagement from "./pages/manager/MEmployeeManagement";
 // Store Keeper Pages
 import StockManagement from "./pages/store-keeper/StockManagement";
 import BarcodeManagement from "./pages/store-keeper/BarcodeManagement";
@@ -57,15 +59,17 @@ const App = () => (
           <Route path="/owner/inventory" element={<StockManagement />} />
           <Route path="/owner/employees" element={<EmployeeManagement />} />
           <Route path="/owner/expenses" element={<ExpenseManagement />} />
+          <Route path="/alerts" element={<OwnerAlerts />} />
           <Route path="/owner/alerts" element={<OwnerAlerts />} />
           <Route path="/owner/settings" element={<OwnerSettings />} />
+          <Route path="/owner/reports" element={<ReportPage />} />
           
           {/* Manager Routes */}
           <Route path="/manager" element={<ManagerDashboard />} />
-          <Route path="/manager/employees" element={<EmployeeManagement />} />
-          <Route path="/manager/inventory" element={<StockManagement />} />
-          <Route path="/manager/assets" element={<ManagerDashboard />} />
-          <Route path="/manager/reports" element={<ManagerDashboard />} />
+          <Route path="/manager/employees" element={<MEmployeeManagement />} />
+          <Route path="/manager/inventory" element={<Inventory />} />
+          <Route path="/manager/assets" element={<ManagerAssets />} />
+          <Route path="/manager/reports" element={<ReportPage />} />
           
           {/* Store Keeper Routes */}
           <Route path="/store-keeper" element={<StockManagement />} />

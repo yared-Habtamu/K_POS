@@ -1,4 +1,4 @@
-// src/pages/employees/OwnerEmployeeManagement.tsx
+// src/pages/employees/ManagerEmployeeManagement.tsx
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RoleLayout } from '@/components/layout/RoleLayout';
@@ -45,33 +45,31 @@ import {
 } from 'lucide-react';
 import type { UserRole } from '@/types';
 
-// Owner can assign any role
+/** Manager can only assign these roles */
+type ManagerAssignableRole = 'cashier' | 'store_keeper';
+
 const mockEmployees = [
-  { id: '1', name: 'Tigist Haile', phone: '+251922345678', role: 'manager' as UserRole, salary: 15000, status: 'active' },
+  { id: '1', name: 'Tigist Haile', phone: '+251922345678', role: 'cashier' as UserRole, salary: 15000, status: 'active' },
   { id: '2', name: 'Dawit Tadesse', phone: '+251933456789', role: 'cashier' as UserRole, salary: 8000, status: 'active' },
   { id: '3', name: 'Mulugeta Assefa', phone: '+251944567890', role: 'store_keeper' as UserRole, salary: 9000, status: 'active' },
   { id: '4', name: 'Sara Bekele', phone: '+251955678901', role: 'cashier' as UserRole, salary: 8000, status: 'active' },
   { id: '5', name: 'Yonas Gebre', phone: '+251966789012', role: 'cashier' as UserRole, salary: 8000, status: 'inactive' },
 ];
 
-const ALL_ROLES: UserRole[] = ['manager', 'cashier', 'store_keeper'];
-
-export default function OwnerEmployeeManagement() {
+export default function ManagerEmployeeManagement() {
   const { t } = useTranslation();
 
   const [employees, setEmployees] = useState(mockEmployees);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingEmployee, setEditingEmployee] = useState(null);
+  const [editingEmployee, setEditingEmployee] = useState<typeof mockEmployees[0] | null>(null);
 
-  // Permission state
-  const [permissions, setPermissions] = useState<Record<string, Record<string, boolean>>>(() => {
-    const initial: Record<string, Record<string, boolean>> = {};
+  // Permission state: { [userId]: { discount: boolean } }
+  const [permissions, setPermissions] = useState<Record<string, { discount: boolean }>>(() => {
+    const initial: Record<string, { discount: boolean }> = {};
     mockEmployees.forEach(emp => {
-      if (emp.role === 'manager') {
-        initial[emp.id] = { discount: false, addItem: false };
-      } else if (emp.role === 'store_keeper' || emp.role === 'cashier') {
+      if (emp.role === 'cashier' || emp.role === 'store_keeper') {
         initial[emp.id] = { discount: false };
       }
     });
@@ -81,12 +79,14 @@ export default function OwnerEmployeeManagement() {
   const [form, setForm] = useState({
     name: '',
     phone: '',
-    role: 'manager' as UserRole,
+    role: 'cashier' as ManagerAssignableRole,
     salary: '',
     password: '',
   });
 
   const filteredEmployees = employees.filter((e) => {
+    // Hide managers from manager's view
+    if (e.role === 'manager') return false;
     const matchSearch = e.name.toLowerCase().includes(search.toLowerCase()) || e.phone.includes(search);
     const matchRole = roleFilter === 'all' || e.role === roleFilter;
     return matchSearch && matchRole;
@@ -94,28 +94,34 @@ export default function OwnerEmployeeManagement() {
 
   // Initialize permissions when employees change
   useEffect(() => {
-    const initial: Record<string, Record<string, boolean>> = {};
+    const initial: Record<string, { discount: boolean }> = {};
     filteredEmployees.forEach(emp => {
-      if (emp.role === 'manager') {
-        initial[emp.id] = permissions[emp.id] || { discount: false, addItem: false };
-      } else if (emp.role === 'store_keeper' || emp.role === 'cashier') {
-        initial[emp.id] = permissions[emp.id] || { discount: false };
-      }
+      initial[emp.id] = permissions[emp.id] || { discount: false };
     });
     setPermissions(initial);
   }, [filteredEmployees]);
 
   const resetForm = () => {
-    setForm({ name: '', phone: '', role: 'manager', salary: '', password: '' });
+    setForm({
+      name: '',
+      phone: '',
+      role: 'cashier',
+      salary: '',
+      password: '',
+    });
     setEditingEmployee(null);
   };
 
   const handleEdit = (employee: typeof mockEmployees[0]) => {
+    const safeRole = (employee.role === 'cashier' || employee.role === 'store_keeper')
+      ? (employee.role as ManagerAssignableRole)
+      : 'cashier';
+
     setEditingEmployee(employee);
     setForm({
       name: employee.name,
       phone: employee.phone,
-      role: employee.role,
+      role: safeRole,
       salary: String(employee.salary),
       password: '',
     });
@@ -144,7 +150,7 @@ export default function OwnerEmployeeManagement() {
     if (editingEmployee) {
       setEmployees(employees.map(emp =>
         emp.id === editingEmployee.id
-          ? { ...emp, name: form.name, phone: form.phone, role: form.role, salary: Number(form.salary) }
+          ? { ...emp, name: form.name, phone: form.phone, role: form.role as UserRole, salary: Number(form.salary) }
           : emp
       ));
       toast({ title: 'Employee updated successfully' });
@@ -153,21 +159,16 @@ export default function OwnerEmployeeManagement() {
         id: Date.now().toString(),
         name: form.name,
         phone: form.phone,
-        role: form.role,
+        role: form.role as UserRole,
         salary: Number(form.salary),
         status: 'active' as const,
       };
       setEmployees([...employees, newEmployee]);
       // Initialize new employee permissions
-      setPermissions(prev => {
-        const newPerms = { ...prev };
-        if (newEmployee.role === 'manager') {
-          newPerms[newEmployee.id] = { discount: false, addItem: false };
-        } else {
-          newPerms[newEmployee.id] = { discount: false };
-        }
-        return newPerms;
-      });
+      setPermissions(prev => ({
+        ...prev,
+        [newEmployee.id]: { discount: false }
+      }));
       toast({ title: t('employee_added') });
     }
 
@@ -179,25 +180,17 @@ export default function OwnerEmployeeManagement() {
     toast({ title: 'Clocked In', description: 'Attendance recorded' });
   };
 
-  const togglePermission = (employeeId: string, key: string, value: boolean) => {
+  const toggleDiscountPermission = (employeeId: string, value: boolean) => {
     const employee = employees.find(e => e.id === employeeId);
     if (!employee) return;
 
     setPermissions(prev => ({
       ...prev,
-      [employeeId]: {
-        ...prev[employeeId],
-        [key]: value
-      }
+      [employeeId]: { discount: value }
     }));
 
-    const labels: Record<string, string> = {
-      discount: 'Apply Discounts',
-      addItem: 'Add Items with Purchase Price'
-    };
-
     toast({
-      title: `${labels[key]} ${value ? 'enabled' : 'disabled'} for ${employee.name}`
+      title: `Discount permission ${value ? 'enabled' : 'disabled'} for ${employee.name}`
     });
   };
 
@@ -212,13 +205,14 @@ export default function OwnerEmployeeManagement() {
     }
   };
 
-  // Group employees by role for permission sections
-  const managers = filteredEmployees.filter(e => e.role === 'manager');
-  const storeKeepers = filteredEmployees.filter(e => e.role === 'store_keeper');
+  const roleOptions: ManagerAssignableRole[] = ['cashier', 'store_keeper'];
+
+  // Get subordinates for permission section
   const cashiers = filteredEmployees.filter(e => e.role === 'cashier');
+  const storeKeepers = filteredEmployees.filter(e => e.role === 'store_keeper');
 
   return (
-    <RoleLayout allowedRoles={['owner']}>
+    <RoleLayout allowedRoles={['manager']}>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -248,12 +242,12 @@ export default function OwnerEmployeeManagement() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="role">{t('role')} *</Label>
-                  <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v as UserRole })}>
+                  <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v as ManagerAssignableRole })}>
                     <SelectTrigger>
                       <SelectValue placeholder={t('select_role')} />
                     </SelectTrigger>
                     <SelectContent>
-                      {ALL_ROLES.map(role => (
+                      {roleOptions.map(role => (
                         <SelectItem key={role} value={role}>{t(role)}</SelectItem>
                       ))}
                     </SelectContent>
@@ -291,7 +285,7 @@ export default function OwnerEmployeeManagement() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Roles</SelectItem>
-                  {ALL_ROLES.map(role => (
+                  {roleOptions.map(role => (
                     <SelectItem key={role} value={role}>{t(role)}</SelectItem>
                   ))}
                 </SelectContent>
@@ -367,46 +361,13 @@ export default function OwnerEmployeeManagement() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UserCog className="h-5 w-5" />
-              Manage Permissions
+              Manage Team Permissions
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              Control what actions each employee can perform in the POS system.
+              Control what actions your team members can perform in the POS system.
             </p>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Managers Section */}
-            {managers.length > 0 && (
-              <div>
-                <p className="text-sm font-semibold mb-2">Manager Permissions</p>
-                <p className="text-xs text-muted-foreground mb-3">Assign manager-level permissions</p>
-                <div className="space-y-3">
-                  {managers.map(emp => (
-                    <div key={emp.id} className="flex items-center justify-between p-3 bg-background rounded-lg border">
-                      <div>
-                        <p className="text-sm font-medium">{emp.name}</p>
-                      </div>
-                      <div className="flex items-center space-x-6">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs text-muted-foreground">Apply Discounts</span>
-                          <Switch
-                            checked={!!permissions[emp.id]?.discount}
-                            onCheckedChange={(v) => togglePermission(emp.id, 'discount', v)}
-                          />
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs text-muted-foreground">Add Items (w/ Price)</span>
-                          <Switch
-                            checked={!!permissions[emp.id]?.addItem}
-                            onCheckedChange={(v) => togglePermission(emp.id, 'addItem', v)}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Storekeepers Section */}
             {storeKeepers.length > 0 && (
               <div>
@@ -422,7 +383,7 @@ export default function OwnerEmployeeManagement() {
                         <span className="text-xs text-muted-foreground">Apply Discounts</span>
                         <Switch
                           checked={!!permissions[emp.id]?.discount}
-                          onCheckedChange={(v) => togglePermission(emp.id, 'discount', v)}
+                          onCheckedChange={(v) => toggleDiscountPermission(emp.id, v)}
                         />
                       </div>
                     </div>
@@ -446,7 +407,7 @@ export default function OwnerEmployeeManagement() {
                         <span className="text-xs text-muted-foreground">Apply Discounts</span>
                         <Switch
                           checked={!!permissions[emp.id]?.discount}
-                          onCheckedChange={(v) => togglePermission(emp.id, 'discount', v)}
+                          onCheckedChange={(v) => toggleDiscountPermission(emp.id, v)}
                         />
                       </div>
                     </div>
@@ -455,9 +416,9 @@ export default function OwnerEmployeeManagement() {
               </div>
             )}
 
-            {managers.length === 0 && storeKeepers.length === 0 && cashiers.length === 0 && (
+            {storeKeepers.length === 0 && cashiers.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">
-                No employees to manage permissions for.
+                No team members to manage permissions for.
               </p>
             )}
           </CardContent>

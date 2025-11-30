@@ -1,50 +1,118 @@
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Search } from 'lucide-react';
 import { RoleLayout } from '@/components/layout/RoleLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useProductStore } from '@/stores/productStore';
 import {
-  LayoutDashboard,
-  TrendingUp,
-  Users,
+  DollarSign,
+  ShoppingCart,
   Package,
-  AlertTriangle,
-  Clock,
-  Crown,
+  TrendingUp,
+  ArrowUpRight,
+  ArrowDownRight,
 } from 'lucide-react';
 import {
-  BarChart,
-  Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  BarChart,
+  Bar,
 } from 'recharts';
 
-// Mock cashier performance data
-const cashierPerformance = [
-  { name: 'Dawit T.', sales: 45200, transactions: 156 },
-  { name: 'Sara B.', sales: 38900, transactions: 142 },
-  { name: 'Yonas G.', sales: 32500, transactions: 118 },
-  { name: 'Meron A.', sales: 28700, transactions: 98 },
+// Mock data for charts
+const dailyData = [
+  { name: 'Mon', sales: 4500 },
+  { name: 'Tue', sales: 5200 },
+  { name: 'Wed', sales: 4800 },
+  { name: 'Thu', sales: 6100 },
+  { name: 'Fri', sales: 7200 },
+  { name: 'Sat', sales: 8500 },
+  { name: 'Sun', sales: 5900 },
 ];
 
-const topSelling = [
-  { name: 'Coca Cola 500ml', sold: 245 },
-  { name: 'Fresh Milk 1L', sold: 189 },
-  { name: 'White Bread', sold: 167 },
-  { name: 'Sugar 1kg', sold: 134 },
-  { name: 'Pepsi 330ml', sold: 112 },
+const weeklyData = [
+  { name: 'Week 1', sales: 12000 },
+  { name: 'Week 2', sales: 15000 },
+  { name: 'Week 3', sales: 9000 },
+  { name: 'Week 4', sales: 18000 },
 ];
 
-export default function ManagerDashboard() {
+const monthlyData = [
+  { name: 'January', sales: 42000 },
+  { name: 'February', sales: 38000 },
+  { name: 'March', sales: 45000 },
+  { name: 'April', sales: 47000 },
+  { name: 'May', sales: 52000 },
+  { name: 'June', sales: 49000 },
+  { name: 'July', sales: 53000 },
+  { name: 'August', sales: 55000 },
+  { name: 'September', sales: 50000 },
+  { name: 'October', sales: 57000 },
+  { name: 'November', sales: 60000 },
+  { name: 'December', sales: 65000 },
+];
+
+const topProducts = [
+  { name: 'Coca Cola 500ml', sold: 145, revenue: 3625 },
+  { name: 'Fresh Milk 1L', sold: 98, revenue: 5880 },
+  { name: 'White Bread', sold: 87, revenue: 1566 },
+  { name: 'Sugar 1kg', sold: 65, revenue: 5525 },
+  { name: 'Lays Chips', sold: 52, revenue: 2600 },
+];
+
+export default function OwnerDashboard() {
   const { t } = useTranslation();
-  const { getLowStockProducts, getExpiringProducts } = useProductStore();
-  
+  const [range, setRange] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+  const { products, getLowStockProducts, searchProducts } = useProductStore();
+  const [search, setSearch] = useState('');
+
+  const filteredProducts = search ? searchProducts(search) : products;
   const lowStock = getLowStockProducts();
-  const expiring = getExpiringProducts(7);
+  const chartData = range === 'daily' ? dailyData : range === 'weekly' ? weeklyData : monthlyData;
+
+  const stats = [
+    {
+      title: t('today_sales'),
+      value: '42,350',
+      change: '+12.5%',
+      trend: 'up',
+      icon: DollarSign,
+      color: 'text-primary',
+    },
+    {
+      title: 'Transactions',
+      value: '156',
+      change: '+8.2%',
+      trend: 'up',
+      icon: ShoppingCart,
+      color: 'text-success',
+    },
+    {
+      title: t('products'),
+      value: products.length.toString(),
+      change: `${lowStock.length} low`,
+      trend: 'down',
+      icon: Package,
+      color: 'text-warning',
+    },
+    {
+      title: t('profit'),
+      value: '15,420',
+      change: '+5.3%',
+      trend: 'up',
+      icon: TrendingUp,
+      color: 'text-chart-2',
+    },
+  ];
 
   return (
     <RoleLayout allowedRoles={['manager']}>
@@ -52,115 +120,97 @@ export default function ManagerDashboard() {
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold">{t('dashboard')}</h1>
-          <p className="text-muted-foreground">Monitor daily operations and team performance</p>
+          <p className="text-muted-foreground">Welcome back! Here's what's happening today.</p>
         </div>
 
-        {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{t('today_sales')}</p>
-                    <p className="text-2xl font-bold">42,350 {t('etb')}</p>
+        {/* Stats Grid */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {stats.map((stat, i) => (
+            <motion.div
+              key={stat.title}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+            >
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">{stat.title}</p>
+                      <p className="text-2xl font-bold mt-1">{stat.value} {stat.title.includes('Sales') || stat.title.includes('Profit') ? t('etb') : ''}</p>
+                      <div className="flex items-center gap-1 mt-1">
+                        {stat.trend === 'up' ? (
+                          <ArrowUpRight className="h-3 w-3 text-success" />
+                        ) : (
+                          <ArrowDownRight className="h-3 w-3 text-destructive" />
+                        )}
+                        <span className={`text-xs ${stat.trend === 'up' ? 'text-success' : 'text-destructive'}`}>
+                          {stat.change}
+                        </span>
+                      </div>
+                    </div>
+                    <div className={`p-3 rounded-xl bg-accent ${stat.color}`}>
+                      <stat.icon className="h-6 w-6" />
+                    </div>
                   </div>
-                  <div className="p-3 rounded-xl bg-primary/10 text-primary">
-                    <TrendingUp className="h-6 w-6" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Active Cashiers</p>
-                    <p className="text-2xl font-bold">4</p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-success/10 text-success">
-                    <Users className="h-6 w-6" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{t('low_stock')}</p>
-                    <p className="text-2xl font-bold">{lowStock.length}</p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-warning/10 text-warning">
-                    <AlertTriangle className="h-6 w-6" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{t('expiring_soon')}</p>
-                    <p className="text-2xl font-bold">{expiring.length}</p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-destructive/10 text-destructive">
-                    <Clock className="h-6 w-6" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
         </div>
 
         {/* Charts Row */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Cashier Performance */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          {/* Sales Chart */}
           <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
           >
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Crown className="h-5 w-5 text-warning" />
-                  Cashier Performance Today
-                </CardTitle>
+              <CardHeader className="flex items-center justify-between">
+                <CardTitle>{(range === 'daily' ? 'Daily' : range === 'monthly' ? 'Monthly' : 'Weekly') + ' Sales'}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" className={`${range === 'daily' ? 'bg-primary text-primary-foreground' : 'border border-border text-muted-foreground'} h-8 px-3`}
+                    onClick={() => setRange('daily')}>Daily</Button>
+                  <Button size="sm" className={`${range === 'weekly' ? 'bg-primary text-primary-foreground' : 'border border-border text-muted-foreground'} h-8 px-3`}
+                    onClick={() => setRange('weekly')}>Weekly</Button>
+                  <Button size="sm" className={`${range === 'monthly' ? 'bg-primary text-primary-foreground' : 'border border-border text-muted-foreground'} h-8 px-3`}
+                    onClick={() => setRange('monthly')}>Monthly</Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={cashierPerformance} layout="vertical">
+                    <LineChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis type="number" className="text-xs" tickFormatter={(v) => `${v / 1000}K`} />
-                      <YAxis dataKey="name" type="category" width={80} className="text-xs" />
+                      <XAxis dataKey="name" className="text-xs" />
+                      <YAxis className="text-xs" />
                       <Tooltip
                         contentStyle={{
                           backgroundColor: 'hsl(var(--card))',
                           border: '1px solid hsl(var(--border))',
                           borderRadius: '8px',
                         }}
-                        formatter={(value: number) => [`${value.toLocaleString()} ETB`, 'Sales']}
                       />
-                      <Bar dataKey="sales" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-                    </BarChart>
+                      <Line
+                        type="monotone"
+                        dataKey="sales"
+                        stroke="hsl(var(--primary))"
+                        strokeWidth={2}
+                        dot={{ fill: 'hsl(var(--primary))' }}
+                      />
+                    </LineChart>
                   </ResponsiveContainer>
                 </div>
               </CardContent>
             </Card>
           </motion.div>
 
-          {/* Top Selling Products */}
+          {/* Top Products */}
           <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
           >
             <Card>
@@ -168,96 +218,29 @@ export default function ManagerDashboard() {
                 <CardTitle>{t('top_selling')}</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {topSelling.map((product, index) => (
-                    <div key={product.name} className="flex items-center gap-4">
-                      <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-sm font-bold">
-                        {index + 1}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium">{product.name}</p>
-                        <div className="mt-1 h-2 rounded-full bg-muted overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${(product.sold / topSelling[0].sold) * 100}%` }}
-                            transition={{ delay: 0.6 + index * 0.1, duration: 0.5 }}
-                            className="h-full bg-primary rounded-full"
-                          />
-                        </div>
-                      </div>
-                      <Badge variant="secondary">{product.sold} sold</Badge>
-                    </div>
-                  ))}
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={topProducts} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis type="number" className="text-xs" />
+                      <YAxis dataKey="name" type="category" width={100} className="text-xs" />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                        }}
+                      />
+                      <Bar dataKey="sold" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               </CardContent>
             </Card>
           </motion.div>
         </div>
 
-        {/* Alerts */}
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Low Stock */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-          >
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-warning">
-                  <AlertTriangle className="h-5 w-5" />
-                  {t('low_stock')} Items
-                  <Badge variant="secondary" className="ml-auto">{lowStock.length}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {lowStock.slice(0, 4).map((product) => (
-                    <div key={product.id} className="flex items-center justify-between p-2 rounded-lg bg-accent/50">
-                      <span className="font-medium text-sm">{product.name}</span>
-                      <Badge variant="destructive">{product.supermarketQuantity} left</Badge>
-                    </div>
-                  ))}
-                  {lowStock.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-4">All items well stocked</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Expiring */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7 }}
-          >
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-destructive">
-                  <Clock className="h-5 w-5" />
-                  {t('expiring_soon')}
-                  <Badge variant="secondary" className="ml-auto">{expiring.length}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {expiring.slice(0, 4).map((product) => (
-                    <div key={product.id} className="flex items-center justify-between p-2 rounded-lg bg-accent/50">
-                      <span className="font-medium text-sm">{product.name}</span>
-                      <Badge variant="destructive">
-                        {product.expiryDate && new Date(product.expiryDate).toLocaleDateString()}
-                      </Badge>
-                    </div>
-                  ))}
-                  {expiring.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-4">No expiring items</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
+        
       </div>
     </RoleLayout>
   );
