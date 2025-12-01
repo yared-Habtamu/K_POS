@@ -1,4 +1,5 @@
-import React from 'react';
+// src/pages/admin/MartManagement.tsx
+import React, { useState } from 'react'; // ✅ Added useState
 import { RoleLayout } from '@/components/layout/RoleLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,10 +13,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { MoreHorizontal, CheckCircle, XCircle, Trash, Edit2 } from 'lucide-react';
+import { CheckCircle, XCircle, Trash, Edit2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-  type Shop = {
+type Shop = {
   id: string;
   name: string;
   owner: string;
@@ -38,13 +39,11 @@ const initialShops: Shop[] = [
   { id: '3', name: 'Addis Groceries', owner: 'Yonas Gebre', status: 'pending', sales: 0, users: 2, permissions: [], address: { country: 'Ethiopia', region: 'Amhara', city: 'Bahir Dar' } },
   { id: '4', name: 'Ethio Retail', owner: 'Tigist Haile', status: 'active', sales: 67890, users: 4, permissions: ['owner'], address: { country: 'Ethiopia', region: 'Tigray', city: 'Mekelle' } },
   { id: '5', name: 'Unity Store', owner: 'Dawit Tadesse', status: 'suspended', sales: 34500, users: 3, permissions: [], address: { country: 'Ethiopia', region: 'Southern Nations', city: 'Hawassa' } },
-  // Additional pending shops for testing
   { id: '6', name: 'Beta Mart', owner: 'Mesfin Alem', status: 'pending', sales: 0, users: 1, permissions: [], address: { country: 'Ethiopia', region: 'Gambela', city: 'Gambela' } },
   { id: '7', name: 'Gamma Grocers', owner: 'Lensa Kassa', status: 'pending', sales: 0, users: 2, permissions: [], address: { country: 'Ethiopia', region: 'Sidama', city: 'Dilla' } },
   { id: '8', name: 'Delta Supplies', owner: 'Fikru Solomon', status: 'pending', sales: 0, users: 1, permissions: [], address: { country: 'Ethiopia', region: 'Benishangul', city: 'Assosa' } },
   { id: '9', name: 'Epsilon Foods', owner: 'Helen Tadesse', status: 'pending', sales: 0, users: 3, permissions: [], address: { country: 'Ethiopia', region: 'Harari', city: 'Harar' } },
   { id: '10', name: 'Zeta Convenience', owner: 'Kebede Abiy', status: 'pending', sales: 0, users: 1, permissions: [], address: { country: 'Ethiopia', region: 'Somali', city: 'Jijiga' } },
-  // Five more pending shops
   { id: '11', name: 'Eta Market', owner: 'Martha Solomon', status: 'pending', sales: 0, users: 2, permissions: [], address: { country: 'Ethiopia', region: 'Afar', city: 'Semera' } },
   { id: '12', name: 'Theta Foods', owner: 'Samuel Mekonnen', status: 'pending', sales: 0, users: 1, permissions: [], address: { country: 'Ethiopia', region: 'Benishangul', city: 'Asosa' } },
   { id: '13', name: 'Iota Grocers', owner: 'Aster Yohannes', status: 'pending', sales: 0, users: 2, permissions: [], address: { country: 'Ethiopia', region: 'Sidama', city: 'Yirga Alem' } },
@@ -57,11 +56,8 @@ function loadShops(): Shop[] {
     const raw = localStorage.getItem(DEFAULT_KEY);
     if (!raw) return initialShops;
     const stored = (JSON.parse(raw) as Shop[]) || [];
-    // Merge seeded initialShops into stored entries, filling missing address fields
     const storedMap = new Map<string, Shop>(stored.map((s) => [s.id, s]));
 
-    // Build result preserving initialShops order, preferring stored values but
-    // filling missing nested address fields from the seeded initialShops.
     const merged: Shop[] = initialShops.map((seed) => {
       const existing = storedMap.get(seed.id);
       if (!existing) return seed;
@@ -78,7 +74,6 @@ function loadShops(): Shop[] {
       } as Shop;
     });
 
-    // Append any stored entries that were not in the seed list
     stored.forEach((s) => {
       if (!initialShops.find((seed) => seed.id === s.id)) merged.push(s);
     });
@@ -97,15 +92,43 @@ export default function MartManagement() {
   const [shops, setShops] = React.useState<Shop[]>(() => loadShops());
   const { toast } = useToast();
   const [filter, setFilter] = React.useState<'all' | 'active' | 'pending' | 'suspended' | 'rejected'>('all');
+  
+  // ✅ Pagination state
+  const [currentPage, setCurrentPage] = useState(1); // ✅ Now useState is available
+  const ITEMS_PER_PAGE = 7;
 
   const filteredShops = React.useMemo(() => {
     if (filter === 'all') return shops;
     return shops.filter((s) => s.status === filter);
   }, [shops, filter]);
 
+  // ✅ Pagination logic
+  const totalPages = Math.ceil(filteredShops.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedShops = filteredShops.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
   React.useEffect(() => {
     saveShops(shops);
   }, [shops]);
+
+  // ✅ Pagination handlers
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  const nextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const prevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
 
   const approveShop = (id: string) => {
     setShops((prev) =>
@@ -195,60 +218,111 @@ export default function MartManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredShops.map((shop) => (
-                    <TableRow key={shop.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-9 w-9">
-                            <AvatarFallback className="bg-primary/10 text-primary text-sm">{shop.name.charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium">{shop.name}</div>
-                            <div className="text-xs text-muted-foreground">{(shop.permissions||[]).join(', ') || 'No perms'}</div>
+                  {paginatedShops.length > 0 ? (
+                    paginatedShops.map((shop) => (
+                      <TableRow key={shop.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-9 w-9">
+                              <AvatarFallback className="bg-primary/10 text-primary text-sm">{shop.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="font-medium">{shop.name}</div>
+                              <div className="text-xs text-muted-foreground">{(shop.permissions||[]).join(', ') || 'No perms'}</div>
+                            </div>
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{shop.owner}</TableCell>
-                      <TableCell>
-                        {shop.status === 'active' && <Badge className="bg-success/10 text-success border-success/20"><CheckCircle className="w-3 h-3 mr-1"/> Active</Badge>}
-                        {shop.status === 'pending' && <Badge className="bg-warning/10 text-warning border-warning/20"><span className="mr-1">⏳</span> Pending</Badge>}
-                        {shop.status === 'suspended' && <Badge className="bg-destructive/10 text-destructive border-destructive/20"><XCircle className="w-3 h-3 mr-1"/> Suspended</Badge>}
-                        {shop.status === 'rejected' && <Badge className="bg-destructive/10 text-destructive border-destructive/20"><XCircle className="w-3 h-3 mr-1"/> Rejected</Badge>}
-                      </TableCell>
-                      <TableCell>
-                        {shop.address ? (
-                          <div className="text-sm">
-                            <div>{shop.address.city || '-'}</div>
-                            <div className="text-xs text-muted-foreground">{shop.address.region || '-'}, {shop.address.country || '-'}</div>
+                        </TableCell>
+                        <TableCell>{shop.owner}</TableCell>
+                        <TableCell>
+                          {shop.status === 'active' && <Badge className="bg-success/10 text-success border-success/20"><CheckCircle className="w-3 h-3 mr-1"/> Active</Badge>}
+                          {shop.status === 'pending' && <Badge className="bg-warning/10 text-warning border-warning/20"><span className="mr-1">⏳</span> Pending</Badge>}
+                          {shop.status === 'suspended' && <Badge className="bg-destructive/10 text-destructive border-destructive/20"><XCircle className="w-3 h-3 mr-1"/> Suspended</Badge>}
+                          {shop.status === 'rejected' && <Badge className="bg-destructive/10 text-destructive border-destructive/20"><XCircle className="w-3 h-3 mr-1"/> Rejected</Badge>}
+                        </TableCell>
+                        <TableCell>
+                          {shop.address ? (
+                            <div className="text-sm">
+                              <div>{shop.address.city || '-'}</div>
+                              <div className="text-xs text-muted-foreground">{shop.address.region || '-'}, {shop.address.country || '-'}</div>
+                            </div>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center"><Badge variant="outline">{shop.users}</Badge></TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {shop.status === 'pending' && (
+                              <>
+                                <Button size="sm" onClick={() => approveShop(shop.id)}>Approve</Button>
+                                <Button variant="ghost" size="sm" onClick={() => rejectShop(shop.id)}>Reject</Button>
+                              </>
+                            )}
+                            {shop.status === 'active' && (
+                              <Button variant="destructive" size="sm" onClick={() => suspendShop(shop.id)}>Suspend</Button>
+                            )}
+                            {shop.status === 'suspended' && (
+                              <Button size="sm" onClick={() => unsuspendShop(shop.id)}>Unsuspend</Button>
+                            )}
+                            <Button variant="ghost" size="sm" onClick={() => editShop(shop.id)}><Edit2 className="w-4 h-4"/></Button>
+                            <Button variant="destructive" size="sm" onClick={() => deleteShop(shop.id)}><Trash className="w-4 h-4"/></Button>
                           </div>
-                        ) : (
-                          '-'
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center"><Badge variant="outline">{shop.users}</Badge></TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {shop.status === 'pending' && (
-                            <>
-                              <Button size="sm" onClick={() => approveShop(shop.id)}>Approve</Button>
-                              <Button variant="ghost" size="sm" onClick={() => rejectShop(shop.id)}>Reject</Button>
-                            </>
-                          )}
-                          {shop.status === 'active' && (
-                            <Button variant="destructive" size="sm" onClick={() => suspendShop(shop.id)}>Suspend</Button>
-                          )}
-                          {shop.status === 'suspended' && (
-                            <Button size="sm" onClick={() => unsuspendShop(shop.id)}>Unsuspend</Button>
-                          )}
-                          <Button variant="ghost" size="sm" onClick={() => editShop(shop.id)}><Edit2 className="w-4 h-4"/></Button>
-                          <Button variant="destructive" size="sm" onClick={() => deleteShop(shop.id)}><Trash className="w-4 h-4"/></Button>
-                        </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
+                        No shops found
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )}
                 </TableBody>
               </Table>
             </div>
+
+            {/* ✅ PAGINATION CONTROLS */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between px-2 py-3 border-t border-border mt-4">
+                <div className="text-xs text-muted-foreground mb-2 sm:mb-0">
+                  Showing <span className="font-medium">{startIndex + 1}</span>–
+                  <span className="font-medium">{Math.min(startIndex + ITEMS_PER_PAGE, filteredShops.length)}</span> of 
+                  <span className="font-medium"> {filteredShops.length}</span> shops
+                </div>
+                
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={prevPage}
+                    disabled={currentPage === 1}
+                  >
+                    Prev
+                  </Button>
+                  
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? 'default' : 'outline'}
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => goToPage(page)}
+                    >
+                      {page}
+                    </Button>
+                  ))}
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={nextPage}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

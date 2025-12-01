@@ -1,6 +1,6 @@
+// src/pages/owner/ProductManagement.tsx
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { motion } from 'framer-motion';
 import { RoleLayout } from '@/components/layout/RoleLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,11 +39,12 @@ import {
   Edit,
   Trash2,
   Barcode,
-  Image as ImageIcon,
+  ImageIcon,
   Loader2,
 } from 'lucide-react';
 
 const units: ProductUnit[] = ['pcs', 'kg', 'g', 'l', 'ml', 'box'];
+const ITEMS_PER_PAGE = 7; // ✅ Set to 7 items per page
 
 export default function ProductManagement() {
   const { t } = useTranslation();
@@ -54,6 +55,7 @@ export default function ProductManagement() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1); // Pagination state
 
   const [form, setForm] = useState({
     name: '',
@@ -67,12 +69,18 @@ export default function ProductManagement() {
     barcode: '',
   });
 
+  // Filter products based on search and category
   const filteredProducts = products.filter(p => {
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.barcode?.includes(search);
     const matchCategory = categoryFilter === 'all' || p.category === categoryFilter;
     return matchSearch && matchCategory;
   });
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedProducts = filteredProducts.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   const resetForm = () => {
     setForm({
@@ -108,6 +116,10 @@ export default function ProductManagement() {
   const handleDelete = async (id: string) => {
     await deleteProduct(id);
     toast({ title: t('product_deleted') });
+    // Reset to page 1 if current page becomes empty
+    if (filteredProducts.length <= (currentPage - 1) * ITEMS_PER_PAGE && currentPage > 1) {
+      setCurrentPage(1);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -129,22 +141,47 @@ export default function ProductManagement() {
       shopId: 'shop-001',
     };
 
-    if (editingProduct) {
-      await updateProduct(editingProduct.id, productData);
-      toast({ title: t('product_updated') });
-    } else {
-      await addProduct(productData);
-      toast({ title: t('product_added') });
+    try {
+      if (editingProduct) {
+        await updateProduct(editingProduct.id, productData);
+        toast({ title: t('product_updated') });
+      } else {
+        await addProduct(productData);
+        toast({ title: t('product_added') });
+        setCurrentPage(1); // Reset to first page after adding
+      }
+    } catch (error) {
+      console.error('Save failed:', error);
+      toast({ title: 'Error saving product', variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+      setIsDialogOpen(false);
+      resetForm();
     }
-
-    setIsLoading(false);
-    setIsDialogOpen(false);
-    resetForm();
   };
 
   const generateBarcode = () => {
     const barcode = `${Date.now()}`.slice(-12);
     setForm({ ...form, barcode });
+  };
+
+  // Pagination handlers
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  const nextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const prevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
   };
 
   return (
@@ -347,43 +384,94 @@ export default function ProductManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredProducts.map((product) => (
-                    <TableRow key={product.id}>
-                      <TableCell>
-                        {product.pictureUrl ? (
-                          <img src={product.pictureUrl} alt="" className="w-10 h-10 rounded-lg object-cover" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                            <ImageIcon className="w-5 h-5 text-muted-foreground" />
+                  {paginatedProducts.length > 0 ? (
+                    paginatedProducts.map((product) => (
+                      <TableRow key={product.id}>
+                        <TableCell>
+                          {product.pictureUrl ? (
+                            <img src={product.pictureUrl} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                              <ImageIcon className="w-5 h-5 text-muted-foreground" />
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-medium">{product.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{product.category}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">{product.purchasePrice} ETB</TableCell>
+                        <TableCell className="text-right">{product.sellingPrice} ETB</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant={product.supermarketQuantity <= product.lowStockThreshold ? 'destructive' : 'secondary'}>
+                            {product.supermarketQuantity} {product.unit}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{product.barcode}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" onClick={() => handleEdit(product)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDelete(product.id)} className="text-destructive hover:text-destructive">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-medium">{product.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{product.category}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">{product.purchasePrice} ETB</TableCell>
-                      <TableCell className="text-right">{product.sellingPrice} ETB</TableCell>
-                      <TableCell className="text-right">
-                        <Badge variant={product.supermarketQuantity <= product.lowStockThreshold ? 'destructive' : 'secondary'}>
-                          {product.supermarketQuantity} {product.unit}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">{product.barcode}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(product)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(product.id)} className="text-destructive hover:text-destructive">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-4 text-muted-foreground">
+                        {search || categoryFilter !== 'all' 
+                          ? 'No products found' 
+                          : 'No products yet. Add your first product.'}
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )}
                 </TableBody>
               </Table>
+            </div>
+
+            {/* ✅ PAGINATION CONTROLS (ALWAYS VISIBLE) */}
+            <div className="flex flex-col sm:flex-row items-center justify-between px-2 py-3 border-t border-border">
+              <div className="text-xs text-muted-foreground mb-2 sm:mb-0">
+                Showing <span className="font-medium">{startIndex + 1}</span>–
+                <span className="font-medium">{Math.min(startIndex + ITEMS_PER_PAGE, filteredProducts.length)}</span> of 
+                <span className="font-medium"> {filteredProducts.length}</span> products
+              </div>
+              
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={prevPage}
+                  disabled={currentPage === 1}
+                >
+                  Prev
+                </Button>
+                
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  <Button
+                    key={page}
+                    variant={currentPage === page ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => goToPage(page)}
+                  >
+                    {page}
+                  </Button>
+                ))}
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={nextPage}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
