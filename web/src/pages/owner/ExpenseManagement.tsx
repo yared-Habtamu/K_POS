@@ -1,3 +1,4 @@
+// src/pages/owner/ExpenseManagement.tsx
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
@@ -58,14 +59,21 @@ const expenseCategories: { value: ExpenseCategory; label: string; icon: React.El
   { value: 'miscellaneous', label: 'miscellaneous', icon: MoreHorizontal, color: 'hsl(var(--muted-foreground))' },
 ];
 
-// Mock expenses
+// Mock expenses (added more for pagination testing)
 const mockExpenses: Expense[] = [
   { id: '1', category: 'salary', description: 'Staff salaries - November', amount: 48000, date: new Date(), shopId: 'shop-001', createdBy: 'owner-001', createdAt: new Date() },
   { id: '2', category: 'rent', description: 'Shop rent - November', amount: 25000, date: new Date(), shopId: 'shop-001', createdBy: 'owner-001', createdAt: new Date() },
   { id: '3', category: 'electricity', description: 'Electric bill', amount: 3500, date: new Date(), shopId: 'shop-001', createdBy: 'owner-001', createdAt: new Date() },
   { id: '4', category: 'water', description: 'Water bill', amount: 800, date: new Date(), shopId: 'shop-001', createdBy: 'owner-001', createdAt: new Date() },
   { id: '5', category: 'cleaning', description: 'Cleaning supplies', amount: 1200, date: new Date(), shopId: 'shop-001', createdBy: 'owner-001', createdAt: new Date() },
+  { id: '6', category: 'miscellaneous', description: 'Office supplies', amount: 750, date: new Date(), shopId: 'shop-001', createdBy: 'owner-001', createdAt: new Date() },
+  { id: '7', category: 'salary', description: 'Manager bonus', amount: 5000, date: new Date(), shopId: 'shop-001', createdBy: 'owner-001', createdAt: new Date() },
+  { id: '8', category: 'electricity', description: 'Generator fuel', amount: 2200, date: new Date(), shopId: 'shop-001', createdBy: 'owner-001', createdAt: new Date() },
+  { id: '9', category: 'rent', description: 'Storage unit rent', amount: 3000, date: new Date(), shopId: 'shop-001', createdBy: 'owner-001', createdAt: new Date() },
+  { id: '10', category: 'water', description: 'Bottled water', amount: 450, date: new Date(), shopId: 'shop-001', createdBy: 'owner-001', createdAt: new Date() },
 ];
+
+const ITEMS_PER_PAGE = 7; // ✅ 7 items per page
 
 export default function ExpenseManagement() {
   const { t } = useTranslation();
@@ -73,6 +81,7 @@ export default function ExpenseManagement() {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1); // ✅ Pagination state
 
   const [form, setForm] = useState({
     category: 'miscellaneous' as ExpenseCategory,
@@ -95,9 +104,18 @@ export default function ExpenseManagement() {
     color: cat.color,
   })).filter(item => item.value > 0);
 
+  // ✅ Pagination logic
+  const totalPages = Math.ceil(filteredExpenses.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedExpenses = filteredExpenses.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
   const handleDelete = (id: string) => {
     setExpenses(expenses.filter(e => e.id !== id));
     toast({ title: 'Expense deleted' });
+    // Reset to page 1 if current page becomes empty
+    if (filteredExpenses.length <= (currentPage - 1) * ITEMS_PER_PAGE && currentPage > 1) {
+      setCurrentPage(1);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -123,11 +141,31 @@ export default function ExpenseManagement() {
       amount: '',
       date: new Date().toISOString().split('T')[0],
     });
+    setCurrentPage(1); // Reset to first page after adding
   };
 
   const getCategoryIcon = (category: ExpenseCategory) => {
     const cat = expenseCategories.find(c => c.value === category);
     return cat?.icon || MoreHorizontal;
+  };
+
+  // ✅ Pagination handlers
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  const nextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const prevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
   };
 
   return (
@@ -348,30 +386,85 @@ export default function ExpenseManagement() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredExpenses.map((expense) => {
-                        const Icon = getCategoryIcon(expense.category);
-                        return (
-                          <TableRow key={expense.id}>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Icon className="h-4 w-4 text-muted-foreground" />
-                                <Badge variant="outline">{t(expense.category === 'salary' ? 'salary_expense' : expense.category)}</Badge>
-                              </div>
-                            </TableCell>
-                            <TableCell>{expense.description}</TableCell>
-                            <TableCell className="text-right font-medium">{expense.amount.toLocaleString()} ETB</TableCell>
-                            <TableCell>{format(new Date(expense.date), 'MMM dd, yyyy')}</TableCell>
-                            <TableCell className="text-right">
-                              <Button variant="ghost" size="icon" onClick={() => handleDelete(expense.id)} className="text-destructive hover:text-destructive">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
+                      {paginatedExpenses.length > 0 ? (
+                        paginatedExpenses.map((expense) => {
+                          const Icon = getCategoryIcon(expense.category);
+                          return (
+                            <TableRow key={expense.id}>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Icon className="h-4 w-4 text-muted-foreground" />
+                                  <Badge variant="outline">
+                                    {t(expense.category === 'salary' ? 'salary_expense' : expense.category)}
+                                  </Badge>
+                                </div>
+                              </TableCell>
+                              <TableCell>{expense.description}</TableCell>
+                              <TableCell className="text-right font-medium">{expense.amount.toLocaleString()} ETB</TableCell>
+                              <TableCell>{format(new Date(expense.date), 'MMM dd, yyyy')}</TableCell>
+                              <TableCell className="text-right">
+                                <Button variant="ghost" size="icon" onClick={() => handleDelete(expense.id)} className="text-destructive hover:text-destructive">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
+                            {search || categoryFilter !== 'all' 
+                              ? 'No expenses found' 
+                              : 'No expenses recorded yet.'}
+                          </TableCell>
+                        </TableRow>
+                      )}
                     </TableBody>
                   </Table>
                 </div>
+
+                {/* ✅ PAGINATION CONTROLS */}
+                {totalPages > 1 && (
+                  <div className="flex flex-col sm:flex-row items-center justify-between px-2 py-3 border-t border-border mt-4">
+                    <div className="text-xs text-muted-foreground mb-2 sm:mb-0">
+                      Showing <span className="font-medium">{startIndex + 1}</span>–
+                      <span className="font-medium">{Math.min(startIndex + ITEMS_PER_PAGE, filteredExpenses.length)}</span> of 
+                      <span className="font-medium"> {filteredExpenses.length}</span> expenses
+                    </div>
+                    
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={prevPage}
+                        disabled={currentPage === 1}
+                      >
+                        Prev
+                      </Button>
+                      
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                        <Button
+                          key={page}
+                          variant={currentPage === page ? 'default' : 'outline'}
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => goToPage(page)}
+                        >
+                          {page}
+                        </Button>
+                      ))}
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={nextPage}
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>

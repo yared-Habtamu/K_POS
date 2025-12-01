@@ -23,6 +23,7 @@ import EmployeeManagement from "./pages/owner/EmployeeManagement";
 import ExpenseManagement from "./pages/owner/ExpenseManagement";
 import OwnerSettings from "./pages/owner/Settings";
 import Inventory from "./pages/Inventory";
+import OwnerAssets from "./pages/manager/Assets";
 
 // Manager Pages
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
@@ -63,7 +64,8 @@ const App = () => (
           <Route path="/owner/alerts" element={<OwnerAlerts />} />
           <Route path="/owner/settings" element={<OwnerSettings />} />
           <Route path="/owner/reports" element={<ReportPage />} />
-          
+          <Route path="/owner/assets" element={<OwnerAssets />} />
+
           {/* Manager Routes */}
           <Route path="/manager" element={<ManagerDashboard />} />
           <Route path="/manager/employees" element={<MEmployeeManagement />} />

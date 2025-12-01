@@ -1,5 +1,6 @@
 // src/pages/ReportPage.tsx
 import React, { useState, useMemo } from 'react';
+import { RoleLayout } from '@/components/layout/RoleLayout'; // ✅ Added
 import {
   BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -86,7 +87,6 @@ const getMockProducts = (base: number) => [
 
 // ===== HARD-CODED MOCK DATA BY PERIOD =====
 const getMockData = (period: string, startDate: string, endDate: string) => {
-  // For simplicity, we'll vary totals by period
   const base = {
     daily: 1,
     weekly: 7,
@@ -95,7 +95,6 @@ const getMockData = (period: string, startDate: string, endDate: string) => {
   }[period];
 
   return {
-    // 1. Sales Reports
     totalSales: (24560.75 * base).toFixed(2),
     totalOrders: Math.floor(328 * base),
     totalItemsSold: Math.floor(892 * base),
@@ -111,30 +110,22 @@ const getMockData = (period: string, startDate: string, endDate: string) => {
       mobile: (2890.25 * base).toFixed(2),
       credit: (612.0 * base).toFixed(2),
     },
-
-    // 2. Top Products
     topProducts: [
       { name: 'Coffee Latte', sold: Math.floor(120 * base), revenue: (2400 * base).toFixed(2) },
       { name: 'Cheeseburger', sold: Math.floor(98 * base), revenue: (1960 * base).toFixed(2) },
       { name: 'Iced Tea', sold: Math.floor(87 * base), revenue: (870 * base).toFixed(2) },
       { name: 'Fries', sold: Math.floor(76 * base), revenue: (570 * base).toFixed(2) },
     ],
-
-    // 3. Financial
     revenue: (24560.75 * base).toFixed(2),
     cogs: (8500 * base).toFixed(2),
     grossProfit: (16060.75 * base).toFixed(2),
     grossMargin: 65.4,
     netProfit: (12340.25 * base).toFixed(2),
-
-    // 4. Tax
     totalTax: (2210.47 * base).toFixed(2),
     taxByCategory: [
       { category: 'Food', tax: (1450 * base).toFixed(2) },
       { category: 'Beverages', tax: (760.47 * base).toFixed(2) },
     ],
-
-    // 5. Products (for Excel export)
     products: getMockProducts(base),
   };
 };
@@ -146,7 +137,6 @@ const ReportPage: React.FC = () => {
     end: '2025-11-30'
   });
 
-  // Get formatted date range string for display & export
   const getDateRangeLabel = () => {
     const today = new Date();
     const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric' };
@@ -177,7 +167,6 @@ const ReportPage: React.FC = () => {
     const wb = XLSX.utils.book_new();
     const dateLabel = getDateRangeLabel();
 
-    // Business Info Sheet
     const businessInfo = [
       ['SMART SUPERMARKET'],
       ['Bole Road, Addis Ababa, Ethiopia'],
@@ -190,7 +179,6 @@ const ReportPage: React.FC = () => {
     const infoWS = XLSX.utils.aoa_to_sheet(businessInfo);
     XLSX.utils.book_append_sheet(wb, infoWS, 'Business Info');
 
-    // Sales Summary
     const salesData = [
       { Metric: 'Report Period', Value: dateLabel },
       { Metric: 'Total Sales', Value: `$${data.totalSales}` },
@@ -206,7 +194,6 @@ const ReportPage: React.FC = () => {
     const salesWS = XLSX.utils.json_to_sheet(salesData);
     XLSX.utils.book_append_sheet(wb, salesWS, '1. Sales Summary');
 
-    // Payment Methods
     const paymentsWS = XLSX.utils.json_to_sheet([
       { Method: 'Cash', Amount: `$${data.paymentMethods.cash}` },
       { Method: 'Card', Amount: `$${data.paymentMethods.card}` },
@@ -215,7 +202,6 @@ const ReportPage: React.FC = () => {
     ]);
     XLSX.utils.book_append_sheet(wb, paymentsWS, '1b. Payment Methods');
 
-    // Top Products
     const productsWS = XLSX.utils.json_to_sheet(
       data.topProducts.map(p => ({
         Product: p.name,
@@ -225,7 +211,6 @@ const ReportPage: React.FC = () => {
     );
     XLSX.utils.book_append_sheet(wb, productsWS, '2. Top Products');
 
-    // 🆕 DETAILED INVENTORY SHEET
     const inventoryWS = XLSX.utils.json_to_sheet(
       data.products.map(p => ({
         'Product Name': p.name,
@@ -240,7 +225,6 @@ const ReportPage: React.FC = () => {
     );
     XLSX.utils.book_append_sheet(wb, inventoryWS, '3. Detailed Inventory');
 
-    // Financial
     const financialWS = XLSX.utils.json_to_sheet([
       { Metric: 'Revenue', Value: `$${data.revenue}` },
       { Metric: 'COGS', Value: `$${data.cogs}` },
@@ -250,7 +234,6 @@ const ReportPage: React.FC = () => {
     ]);
     XLSX.utils.book_append_sheet(wb, financialWS, '4. Financial');
 
-    // Tax
     const taxWS = XLSX.utils.json_to_sheet([
       { Metric: 'Total Tax Collected', Value: `$${data.totalTax}` },
     ]);
@@ -268,11 +251,6 @@ const ReportPage: React.FC = () => {
     const dateLabel = getDateRangeLabel();
     const pageWidth = doc.internal.pageSize.width;
 
-    // ======================
-    // 🏪 BUSINESS HEADER
-    // ======================
-    
-    // Business Information - CUSTOMIZE THESE VALUES
     const businessInfo = {
       name: "SMART SUPERMARKET",
       address: "Bole Road, Addis Ababa, Ethiopia",
@@ -282,16 +260,13 @@ const ReportPage: React.FC = () => {
       website: "www.smartsupermarket.et"
     };
 
-    // Position settings
     const leftMargin = 14;
     const headerY = 20;
 
-    // Business Name
     doc.setFontSize(20);
     doc.setFont('helvetica', 'bold');
     doc.text(businessInfo.name, pageWidth / 2, headerY, { align: 'center' });
 
-    // Business Details (address, phone, etc.)
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     const detailsY = headerY + 8;
@@ -302,31 +277,23 @@ const ReportPage: React.FC = () => {
     doc.text(businessInfo.email, pageWidth / 2, detailsY + (lineHeight * 2), { align: 'center' });
     doc.text(businessInfo.website, pageWidth / 2, detailsY + (lineHeight * 3), { align: 'center' });
     
-    // Tax ID (highlighted)
     doc.setFont('helvetica', 'bold');
     doc.text(businessInfo.taxId, pageWidth / 2, detailsY + (lineHeight * 4), { align: 'center' });
 
-    // Report Title
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.text('SALES REPORT', pageWidth / 2, detailsY + (lineHeight * 6), { align: 'center' });
 
-    // Date Range
     doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
     doc.text(`Period: ${dateLabel}`, pageWidth / 2, detailsY + (lineHeight * 7.5), { align: 'center' });
 
-    // Decorative line
     doc.setDrawColor(32, 191, 107);
     doc.setLineWidth(0.5);
     doc.line(leftMargin, detailsY + (lineHeight * 8.5), pageWidth - leftMargin, detailsY + (lineHeight * 8.5));
 
-    // ======================
-    // 📊 REPORT CONTENT
-    // ======================
     const contentStartY = detailsY + (lineHeight * 9.5);
 
-    // Sales Summary Table
     autoTable(doc, {
       startY: contentStartY,
       head: [['Metric', 'Value']],
@@ -357,7 +324,6 @@ const ReportPage: React.FC = () => {
       }
     });
 
-    // Top Products
     autoTable(doc, {
       startY: (doc as any).lastAutoTable.finalY + 10,
       head: [['Product', 'Units Sold', 'Revenue']],
@@ -374,7 +340,6 @@ const ReportPage: React.FC = () => {
       }
     });
 
-    // Tax Summary
     autoTable(doc, {
       startY: (doc as any).lastAutoTable.finalY + 10,
       head: [['Category', 'Tax Amount']],
@@ -393,32 +358,25 @@ const ReportPage: React.FC = () => {
         cellPadding: 6
       },
       didParseCell: function(data) {
-        // Bold the Total row
         if (data.row.index === data.table.body.length - 1) {
           doc.setFont('helvetica', 'bold');
         }
       }
     });
 
-    // ======================
-    // 📄 FOOTER
-    // ======================
     const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       const pageHeight = doc.internal.pageSize.height;
       
-      // Footer line
       doc.setDrawColor(200, 200, 200);
       doc.line(leftMargin, pageHeight - 20, pageWidth - leftMargin, pageHeight - 20);
       
-      // Footer text
       doc.setFontSize(8);
       doc.setTextColor(100, 100, 100);
       doc.text('Smart POS System • Generated automatically', leftMargin, pageHeight - 15);
       doc.text(`Page ${i} of ${pageCount}`, pageWidth - leftMargin, pageHeight - 15, { align: 'right' });
       
-      // Business contact info in footer
       doc.text(`${businessInfo.phone} • ${businessInfo.email}`, pageWidth / 2, pageHeight - 15, { align: 'center' });
     }
 
@@ -427,157 +385,160 @@ const ReportPage: React.FC = () => {
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
+  // ✅ Wrap entire content in RoleLayout (like your Inventory page)
   return (
-    <div className="max-w-7xl mx-auto w-full">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Sales Reports</h1>
-          <p className="text-muted-foreground text-sm mt-1">Period: {getDateRangeLabel()}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={exportToExcel}
-            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition text-sm"
-          >
-            Export to Excel
-          </button>
-          <button
-            onClick={exportToPDF}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition text-sm"
-          >
-            Export to PDF
-          </button>
-        </div>
-      </div>
-
-      {/* Period Selector */}
-      <div className="bg-card p-4 rounded-xl border mb-6">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="text-sm font-medium text-foreground">Report Period:</span>
-          
-          {(['daily', 'weekly', 'monthly', 'custom'] as const).map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
-                period === p
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-secondary text-secondary-foreground hover:bg-accent'
-              }`}
-            >
-              {p.charAt(0).toUpperCase() + p.slice(1)}
-            </button>
-          ))}
-
-          {period === 'custom' && (
-            <div className="flex flex-wrap items-center gap-2 ml-2">
-              <input
-                type="date"
-                value={customDates.start}
-                onChange={(e) => setCustomDates({ ...customDates, start: e.target.value })}
-                className="border rounded px-2 py-1 text-sm bg-background"
-              />
-              <span className="text-muted-foreground">to</span>
-              <input
-                type="date"
-                value={customDates.end}
-                onChange={(e) => setCustomDates({ ...customDates, end: e.target.value })}
-                className="border rounded px-2 py-1 text-sm bg-background"
-              />
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        {[
-          { title: 'Total Sales', value: `$${data.totalSales}` },
-          { title: 'Total Orders', value: data.totalOrders },
-          { title: 'Avg Order', value: `$${data.avgOrderValue}` },
-          { title: 'Gross Profit', value: `$${data.grossProfit}` },
-        ].map((item, i) => (
-          <div key={i} className="bg-card p-4 rounded-xl border">
-            <p className="text-muted-foreground text-sm">{item.title}</p>
-            <p className="text-lg font-bold text-foreground">{item.value}</p>
+    <RoleLayout allowedRoles={['owner', 'manager']}> {/* Adjust roles as needed */}
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Sales Reports</h1>
+            <p className="text-muted-foreground text-sm mt-1">Period: {getDateRangeLabel()}</p>
           </div>
-        ))}
-      </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={exportToExcel}
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition text-sm"
+            >
+              Export to Excel
+            </button>
+            <button
+              onClick={exportToPDF}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition text-sm"
+            >
+              Export to PDF
+            </button>
+          </div>
+        </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Payment Methods */}
+        {/* Period Selector */}
         <div className="bg-card p-4 rounded-xl border">
-          <h2 className="text-lg font-semibold mb-4 text-foreground">Payment Methods</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={[
-                  { name: 'Cash', value: parseFloat(data.paymentMethods.cash) },
-                  { name: 'Card', value: parseFloat(data.paymentMethods.card) },
-                  { name: 'Mobile', value: parseFloat(data.paymentMethods.mobile) },
-                  { name: 'Credit', value: parseFloat(data.paymentMethods.credit) },
-                ]}
-                cx="50%"
-                cy="50%"
-                outerRadius={80}
-                dataKey="value"
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-medium text-foreground">Report Period:</span>
+            
+            {(['daily', 'weekly', 'monthly', 'custom'] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                  period === p
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-secondary-foreground hover:bg-accent'
+                }`}
               >
-                {COLORS.map((color, i) => (
-                  <Cell key={`cell-${i}`} fill={color} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value) => [`$${value}`, 'Amount']} />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
+                {p.charAt(0).toUpperCase() + p.slice(1)}
+              </button>
+            ))}
+
+            {period === 'custom' && (
+              <div className="flex flex-wrap items-center gap-2 ml-2">
+                <input
+                  type="date"
+                  value={customDates.start}
+                  onChange={(e) => setCustomDates({ ...customDates, start: e.target.value })}
+                  className="border rounded px-2 py-1 text-sm bg-background"
+                />
+                <span className="text-muted-foreground">to</span>
+                <input
+                  type="date"
+                  value={customDates.end}
+                  onChange={(e) => setCustomDates({ ...customDates, end: e.target.value })}
+                  className="border rounded px-2 py-1 text-sm bg-background"
+                />
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Top Products */}
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { title: 'Total Sales', value: `$${data.totalSales}` },
+            { title: 'Total Orders', value: data.totalOrders },
+            { title: 'Avg Order', value: `$${data.avgOrderValue}` },
+            { title: 'Gross Profit', value: `$${data.grossProfit}` },
+          ].map((item, i) => (
+            <div key={i} className="bg-card p-4 rounded-xl border">
+              <p className="text-muted-foreground text-sm">{item.title}</p>
+              <p className="text-lg font-bold text-foreground">{item.value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Payment Methods */}
+          <div className="bg-card p-4 rounded-xl border">
+            <h2 className="text-lg font-semibold mb-4 text-foreground">Payment Methods</h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: 'Cash', value: parseFloat(data.paymentMethods.cash) },
+                    { name: 'Card', value: parseFloat(data.paymentMethods.card) },
+                    { name: 'Mobile', value: parseFloat(data.paymentMethods.mobile) },
+                    { name: 'Credit', value: parseFloat(data.paymentMethods.credit) },
+                  ]}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  dataKey="value"
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                >
+                  {COLORS.map((color, i) => (
+                    <Cell key={`cell-${i}`} fill={color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => [`$${value}`, 'Amount']} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Top Products */}
+          <div className="bg-card p-4 rounded-xl border">
+            <h2 className="text-lg font-semibold mb-4 text-foreground">Top Selling Products</h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={data.topProducts}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                <XAxis dataKey="name" stroke="#666" />
+                <YAxis stroke="#666" />
+                <Tooltip formatter={(value) => [`$${value}`, 'Revenue']} />
+                <Legend />
+                <Bar dataKey="revenue" fill="#10b981" name="Revenue ($)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Tax Table */}
         <div className="bg-card p-4 rounded-xl border">
-          <h2 className="text-lg font-semibold mb-4 text-foreground">Top Selling Products</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={data.topProducts}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-              <XAxis dataKey="name" stroke="#666" />
-              <YAxis stroke="#666" />
-              <Tooltip formatter={(value) => [`$${value}`, 'Revenue']} />
-              <Legend />
-              <Bar dataKey="revenue" fill="#10b981" name="Revenue ($)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Tax Table */}
-      <div className="bg-card p-4 rounded-xl border">
-        <h2 className="text-lg font-semibold mb-4 text-foreground">Tax Summary</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="border-b">
-                <th className="text-left py-2 text-muted-foreground">Category</th>
-                <th className="text-right py-2 text-muted-foreground">Tax Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.taxByCategory.map((item, i) => (
-                <tr key={i} className="border-b border-border last:border-0 hover:bg-accent/30">
-                  <td className="py-3">{item.category}</td>
-                  <td className="py-3 text-right font-medium">${item.tax}</td>
+          <h2 className="text-lg font-semibold mb-4 text-foreground">Tax Summary</h2>
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 text-muted-foreground">Category</th>
+                  <th className="text-right py-2 text-muted-foreground">Tax Amount</th>
                 </tr>
-              ))}
-              <tr className="font-bold bg-accent/20">
-                <td className="py-3">Total</td>
-                <td className="py-3 text-right">${data.totalTax}</td>
-              </tr>
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {data.taxByCategory.map((item, i) => (
+                  <tr key={i} className="border-b border-border last:border-0 hover:bg-accent/30">
+                    <td className="py-3">{item.category}</td>
+                    <td className="py-3 text-right font-medium">${item.tax}</td>
+                  </tr>
+                ))}
+                <tr className="font-bold bg-accent/20">
+                  <td className="py-3">Total</td>
+                  <td className="py-3 text-right">${data.totalTax}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-    </div>
+    </RoleLayout>
   );
 };
 

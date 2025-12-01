@@ -1,4 +1,4 @@
-// src/pages/employees/OwnerEmployeeManagement.tsx
+// src/pages/owner/EmployeeManagement.tsx
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RoleLayout } from '@/components/layout/RoleLayout';
@@ -42,8 +42,15 @@ import {
   Phone,
   DollarSign,
   UserCog,
+  Download,
+  FileText,
+  Calendar,
 } from 'lucide-react';
 import type { UserRole } from '@/types';
+
+// ✅ PDF Dependencies (install: npm install jspdf html2canvas)
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 // Owner can assign any role
 const mockEmployees = [
@@ -56,6 +63,17 @@ const mockEmployees = [
 
 const ALL_ROLES: UserRole[] = ['manager', 'cashier', 'store_keeper'];
 
+type AttendanceRecord = {
+  id: string;
+  employeeId: string;
+  clockIn: string; // ISO
+  clockOut: string | null;
+  durationMinutes: number | null;
+  date: string; // YYYY-MM-DD
+};
+
+const ITEMS_PER_PAGE = 7; // ✅ 7 items per page
+
 export default function OwnerEmployeeManagement() {
   const { t } = useTranslation();
 
@@ -64,6 +82,10 @@ export default function OwnerEmployeeManagement() {
   const [roleFilter, setRoleFilter] = useState('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
+
+  // Attendance state
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [activeTab, setActiveTab] = useState<'employees' | 'attendance'>('employees');
 
   // Permission state
   const [permissions, setPermissions] = useState<Record<string, Record<string, boolean>>>(() => {
@@ -86,13 +108,29 @@ export default function OwnerEmployeeManagement() {
     password: '',
   });
 
+  // Attendance filter
+  const [attendanceFilter, setAttendanceFilter] = useState({
+    employeeId: 'all',
+    dateRange: 'today' as 'today' | 'this-week' | 'this-month' | 'custom',
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0],
+  });
+
+  // Manual entry form
+  const [manualEntry, setManualEntry] = useState({
+    employeeId: '',
+    date: new Date().toISOString().split('T')[0],
+    clockIn: '',
+    clockOut: '',
+  });
+
   const filteredEmployees = employees.filter((e) => {
     const matchSearch = e.name.toLowerCase().includes(search.toLowerCase()) || e.phone.includes(search);
     const matchRole = roleFilter === 'all' || e.role === roleFilter;
     return matchSearch && matchRole;
   });
 
-  // Initialize permissions when employees change
+  // Initialize permissions
   useEffect(() => {
     const initial: Record<string, Record<string, boolean>> = {};
     filteredEmployees.forEach(emp => {
@@ -124,7 +162,6 @@ export default function OwnerEmployeeManagement() {
 
   const handleDelete = (id: string) => {
     setEmployees(employees.filter((e) => e.id !== id));
-    // Clean up permissions
     setPermissions(prev => {
       const newPerms = { ...prev };
       delete newPerms[id];
@@ -158,7 +195,6 @@ export default function OwnerEmployeeManagement() {
         status: 'active' as const,
       };
       setEmployees([...employees, newEmployee]);
-      // Initialize new employee permissions
       setPermissions(prev => {
         const newPerms = { ...prev };
         if (newEmployee.role === 'manager') {
@@ -175,6 +211,7 @@ export default function OwnerEmployeeManagement() {
     resetForm();
   };
 
+  // ✅ Added handleClockIn (even if not used, to avoid error)
   const handleClockIn = (id: string) => {
     toast({ title: 'Clocked In', description: 'Attendance recorded' });
   };
@@ -212,256 +249,846 @@ export default function OwnerEmployeeManagement() {
     }
   };
 
-  // Group employees by role for permission sections
+  // Group employees
   const managers = filteredEmployees.filter(e => e.role === 'manager');
   const storeKeepers = filteredEmployees.filter(e => e.role === 'store_keeper');
   const cashiers = filteredEmployees.filter(e => e.role === 'cashier');
 
+  // ===== PAGINATION FOR EMPLOYEES =====
+  const [employeePage, setEmployeePage] = useState(1);
+  const employeeTotalPages = Math.ceil(filteredEmployees.length / ITEMS_PER_PAGE);
+  const employeeStartIndex = (employeePage - 1) * ITEMS_PER_PAGE;
+  const paginatedEmployees = filteredEmployees.slice(employeeStartIndex, employeeStartIndex + ITEMS_PER_PAGE);
+
+  const goToEmployeePage = (page: number) => {
+    if (page >= 1 && page <= employeeTotalPages) {
+      setEmployeePage(page);
+    }
+  };
+
+  const nextEmployeePage = () => {
+    if (employeePage < employeeTotalPages) {
+      setEmployeePage(employeePage + 1);
+    }
+  };
+
+  const prevEmployeePage = () => {
+    if (employeePage > 1) {
+      setEmployeePage(employeePage - 1);
+    }
+  };
+
+  // ===== ATTENDANCE FUNCTIONS =====
+
+  const filteredAttendance = attendance.filter(record => {
+    let include = true;
+
+    if (attendanceFilter.employeeId !== 'all') {
+      include = record.employeeId === attendanceFilter.employeeId;
+    }
+
+    const start = new Date(attendanceFilter.startDate);
+    const end = new Date(attendanceFilter.endDate);
+
+    switch (attendanceFilter.dateRange) {
+      case 'today': {
+        const todayStr = new Date().toISOString().split('T')[0];
+        include = record.date === todayStr;
+        break;
+      }
+      case 'this-week': {
+        const now = new Date();
+        const firstDayOfWeek = new Date(now);
+        firstDayOfWeek.setDate(now.getDate() - now.getDay());
+        const lastDayOfWeek = new Date(firstDayOfWeek);
+        lastDayOfWeek.setDate(firstDayOfWeek.getDate() + 6);
+        const recordDate = new Date(record.date);
+        include = recordDate >= firstDayOfWeek && recordDate <= lastDayOfWeek;
+        break;
+      }
+      case 'this-month': {
+        const year = new Date().getFullYear();
+        const month = new Date().getMonth();
+        const recordDate = new Date(record.date);
+        include = recordDate.getFullYear() === year && recordDate.getMonth() === month;
+        break;
+      }
+      case 'custom': {
+        const recordDate = new Date(record.date);
+        include = recordDate >= start && recordDate <= end;
+        break;
+      }
+    }
+
+    return include;
+  });
+
+  // ===== PAGINATION FOR ATTENDANCE =====
+  const [attendancePage, setAttendancePage] = useState(1);
+  const attendanceTotalPages = Math.ceil(filteredAttendance.length / ITEMS_PER_PAGE);
+  const attendanceStartIndex = (attendancePage - 1) * ITEMS_PER_PAGE;
+  const paginatedAttendance = filteredAttendance.slice(attendanceStartIndex, attendanceStartIndex + ITEMS_PER_PAGE);
+
+  const goToAttendancePage = (page: number) => {
+    if (page >= 1 && page <= attendanceTotalPages) {
+      setAttendancePage(page);
+    }
+  };
+
+  const nextAttendancePage = () => {
+    if (attendancePage < attendanceTotalPages) {
+      setAttendancePage(attendancePage + 1);
+    }
+  };
+
+  const prevAttendancePage = () => {
+    if (attendancePage > 1) {
+      setAttendancePage(attendancePage - 1);
+    }
+  };
+
+  const handleSaveManualAttendance = () => {
+    const { employeeId, date, clockIn, clockOut } = manualEntry;
+
+    if (!employeeId || !date || !clockIn || !clockOut) {
+      toast({ title: 'Please fill all fields' });
+      return;
+    }
+
+    const clockInDate = new Date(`${date}T${clockIn}`);
+    const clockOutDate = new Date(`${date}T${clockOut}`);
+
+    if (clockOutDate <= clockInDate) {
+      toast({ title: 'Invalid Time', description: 'Clock-out must be after clock-in.' });
+      return;
+    }
+
+    const durationMs = clockOutDate.getTime() - clockInDate.getTime();
+    const durationMinutes = Math.round(durationMs / 60000);
+
+    const newRecord: AttendanceRecord = {
+      id: Date.now().toString(),
+      employeeId,
+      clockIn: clockInDate.toISOString(),
+      clockOut: clockOutDate.toISOString(),
+      durationMinutes,
+      date,
+    };
+
+    setAttendance(prev => [...prev, newRecord]);
+    toast({ title: 'Attendance Saved', description: 'Manual entry saved successfully.' });
+
+    setManualEntry({
+      employeeId: '',
+      date: new Date().toISOString().split('T')[0],
+      clockIn: '',
+      clockOut: '',
+    });
+  };
+
+  const exportAttendanceToCSV = () => {
+    if (filteredAttendance.length === 0) {
+      toast({ title: 'No attendance data to export' });
+      return;
+    }
+
+    const headers = ['Employee Name', 'Date', 'Clock In', 'Clock Out', 'Duration (min)'];
+    const rows = filteredAttendance.map(rec => {
+      const emp = employees.find(e => e.id === rec.employeeId);
+      const inTime = new Date(rec.clockIn).toLocaleString();
+      const outTime = rec.clockOut ? new Date(rec.clockOut).toLocaleString() : '—';
+      return `"${emp?.name || 'Unknown'}", "${rec.date}", "${inTime}", "${outTime}", "${rec.durationMinutes ?? '—'}"`;
+    });
+
+    const csvContent = [headers.join(' '), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `attendance_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const exportAttendanceToPDF = async () => {
+    if (filteredAttendance.length === 0) {
+      toast({ title: 'No attendance data to export' });
+      return;
+    }
+
+    const pdfContent = document.createElement('div');
+    pdfContent.style.padding = '20px';
+    pdfContent.style.width = '800px';
+    pdfContent.style.fontFamily = 'Arial, sans-serif';
+    pdfContent.style.fontSize = '14px';
+
+    const title = document.createElement('h2');
+    title.textContent = 'Attendance Report';
+    title.style.textAlign = 'center';
+    title.style.marginBottom = '20px';
+    title.style.color = '#1f2937';
+    pdfContent.appendChild(title);
+
+    const totalRecords = filteredAttendance.length;
+    const totalHours = filteredAttendance.reduce((sum, rec) => sum + (rec.durationMinutes || 0), 0) / 60;
+    const avgHours = totalRecords > 0 ? (totalHours / totalRecords).toFixed(1) : '0';
+
+    const summary = document.createElement('div');
+    summary.innerHTML = `
+      <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+        <div style="background: #ecfdf5; padding: 12px; border-radius: 8px; flex: 1; border: 1px solid #a7f3d0;">
+          <div style="font-size: 12px; color: #065f46; font-weight: 600;">TOTAL RECORDS</div>
+          <div style="font-size: 28px; font-weight: bold; color: #065f46; margin-top: 4px;">${totalRecords}</div>
+        </div>
+        <div style="background: #fef2f2; padding: 12px; border-radius: 8px; flex: 1; border: 1px solid #fecaca;">
+          <div style="font-size: 12px; color: #b91c1c; font-weight: 600;">TOTAL HOURS</div>
+          <div style="font-size: 28px; font-weight: bold; color: #b91c1c; margin-top: 4px;">${totalHours.toFixed(1)}h</div>
+        </div>
+        <div style="background: #f3f4f6; padding: 12px; border-radius: 8px; flex: 1; border: 1px solid #d1d5db;">
+          <div style="font-size: 12px; color: #4b5563; font-weight: 600;">AVG PER DAY</div>
+          <div style="font-size: 28px; font-weight: bold; color: #4b5563; margin-top: 4px;">${avgHours}h</div>
+        </div>
+      </div>
+    `;
+    pdfContent.appendChild(summary);
+
+    const table = document.createElement('table');
+    table.style.width = '100%';
+    table.style.borderCollapse = 'collapse';
+    table.style.marginTop = '20px';
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left; background: #f9fafb; font-weight: 600;">Employee</th>
+          <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left; background: #f9fafb; font-weight: 600;">Date</th>
+          <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left; background: #f9fafb; font-weight: 600;">Clock In</th>
+          <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left; background: #f9fafb; font-weight: 600;">Clock Out</th>
+          <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left; background: #f9fafb; font-weight: 600;">Duration</th>
+        </tr>
+      </thead>
+    `;
+
+    const tbody = document.createElement('tbody');
+    if (filteredAttendance.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: #9ca3af;">No attendance data</td></tr>`;
+    } else {
+      filteredAttendance.forEach(rec => {
+        const emp = employees.find(e => e.id === rec.employeeId);
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td style="border: 1px solid #e5e7eb; padding: 10px;">${emp?.name || 'Unknown'}</td>
+          <td style="border: 1px solid #e5e7eb; padding: 10px;">${rec.date}</td>
+          <td style="border: 1px solid #e5e7eb; padding: 10px;">${new Date(rec.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+          <td style="border: 1px solid #e5e7eb; padding: 10px;">${rec.clockOut ? new Date(rec.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+          <td style="border: 1px solid #e5e7eb; padding: 10px;">${rec.durationMinutes ? `${rec.durationMinutes} min` : '—'}</td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+    table.appendChild(tbody);
+    pdfContent.appendChild(table);
+
+    document.body.appendChild(pdfContent);
+    pdfContent.style.position = 'absolute';
+    pdfContent.style.left = '-10000px';
+
+    try {
+      const canvas = await html2canvas(pdfContent, { scale: 2 });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgWidth = 210;
+      const pageHeight = 297;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(`attendance_report_${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (error) {
+      console.error('PDF export failed:', error);
+      toast({ title: 'Failed to generate PDF', variant: 'destructive' });
+    } finally {
+      document.body.removeChild(pdfContent);
+    }
+  };
+
   return (
     <RoleLayout allowedRoles={['owner']}>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">{t('employees')}</h1>
-            <p className="text-muted-foreground">Manage your team members</p>
-          </div>
+        {/* Tabs */}
+        <div className="flex border-b">
+          <Button
+            variant={activeTab === 'employees' ? 'default' : 'ghost'}
+            onClick={() => setActiveTab('employees')}
+            className="rounded-none"
+          >
+            Employees
+          </Button>
+          <Button
+            variant={activeTab === 'attendance' ? 'default' : 'ghost'}
+            onClick={() => setActiveTab('attendance')}
+            className="rounded-none"
+          >
+            Attendance
+          </Button>
+        </div>
 
-          <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                {t('add_employee')}
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{editingEmployee ? 'Edit Employee' : t('add_employee')}</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">{t('employee_name')} *</Label>
-                  <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">{t('phone')} *</Label>
-                  <Input id="phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+251..." required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">{t('role')} *</Label>
-                  <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v as UserRole })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={t('select_role')} />
+        {activeTab === 'employees' && (
+          <>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-bold">{t('employees')}</h1>
+                <p className="text-muted-foreground">Manage your team members</p>
+              </div>
+
+              <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" />
+                    {t('add_employee')}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{editingEmployee ? 'Edit Employee' : t('add_employee')}</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">{t('employee_name')} *</Label>
+                      <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">{t('phone')} *</Label>
+                      <Input id="phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+251..." required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="role">{t('role')} *</Label>
+                      <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v as UserRole })}>
+                        <SelectTrigger>
+                          <SelectValue placeholder={t('select_role')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ALL_ROLES.map(role => (
+                            <SelectItem key={role} value={role}>{t(role)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="salary">{t('salary')} (ETB) *</Label>
+                      <Input id="salary" type="number" value={form.salary} onChange={(e) => setForm({ ...form, salary: e.target.value })} required />
+                    </div>
+                    {!editingEmployee && (
+                      <div className="space-y-2">
+                        <Label htmlFor="password">{t('password')} *</Label>
+                        <Input id="password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+                      </div>
+                    )}
+                    <div className="flex justify-end gap-2 pt-4">
+                      <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>{t('cancel')}</Button>
+                      <Button type="submit">{t('save')}</Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input placeholder="Search employees..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+                  </div>
+                  <Select value={roleFilter} onValueChange={setRoleFilter}>
+                    <SelectTrigger className="w-full sm:w-48">
+                      <SelectValue placeholder="Role" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="all">All Roles</SelectItem>
                       {ALL_ROLES.map(role => (
                         <SelectItem key={role} value={role}>{t(role)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="salary">{t('salary')} (ETB) *</Label>
-                  <Input id="salary" type="number" value={form.salary} onChange={(e) => setForm({ ...form, salary: e.target.value })} required />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  {t('employees')}
+                  <Badge variant="secondary" className="ml-2">{filteredEmployees.length}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t('employee_name')}</TableHead>
+                        <TableHead>{t('phone')}</TableHead>
+                        <TableHead>{t('role')}</TableHead>
+                        <TableHead className="text-right">{t('salary')}</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">{t('actions')}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedEmployees.length > 0 ? (
+                        paginatedEmployees.map((e) => (
+                          <TableRow key={e.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-9 w-9">
+                                  <AvatarFallback className="bg-primary/10 text-primary text-sm">{getInitials(e.name)}</AvatarFallback>
+                                </Avatar>
+                                <span className="font-medium">{e.name}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1 text-muted-foreground"><Phone className="h-3 w-3" />{e.phone}</div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={getRoleBadgeVariant(e.role)}>{t(e.role)}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <DollarSign className="h-3 w-3 text-muted-foreground" />
+                                {e.salary.toLocaleString()} ETB
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={e.status === 'active' ? 'secondary' : 'outline'}>{e.status}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-1">
+                                {/* <Button variant="ghost" size="icon" onClick={() => handleClockIn(e.id)}><Clock className="h-4 w-4" /></Button> */}
+                                <Button variant="ghost" size="icon" onClick={() => handleEdit(e)}><Edit className="h-4 w-4" /></Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleDelete(e.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
+                            {search || roleFilter !== 'all' 
+                              ? 'No employees found' 
+                              : 'No employees yet.'}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
                 </div>
-                {!editingEmployee && (
-                  <div className="space-y-2">
-                    <Label htmlFor="password">{t('password')} *</Label>
-                    <Input id="password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+
+                {/* ✅ EMPLOYEE PAGINATION */}
+                {employeeTotalPages > 1 && (
+                  <div className="flex flex-col sm:flex-row items-center justify-between px-2 py-3 border-t border-border mt-4">
+                    <div className="text-xs text-muted-foreground mb-2 sm:mb-0">
+                      Showing <span className="font-medium">{employeeStartIndex + 1}</span>–
+                      <span className="font-medium">{Math.min(employeeStartIndex + ITEMS_PER_PAGE, filteredEmployees.length)}</span> of 
+                      <span className="font-medium"> {filteredEmployees.length}</span> employees
+                    </div>
+                    
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={prevEmployeePage}
+                        disabled={employeePage === 1}
+                      >
+                        Prev
+                      </Button>
+                      
+                      {Array.from({ length: employeeTotalPages }, (_, i) => i + 1).map(page => (
+                        <Button
+                          key={page}
+                          variant={employeePage === page ? 'default' : 'outline'}
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => goToEmployeePage(page)}
+                        >
+                          {page}
+                        </Button>
+                      ))}
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={nextEmployeePage}
+                        disabled={employeePage === employeeTotalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
                   </div>
                 )}
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>{t('cancel')}</Button>
-                  <Button type="submit">{t('save')}</Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search employees..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
-              </div>
-              <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger className="w-full sm:w-48">
-                  <SelectValue placeholder="Role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Roles</SelectItem>
-                  {ALL_ROLES.map(role => (
-                    <SelectItem key={role} value={role}>{t(role)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              {t('employees')}
-              <Badge variant="secondary" className="ml-2">{filteredEmployees.length}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('employee_name')}</TableHead>
-                    <TableHead>{t('phone')}</TableHead>
-                    <TableHead>{t('role')}</TableHead>
-                    <TableHead className="text-right">{t('salary')}</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">{t('actions')}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredEmployees.map((e) => (
-                    <TableRow key={e.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-9 w-9">
-                            <AvatarFallback className="bg-primary/10 text-primary text-sm">{getInitials(e.name)}</AvatarFallback>
-                          </Avatar>
-                          <span className="font-medium">{e.name}</span>
+            {/* PERMISSIONS SECTION */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <UserCog className="h-5 w-5" />
+                  Manage Permissions
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Control what actions each employee can perform in the POS system.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Managers Section */}
+                {managers.length > 0 && (
+                  <div>
+                    <p className="text-sm font-semibold mb-2">Manager Permissions</p>
+                    <p className="text-xs text-muted-foreground mb-3">Assign manager-level permissions</p>
+                    <div className="space-y-3">
+                      {managers.map(emp => (
+                        <div key={emp.id} className="flex items-center justify-between p-3 bg-background rounded-lg border">
+                          <div>
+                            <p className="text-sm font-medium">{emp.name}</p>
+                          </div>
+                          <div className="flex items-center space-x-6">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-xs text-muted-foreground">Apply Discounts</span>
+                              <Switch
+                                checked={!!permissions[emp.id]?.discount}
+                                onCheckedChange={(v) => togglePermission(emp.id, 'discount', v)}
+                              />
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-xs text-muted-foreground">Add Items (w/ Price)</span>
+                              <Switch
+                                checked={!!permissions[emp.id]?.addItem}
+                                onCheckedChange={(v) => togglePermission(emp.id, 'addItem', v)}
+                              />
+                            </div>
+                          </div>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-muted-foreground"><Phone className="h-3 w-3" />{e.phone}</div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getRoleBadgeVariant(e.role)}>{t(e.role)}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <DollarSign className="h-3 w-3 text-muted-foreground" />
-                          {e.salary.toLocaleString()} ETB
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={e.status === 'active' ? 'secondary' : 'outline'}>{e.status}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => handleClockIn(e.id)}><Clock className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(e)}><Edit className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(e.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* PERMISSIONS SECTION */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserCog className="h-5 w-5" />
-              Manage Permissions
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Control what actions each employee can perform in the POS system.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Managers Section */}
-            {managers.length > 0 && (
-              <div>
-                <p className="text-sm font-semibold mb-2">Manager Permissions</p>
-                <p className="text-xs text-muted-foreground mb-3">Assign manager-level permissions</p>
-                <div className="space-y-3">
-                  {managers.map(emp => (
-                    <div key={emp.id} className="flex items-center justify-between p-3 bg-background rounded-lg border">
-                      <div>
-                        <p className="text-sm font-medium">{emp.name}</p>
-                      </div>
-                      <div className="flex items-center space-x-6">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs text-muted-foreground">Apply Discounts</span>
-                          <Switch
-                            checked={!!permissions[emp.id]?.discount}
-                            onCheckedChange={(v) => togglePermission(emp.id, 'discount', v)}
-                          />
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs text-muted-foreground">Add Items (w/ Price)</span>
-                          <Switch
-                            checked={!!permissions[emp.id]?.addItem}
-                            onCheckedChange={(v) => togglePermission(emp.id, 'addItem', v)}
-                          />
-                        </div>
-                      </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                  </div>
+                )}
 
-            {/* Storekeepers Section */}
-            {storeKeepers.length > 0 && (
+                {/* Storekeepers Section */}
+                {storeKeepers.length > 0 && (
+                  <div>
+                    <p className="text-sm font-semibold mb-2">Store Keeper Permissions</p>
+                    <p className="text-xs text-muted-foreground mb-3">Assign warehouse permissions</p>
+                    <div className="space-y-3">
+                      {storeKeepers.map(emp => (
+                        <div key={emp.id} className="flex items-center justify-between p-3 bg-background rounded-lg border">
+                          <div>
+                            <p className="text-sm font-medium">{emp.name}</p>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs text-muted-foreground">Apply Discounts</span>
+                            <Switch
+                              checked={!!permissions[emp.id]?.discount}
+                              onCheckedChange={(v) => togglePermission(emp.id, 'discount', v)}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Cashiers Section */}
+                {cashiers.length > 0 && (
+                  <div>
+                    <p className="text-sm font-semibold mb-2">Cashier Permissions</p>
+                    <p className="text-xs text-muted-foreground mb-3">Assign front-desk permissions</p>
+                    <div className="space-y-3">
+                      {cashiers.map(emp => (
+                        <div key={emp.id} className="flex items-center justify-between p-3 bg-background rounded-lg border">
+                          <div>
+                            <p className="text-sm font-medium">{emp.name}</p>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs text-muted-foreground">Apply Discounts</span>
+                            <Switch
+                              checked={!!permissions[emp.id]?.discount}
+                              onCheckedChange={(v) => togglePermission(emp.id, 'discount', v)}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {managers.length === 0 && storeKeepers.length === 0 && cashiers.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No employees to manage permissions for.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
+
+        {activeTab === 'attendance' && (
+          <>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold mb-2">Store Keeper Permissions</p>
-                <p className="text-xs text-muted-foreground mb-3">Assign warehouse permissions</p>
-                <div className="space-y-3">
-                  {storeKeepers.map(emp => (
-                    <div key={emp.id} className="flex items-center justify-between p-3 bg-background rounded-lg border">
+                <h1 className="text-2xl font-bold">Attendance</h1>
+                <p className="text-muted-foreground">Track and manage employee attendance</p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={exportAttendanceToCSV}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Export CSV
+                </Button>
+                <Button variant="outline" onClick={exportAttendanceToPDF}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Export PDF
+                </Button>
+              </div>
+            </div>
+
+            {/* Filter Section */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Employee</Label>
+                    <Select
+                      value={attendanceFilter.employeeId}
+                      onValueChange={(v) => setAttendanceFilter(prev => ({ ...prev, employeeId: v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="All Employees" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Employees</SelectItem>
+                        {filteredEmployees.map(emp => (
+                          <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Date Range</Label>
+                    <Select
+                      value={attendanceFilter.dateRange}
+                      onValueChange={(v) => setAttendanceFilter(prev => ({ ...prev, dateRange: v as any }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Today" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="today">Today</SelectItem>
+                        <SelectItem value="this-week">This Week</SelectItem>
+                        <SelectItem value="this-month">This Month</SelectItem>
+                        <SelectItem value="custom">Custom Range</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {attendanceFilter.dateRange === 'custom' && (
+                    <>
                       <div>
-                        <p className="text-sm font-medium">{emp.name}</p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs text-muted-foreground">Apply Discounts</span>
-                        <Switch
-                          checked={!!permissions[emp.id]?.discount}
-                          onCheckedChange={(v) => togglePermission(emp.id, 'discount', v)}
+                        <Label>Start Date</Label>
+                        <Input
+                          type="date"
+                          value={attendanceFilter.startDate}
+                          onChange={(e) => setAttendanceFilter(prev => ({ ...prev, startDate: e.target.value }))}
                         />
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Cashiers Section */}
-            {cashiers.length > 0 && (
-              <div>
-                <p className="text-sm font-semibold mb-2">Cashier Permissions</p>
-                <p className="text-xs text-muted-foreground mb-3">Assign front-desk permissions</p>
-                <div className="space-y-3">
-                  {cashiers.map(emp => (
-                    <div key={emp.id} className="flex items-center justify-between p-3 bg-background rounded-lg border">
                       <div>
-                        <p className="text-sm font-medium">{emp.name}</p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs text-muted-foreground">Apply Discounts</span>
-                        <Switch
-                          checked={!!permissions[emp.id]?.discount}
-                          onCheckedChange={(v) => togglePermission(emp.id, 'discount', v)}
+                        <Label>End Date</Label>
+                        <Input
+                          type="date"
+                          value={attendanceFilter.endDate}
+                          onChange={(e) => setAttendanceFilter(prev => ({ ...prev, endDate: e.target.value }))}
                         />
                       </div>
-                    </div>
-                  ))}
+                    </>
+                  )}
                 </div>
-              </div>
-            )}
+              </CardContent>
+            </Card>
 
-            {managers.length === 0 && storeKeepers.length === 0 && cashiers.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No employees to manage permissions for.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+            {/* Manual Entry Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Add Attendance Manually</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
+                  <div>
+                    <Label>Employee</Label>
+                    <Select
+                      value={manualEntry.employeeId}
+                      onValueChange={(v) => setManualEntry(prev => ({ ...prev, employeeId: v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Employee" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredEmployees.map(emp => (
+                          <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Date</Label>
+                    <Input
+                      type="date"
+                      value={manualEntry.date}
+                      onChange={(e) => setManualEntry(prev => ({ ...prev, date: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Clock In</Label>
+                    <Input
+                      type="time"
+                      value={manualEntry.clockIn}
+                      onChange={(e) => setManualEntry(prev => ({ ...prev, clockIn: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Clock Out</Label>
+                    <Input
+                      type="time"
+                      value={manualEntry.clockOut}
+                      onChange={(e) => setManualEntry(prev => ({ ...prev, clockOut: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button onClick={handleSaveManualAttendance}>Save Attendance</Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Attendance Records Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Attendance Records</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Showing {filteredAttendance.length} records
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Clock In</TableHead>
+                        <TableHead>Clock Out</TableHead>
+                        <TableHead>Duration</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedAttendance.length > 0 ? (
+                        paginatedAttendance.map((rec) => {
+                          const emp = employees.find(e => e.id === rec.employeeId);
+                          return (
+                            <TableRow key={rec.id}>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Avatar className="h-6 w-6">
+                                    <AvatarFallback className="bg-primary/10 text-primary text-xs">{getInitials(emp?.name || '')}</AvatarFallback>
+                                  </Avatar>
+                                  <span>{emp?.name || 'Unknown'}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>{rec.date}</TableCell>
+                              <TableCell>{new Date(rec.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</TableCell>
+                              <TableCell>{rec.clockOut ? new Date(rec.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</TableCell>
+                              <TableCell>{rec.durationMinutes ? `${rec.durationMinutes} min` : '—'}</TableCell>
+                              <TableCell className="text-right">
+                                <Button variant="ghost" size="icon">
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
+                            {attendanceFilter.employeeId !== 'all' || attendanceFilter.dateRange !== 'today'
+                              ? 'No attendance records found'
+                              : 'No attendance records yet.'}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* ✅ ATTENDANCE PAGINATION */}
+                {attendanceTotalPages > 1 && (
+                  <div className="flex flex-col sm:flex-row items-center justify-between px-2 py-3 border-t border-border mt-4">
+                    <div className="text-xs text-muted-foreground mb-2 sm:mb-0">
+                      Showing <span className="font-medium">{attendanceStartIndex + 1}</span>–
+                      <span className="font-medium">{Math.min(attendanceStartIndex + ITEMS_PER_PAGE, filteredAttendance.length)}</span> of 
+                      <span className="font-medium"> {filteredAttendance.length}</span> records
+                    </div>
+                    
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={prevAttendancePage}
+                        disabled={attendancePage === 1}
+                      >
+                        Prev
+                      </Button>
+                      
+                      {Array.from({ length: attendanceTotalPages }, (_, i) => i + 1).map(page => (
+                        <Button
+                          key={page}
+                          variant={attendancePage === page ? 'default' : 'outline'}
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => goToAttendancePage(page)}
+                        >
+                          {page}
+                        </Button>
+                      ))}
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={nextAttendancePage}
+                        disabled={attendancePage === attendanceTotalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
     </RoleLayout>
   );

@@ -55,6 +55,7 @@ const roleNavItems: Record<UserRole, NavItem[]> = {
     { label: 'expenses', icon: Wallet, path: '/owner/expenses' },
     { label: 'alerts', icon: AlertTriangle, path: '/alerts' },
     { label: 'reports', icon: BarChart3, path: '/owner/reports' },
+    {label: 'assets', icon: Boxes, path: '/manager/assets'},
     { label: 'settings', icon: Settings, path: '/owner/settings' },
   ],
   store_keeper: [
@@ -93,20 +94,21 @@ export function Sidebar({ role }: SidebarProps) {
       {/* Navigation */}
       <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path || 
-            (item.path !== '/' && location.pathname.startsWith(item.path + '/'));
+          // ✅ FIXED: Exact path match only
+          const isActive = location.pathname === item.path;
           
           return (
             <NavLink
               key={item.path}
               to={item.path}
               className={cn(
-                'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200',
+                'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 relative',
                 isActive
                   ? 'bg-primary text-primary-foreground shadow-glow'
                   : 'text-muted-foreground hover:text-foreground hover:bg-accent'
               )}
             >
+              {/* Remove the motion div if you don't want the left accent bar */}
               {isActive && (
                 <motion.div
                   layoutId="sidebar-indicator"
