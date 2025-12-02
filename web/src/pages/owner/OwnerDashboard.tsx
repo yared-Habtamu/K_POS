@@ -3,7 +3,9 @@ import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
+import { Search, UserPlus, Share2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from '@/hooks/use-toast';
 import { RoleLayout } from '@/components/layout/RoleLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -71,6 +73,7 @@ const topProducts = [
 
 export default function OwnerDashboard() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [range, setRange] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
   const { products, getLowStockProducts, searchProducts } = useProductStore();
   const [search, setSearch] = useState('');
@@ -119,8 +122,38 @@ export default function OwnerDashboard() {
       <div className="space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold">{t('dashboard')}</h1>
-          <p className="text-muted-foreground">Welcome back! Here's what's happening today.</p>
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">{t('dashboard')}</h1>
+              <p className="text-muted-foreground">Welcome back! Here's what's happening today.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => {
+                const url = `${window.location.origin}/owner/register`;
+                if (navigator.clipboard) {
+                  navigator.clipboard.writeText(url).then(() => {
+                    toast({ title: 'Link copied', description: 'Registration link copied to clipboard.' });
+                  }).catch(() => {
+                    toast({ title: 'Copy failed', description: 'Could not copy link to clipboard.' });
+                  });
+                } else {
+                  try {
+                    // fallback
+                    (window as any).prompt('Copy this link', url);
+                  } catch {
+                    toast({ title: 'Copy failed', description: 'Could not copy link to clipboard.' });
+                  }
+                }
+              }}>
+                <Share2 className="mr-2 h-4 w-4" />
+                Invite Owner
+              </Button>
+              <Button size="sm" onClick={() => navigate('/owner/register')}>
+                <UserPlus className="mr-2 h-4 w-4" />
+                Register a Mart
+              </Button>
+            </div>
+          </div>
         </div>
 
         {/* Stats Grid */}

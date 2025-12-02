@@ -32,6 +32,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { toast } from '@/hooks/use-toast';
+import { useAuthStore } from '@/stores/authStore';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Users,
@@ -65,6 +66,10 @@ type Employee = {
   role: UserRole;
   salary: number;
   status: 'active' | 'inactive';
+  // optional runtime fields returned by the API
+  permissions?: string[];
+  martId?: string;
+  username?: string;
 };
 
 type AttendanceRecord = {
@@ -76,13 +81,7 @@ type AttendanceRecord = {
   date: string; // YYYY-MM-DD
 };
 
-const mockEmployees: Employee[] = [
-  { id: '1', name: 'Tigist Haile', phone: '+251922345678', role: 'cashier' as UserRole, salary: 15000, status: 'active' },
-  { id: '2', name: 'Dawit Tadesse', phone: '+251933456789', role: 'cashier' as UserRole, salary: 8000, status: 'active' },
-  { id: '3', name: 'Mulugeta Assefa', phone: '+251944567890', role: 'store_keeper' as UserRole, salary: 9000, status: 'active' },
-  { id: '4', name: 'Sara Bekele', phone: '+251955678901', role: 'cashier' as UserRole, salary: 8000, status: 'active' },
-  { id: '5', name: 'Yonas Gebre', phone: '+251966789012', role: 'cashier' as UserRole, salary: 8000, status: 'inactive' },
-];
+// Manager-view employees are fetched from backend by martId
 
 // Helper: Get all weekdays (Mon-Fri) in a month
 const getWeekdaysInMonth = (year: number, month: number) => {
@@ -107,7 +106,11 @@ export default function MEmployeeManagement(): JSX.Element {
   console.log("✅ MEmployeeManagement loaded!");
   const { t } = useTranslation();
 
-  const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
+  const { user } = useAuthStore();
+  const token = user?.token;
+  const martId = user?.martId;
+
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | ManagerAssignableRole | 'manager'>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -150,23 +153,39 @@ export default function MEmployeeManagement(): JSX.Element {
     clockOut: '',
   });
 
-  // Permission state
-  const [permissions, setPermissions] = useState<Record<string, { discount: boolean }>>(() => {
-    const initial: Record<string, { discount: boolean }> = {};
-    mockEmployees.forEach(emp => {
-      if (emp.role === 'cashier' || emp.role === 'store_keeper') {
-        initial[emp.id] = { discount: false };
+  // Permission state (fields optional to allow partial updates)
+  const [permissions, setPermissions] = useState<Record<string, { discount?: boolean; manageQuantity?: boolean }>>({});
+
+  // fetch employees for this mart
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      if (!martId) return;
+      try {
+        const API_BASE = (import.meta.env.VITE_API_URL || '');
+        const res = await fetch(`${API_BASE}/api/auth/users?martId=${martId}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!res.ok) throw new Error('Failed to fetch employees');
+        const data = await res.json();
+        const list: Employee[] = data
+          .filter((u:any) => u.role === 'cashier' || u.role === 'storeKeeper' || u.role === 'store_keeper')
+            .map((u:any) => ({ id: u._id || u.id, name: u.name, phone: u.phone, role: u.role === 'storeKeeper' ? 'store_keeper' : u.role, salary: u.salary || 0, status: 'active', permissions: u.permissions || [], martId: u.martId || u.martid || u.shopId }));
+        setEmployees(list);
+      } catch (err) {
+        console.error('fetch employees error', err);
       }
-    });
-    return initial;
-  });
+    };
+    fetchEmployees();
+  }, [martId]);
 
   const [form, setForm] = useState({
+    username: '',
     name: '',
     phone: '',
     role: 'cashier' as ManagerAssignableRole,
     salary: '',
     password: '',
+    confirmPassword: '',
   });
 
   const roleOptions: ManagerAssignableRole[] = ['cashier', 'store_keeper'];
@@ -182,8 +201,10 @@ export default function MEmployeeManagement(): JSX.Element {
     setPermissions(prev => {
       const next = { ...prev };
       employees.forEach(emp => {
-        if ((emp.role === 'cashier' || emp.role === 'store_keeper') && !next[emp.id]) {
-          next[emp.id] = { discount: false };
+          if ((emp.role === 'cashier' || emp.role === 'store_keeper') && !next[emp.id]) {
+            // initialize from backend permissions if present
+            const has = (k:string) => Array.isArray((emp as any).permissions) && (emp as any).permissions.includes(k);
+            next[emp.id] = { discount: has('discount'), manageQuantity: has('manageQuantity') };
         }
       });
       Object.keys(next).forEach(id => {
@@ -233,7 +254,7 @@ export default function MEmployeeManagement(): JSX.Element {
   }, [employees]);
 
   const resetForm = () => {
-    setForm({ name: '', phone: '', role: 'cashier', salary: '', password: '' });
+    setForm({ username: '', name: '', phone: '', role: 'cashier', salary: '', password: '', confirmPassword: '' });
     setEditingEmployee(null);
   };
 
@@ -243,22 +264,24 @@ export default function MEmployeeManagement(): JSX.Element {
       : 'cashier';
 
     setEditingEmployee(employee);
-    setForm({
-      name: employee.name,
-      phone: employee.phone,
-      role: safeRole,
-      salary: String(employee.salary),
-      password: '',
-    });
+    setForm({ username: (employee as any).username || '', name: employee.name, phone: employee.phone, role: safeRole, salary: String(employee.salary), password: '', confirmPassword: '' });
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setEmployees(prev => prev.filter((e) => e.id !== id));
-    toast({ title: 'Employee deleted successfully' });
+  const handleDelete = async (id: string) => {
+    try {
+      const API_BASE = (import.meta.env.VITE_API_URL || '');
+      const res = await fetch(`${API_BASE}/api/auth/users/${id}`, { method: 'DELETE', headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
+      if (!res.ok) throw new Error('Delete failed');
+      setEmployees(prev => prev.filter((e) => e.id !== id));
+      toast({ title: 'Employee deleted successfully' });
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'Failed to delete employee' });
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!form.name || !form.phone || !form.salary) {
@@ -267,25 +290,46 @@ export default function MEmployeeManagement(): JSX.Element {
     }
 
     if (editingEmployee) {
-      setEmployees(prev =>
-        prev.map(emp =>
-          emp.id === editingEmployee.id
-            ? { ...emp, name: form.name, phone: form.phone, role: form.role as UserRole, salary: Number(form.salary) }
-            : emp
-        )
-      );
-      toast({ title: 'Employee updated successfully' });
+      try {
+        const API_BASE = (import.meta.env.VITE_API_URL || '');
+        const res = await fetch(`${API_BASE}/api/auth/users/${editingEmployee.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ name: form.name, phone: form.phone, role: form.role === 'store_keeper' ? 'storeKeeper' : form.role, salary: Number(form.salary), username: form.username || undefined }),
+        });
+        if (!res.ok) throw new Error('Failed to update');
+        const updated = await res.json();
+        setEmployees(prev => prev.map(emp => emp.id === editingEmployee.id ? { ...emp, ...updated } : emp));
+        toast({ title: 'Employee updated successfully' });
+      } catch (err) {
+        console.error(err);
+        toast({ title: 'Failed to update employee' });
+      }
     } else {
-      const newEmployee: Employee = {
-        id: Date.now().toString(),
-        name: form.name,
-        phone: form.phone,
-        role: form.role as UserRole,
-        salary: Number(form.salary),
-        status: 'active',
-      };
-      setEmployees(prev => [...prev, newEmployee]);
-      toast({ title: t('employee_added') || 'Employee added' });
+      // ensure password confirmation matches when creating a new employee
+      if (!form.password || form.password !== form.confirmPassword) {
+        toast({ title: 'Passwords do not match', description: 'Please ensure both passwords are the same', variant: 'destructive' });
+        return;
+      }
+      // create employee via backend
+      try {
+        const API_BASE = (import.meta.env.VITE_API_URL || '');
+        const apiRole = form.role === 'store_keeper' ? 'storeKeeper' : form.role;
+        const payload:any = { name: form.name, username: form.username || undefined, password: form.password, confirmPassword: form.confirmPassword, role: apiRole, martId, phone: form.phone, salary: Number(form.salary) };
+        const res = await fetch(`${API_BASE}/api/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(payload) });
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          throw new Error(body?.message || 'Failed to add employee');
+        }
+        const body = await res.json();
+        const u = body.user;
+        const newEmployee: Employee = { id: u.id || u._id, name: u.name, phone: u.phone, role: u.role === 'storeKeeper' ? 'store_keeper' : u.role, salary: u.salary || Number(form.salary), status: 'active' };
+        setEmployees(prev => [...prev, newEmployee]);
+        toast({ title: t('employee_added') || 'Employee added' });
+      } catch (err:any) {
+        console.error(err);
+        toast({ title: 'Failed to add employee', description: err?.message || 'Server error' });
+      }
     }
 
     setIsDialogOpen(false);
@@ -640,18 +684,78 @@ case 'this-week':
 
   // === END ATTENDANCE TAB FEATURES ===
 
-  const toggleDiscountPermission = (employeeId: string, value: boolean) => {
+  const toggleDiscountPermission = async (employeeId: string, value: boolean) => {
     const employee = employees.find(e => e.id === employeeId);
     if (!employee) return;
 
+    // store-keepers are not allowed to have discount permission (guard)
+    if (employee.role === 'store_keeper') {
+      toast({ title: 'Not allowed', description: 'Store keepers cannot be assigned the discount permission.', variant: 'destructive' });
+      return;
+    }
+
+    // optimistic UI update
     setPermissions(prev => ({
       ...prev,
-      [employeeId]: { discount: value }
+      [employeeId]: { ...(prev[employeeId] || {}), discount: value }
     }));
 
-    toast({
-      title: `Discount permission ${value ? 'enabled' : 'disabled'} for ${employee.name}`
-    });
+    try {
+      // build permissions array from employee.permissions
+      const cur = Array.isArray((employee as any).permissions) ? [...(employee as any).permissions] : [];
+      const idx = cur.indexOf('discount');
+      if (value && idx === -1) cur.push('discount');
+      if (!value && idx !== -1) cur.splice(idx, 1);
+
+      const API_BASE = (import.meta.env.VITE_API_URL || '');
+      const res = await fetch(`${API_BASE}/api/auth/users/${employeeId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ permissions: cur }),
+      });
+      if (!res.ok) throw new Error('Failed to save permission');
+
+      // update employee permissions locally
+      setEmployees(prev => prev.map(e => e.id === employeeId ? { ...e, permissions: cur } : e));
+
+      toast({
+        title: `Discount permission ${value ? 'enabled' : 'disabled'} for ${employee.name}`
+      });
+    } catch (err) {
+      // rollback
+      setPermissions(prev => ({ ...prev, [employeeId]: { discount: !value } }));
+      console.error('save permission err', err);
+      toast({ title: 'Failed to save permission', description: String(err) });
+    }
+  };
+
+  const toggleManageQuantityPermission = async (employeeId: string, value: boolean) => {
+    const employee = employees.find(e => e.id === employeeId);
+    if (!employee) return;
+
+    setPermissions(prev => ({ ...prev, [employeeId]: { ...(prev[employeeId] || {}), manageQuantity: value } }));
+
+    try {
+      const cur = Array.isArray((employee as any).permissions) ? [...(employee as any).permissions] : [];
+      const idx = cur.indexOf('manageQuantity');
+      if (value && idx === -1) cur.push('manageQuantity');
+      if (!value && idx !== -1) cur.splice(idx, 1);
+
+      const API_BASE = (import.meta.env.VITE_API_URL || '');
+      const res = await fetch(`${API_BASE}/api/auth/users/${employeeId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ permissions: cur }),
+      });
+      if (!res.ok) throw new Error('Failed to save permission');
+
+      setEmployees(prev => prev.map(e => e.id === employeeId ? { ...e, permissions: cur } : e));
+      toast({ title: `Quantity management ${value ? 'enabled' : 'disabled'} for ${employee.name}` });
+    } catch (err) {
+      setPermissions(prev => ({ ...prev, [employeeId]: { ...(prev[employeeId] || {}), manageQuantity: !value } }));
+      console.error('save permission err', err);
+      toast({ title: 'Failed to save permission', description: String(err) });
+    }
   };
 
   const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase();
@@ -731,11 +835,15 @@ case 'this-week':
                     {t('add_employee') || 'Add Employee'}
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
                   <DialogHeader>
                     <DialogTitle>{editingEmployee ? 'Edit Employee' : t('add_employee') || 'Add Employee'}</DialogTitle>
                   </DialogHeader>
                   <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="username">Username (optional)</Label>
+                      <Input id="username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="login username (optional)" />
+                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="name">{t('employee_name') || 'Name'} *</Label>
                       <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
@@ -765,6 +873,20 @@ case 'this-week':
                       <div className="space-y-2">
                         <Label htmlFor="password">{t('password') || 'Password'} *</Label>
                         <Input id="password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+                        <Input
+                          id="confirmPassword"
+                          type="password"
+                          value={form.confirmPassword}
+                          onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
+                          required
+                          placeholder="Confirm password"
+                          className={form.confirmPassword.length === 0 ? '' : (form.password === form.confirmPassword ? 'ring-2 ring-green-400/60 border-green-400' : 'ring-2 ring-red-400/60 border-red-400')}
+                        />
+                        {form.confirmPassword.length > 0 && (
+                          <p className={`text-xs mt-1 ${form.password === form.confirmPassword ? 'text-green-600' : 'text-red-600'}`}>
+                            {form.password === form.confirmPassword ? 'Passwords match' : 'Passwords do not match'}
+                          </p>
+                        )}
                       </div>
                     )}
                     <div className="flex justify-end gap-2 pt-4">
@@ -827,7 +949,12 @@ case 'this-week':
                               <Avatar className="h-9 w-9">
                                 <AvatarFallback className="bg-primary/10 text-primary text-sm">{getInitials(e.name)}</AvatarFallback>
                               </Avatar>
-                              <span className="font-medium">{e.name}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{e.name}</span>
+                                {e.martId && e.martId === martId ? (
+                                  <Badge variant="secondary" className="text-xs">My employee</Badge>
+                                ) : null}
+                              </div>
                             </div>
                           </TableCell>
                           <TableCell>
@@ -904,7 +1031,7 @@ case 'this-week':
                   Manage Team Permissions
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Control what actions your team members can perform in the POS system.
+                  Control which actions your team members are allowed to perform in the POS system.
                 </p>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -913,20 +1040,21 @@ case 'this-week':
                     <p className="text-sm font-semibold mb-2">Store Keeper Permissions</p>
                     <p className="text-xs text-muted-foreground mb-3">Assign warehouse permissions</p>
                     <div className="space-y-3">
-                      {storeKeepers.map(emp => (
-                        <div key={emp.id} className="flex items-center justify-between p-3 bg-background rounded-lg border">
-                          <div>
-                            <p className="text-sm font-medium">{emp.name}</p>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <span className="text-xs text-muted-foreground">Apply Discounts</span>
-                            <Switch
-                              checked={!!permissions[emp.id]?.discount}
-                              onCheckedChange={(v) => toggleDiscountPermission(emp.id, v)}
-                            />
-                          </div>
-                        </div>
-                      ))}
+                            {storeKeepers.map(emp => (
+                              <div key={emp.id} className="flex items-center justify-between p-3 bg-background rounded-lg border">
+                                <div>
+                                  <p className="text-sm font-medium">{emp.name}</p>
+                                </div>
+                                {/* Removed discount toggle for store keepers per business rules */}
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-xs text-muted-foreground">Quantity Management</span>
+                                  <Switch
+                                    checked={!!permissions[emp.id]?.manageQuantity}
+                                    onCheckedChange={(v) => toggleManageQuantityPermission(emp.id, v)}
+                                  />
+                                </div>
+                              </div>
+                            ))}
                     </div>
                   </div>
                 )}

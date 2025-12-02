@@ -111,6 +111,61 @@ export default function MartManagement() {
     saveShops(shops);
   }, [shops]);
 
+  // Fetch real data from backend when available (system admin view)
+  // Only one set of declarations!
+  
+  const API_BASE = (import.meta.env.VITE_API_URL || '');
+
+  const mapBackendToShop = (m: any): Shop => {
+    const ownerName = (m.ownerId && (m.ownerId.name || m.ownerId)) || 'Owner';
+    const statusMap: Record<string, Shop['status']> = {
+      pending: 'pending',
+      approved: 'active',
+      disabled: 'suspended',
+      rejected: 'rejected',
+    };
+    return {
+      id: m._id,
+      name: m.martName || m.name || 'Unnamed',
+      owner: ownerName,
+      status: statusMap[m.status] || 'pending',
+      sales: 0,
+      users: 1,
+      permissions: m.ownerId ? ['owner'] : [],
+      address: { country: m.country, region: m.region, city: m.city },
+    } as Shop;
+  };
+
+  const fetchShopsFromServer = async (statusQuery = '') => {
+    if (!API_BASE) return false;
+    try {
+      const q = statusQuery ? `?status=${encodeURIComponent(statusQuery)}` : '';
+      const res = await fetch(`${API_BASE}/api/marts${q}`);
+      if (!res.ok) throw new Error('Server error');
+      const data = await res.json();
+      const mapped = (Array.isArray(data) ? data : []).map(mapBackendToShop);
+      setShops(mapped);
+      return true;
+    } catch (err) {
+      // keep local data as fallback
+      console.error('Failed to fetch marts from server', err);
+      return false;
+    }
+  };
+
+  // When filter changes, try to fetch from server (map frontend filter to backend status)
+  React.useEffect(() => {
+    const statusMap: Record<string, string> = {
+      all: '',
+      pending: 'pending',
+      active: 'approved',
+      suspended: 'disabled',
+      rejected: 'rejected',
+    };
+    fetchShopsFromServer(statusMap[filter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter]);
+
   // ✅ Pagination handlers
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
@@ -131,26 +186,67 @@ export default function MartManagement() {
   };
 
   const approveShop = (id: string) => {
-    setShops((prev) =>
-      prev.map((s) =>
-        s.id === id
-          ? { ...s, status: 'active', permissions: s.permissions && s.permissions.length ? s.permissions : ['owner'] }
-          : s,
-      ),
-    );
-    toast({ title: 'Shop approved', description: 'The shop has been approved and owner permission assigned.' });
+    // try server first
+    (async () => {
+      if (API_BASE) {
+        try {
+          const res = await fetch(`${API_BASE}/api/marts/${id}/approve`, { method: 'PUT' });
+          if (!res.ok) throw new Error('Server approve failed');
+          await fetchShopsFromServer('approved');
+          toast({ title: 'Shop approved', description: 'The shop has been approved on server.' });
+          return;
+        } catch (err) {
+          console.error(err);
+        }
+      }
+      // fallback local
+      setShops((prev) =>
+        prev.map((s) =>
+          s.id === id
+            ? { ...s, status: 'active', permissions: s.permissions && s.permissions.length ? s.permissions : ['owner'] }
+            : s,
+        ),
+      );
+      toast({ title: 'Shop approved', description: 'The shop has been approved and owner permission assigned.' });
+    })();
   };
 
   const suspendShop = (id: string) => {
     if (!window.confirm('Suspend this shop?')) return;
-    setShops((prev) => prev.map((s) => (s.id === id ? { ...s, status: 'suspended' } : s)));
-    toast({ title: 'Shop suspended', description: 'The shop has been suspended.' });
+    (async () => {
+      if (API_BASE) {
+        try {
+          const res = await fetch(`${API_BASE}/api/marts/${id}/disable`, { method: 'PUT' });
+          if (!res.ok) throw new Error('Server suspend failed');
+          await fetchShopsFromServer('disabled');
+          toast({ title: 'Shop suspended', description: 'The shop has been suspended on server.' });
+          return;
+        } catch (err) {
+          console.error(err);
+        }
+      }
+      setShops((prev) => prev.map((s) => (s.id === id ? { ...s, status: 'suspended' } : s)));
+      toast({ title: 'Shop suspended', description: 'The shop has been suspended.' });
+    })();
   };
 
   const unsuspendShop = (id: string) => {
     if (!window.confirm('Unsuspend this shop?')) return;
-    setShops((prev) => prev.map((s) => (s.id === id ? { ...s, status: 'active' } : s)));
-    toast({ title: 'Shop unsuspended', description: 'The shop is active again.' });
+    (async () => {
+      if (API_BASE) {
+        try {
+          const res = await fetch(`${API_BASE}/api/marts/${id}/approve`, { method: 'PUT' });
+          if (!res.ok) throw new Error('Server unsuspend failed');
+          await fetchShopsFromServer('approved');
+          toast({ title: 'Shop unsuspended', description: 'The shop is active on server.' });
+          return;
+        } catch (err) {
+          console.error(err);
+        }
+      }
+      setShops((prev) => prev.map((s) => (s.id === id ? { ...s, status: 'active' } : s)));
+      toast({ title: 'Shop unsuspended', description: 'The shop is active again.' });
+    })();
   };
 
   const deleteShop = (id: string) => {
@@ -179,8 +275,21 @@ export default function MartManagement() {
 
   const rejectShop = (id: string) => {
     if (!window.confirm('Reject this shop registration?')) return;
-    setShops((prev) => prev.map((s) => (s.id === id ? { ...s, status: 'rejected' } : s)));
-    toast({ title: 'Shop rejected', description: 'The shop registration was rejected.' });
+    (async () => {
+      if (API_BASE) {
+        try {
+          const res = await fetch(`${API_BASE}/api/marts/${id}/reject`, { method: 'PUT' });
+          if (!res.ok) throw new Error('Server reject failed');
+          await fetchShopsFromServer('rejected');
+          toast({ title: 'Shop rejected', description: 'The shop registration was rejected on server.' });
+          return;
+        } catch (err) {
+          console.error(err);
+        }
+      }
+      setShops((prev) => prev.map((s) => (s.id === id ? { ...s, status: 'rejected' } : s)));
+      toast({ title: 'Shop rejected', description: 'The shop registration was rejected.' });
+    })();
   };
 
   return (

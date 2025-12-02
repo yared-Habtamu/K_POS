@@ -32,20 +32,26 @@ export default function Login() {
   
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<UserRole>('cashier');
+  // Remove role selection
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const success = await login(username, password, role);
-    
-    if (success) {
+    const result = await login(username, password);
+    if (result && (result as any).role) {
       toast({
         title: 'Welcome!',
-        description: `Logged in as ${t(role)}`,
+        description: `Logged in as ${(result as any).role}`,
       });
-      navigate(roleDashboards[role]);
+      navigate(roleDashboards[result.role]);
+    } else if (result && 'message' in result && result.message) {
+      const msg = result && (result as any).message ? (result as any).message : t('login_error');
+      toast({
+        title: 'Login Failed',
+        description: msg,
+        variant: 'destructive',
+      });
     } else {
       toast({
         title: 'Login Failed',
@@ -96,22 +102,7 @@ export default function Login() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Role Selection */}
-            <div className="space-y-2">
-              <Label htmlFor="role">{t('select_role')}</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as UserRole)}>
-                <SelectTrigger className="h-12">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cashier">{t('cashier')}</SelectItem>
-                  <SelectItem value="manager">{t('manager')}</SelectItem>
-                  <SelectItem value="owner">{t('owner')}</SelectItem>
-                  <SelectItem value="store_keeper">{t('store_keeper')}</SelectItem>
-                  <SelectItem value="system_admin">{t('system_admin')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* No role selection, only username/password */}
 
             {/* Username */}
             <div className="space-y-2">
@@ -166,12 +157,7 @@ export default function Login() {
             </Button>
           </form>
 
-          {/* Demo hint */}
-          <div className="mt-6 p-4 rounded-xl bg-accent/50 border border-border">
-            <p className="text-sm text-muted-foreground text-center">
-              <span className="font-medium text-foreground">Demo:</span> Use "demo" as password for any role
-            </p>
-          </div>
+          {/* Demo hint removed */}
         </div>
       </motion.div>
     </div>

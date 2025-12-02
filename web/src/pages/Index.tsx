@@ -14,6 +14,7 @@ import {
   Wifi,
   Globe,
   ArrowRight,
+  UserPlus,
 } from 'lucide-react';
 
 const features = [
@@ -87,6 +88,10 @@ export default function Index() {
               <Button size="lg" onClick={handleGetStarted} className="text-lg h-14 px-8">
                 {isAuthenticated ? 'Go to Dashboard' : 'Get Started'}
                 <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+              <Button size="lg" variant="outline" onClick={() => navigate('/owner/register')} className="text-lg h-14 px-8">
+                <UserPlus className="mr-2 h-5 w-5" />
+                Register Your Mart
               </Button>
               {!isAuthenticated && (
                 <Button size="lg" variant="outline" onClick={() => navigate('/login')} className="text-lg h-14 px-8">
