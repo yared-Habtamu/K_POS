@@ -31,6 +31,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { toast } from '@/hooks/use-toast';
+import { useAuthStore } from '@/stores/authStore';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Users,
@@ -52,14 +53,7 @@ import type { UserRole } from '@/types';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
-// Owner can assign any role
-const mockEmployees = [
-  { id: '1', name: 'Tigist Haile', phone: '+251922345678', role: 'manager' as UserRole, salary: 15000, status: 'active' },
-  { id: '2', name: 'Dawit Tadesse', phone: '+251933456789', role: 'cashier' as UserRole, salary: 8000, status: 'active' },
-  { id: '3', name: 'Mulugeta Assefa', phone: '+251944567890', role: 'store_keeper' as UserRole, salary: 9000, status: 'active' },
-  { id: '4', name: 'Sara Bekele', phone: '+251955678901', role: 'cashier' as UserRole, salary: 8000, status: 'active' },
-  { id: '5', name: 'Yonas Gebre', phone: '+251966789012', role: 'cashier' as UserRole, salary: 8000, status: 'inactive' },
-];
+// Owner-managed employees are fetched from backend
 
 const ALL_ROLES: UserRole[] = ['manager', 'cashier', 'store_keeper'];
 
@@ -77,7 +71,11 @@ const ITEMS_PER_PAGE = 7; // ✅ 7 items per page
 export default function OwnerEmployeeManagement() {
   const { t } = useTranslation();
 
-  const [employees, setEmployees] = useState(mockEmployees);
+  const { user } = useAuthStore();
+  const token = user?.token;
+  const martId = user?.martId;
+
+  const [employees, setEmployees] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -88,24 +86,16 @@ export default function OwnerEmployeeManagement() {
   const [activeTab, setActiveTab] = useState<'employees' | 'attendance'>('employees');
 
   // Permission state
-  const [permissions, setPermissions] = useState<Record<string, Record<string, boolean>>>(() => {
-    const initial: Record<string, Record<string, boolean>> = {};
-    mockEmployees.forEach(emp => {
-      if (emp.role === 'manager') {
-        initial[emp.id] = { discount: false, addItem: false };
-      } else if (emp.role === 'store_keeper' || emp.role === 'cashier') {
-        initial[emp.id] = { discount: false };
-      }
-    });
-    return initial;
-  });
+  const [permissions, setPermissions] = useState<Record<string, Record<string, boolean>>>({});
 
   const [form, setForm] = useState({
+    username: '',
     name: '',
     phone: '',
     role: 'manager' as UserRole,
     salary: '',
     password: '',
+    confirmPassword: '',
   });
 
   // Attendance filter
@@ -130,47 +120,88 @@ export default function OwnerEmployeeManagement() {
     return matchSearch && matchRole;
   });
 
-  // Initialize permissions
+  // fetch employees for this mart
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      if (!martId) return;
+      try {
+        const API_BASE = (import.meta.env.VITE_API_URL || '');
+        const res = await fetch(`${API_BASE}/api/auth/users?martId=${martId}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!res.ok) throw new Error('Failed to fetch employees');
+        const data = await res.json();
+        // normalize to expected shape
+        const list = data.map((u:any) => ({
+          id: u._id || u.id,
+          name: u.name,
+          username: u.username,
+          phone: u.phone,
+          // normalize backend role names to frontend representation
+          role: u.role === 'storeKeeper' || u.role === 'store_keeper' ? 'store_keeper' : (u.role === 'systemAdmin' ? 'system_admin' : u.role),
+          martId: u.martId || u.martid || u.shopId,
+          salary: u.salary || 0,
+          permissions: u.permissions || [],
+          status: 'active',
+        }));
+        setEmployees(list);
+      } catch (err) {
+        console.error('fetch employees error', err);
+      }
+    };
+    fetchEmployees();
+  }, [martId]);
+
+  // Initialize permissions when employees change
   useEffect(() => {
     const initial: Record<string, Record<string, boolean>> = {};
-    filteredEmployees.forEach(emp => {
-      if (emp.role === 'manager') {
-        initial[emp.id] = permissions[emp.id] || { discount: false, addItem: false };
-      } else if (emp.role === 'store_keeper' || emp.role === 'cashier') {
-        initial[emp.id] = permissions[emp.id] || { discount: false };
-      }
+    employees.forEach(emp => {
+      const has = (k:string) => Array.isArray(emp.permissions) && emp.permissions.includes(k);
+      if (emp.role === 'manager') initial[emp.id] = { discount: has('discount'), addItem: has('addItem') };
+      // store keepers are not allowed discount permission in the frontend — only manageQuantity
+      else if (emp.role === 'store_keeper' || emp.role === 'storeKeeper') initial[emp.id] = { manageQuantity: has('manageQuantity') };
+      else initial[emp.id] = { discount: has('discount') };
     });
     setPermissions(initial);
-  }, [filteredEmployees]);
+  }, [employees]);
 
   const resetForm = () => {
-    setForm({ name: '', phone: '', role: 'manager', salary: '', password: '' });
+    setForm({ username: '', name: '', phone: '', role: 'manager', salary: '', password: '', confirmPassword: '' });
     setEditingEmployee(null);
   };
 
-  const handleEdit = (employee: typeof mockEmployees[0]) => {
+  const handleEdit = (employee: any) => {
     setEditingEmployee(employee);
     setForm({
+      username: employee.username || '',
       name: employee.name,
       phone: employee.phone,
       role: employee.role,
       salary: String(employee.salary),
       password: '',
+      confirmPassword: '',
     });
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setEmployees(employees.filter((e) => e.id !== id));
-    setPermissions(prev => {
-      const newPerms = { ...prev };
-      delete newPerms[id];
-      return newPerms;
-    });
-    toast({ title: 'Employee deleted successfully' });
+  const handleDelete = async (id: string) => {
+    try {
+      const API_BASE = (import.meta.env.VITE_API_URL || '');
+      const res = await fetch(`${API_BASE}/api/auth/users/${id}`, {
+        method: 'DELETE',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (!res.ok) throw new Error('Failed to delete');
+      setEmployees(prev => prev.filter(e => e.id !== id));
+      setPermissions(prev => { const c = { ...prev }; delete c[id]; return c; });
+      toast({ title: 'Employee deleted successfully' });
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'Failed to delete employee' });
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!form.name || !form.phone || !form.salary) {
@@ -179,32 +210,80 @@ export default function OwnerEmployeeManagement() {
     }
 
     if (editingEmployee) {
-      setEmployees(employees.map(emp =>
-        emp.id === editingEmployee.id
-          ? { ...emp, name: form.name, phone: form.phone, role: form.role, salary: Number(form.salary) }
-          : emp
-      ));
-      toast({ title: 'Employee updated successfully' });
+      // update on backend
+      try {
+        const API_BASE = (import.meta.env.VITE_API_URL || '');
+        const res = await fetch(`${API_BASE}/api/auth/users/${editingEmployee.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ name: form.name, phone: form.phone, role: form.role === 'store_keeper' ? 'storeKeeper' : form.role, salary: Number(form.salary), username: form.username || undefined }),
+        });
+        if (!res.ok) throw new Error('Failed to update employee');
+        const updated = await res.json();
+        setEmployees(employees.map(emp => emp.id === editingEmployee.id ? { ...emp, ...updated } : emp));
+        toast({ title: 'Employee updated successfully' });
+      } catch (err) {
+        console.error(err);
+        toast({ title: 'Failed to update employee' });
+      }
+      // success toast handled above
     } else {
-      const newEmployee = {
-        id: Date.now().toString(),
-        name: form.name,
-        phone: form.phone,
-        role: form.role,
-        salary: Number(form.salary),
-        status: 'active' as const,
-      };
-      setEmployees([...employees, newEmployee]);
-      setPermissions(prev => {
-        const newPerms = { ...prev };
-        if (newEmployee.role === 'manager') {
-          newPerms[newEmployee.id] = { discount: false, addItem: false };
-        } else {
-          newPerms[newEmployee.id] = { discount: false };
+      // ensure password confirmation matches
+      if (!form.password || form.password !== form.confirmPassword) {
+        toast({ title: 'Passwords do not match', description: 'Please ensure both passwords are the same', variant: 'destructive' });
+        return;
+      }
+      // Create employee on backend using owner account
+      try {
+        const API_BASE = (import.meta.env.VITE_API_URL || '');
+        const apiRole = form.role === 'store_keeper' ? 'storeKeeper' : form.role;
+        const payload: any = {
+          name: form.name,
+          username: form.username || undefined,
+          password: form.password,
+          confirmPassword: form.confirmPassword,
+          role: apiRole,
+          martId,
+          phone: form.phone,
+          salary: Number(form.salary),
+        };
+        const res = await fetch(`${API_BASE}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => null);
+          throw new Error(errBody?.message || 'Failed to add employee');
         }
-        return newPerms;
-      });
-      toast({ title: t('employee_added') });
+        const body = await res.json();
+        const user = body.user;
+        const newEmployee = {
+          id: user.id || user._id,
+          name: user.name,
+          username: user.username,
+          phone: user.phone,
+          role: user.role,
+          salary: user.salary || Number(form.salary),
+          status: 'active' as const,
+        };
+        setEmployees(prev => [...prev, newEmployee]);
+        setPermissions(prev => {
+          const newPerms = { ...prev };
+          if (newEmployee.role === 'manager') newPerms[newEmployee.id] = { discount: false, addItem: false };
+          else if (newEmployee.role === 'store_keeper' || newEmployee.role === 'storeKeeper') newPerms[newEmployee.id] = { manageQuantity: false };
+          else newPerms[newEmployee.id] = { discount: false };
+          return newPerms;
+        });
+        toast({ title: t('employee_added') });
+      } catch (err:any) {
+        console.error(err);
+        toast({ title: 'Failed to add employee', description: err?.message || 'Server error' });
+      }
+      // toast is handled after API success
     }
 
     setIsDialogOpen(false);
@@ -216,10 +295,23 @@ export default function OwnerEmployeeManagement() {
     toast({ title: 'Clocked In', description: 'Attendance recorded' });
   };
 
-  const togglePermission = (employeeId: string, key: string, value: boolean) => {
+  const togglePermission = async (employeeId: string, key: string, value: boolean) => {
     const employee = employees.find(e => e.id === employeeId);
     if (!employee) return;
 
+    // Guard: store-keepers must not be given the discount permission
+    if (key === 'discount' && (employee.role === 'store_keeper' || employee.role === 'storeKeeper')) {
+      toast({ title: 'Not allowed', description: 'Store keepers cannot be assigned the discount permission.', variant: 'destructive' });
+      return;
+    }
+
+    // build new permissions array
+    const cur = Array.isArray(employee.permissions) ? [...employee.permissions] : [];
+    const idx = cur.indexOf(key);
+    if (value && idx === -1) cur.push(key);
+    if (!value && idx !== -1) cur.splice(idx, 1);
+
+    // optimistic UI update
     setPermissions(prev => ({
       ...prev,
       [employeeId]: {
@@ -228,14 +320,38 @@ export default function OwnerEmployeeManagement() {
       }
     }));
 
-    const labels: Record<string, string> = {
-      discount: 'Apply Discounts',
-      addItem: 'Add Items with Purchase Price'
-    };
+    try {
+      const API_BASE = (import.meta.env.VITE_API_URL || '');
+      const res = await fetch(`${API_BASE}/api/auth/users/${employeeId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ permissions: cur }),
+      });
+      if (!res.ok) throw new Error('Failed to save permissions');
 
-    toast({
-      title: `${labels[key]} ${value ? 'enabled' : 'disabled'} for ${employee.name}`
-    });
+      // update local employee's permissions
+      setEmployees(prev => prev.map(e => e.id === employeeId ? { ...e, permissions: cur } : e));
+
+      const labels: Record<string, string> = {
+        discount: 'Apply Discounts',
+        addItem: 'Add Items with Purchase Price'
+      };
+
+      toast({
+        title: `${labels[key]} ${value ? 'enabled' : 'disabled'} for ${employee.name}`
+      });
+    } catch (err) {
+      // rollback UI
+      setPermissions(prev => ({
+        ...prev,
+        [employeeId]: {
+          ...prev[employeeId],
+          [key]: !value
+        }
+      }));
+      console.error('save permission err', err);
+      toast({ title: 'Failed to save permission', description: String(err) });
+    }
   };
 
   const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase();
@@ -250,9 +366,12 @@ export default function OwnerEmployeeManagement() {
   };
 
   // Group employees
-  const managers = filteredEmployees.filter(e => e.role === 'manager');
-  const storeKeepers = filteredEmployees.filter(e => e.role === 'store_keeper');
-  const cashiers = filteredEmployees.filter(e => e.role === 'cashier');
+  // Build groups for the permissions card from employees that belong to the current mart
+  const myEmployees = filteredEmployees.filter(e => String(e.martId) === String(martId));
+
+  const managers = myEmployees.filter(e => e.role === 'manager');
+  const storeKeepers = myEmployees.filter(e => e.role === 'store_keeper' || e.role === 'storeKeeper');
+  const cashiers = myEmployees.filter(e => e.role === 'cashier');
 
   // ===== PAGINATION FOR EMPLOYEES =====
   const [employeePage, setEmployeePage] = useState(1);
@@ -560,11 +679,15 @@ export default function OwnerEmployeeManagement() {
                     {t('add_employee')}
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
                   <DialogHeader>
                     <DialogTitle>{editingEmployee ? 'Edit Employee' : t('add_employee')}</DialogTitle>
                   </DialogHeader>
                   <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="username">Username (optional)</Label>
+                      <Input id="username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="login username (optional)" />
+                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="name">{t('employee_name')} *</Label>
                       <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
@@ -594,6 +717,20 @@ export default function OwnerEmployeeManagement() {
                       <div className="space-y-2">
                         <Label htmlFor="password">{t('password')} *</Label>
                         <Input id="password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+                        <Input
+                          id="confirmPassword"
+                          type="password"
+                          value={form.confirmPassword}
+                          onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
+                          required
+                          placeholder="Confirm password"
+                          className={form.confirmPassword.length === 0 ? '' : (form.password === form.confirmPassword ? 'ring-2 ring-green-400/60 border-green-400' : 'ring-2 ring-red-400/60 border-red-400')}
+                        />
+                        {form.confirmPassword.length > 0 && (
+                          <p className={`text-xs mt-1 ${form.password === form.confirmPassword ? 'text-green-600' : 'text-red-600'}`}>
+                            {form.password === form.confirmPassword ? 'Passwords match' : 'Passwords do not match'}
+                          </p>
+                        )}
                       </div>
                     )}
                     <div className="flex justify-end gap-2 pt-4">
@@ -657,7 +794,14 @@ export default function OwnerEmployeeManagement() {
                                 <Avatar className="h-9 w-9">
                                   <AvatarFallback className="bg-primary/10 text-primary text-sm">{getInitials(e.name)}</AvatarFallback>
                                 </Avatar>
-                                <span className="font-medium">{e.name}</span>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{e.name}</span>
+                                    {e.martId && e.martId === martId ? (
+                                      <Badge variant="secondary" className="text-xs">My employee</Badge>
+                                    ) : null}
+                                  </div>
+                                </div>
                               </div>
                             </TableCell>
                             <TableCell>
@@ -750,7 +894,7 @@ export default function OwnerEmployeeManagement() {
                   Manage Permissions
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Control what actions each employee can perform in the POS system.
+                  Control which actions each employee is allowed to perform in the POS system.
                 </p>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -793,20 +937,21 @@ export default function OwnerEmployeeManagement() {
                     <p className="text-sm font-semibold mb-2">Store Keeper Permissions</p>
                     <p className="text-xs text-muted-foreground mb-3">Assign warehouse permissions</p>
                     <div className="space-y-3">
-                      {storeKeepers.map(emp => (
-                        <div key={emp.id} className="flex items-center justify-between p-3 bg-background rounded-lg border">
-                          <div>
-                            <p className="text-sm font-medium">{emp.name}</p>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <span className="text-xs text-muted-foreground">Apply Discounts</span>
-                            <Switch
-                              checked={!!permissions[emp.id]?.discount}
-                              onCheckedChange={(v) => togglePermission(emp.id, 'discount', v)}
-                            />
-                          </div>
-                        </div>
-                      ))}
+                            {storeKeepers.map(emp => (
+                              <div key={emp.id} className="flex items-center justify-between p-3 bg-background rounded-lg border">
+                                <div>
+                                  <p className="text-sm font-medium">{emp.name}</p>
+                                </div>
+                                {/* Apply Discounts toggle removed for store-keepers */}
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-xs text-muted-foreground">Manage Quantity</span>
+                                  <Switch
+                                    checked={!!permissions[emp.id]?.manageQuantity}
+                                    onCheckedChange={(v) => togglePermission(emp.id, 'manageQuantity', v)}
+                                  />
+                                </div>
+                              </div>
+                            ))}
                     </div>
                   </div>
                 )}

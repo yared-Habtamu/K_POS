@@ -9,6 +9,8 @@ export interface User {
   role: UserRole;
   salary?: number;
   shopId?: string;
+  martId?: string;
+  permissions?: string[];
   createdAt: Date;
   updatedAt: Date;
 }

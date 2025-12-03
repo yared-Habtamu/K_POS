@@ -1,67 +1,26 @@
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, UserRole } from '@/types';
+import type { UserRole } from '@/types';
+
+type AuthUser = {
+  id?: string;
+  username: string;
+  name?: string;
+  martId?: string;
+  email?: string;
+  phone?: string;
+  role: UserRole;
+  token: string;
+};
 
 interface AuthState {
-  user: User | null;
+  user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (username: string, password: string, role: UserRole) => Promise<boolean>;
+  login: (username: string, password: string) => Promise<{ role?: UserRole; message?: string } | false>;
   logout: () => void;
-  setUser: (user: User | null) => void;
+  setUser: (user: AuthUser | null) => void;
 }
-
-// Mock users for demo
-const mockUsers: Record<UserRole, User> = {
-  system_admin: {
-    id: 'admin-001',
-    name: 'System Administrator',
-    email: 'admin@smartpos.com',
-    role: 'system_admin',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  owner: {
-    id: 'owner-001',
-    name: 'Abebe Kebede',
-    email: 'owner@kiyamart.com',
-    phone: '+251911234567',
-    role: 'owner',
-    shopId: 'shop-001',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  manager: {
-    id: 'manager-001',
-    name: 'Tigist Haile',
-    phone: '+251922345678',
-    role: 'manager',
-    salary: 15000,
-    shopId: 'shop-001',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  cashier: {
-    id: 'cashier-001',
-    name: 'Dawit Tadesse',
-    phone: '+251933456789',
-    role: 'cashier',
-    salary: 8000,
-    shopId: 'shop-001',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  store_keeper: {
-    id: 'storekeeper-001',
-    name: 'Mulugeta Assefa',
-    phone: '+251944567890',
-    role: 'store_keeper',
-    salary: 9000,
-    shopId: 'shop-001',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-};
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -70,30 +29,73 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: false,
 
-      login: async (username: string, password: string, role: UserRole) => {
+      login: async (username: string, password: string) => {
         set({ isLoading: true });
-        
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
-        // For demo, accept any password with 'demo' or matching username
-        if (password === 'demo' || password === username) {
-          const user = mockUsers[role];
-          set({ user, isAuthenticated: true, isLoading: false });
-          return true;
+        const API_BASE = (import.meta.env.VITE_API_URL || '');
+        try {
+          const res = await fetch(API_BASE + '/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password }),
+          });
+
+          if (!res.ok) {
+            try {
+              const err = await res.json();
+              console.warn('Login failed:', err);
+              return { message: err && err.message ? String(err.message) : `status ${res.status}` };
+            } catch (_) {
+              console.warn('Login failed: status', res.status);
+              return { message: `status ${res.status}` };
+            }
+          }
+
+          const data = await res.json();
+          if (data && data.token && data.user) {
+            // normalize backend role -> frontend UserRole
+            const rawRole = String(data.user.role || '').trim();
+            const roleMap: Record<string, import('@/types').UserRole> = {
+              systemAdmin: 'system_admin',
+              system_admin: 'system_admin',
+              owner: 'owner',
+              manager: 'manager',
+              cashier: 'cashier',
+              storeKeeper: 'store_keeper',
+              store_keeper: 'store_keeper',
+            } as const;
+
+            const normalizedRole = (roleMap[rawRole] || 'owner') as import('@/types').UserRole;
+
+            set({
+              user: {
+                id: data.user.id || data.user._id || undefined,
+                username: data.user.username,
+                martId: data.user.martId || data.user.shopId || data.user.mart || undefined,
+                name: data.user.name,
+                email: data.user.email,
+                phone: data.user.phone,
+                role: normalizedRole,
+                token: data.token,
+              },
+              isAuthenticated: true,
+              isLoading: false,
+            });
+
+            return { role: normalizedRole };
+          }
+
+          return false;
+        } catch (e) {
+          console.error('Login error', e);
+          return false;
+        } finally {
+          set({ isLoading: false });
         }
-        
-        set({ isLoading: false });
-        return false;
       },
 
-      logout: () => {
-        set({ user: null, isAuthenticated: false });
-      },
+      logout: () => set({ user: null, isAuthenticated: false }),
 
-      setUser: (user) => {
-        set({ user, isAuthenticated: !!user });
-      },
+      setUser: (user) => set({ user, isAuthenticated: !!user }),
     }),
     {
       name: 'auth-storage',
