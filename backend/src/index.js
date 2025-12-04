@@ -13,9 +13,11 @@ app.use(morgan('dev'));
 // Models and routes
 const martsRouter = require('./routes/marts');
 const authRouter = require('./routes/auth');
+const productsRouter = require('./routes/products');
 
 app.use('/api/marts', martsRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/products', productsRouter);
 
 const PORT = process.env.PORT || 4000;
 
