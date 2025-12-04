@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
@@ -30,6 +30,14 @@ export default function Login() {
   const navigate = useNavigate();
   const { login, isLoading } = useAuthStore();
   
+  // Use uncontrolled inputs (refs) to avoid focus/caret issues caused
+  // by repeated re-renders of a controlled input (fixes "one character
+  // at a time" typing bug that required clicking the input between
+  // characters).
+  const usernameRef = useRef<HTMLInputElement | null>(null);
+  const passwordRef = useRef<HTMLInputElement | null>(null);
+
+  // Fallback local state remains for legacy usage if needed
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   // Remove role selection
@@ -38,7 +46,11 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const result = await login(username, password);
+    // prefer reading live values from the DOM refs when available
+    const liveUsername = usernameRef?.current?.value ?? username;
+    const livePassword = passwordRef?.current?.value ?? password;
+
+    const result = await login(liveUsername, livePassword);
     if (result && (result as any).role) {
       toast({
         title: 'Welcome!',
@@ -107,10 +119,7 @@ export default function Login() {
             {/* Username */}
             <div className="space-y-2">
               <Label htmlFor="username">{t('username')}</Label>
-              <Input
-                id="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+              <Input id="username" ref={usernameRef}
                 placeholder="Enter username"
                 className="h-12"
                 required
@@ -121,11 +130,8 @@ export default function Login() {
             <div className="space-y-2">
               <Label htmlFor="password">{t('password')}</Label>
               <div className="relative">
-                <Input
-                  id="password"
+                <Input id="password" ref={passwordRef}
                   type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter password"
                   className="h-12 pr-10"
                   required
