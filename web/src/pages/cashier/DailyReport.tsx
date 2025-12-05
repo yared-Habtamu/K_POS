@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { RoleLayout } from '@/components/layout/RoleLayout';
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { useAuthStore } from '@/stores/authStore';
+import { RefreshCw } from 'lucide-react';
 import {
   FileText,
   DollarSign,
@@ -31,6 +32,36 @@ export default function DailyReport() {
     discountsGiven: '',
     notes: '',
   });
+
+  const API_BASE = (import.meta.env.VITE_API_URL || '');
+
+  const fetchDaily = async () => {
+    try {
+      const token = user?.token;
+      const martId = user?.martId;
+      if (!martId) return;
+      const day = new Date().toISOString().slice(0,10);
+      const res = await fetch(`${API_BASE}/api/reports/daily?martId=${martId}&date=${day}`, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
+      if (!res.ok) return;
+      const data = await res.json();
+      setReport({
+        totalSales: (data.totalSales || 0).toString(),
+        cashReceived: String((data.salesByPaymentMethod || []).find((m:any) => m.method === 'cash')?.total || 0),
+        bankTransfer: String((data.salesByPaymentMethod || []).find((m:any) => m.method === 'cbe_bank')?.total || 0),
+        discountsGiven: String(data.discountsTotal || 0),
+        notes: '',
+      });
+    } catch (err) {
+      console.error('Fetch daily report error', err);
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    if (mounted) fetchDaily();
+    const id = setInterval(fetchDaily, 5000); // poll every 5s to update in near real-time
+    return () => { mounted = false; clearInterval(id); };
+  }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,6 +130,7 @@ export default function DailyReport() {
                     value={report.totalSales}
                     onChange={(e) => setReport({ ...report, totalSales: e.target.value })}
                     required
+                    readOnly
                     className="h-12"
                   />
                 </div>
@@ -115,6 +147,7 @@ export default function DailyReport() {
                     value={report.cashReceived}
                     onChange={(e) => setReport({ ...report, cashReceived: e.target.value })}
                     required
+                    readOnly
                     className="h-12"
                   />
                 </div>
@@ -130,6 +163,7 @@ export default function DailyReport() {
                     placeholder="0.00"
                     value={report.bankTransfer}
                     onChange={(e) => setReport({ ...report, bankTransfer: e.target.value })}
+                    readOnly
                     className="h-12"
                   />
                 </div>
@@ -145,9 +179,16 @@ export default function DailyReport() {
                     placeholder="0.00"
                     value={report.discountsGiven}
                     onChange={(e) => setReport({ ...report, discountsGiven: e.target.value })}
+                    readOnly
                     className="h-12"
                   />
                 </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button type="button" variant="outline" size="sm" onClick={fetchDaily} className="mr-2">
+                  <RefreshCw className="mr-2 h-4 w-4" /> Refresh
+                </Button>
               </div>
 
               {/* Notes */}

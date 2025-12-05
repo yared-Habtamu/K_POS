@@ -144,6 +144,31 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
       receiptSlogan: 'Quality products at affordable prices',
     };
 
+    // send sale to backend
+    try {
+      const API_BASE = (import.meta.env.VITE_API_URL || '');
+      const token = user?.token;
+      const salePayload: Sale = {
+        martId: user?.martId,
+        receiptId,
+        items: items.map(it => ({ productId: it.id, name: it.name, price: it.price, quantity: it.quantity, total: it.price * it.quantity })),
+        subtotal: getSubtotal(),
+        discount: receipt.discount,
+        extraCharges: receipt.extraCharges,
+        tax: receipt.tax,
+        total: receipt.total,
+        paymentMethod: receipt.paymentMethod,
+      } as any;
+
+      const res = await fetch(`${API_BASE}/api/sales`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(salePayload) });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.warn('Failed to record sale', err);
+      }
+    } catch (err) {
+      console.error('Record sale error', err);
+    }
+
     setCurrentReceipt(receipt);
     setShowReceipt(true);
     setIsProcessing(false);
