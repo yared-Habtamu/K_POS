@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const SaleItemSchema = new mongoose.Schema({
   productId: { type: String },
@@ -10,8 +10,13 @@ const SaleItemSchema = new mongoose.Schema({
 
 const SaleSchema = new mongoose.Schema(
   {
-    martId: { type: mongoose.Schema.Types.ObjectId, ref: 'Mart', index: true, required: true },
-    cashierId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    martId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Mart",
+      index: true,
+      required: true,
+    },
+    cashierId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     cashierName: { type: String },
     receiptId: { type: String },
     items: { type: [SaleItemSchema], default: [] },
@@ -26,4 +31,4 @@ const SaleSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model('Sale', SaleSchema);
+module.exports = mongoose.model("Sale", SaleSchema);
