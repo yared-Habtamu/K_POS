@@ -1,27 +1,27 @@
-import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { motion } from 'framer-motion';
-import { useCartStore } from '@/stores/cartStore';
-import { useAuthStore } from '@/stores/authStore';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { motion } from "framer-motion";
+import { useCartStore } from "@/stores/cartStore";
+import { useAuthStore } from "@/stores/authStore";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { toast } from '@/hooks/use-toast';
-import { ReceiptPreview } from './ReceiptPreview';
-import type { PaymentMethod, DiscountType, Sale, Receipt } from '@/types';
+} from "@/components/ui/dialog";
+import { toast } from "@/hooks/use-toast";
+import { ReceiptPreview } from "./ReceiptPreview";
+import type { PaymentMethod, DiscountType, Sale, Receipt } from "@/types";
 import {
   Banknote,
   CreditCard,
@@ -34,14 +34,18 @@ import {
   X,
   Receipt as ReceiptIcon,
   Loader2,
-} from 'lucide-react';
+} from "lucide-react";
 
-const paymentMethods: { value: PaymentMethod; label: string; icon: React.ElementType }[] = [
-  { value: 'cash', label: 'cash', icon: Banknote },
-  { value: 'card', label: 'card', icon: CreditCard },
-  { value: 'telebirr', label: 'telebirr', icon: Smartphone },
-  { value: 'cbe_bank', label: 'cbe_bank', icon: Building2 },
-  { value: 'wallet', label: 'wallet', icon: Wallet },
+const paymentMethods: {
+  value: PaymentMethod;
+  label: string;
+  icon: React.ElementType;
+}[] = [
+  { value: "cash", label: "cash", icon: Banknote },
+  { value: "card", label: "card", icon: CreditCard },
+  { value: "telebirr", label: "telebirr", icon: Smartphone },
+  { value: "cbe_bank", label: "cbe_bank", icon: Building2 },
+  { value: "wallet", label: "wallet", icon: Wallet },
 ];
 
 interface PaymentPanelProps {
@@ -69,10 +73,10 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     getTotal,
   } = useCartStore();
 
-  const [discountType, setDiscountType] = useState<DiscountType>('percentage');
-  const [discountValue, setDiscountValue] = useState('');
-  const [newChargeName, setNewChargeName] = useState('');
-  const [newChargeAmount, setNewChargeAmount] = useState('');
+  const [discountType, setDiscountType] = useState<DiscountType>("percentage");
+  const [discountValue, setDiscountValue] = useState("");
+  const [newChargeName, setNewChargeName] = useState("");
+  const [newChargeAmount, setNewChargeAmount] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [currentReceipt, setCurrentReceipt] = useState<Receipt | null>(null);
@@ -81,7 +85,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     const value = parseFloat(discountValue);
     if (value > 0) {
       setCartDiscount(discountType, value);
-      setDiscountValue('');
+      setDiscountValue("");
     }
   };
 
@@ -92,17 +96,17 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
         name: newChargeName,
         amount: parseFloat(newChargeAmount),
       });
-      setNewChargeName('');
-      setNewChargeAmount('');
+      setNewChargeName("");
+      setNewChargeAmount("");
     }
   };
 
   const handleCompleteSale = async () => {
     if (items.length === 0) {
       toast({
-        title: 'Empty Cart',
-        description: 'Add items to complete a sale',
-        variant: 'destructive',
+        title: "Empty Cart",
+        description: "Add items to complete a sale",
+        variant: "destructive",
       });
       return;
     }
@@ -110,7 +114,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     setIsProcessing(true);
 
     // Simulate processing
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     const saleId = `SALE-${Date.now()}`;
     const receiptId = `RCP-${Date.now().toString(36).toUpperCase()}`;
@@ -123,33 +127,73 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
         receiptId,
         total: getTotal(),
         date: new Date().toISOString(),
-        shop: 'Kiya Supermarket',
+        shop: "Kiya Supermarket",
       }),
-      shopName: 'Kiya Supermarket',
-      shopAddress: 'Addis Ababa, Ethiopia',
-      shopPhone: '+251 911 234 567',
+      shopName: "Kiya Supermarket",
+      shopAddress: "Addis Ababa, Ethiopia",
+      shopPhone: "+251 911 234 567",
       items,
       subtotal: getSubtotal(),
-      discount: discount ? {
-        ...discount,
-        amount: getDiscountAmount(),
-      } : undefined,
+      discount: discount
+        ? {
+            ...discount,
+            amount: getDiscountAmount(),
+          }
+        : undefined,
       extraCharges,
       tax: getTax(),
       total: getTotal(),
       paymentMethod,
-      cashierName: user?.name || 'Unknown',
+      cashierName: user?.name || "Unknown",
       date: new Date(),
-      receiptHeader: 'Thank you for shopping with us!',
-      receiptSlogan: 'Quality products at affordable prices',
+      receiptHeader: "Thank you for shopping with us!",
+      receiptSlogan: "Quality products at affordable prices",
     };
+
+    // send sale to backend
+    try {
+      const API_BASE = import.meta.env.VITE_API_URL || "";
+      const token = user?.token;
+      const salePayload: Sale = {
+        martId: user?.martId,
+        receiptId,
+        items: items.map((it) => ({
+          productId: it.id,
+          name: it.name,
+          price: it.price,
+          quantity: it.quantity,
+          total: it.price * it.quantity,
+        })),
+        subtotal: getSubtotal(),
+        discount: receipt.discount,
+        extraCharges: receipt.extraCharges,
+        tax: receipt.tax,
+        total: receipt.total,
+        paymentMethod: receipt.paymentMethod,
+      } as any;
+
+      const res = await fetch(`${API_BASE}/api/sales`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(salePayload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.warn("Failed to record sale", err);
+      }
+    } catch (err) {
+      console.error("Record sale error", err);
+    }
 
     setCurrentReceipt(receipt);
     setShowReceipt(true);
     setIsProcessing(false);
 
     toast({
-      title: t('sale_complete'),
+      title: t("sale_complete"),
       description: `Receipt: ${receiptId}`,
     });
   };
@@ -164,14 +208,14 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     <div className="space-y-4">
       {/* Payment Method */}
       <div className="space-y-2">
-        <Label>{t('payment_method')}</Label>
+        <Label>{t("payment_method")}</Label>
         <div className="grid grid-cols-3 gap-2">
           {paymentMethods.map((method) => {
             const Icon = method.icon;
             return (
               <Button
                 key={method.value}
-                variant={paymentMethod === method.value ? 'default' : 'outline'}
+                variant={paymentMethod === method.value ? "default" : "outline"}
                 className="h-auto py-3 flex flex-col items-center gap-1"
                 onClick={() => setPaymentMethod(method.value)}
               >
@@ -186,11 +230,14 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
       {/* Discount Section */}
       {canApplyDiscount && (
         <div className="space-y-2">
-          <Label>{t('discount')}</Label>
+          <Label>{t("discount")}</Label>
           {discount ? (
             <div className="flex items-center gap-2 p-2 bg-accent rounded-lg">
               <span className="flex-1 text-sm">
-                {discount.type === 'percentage' ? `${discount.value}%` : `${discount.value} ETB`} off
+                {discount.type === "percentage"
+                  ? `${discount.value}%`
+                  : `${discount.value} ETB`}{" "}
+                off
               </span>
               <Button variant="ghost" size="sm" onClick={removeCartDiscount}>
                 <X className="h-4 w-4" />
@@ -198,15 +245,17 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
             </div>
           ) : (
             <div className="flex gap-2">
-              <Select value={discountType} onValueChange={(v) => setDiscountType(v as DiscountType)}>
+              <Select
+                value={discountType}
+                onValueChange={(v) => setDiscountType(v as DiscountType)}
+              >
                 <SelectTrigger className="w-24">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="percentage">
                     <div className="flex items-center gap-1">
-                      <Percent className="h-3 w-3" />
-                      %
+                      <Percent className="h-3 w-3" />%
                     </div>
                   </SelectItem>
                   <SelectItem value="fixed">
@@ -234,12 +283,19 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
 
       {/* Extra Charges */}
       <div className="space-y-2">
-        <Label>{t('extra_charges')}</Label>
+        <Label>{t("extra_charges")}</Label>
         {extraCharges.map((charge) => (
-          <div key={charge.id} className="flex items-center gap-2 p-2 bg-accent rounded-lg">
+          <div
+            key={charge.id}
+            className="flex items-center gap-2 p-2 bg-accent rounded-lg"
+          >
             <span className="flex-1 text-sm">{charge.name}</span>
             <span className="text-sm font-medium">{charge.amount} ETB</span>
-            <Button variant="ghost" size="sm" onClick={() => removeExtraCharge(charge.id)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => removeExtraCharge(charge.id)}
+            >
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -279,7 +335,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
           ) : (
             <>
               <ReceiptIcon className="mr-2 h-5 w-5" />
-              {t('complete_sale')} - {getTotal().toFixed(2)} {t('etb')}
+              {t("complete_sale")} - {getTotal().toFixed(2)} {t("etb")}
             </>
           )}
         </Button>
@@ -289,7 +345,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
           onClick={clearCart}
           disabled={items.length === 0}
         >
-          {t('clear_cart')}
+          {t("clear_cart")}
         </Button>
       </div>
 
@@ -297,10 +353,13 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
       <Dialog open={showReceipt} onOpenChange={setShowReceipt}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{t('receipt_preview')}</DialogTitle>
+            <DialogTitle>{t("receipt_preview")}</DialogTitle>
           </DialogHeader>
           {currentReceipt && (
-            <ReceiptPreview receipt={currentReceipt} onClose={handleCloseReceipt} />
+            <ReceiptPreview
+              receipt={currentReceipt}
+              onClose={handleCloseReceipt}
+            />
           )}
         </DialogContent>
       </Dialog>

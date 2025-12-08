@@ -1,27 +1,27 @@
 // src/pages/owner/ExpenseManagement.tsx
-import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { motion } from 'framer-motion';
-import { RoleLayout } from '@/components/layout/RoleLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { motion } from "framer-motion";
+import { RoleLayout } from "@/components/layout/RoleLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -29,9 +29,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { toast } from '@/hooks/use-toast';
-import type { Expense, ExpenseCategory } from '@/types';
+} from "@/components/ui/table";
+import { toast } from "@/hooks/use-toast";
+import type { Expense, ExpenseCategory } from "@/types";
+import { useAuthStore } from "@/stores/authStore";
 import {
   Wallet,
   Plus,
@@ -46,106 +47,224 @@ import {
   Users,
   TrendingUp,
   TrendingDown,
-} from 'lucide-react';
-import { format } from 'date-fns';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+} from "lucide-react";
+import { format } from "date-fns";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Legend,
+  Tooltip,
+} from "recharts";
 
-const expenseCategories: { value: ExpenseCategory; label: string; icon: React.ElementType; color: string }[] = [
-  { value: 'salary', label: 'salary_expense', icon: Users, color: 'hsl(var(--chart-1))' },
-  { value: 'rent', label: 'rent', icon: Home, color: 'hsl(var(--chart-2))' },
-  { value: 'electricity', label: 'electricity', icon: Zap, color: 'hsl(var(--chart-3))' },
-  { value: 'water', label: 'water', icon: Droplets, color: 'hsl(var(--chart-4))' },
-  { value: 'cleaning', label: 'cleaning', icon: Sparkles, color: 'hsl(var(--chart-5))' },
-  { value: 'miscellaneous', label: 'miscellaneous', icon: MoreHorizontal, color: 'hsl(var(--muted-foreground))' },
-];
-
-// Mock expenses (added more for pagination testing)
-const mockExpenses: Expense[] = [
-  { id: '1', category: 'salary', description: 'Staff salaries - November', amount: 48000, date: new Date(), shopId: 'shop-001', createdBy: 'owner-001', createdAt: new Date() },
-  { id: '2', category: 'rent', description: 'Shop rent - November', amount: 25000, date: new Date(), shopId: 'shop-001', createdBy: 'owner-001', createdAt: new Date() },
-  { id: '3', category: 'electricity', description: 'Electric bill', amount: 3500, date: new Date(), shopId: 'shop-001', createdBy: 'owner-001', createdAt: new Date() },
-  { id: '4', category: 'water', description: 'Water bill', amount: 800, date: new Date(), shopId: 'shop-001', createdBy: 'owner-001', createdAt: new Date() },
-  { id: '5', category: 'cleaning', description: 'Cleaning supplies', amount: 1200, date: new Date(), shopId: 'shop-001', createdBy: 'owner-001', createdAt: new Date() },
-  { id: '6', category: 'miscellaneous', description: 'Office supplies', amount: 750, date: new Date(), shopId: 'shop-001', createdBy: 'owner-001', createdAt: new Date() },
-  { id: '7', category: 'salary', description: 'Manager bonus', amount: 5000, date: new Date(), shopId: 'shop-001', createdBy: 'owner-001', createdAt: new Date() },
-  { id: '8', category: 'electricity', description: 'Generator fuel', amount: 2200, date: new Date(), shopId: 'shop-001', createdBy: 'owner-001', createdAt: new Date() },
-  { id: '9', category: 'rent', description: 'Storage unit rent', amount: 3000, date: new Date(), shopId: 'shop-001', createdBy: 'owner-001', createdAt: new Date() },
-  { id: '10', category: 'water', description: 'Bottled water', amount: 450, date: new Date(), shopId: 'shop-001', createdBy: 'owner-001', createdAt: new Date() },
+const expenseCategories: {
+  value: ExpenseCategory;
+  label: string;
+  icon: React.ElementType;
+  color: string;
+}[] = [
+  {
+    value: "salary",
+    label: "salary_expense",
+    icon: Users,
+    color: "hsl(var(--chart-1))",
+  },
+  { value: "rent", label: "rent", icon: Home, color: "hsl(var(--chart-2))" },
+  {
+    value: "electricity",
+    label: "electricity",
+    icon: Zap,
+    color: "hsl(var(--chart-3))",
+  },
+  {
+    value: "water",
+    label: "water",
+    icon: Droplets,
+    color: "hsl(var(--chart-4))",
+  },
+  {
+    value: "cleaning",
+    label: "cleaning",
+    icon: Sparkles,
+    color: "hsl(var(--chart-5))",
+  },
+  {
+    value: "miscellaneous",
+    label: "miscellaneous",
+    icon: MoreHorizontal,
+    color: "hsl(var(--muted-foreground))",
+  },
 ];
 
 const ITEMS_PER_PAGE = 7; // ✅ 7 items per page
 
 export default function ExpenseManagement() {
   const { t } = useTranslation();
-  const [expenses, setExpenses] = useState<Expense[]>(mockExpenses);
-  const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const auth = useAuthStore((s) => s.user);
+  const API_BASE = import.meta.env.VITE_API_URL || "";
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1); // ✅ Pagination state
 
   const [form, setForm] = useState({
-    category: 'miscellaneous' as ExpenseCategory,
-    description: '',
-    amount: '',
-    date: new Date().toISOString().split('T')[0],
+    category: "miscellaneous" as ExpenseCategory,
+    description: "",
+    amount: "",
+    date: new Date().toISOString().split("T")[0],
   });
 
-  const filteredExpenses = expenses.filter(e => {
-    const matchSearch = e.description.toLowerCase().includes(search.toLowerCase());
-    const matchCategory = categoryFilter === 'all' || e.category === categoryFilter;
+  const filteredExpenses = expenses.filter((e) => {
+    const matchSearch = e.description
+      .toLowerCase()
+      .includes(search.toLowerCase());
+    const matchCategory =
+      categoryFilter === "all" || e.category === categoryFilter;
     return matchSearch && matchCategory;
   });
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
 
-  const expensesByCategory = expenseCategories.map(cat => ({
-    name: t(cat.label),
-    value: expenses.filter(e => e.category === cat.value).reduce((sum, e) => sum + e.amount, 0),
-    color: cat.color,
-  })).filter(item => item.value > 0);
+  const expensesByCategory = expenseCategories
+    .map((cat) => ({
+      name: t(cat.label),
+      value: expenses
+        .filter((e) => e.category === cat.value)
+        .reduce((sum, e) => sum + e.amount, 0),
+      color: cat.color,
+    }))
+    .filter((item) => item.value > 0);
 
   // ✅ Pagination logic
   const totalPages = Math.ceil(filteredExpenses.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedExpenses = filteredExpenses.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const paginatedExpenses = filteredExpenses.slice(
+    startIndex,
+    startIndex + ITEMS_PER_PAGE
+  );
 
   const handleDelete = (id: string) => {
-    setExpenses(expenses.filter(e => e.id !== id));
-    toast({ title: 'Expense deleted' });
+    (async () => {
+      try {
+        const token = auth?.token;
+        const res = await fetch(`${API_BASE}/api/expenses/${id}`, {
+          method: "DELETE",
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast({ title: err.message || "Failed to delete expense" });
+          return;
+        }
+        setExpenses((prev) => prev.filter((e) => e.id !== id));
+        toast({ title: "Expense deleted" });
+      } catch (err) {
+        console.error(err);
+        toast({ title: "Failed to delete expense" });
+      }
+    })();
     // Reset to page 1 if current page becomes empty
-    if (filteredExpenses.length <= (currentPage - 1) * ITEMS_PER_PAGE && currentPage > 1) {
+    if (
+      filteredExpenses.length <= (currentPage - 1) * ITEMS_PER_PAGE &&
+      currentPage > 1
+    ) {
       setCurrentPage(1);
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    const newExpense: Expense = {
-      id: Date.now().toString(),
-      category: form.category,
-      description: form.description,
-      amount: parseFloat(form.amount),
-      date: new Date(form.date),
-      shopId: 'shop-001',
-      createdBy: 'owner-001',
-      createdAt: new Date(),
-    };
-
-    setExpenses([newExpense, ...expenses]);
-    toast({ title: t('expense_added') });
-    setIsDialogOpen(false);
-    setForm({
-      category: 'miscellaneous',
-      description: '',
-      amount: '',
-      date: new Date().toISOString().split('T')[0],
-    });
-    setCurrentPage(1); // Reset to first page after adding
+    (async () => {
+      try {
+        const token = auth?.token;
+        const payload = {
+          category: form.category,
+          description: form.description,
+          amount: Number(form.amount),
+          date: form.date,
+          martId: auth?.martId,
+        };
+        const res = await fetch(`${API_BASE}/api/expenses`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast({ title: err.message || "Failed to add expense" });
+          return;
+        }
+        const saved = await res.json();
+        const newExpense: Expense = {
+          id: saved._id || saved.id || Date.now().toString(),
+          category: saved.category,
+          description: saved.description,
+          amount: saved.amount,
+          date: new Date(saved.date),
+          shopId: String(saved.martId || saved.shopId || ""),
+          createdBy: String(saved.createdBy || ""),
+          createdAt: new Date(saved.createdAt || saved.createdAt),
+        };
+        setExpenses((prev) => [newExpense, ...prev]);
+        toast({ title: t("expense_added") });
+        setIsDialogOpen(false);
+        setForm({
+          category: "miscellaneous",
+          description: "",
+          amount: "",
+          date: new Date().toISOString().split("T")[0],
+        });
+        setCurrentPage(1);
+      } catch (err) {
+        console.error(err);
+        toast({ title: "Failed to add expense" });
+      }
+    })();
   };
 
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const token = auth?.token;
+        const martId = auth?.martId;
+        if (!martId) return;
+        const res = await fetch(`${API_BASE}/api/expenses?martId=${martId}`, {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        });
+        if (!res.ok) {
+          console.warn("Failed to load expenses", res.status);
+          return;
+        }
+        const list = await res.json();
+        if (!mounted) return;
+        const normalized: Expense[] = list.map((s: any) => ({
+          id: s._id || s.id,
+          category: s.category,
+          description: s.description,
+          amount: s.amount,
+          date: new Date(s.date),
+          shopId: String(s.martId || s.shopId || ""),
+          createdBy: String(s.createdBy || ""),
+          createdAt: new Date(s.createdAt),
+        }));
+        setExpenses(normalized);
+      } catch (err) {
+        console.error("Load expenses error", err);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [auth]);
+
   const getCategoryIcon = (category: ExpenseCategory) => {
-    const cat = expenseCategories.find(c => c.value === category);
+    const cat = expenseCategories.find((c) => c.value === category);
     return cat?.icon || MoreHorizontal;
   };
 
@@ -169,30 +288,37 @@ export default function ExpenseManagement() {
   };
 
   return (
-    <RoleLayout allowedRoles={['owner']}>
+    <RoleLayout allowedRoles={["owner"]}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">{t('expenses')}</h1>
-            <p className="text-muted-foreground">Track and manage your business expenses</p>
+            <h1 className="text-2xl font-bold">{t("expenses")}</h1>
+            <p className="text-muted-foreground">
+              Track and manage your business expenses
+            </p>
           </div>
-          
+
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
-                {t('add_expense')}
+                {t("add_expense")}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{t('add_expense')}</DialogTitle>
+                <DialogTitle>{t("add_expense")}</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="category">{t('expense_category')} *</Label>
-                  <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v as ExpenseCategory })}>
+                  <Label htmlFor="category">{t("expense_category")} *</Label>
+                  <Select
+                    value={form.category}
+                    onValueChange={(v) =>
+                      setForm({ ...form, category: v as ExpenseCategory })
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -213,17 +339,21 @@ export default function ExpenseManagement() {
                   <Input
                     id="description"
                     value={form.description}
-                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, description: e.target.value })
+                    }
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="amount">{t('amount')} (ETB) *</Label>
+                  <Label htmlFor="amount">{t("amount")} (ETB) *</Label>
                   <Input
                     id="amount"
                     type="number"
                     value={form.amount}
-                    onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, amount: e.target.value })
+                    }
                     required
                   />
                 </div>
@@ -238,10 +368,14 @@ export default function ExpenseManagement() {
                   />
                 </div>
                 <div className="flex justify-end gap-2 pt-4">
-                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                    {t('cancel')}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsDialogOpen(false)}
+                  >
+                    {t("cancel")}
                   </Button>
-                  <Button type="submit">{t('add')}</Button>
+                  <Button type="submit">{t("add")}</Button>
                 </div>
               </form>
             </DialogContent>
@@ -250,13 +384,20 @@ export default function ExpenseManagement() {
 
         {/* Stats */}
         <div className="grid gap-4 md:grid-cols-3">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Total Expenses</p>
-                    <p className="text-2xl font-bold">{totalExpenses.toLocaleString()} ETB</p>
+                    <p className="text-sm text-muted-foreground">
+                      Total Expenses
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {totalExpenses.toLocaleString()} ETB
+                    </p>
                   </div>
                   <div className="p-3 rounded-xl bg-destructive/10 text-destructive">
                     <TrendingDown className="h-6 w-6" />
@@ -265,12 +406,18 @@ export default function ExpenseManagement() {
               </CardContent>
             </Card>
           </motion.div>
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">This Month Revenue</p>
+                    <p className="text-sm text-muted-foreground">
+                      This Month Revenue
+                    </p>
                     <p className="text-2xl font-bold">156,420 ETB</p>
                   </div>
                   <div className="p-3 rounded-xl bg-success/10 text-success">
@@ -280,13 +427,19 @@ export default function ExpenseManagement() {
               </CardContent>
             </Card>
           </motion.div>
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Net Profit</p>
-                    <p className="text-2xl font-bold">{(156420 - totalExpenses).toLocaleString()} ETB</p>
+                    <p className="text-2xl font-bold">
+                      {(156420 - totalExpenses).toLocaleString()} ETB
+                    </p>
                   </div>
                   <div className="p-3 rounded-xl bg-primary/10 text-primary">
                     <DollarSign className="h-6 w-6" />
@@ -327,7 +480,11 @@ export default function ExpenseManagement() {
                           <Cell key={index} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: number) => `${value.toLocaleString()} ETB`} />
+                      <Tooltip
+                        formatter={(value: number) =>
+                          `${value.toLocaleString()} ETB`
+                        }
+                      />
                       <Legend />
                     </PieChart>
                   </ResponsiveContainer>
@@ -359,14 +516,19 @@ export default function ExpenseManagement() {
                         className="pl-10 w-40"
                       />
                     </div>
-                    <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                    <Select
+                      value={categoryFilter}
+                      onValueChange={setCategoryFilter}
+                    >
                       <SelectTrigger className="w-36">
                         <SelectValue placeholder="Category" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All</SelectItem>
                         {expenseCategories.map((cat) => (
-                          <SelectItem key={cat.value} value={cat.value}>{t(cat.label)}</SelectItem>
+                          <SelectItem key={cat.value} value={cat.value}>
+                            {t(cat.label)}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -378,11 +540,15 @@ export default function ExpenseManagement() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>{t('expense_category')}</TableHead>
+                        <TableHead>{t("expense_category")}</TableHead>
                         <TableHead>Description</TableHead>
-                        <TableHead className="text-right">{t('amount')}</TableHead>
+                        <TableHead className="text-right">
+                          {t("amount")}
+                        </TableHead>
                         <TableHead>Date</TableHead>
-                        <TableHead className="text-right">{t('actions')}</TableHead>
+                        <TableHead className="text-right">
+                          {t("actions")}
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -395,15 +561,28 @@ export default function ExpenseManagement() {
                                 <div className="flex items-center gap-2">
                                   <Icon className="h-4 w-4 text-muted-foreground" />
                                   <Badge variant="outline">
-                                    {t(expense.category === 'salary' ? 'salary_expense' : expense.category)}
+                                    {t(
+                                      expense.category === "salary"
+                                        ? "salary_expense"
+                                        : expense.category
+                                    )}
                                   </Badge>
                                 </div>
                               </TableCell>
                               <TableCell>{expense.description}</TableCell>
-                              <TableCell className="text-right font-medium">{expense.amount.toLocaleString()} ETB</TableCell>
-                              <TableCell>{format(new Date(expense.date), 'MMM dd, yyyy')}</TableCell>
+                              <TableCell className="text-right font-medium">
+                                {expense.amount.toLocaleString()} ETB
+                              </TableCell>
+                              <TableCell>
+                                {format(new Date(expense.date), "MMM dd, yyyy")}
+                              </TableCell>
                               <TableCell className="text-right">
-                                <Button variant="ghost" size="icon" onClick={() => handleDelete(expense.id)} className="text-destructive hover:text-destructive">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDelete(expense.id)}
+                                  className="text-destructive hover:text-destructive"
+                                >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </TableCell>
@@ -412,10 +591,13 @@ export default function ExpenseManagement() {
                         })
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
-                            {search || categoryFilter !== 'all' 
-                              ? 'No expenses found' 
-                              : 'No expenses recorded yet.'}
+                          <TableCell
+                            colSpan={5}
+                            className="text-center py-4 text-muted-foreground"
+                          >
+                            {search || categoryFilter !== "all"
+                              ? "No expenses found"
+                              : "No expenses recorded yet."}
                           </TableCell>
                         </TableRow>
                       )}
@@ -427,11 +609,22 @@ export default function ExpenseManagement() {
                 {totalPages > 1 && (
                   <div className="flex flex-col sm:flex-row items-center justify-between px-2 py-3 border-t border-border mt-4">
                     <div className="text-xs text-muted-foreground mb-2 sm:mb-0">
-                      Showing <span className="font-medium">{startIndex + 1}</span>–
-                      <span className="font-medium">{Math.min(startIndex + ITEMS_PER_PAGE, filteredExpenses.length)}</span> of 
-                      <span className="font-medium"> {filteredExpenses.length}</span> expenses
+                      Showing{" "}
+                      <span className="font-medium">{startIndex + 1}</span>–
+                      <span className="font-medium">
+                        {Math.min(
+                          startIndex + ITEMS_PER_PAGE,
+                          filteredExpenses.length
+                        )}
+                      </span>{" "}
+                      of
+                      <span className="font-medium">
+                        {" "}
+                        {filteredExpenses.length}
+                      </span>{" "}
+                      expenses
                     </div>
-                    
+
                     <div className="flex items-center gap-1">
                       <Button
                         variant="outline"
@@ -441,19 +634,23 @@ export default function ExpenseManagement() {
                       >
                         Prev
                       </Button>
-                      
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                        <Button
-                          key={page}
-                          variant={currentPage === page ? 'default' : 'outline'}
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => goToPage(page)}
-                        >
-                          {page}
-                        </Button>
-                      ))}
-                      
+
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                        (page) => (
+                          <Button
+                            key={page}
+                            variant={
+                              currentPage === page ? "default" : "outline"
+                            }
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => goToPage(page)}
+                          >
+                            {page}
+                          </Button>
+                        )
+                      )}
+
                       <Button
                         variant="outline"
                         size="sm"
