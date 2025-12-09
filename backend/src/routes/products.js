@@ -3,9 +3,14 @@ const router = express.Router();
 
 const Product = require('../models/product.model');
 const { authenticate } = require('../middleware/auth');
+const multer = require('multer');
+const { uploadBuffer } = require('../utils/cloudinary');
+
+// Use memory storage so we can send buffer directly to Cloudinary
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 // Create product
-router.post('/', authenticate, async (req, res) => {
+router.post('/', authenticate, upload.single('image'), async (req, res) => {
   try {
     const user = req.user;
     const {
@@ -21,6 +26,18 @@ router.post('/', authenticate, async (req, res) => {
       imageUrl,
       martId,
     } = req.body;
+
+    // If an image file was uploaded, upload it to Cloudinary and use returned URL
+    let finalImageUrl = imageUrl || '';
+    if (req.file && req.file.buffer) {
+      try {
+        const uploaded = await uploadBuffer(req.file.buffer, req.file.originalname);
+        finalImageUrl = uploaded.secure_url || uploaded.url || finalImageUrl;
+      } catch (err) {
+        console.error('Cloudinary upload error:', err);
+        return res.status(500).json({ message: 'Image upload failed' });
+      }
+    }
 
     if (!name) return res.status(400).json({ message: 'Product name is required' });
 
@@ -39,7 +56,7 @@ router.post('/', authenticate, async (req, res) => {
       lowStockThreshold: lowStockThreshold || 10,
       expiryDate: expiryDate || null,
       barcode: barcode || '',
-      imageUrl: imageUrl || '',
+      imageUrl: finalImageUrl || '',
       createdBy: user.id,
     });
 
@@ -96,7 +113,7 @@ router.get('/:id', authenticate, async (req, res) => {
 });
 
 // Update product
-router.put('/:id', authenticate, async (req, res) => {
+router.put('/:id', authenticate, upload.single('image'), async (req, res) => {
   try {
     const user = req.user;
     const { id } = req.params;
@@ -114,6 +131,17 @@ router.put('/:id', authenticate, async (req, res) => {
       'imageUrl',
     ];
     for (const k of allowed) if (req.body[k] !== undefined) update[k] = req.body[k];
+
+    // If an image file was uploaded, upload it to Cloudinary and set imageUrl
+    if (req.file && req.file.buffer) {
+      try {
+        const uploaded = await uploadBuffer(req.file.buffer, req.file.originalname);
+        update.imageUrl = uploaded.secure_url || uploaded.url || update.imageUrl;
+      } catch (err) {
+        console.error('Cloudinary upload error:', err);
+        return res.status(500).json({ message: 'Image upload failed' });
+      }
+    }
 
     const product = await Product.findById(id);
     if (!product) return res.status(404).json({ message: 'Product not found' });

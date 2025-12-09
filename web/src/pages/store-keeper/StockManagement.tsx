@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
@@ -23,7 +23,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { toast } from '@/hooks/use-toast';
-import { useProductStore } from '@/stores/productStore';
+import { useAuthStore } from '@/stores/authStore';
 import type { Product } from '@/types';
 import {
   Package,
@@ -37,16 +37,67 @@ import {
 
 export default function StockManagement() {
   const { t } = useTranslation();
-  const { products, updateProduct } = useProductStore();
+  const token = useAuthStore.getState().user?.token;
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+    const abort = new AbortController();
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`${API_BASE}/api/products`, { headers: { Authorization: token ? `Bearer ${token}` : '' }, signal: abort.signal });
+        if (!res.ok) throw new Error(`Failed to fetch products: ${res.status}`);
+        const data = await res.json();
+        const normalized = Array.isArray(data)
+          ? data.map((p: any) => ({
+              ...p,
+              id: p.id || p._id,
+              pictureUrl: p.pictureUrl || p.imageUrl || p.secure_url || p.url || '',
+            }))
+          : [];
+        setProducts(normalized);
+      } catch (err: any) {
+        if (err.name !== 'AbortError') setError(err.message || 'Failed to load products');
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+    return () => abort.abort();
+  }, [token]);
   const [search, setSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [addQuantity, setAddQuantity] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.barcode?.includes(search)
+    (p.name || '').toLowerCase().includes(search.toLowerCase()) ||
+    (p.barcode || '').includes(search)
   );
+
+  const updateProduct = async (id: string, updates: Partial<any>) => {
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+    try {
+      const res = await fetch(`${API_BASE}/api/products/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: token ? `Bearer ${token}` : '' },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) throw new Error(`Update failed ${res.status}`);
+      const updated = await res.json();
+      // normalize image field on updated item
+      const norm = { ...updated, pictureUrl: updated.pictureUrl || updated.imageUrl || updated.secure_url || updated.url || '' };
+      setProducts((cur) => cur.map(p => (p.id === id ? { ...p, ...norm } : p)));
+      return updated;
+    } catch (err) {
+      console.error('Update product error', err);
+      throw err;
+    }
+  };
 
   const handleAddStock = async () => {
     if (!selectedProduct || !addQuantity) return;
@@ -58,11 +109,21 @@ export default function StockManagement() {
     const newStoreQty = Math.max(0, selectedProduct.storeQuantity - qty);
     const newSupermarketQty = selectedProduct.supermarketQuantity + qty;
 
-    await updateProduct(selectedProduct.id, {
-      storeQuantity: newStoreQty,
-      supermarketQuantity: newSupermarketQty,
-      quantity: newSupermarketQty,
-    });
+    try {
+      await updateProduct(selectedProduct.id, {
+        storeQuantity: newStoreQty,
+        supermarketQuantity: newSupermarketQty,
+        quantity: newSupermarketQty,
+      });
+
+      toast({
+        title: 'Stock Updated',
+        description: `Added ${qty} units of ${selectedProduct.name} to supermarket`,
+      });
+    } catch (err) {
+      toast({ title: 'Failed to update stock', description: 'Please try again', variant: 'destructive' });
+      return;
+    }
 
     toast({
       title: 'Stock Updated',
@@ -119,7 +180,7 @@ export default function StockManagement() {
 
         {/* Inventory grid: search at top and image cards */}
         <Card>
-          <CardHeader>
+              <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Package className="h-5 w-5" />
               Inventory
@@ -127,6 +188,8 @@ export default function StockManagement() {
             </CardTitle>
           </CardHeader>
           <CardContent>
+              {loading && <p className="py-6 text-center">Loading products...</p>}
+              {error && <p className="py-6 text-center text-destructive">{error}</p>}
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {filteredProducts.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-6 col-span-full">No products found</p>

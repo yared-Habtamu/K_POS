@@ -20,6 +20,8 @@ import { Barcode, Loader2, Image as ImageIcon, Trash2 } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 const units: ProductUnit[] = ['pcs', 'kg', 'g', 'l', 'ml', 'box'];
+import axios from 'axios';
+import { useAuthStore } from '@/stores/authStore';
 
 export default function ProductAdd() {
   const { t } = useTranslation();
@@ -96,27 +98,56 @@ export default function ProductAdd() {
     e.preventDefault();
     setIsLoading(true);
 
-    const productData = {
-      name: form.name,
-      category: form.category,
-      unit: form.unit,
-      purchasePrice: parseFloat(form.purchasePrice),
-      sellingPrice: parseFloat(form.sellingPrice),
-      quantity: parseInt(form.quantity),
-      storeQuantity: parseInt(form.quantity),
-      supermarketQuantity: parseInt(form.quantity),
-      lowStockThreshold: parseInt(form.lowStockThreshold),
-      expiryDate: form.expiryDate ? new Date(form.expiryDate) : undefined,
-      barcode: form.barcode || `${Date.now()}`.slice(-12),
-      pictureUrl: imagePreview || undefined,
-      shopId: 'shop-001',
-    } as any;
+    const API_BASE = (import.meta.env.VITE_API_URL || '');
+    const token = useAuthStore.getState().user?.token;
 
-    await addProduct(productData);
-    toast({ title: t('product_added') });
-    setIsLoading(false);
-    resetForm();
-    navigate('/store-keeper');
+    const formData = new FormData();
+    formData.append('name', form.name);
+    formData.append('category', form.category || '');
+    formData.append('unit', form.unit);
+    formData.append('purchasePrice', String(parseFloat(form.purchasePrice || '0')));
+    formData.append('sellingPrice', String(parseFloat(form.sellingPrice || '0')));
+    formData.append('quantity', String(parseInt(form.quantity || '0')));
+    formData.append('lowStockThreshold', String(parseInt(form.lowStockThreshold || '10')));
+    if (form.expiryDate) formData.append('expiryDate', form.expiryDate);
+    formData.append('barcode', form.barcode || `${Date.now()}`.slice(-12));
+    if (imageFile) formData.append('image', imageFile, imageFile.name);
+
+    try {
+      const res = await axios.post(`${API_BASE}/api/products`, formData, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : '',
+        },
+      });
+
+      if (res && (res.status === 200 || res.status === 201)) {
+        toast({ title: t('product_added') });
+        resetForm();
+        navigate('/store-keeper');
+      } else {
+        console.warn('Unexpected response creating product', res);
+        toast({ title: 'Failed to add product' });
+      }
+    } catch (err: unknown) {
+      console.error('Create product error', err);
+      // Derive response/message safely
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const e = err as any;
+      const status = e?.response?.status as number | undefined;
+      const backendMessage = e?.response?.data?.message || e?.message || 'An error occurred';
+
+      if (status === 400) {
+        // Validation / bad request: show user-friendly guidance
+        const friendly = backendMessage || 'Please check the product fields (name, category, quantity) and try again.';
+        toast({ title: 'Invalid product data', description: String(friendly), variant: 'destructive' });
+      } else {
+        // Other errors
+        const desc = backendMessage || 'Failed to add product';
+        toast({ title: 'Failed to add product', description: String(desc), variant: 'destructive' });
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const generateBarcode = () => setForm({ ...form, barcode: `${Date.now()}`.slice(-12) });
