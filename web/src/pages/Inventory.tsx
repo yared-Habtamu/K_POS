@@ -1,5 +1,5 @@
 // src/pages/Inventory.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { RoleLayout } from '@/components/layout/RoleLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,16 +12,54 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { useProductStore } from '@/stores/productStore';
+import { useAuthStore } from '@/stores/authStore';
 
 const ITEMS_PER_PAGE = 7; // ✅ 7 items per page
 
 export default function Inventory() {
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1); // ✅ Pagination state
-  const { products, searchProducts } = useProductStore();
+  const token = useAuthStore.getState().user?.token;
 
-  const filteredProducts = search ? searchProducts(search) : products;
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+    const abort = new AbortController();
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`${API_BASE}/api/products`, {
+          headers: { Authorization: token ? `Bearer ${token}` : '' },
+          signal: abort.signal,
+        });
+        if (!res.ok) throw new Error(`Failed to fetch products: ${res.status}`);
+        const data = await res.json();
+        // normalize id field and image field (backend uses imageUrl)
+        const normalized = Array.isArray(data)
+          ? data.map((p: any) => ({
+              ...p,
+              id: p.id || p._id,
+              pictureUrl: p.pictureUrl || p.imageUrl || p.secure_url || p.url || '',
+            }))
+          : [];
+        setProducts(normalized);
+      } catch (err: any) {
+        if (err.name !== 'AbortError') setError(err.message || 'Failed to load products');
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+    return () => abort.abort();
+  }, [token]);
+
+  const filteredProducts = search
+    ? products.filter(p => (p.name || '').toLowerCase().includes(search.toLowerCase()) || (p.barcode || '').includes(search) || (p.category || '').toLowerCase().includes(search.toLowerCase()))
+    : products;
 
   // ✅ Pagination logic
   const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
@@ -66,6 +104,8 @@ export default function Inventory() {
             </div>
 
             {/* Inventory Table */}
+            {loading && <div className="py-6 text-center">Loading products...</div>}
+            {error && <div className="py-6 text-center text-destructive">{error}</div>}
             <div className="overflow-x-auto">
               <Table className="w-full table-fixed">
                 <TableHeader>

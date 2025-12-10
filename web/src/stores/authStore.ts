@@ -31,7 +31,8 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (username: string, password: string) => {
         set({ isLoading: true });
-        const API_BASE = (import.meta.env.VITE_API_URL || '');
+        // Default to local backend in dev when VITE_API_URL is not set
+        const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:4000');
         try {
           const res = await fetch(API_BASE + '/api/auth/login', {
             method: 'POST',

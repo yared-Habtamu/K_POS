@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
-import { useProductStore } from '@/stores/productStore';
+import { useAuthStore } from '@/stores/authStore';
 import type { Product } from '@/types';
 import JsBarcode from 'jsbarcode';
 import {
@@ -29,15 +29,63 @@ import {
 
 export default function BarcodeManagement() {
   const { t } = useTranslation();
-  const { products, updateProduct, getProductByBarcode } = useProductStore();
+  const token = useAuthStore.getState().user?.token;
+  const [products, setProducts] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const barcodeRef = useRef<SVGSVGElement>(null);
 
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+    const abort = new AbortController();
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`${API_BASE}/api/products`, { headers: { Authorization: token ? `Bearer ${token}` : '' }, signal: abort.signal });
+        if (!res.ok) throw new Error(`Failed to fetch products: ${res.status}`);
+        const data = await res.json();
+        const normalized = Array.isArray(data)
+          ? data.map((p: any) => ({
+              ...p,
+              id: p.id || p._id,
+              pictureUrl: p.pictureUrl || p.imageUrl || p.secure_url || p.url || '',
+            }))
+          : [];
+        setProducts(normalized);
+      } catch (err: any) {
+        if (err.name !== 'AbortError') setError(err.message || 'Failed to load products');
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+    return () => abort.abort();
+  }, [token]);
+
+  const getProductByBarcode = (code: string) => products.find(p => p.barcode === code || (p.barcode || '').includes(code));
+
+  const updateProduct = async (id: string, updates: Partial<any>) => {
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+    const res = await fetch(`${API_BASE}/api/products/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: token ? `Bearer ${token}` : '' },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error(`Update failed ${res.status}`);
+    const updated = await res.json();
+    const norm = { ...updated, pictureUrl: updated.pictureUrl || updated.imageUrl || updated.secure_url || updated.url || '' };
+    setProducts((cur) => cur.map(p => (p.id === id ? { ...p, ...norm } : p)));
+    return norm;
+  };
+
   const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.barcode?.includes(search)
+    (p.name || '').toLowerCase().includes(search.toLowerCase()) ||
+    (p.barcode || '').includes(search)
   );
 
   useEffect(() => {
