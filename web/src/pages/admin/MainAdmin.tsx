@@ -1,37 +1,228 @@
-import { useTranslation } from 'react-i18next';
-import { RoleLayout } from '@/components/layout/RoleLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { useTranslation } from "react-i18next";
+import { RoleLayout } from "@/components/layout/RoleLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+} from "recharts";
+import { useEffect, useState } from "react";
+import { useAuthStore } from "@/stores/authStore";
 
-const revenueData = [
-  { month: 'Jun', revenue: 180000 },
-  { month: 'Jul', revenue: 210000 },
-  { month: 'Aug', revenue: 195000 },
-  { month: 'Sep', revenue: 245000 },
-  { month: 'Oct', revenue: 280000 },
-  { month: 'Nov', revenue: 320000 },
-];
+type SeriesPoint = { date: string; total: number };
 
-// Mock monthly user counts for the report
-const usersByMonth = [
-  { month: 'Jun', users: 120 },
-  { month: 'Jul', users: 135 },
-  { month: 'Aug', users: 150 },
-  { month: 'Sep', users: 170 },
-  { month: 'Oct', users: 190 },
-  { month: 'Nov', users: 210 },
-];
+type Mart = {
+  _id?: string;
+  martName?: string;
+  status?: string;
+  createdAt?: string;
+};
+
+type Summary = {
+  range?: string;
+  start?: string;
+  end?: string;
+  totalSales?: number;
+  grossSales?: number;
+  discountsTotal?: number;
+  salesByPaymentMethod?: Array<{ method: string; total: number }>;
+  salesByCashier?: Array<{
+    cashierId?: string;
+    cashierName?: string;
+    sales?: number;
+  }>;
+  series?: SeriesPoint[];
+  count?: number;
+};
 
 export default function MainAdmin() {
   const { t } = useTranslation();
+  const auth = useAuthStore((s) => s.user);
+  const API_BASE = import.meta.env.VITE_API_URL || "";
+
+  const [marts, setMarts] = useState<Mart[]>([]);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [series, setSeries] = useState<SeriesPoint[]>([]);
+  const [users, setUsers] = useState<Array<{ martId?: string }>>([]);
+  const [martsByMonth, setMartsByMonth] = useState<SeriesPoint[]>([]);
+  const [period, setPeriod] = useState<"week" | "month" | "year">("month");
+  const [periodLabel, setPeriodLabel] = useState("Last 6 months");
+  const [newApprovedInPeriod, setNewApprovedInPeriod] = useState<number>(0);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const token = auth?.token;
+        const headers: Record<string, string> | undefined = token
+          ? { Authorization: `Bearer ${token}` }
+          : undefined;
+
+        // fetch marts
+        const mres = await fetch(`${API_BASE}/api/marts`);
+        let parsed: Mart[] = [];
+        if (mres.ok) {
+          const martsJson = await mres.json();
+          parsed = Array.isArray(martsJson) ? martsJson : [];
+          setMarts(parsed);
+          setPendingCount(
+            parsed.filter((m: Mart) => m.status === "pending").length
+          );
+        }
+
+        // fetch platform users
+        const ures = await fetch(`${API_BASE}/api/auth/users`, { headers });
+        if (ures.ok) {
+          const uj = await ures.json();
+          setUsers(Array.isArray(uj) ? uj : []);
+        }
+
+        // fetch platform summary for selected period
+        let summaryUrl = `${API_BASE}/api/reports/summary?range=monthly`;
+        let periodStart: Date | undefined;
+        let periodEnd: Date | undefined;
+        if (period === "week") {
+          summaryUrl = `${API_BASE}/api/reports/summary?range=weekly`;
+          setPeriodLabel("Last 7 days");
+        } else if (period === "month") {
+          summaryUrl = `${API_BASE}/api/reports/summary?range=monthly`;
+          setPeriodLabel("Last 6 months");
+        } else if (period === "year") {
+          // use custom for year: last 12 months
+          const now2 = new Date();
+          periodEnd = new Date(
+            now2.getFullYear(),
+            now2.getMonth(),
+            now2.getDate()
+          );
+          periodStart = new Date(
+            now2.getFullYear() - 1,
+            now2.getMonth(),
+            now2.getDate()
+          );
+          const qs = new URLSearchParams({
+            range: "custom",
+            start: periodStart.toISOString().slice(0, 10),
+            end: periodEnd.toISOString().slice(0, 10),
+          }).toString();
+          summaryUrl = `${API_BASE}/api/reports/summary?${qs}`;
+          setPeriodLabel("Last 12 months");
+        }
+        const sres = await fetch(summaryUrl, { headers });
+        if (sres.ok) {
+          const sj: Summary = await sres.json();
+          setSummary(sj);
+          setSeries(Array.isArray(sj.series) ? sj.series : []);
+        }
+
+        // compute marts per selected period (last 6 buckets)
+        const now = new Date();
+        const buckets: string[] = [];
+        const byBucket: Record<string, number> = {};
+        const byBucketApproved: Record<string, number> = {};
+        if (period === "week") {
+          // last 6 weeks (label by date range)
+          for (let i = 5; i >= 0; i--) {
+            const end = new Date(now);
+            end.setDate(now.getDate() - i * 7);
+            const startOfWeek = new Date(end);
+            startOfWeek.setDate(end.getDate() - 6);
+            const label = `${startOfWeek.toISOString().slice(0, 10)} to ${end
+              .toISOString()
+              .slice(0, 10)}`;
+            buckets.push(label);
+            byBucket[label] = 0;
+            byBucketApproved[label] = 0;
+          }
+          for (const m of parsed) {
+            if (!m.createdAt) continue;
+            const created = new Date(m.createdAt);
+            for (const label of buckets) {
+              const [s, e] = label.split(" to ");
+              const sd = new Date(s);
+              const ed = new Date(e + "T23:59:59.999Z");
+              if (created >= sd && created <= ed) {
+                byBucket[label] = (byBucket[label] || 0) + 1;
+                if (m.status === "approved")
+                  byBucketApproved[label] = (byBucketApproved[label] || 0) + 1;
+                break;
+              }
+            }
+          }
+        } else if (period === "month") {
+          // last 6 months
+          for (let i = 5; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const key = d.toISOString().slice(0, 7); // YYYY-MM
+            buckets.push(key);
+            byBucket[key] = 0;
+            byBucketApproved[key] = 0;
+          }
+          for (const m of parsed) {
+            const key = m.createdAt ? m.createdAt.slice(0, 7) : null;
+            if (key && buckets.includes(key)) {
+              byBucket[key] = (byBucket[key] || 0) + 1;
+              if (m.status === "approved")
+                byBucketApproved[key] = (byBucketApproved[key] || 0) + 1;
+            }
+          }
+        } else {
+          // year: last 6 years
+          for (let i = 5; i >= 0; i--) {
+            const y = now.getFullYear() - i;
+            const key = String(y);
+            buckets.push(key);
+            byBucket[key] = 0;
+            byBucketApproved[key] = 0;
+          }
+          for (const m of parsed) {
+            if (!m.createdAt) continue;
+            const y = new Date(m.createdAt).getFullYear();
+            const key = String(y);
+            if (buckets.includes(key)) {
+              byBucket[key] = (byBucket[key] || 0) + 1;
+              if (m.status === "approved")
+                byBucketApproved[key] = (byBucketApproved[key] || 0) + 1;
+            }
+          }
+        }
+        setMartsByMonth(
+          buckets.map((k) => ({ date: k, total: byBucket[k] || 0 }))
+        );
+        setNewApprovedInPeriod(
+          Object.keys(byBucketApproved).reduce(
+            (acc, k) => acc + (byBucketApproved[k] || 0),
+            0
+          )
+        );
+      } catch (err) {
+        console.error("Failed to load admin data", err);
+      }
+    };
+    load();
+  }, [API_BASE, auth, period]);
+
+  const approvedCount = marts.filter((m) => m.status === "approved").length;
+  const activeUsersCount = users.filter((u) => !!u.martId).length;
+  // platform revenue: assume each approved mart pays 10,000 birr (monthly)
+  const PLATFORM_FEE = 10000;
+  const platformRevenue = approvedCount * PLATFORM_FEE;
 
   return (
     <RoleLayout allowedRoles={["system_admin"]}>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">System Administration</h1>
-          <p className="text-muted-foreground">Overview of all registered supermarkets and system activity</p>
+          <p className="text-muted-foreground">
+            Overview of all registered supermarkets and system activity
+          </p>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
@@ -42,21 +233,56 @@ export default function MainAdmin() {
             <CardContent>
               <div className="h-[280px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={revenueData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="month" className="text-xs" />
-                    <YAxis className="text-xs" tickFormatter={(v) => `${v / 1000}K`} />
+                  <AreaChart data={series}>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      className="stroke-border"
+                    />
+                    <XAxis dataKey="date" className="text-xs" />
+                    <YAxis
+                      className="text-xs"
+                      tickFormatter={(v) => `${(v as number) / 1000}K`}
+                    />
                     <Tooltip
                       contentStyle={{
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px',
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "8px",
                       }}
-                      formatter={(value: number) => [`${value.toLocaleString()} ETB`, 'Revenue']}
+                      formatter={(value: number) => [
+                        `${value.toLocaleString()} ETB`,
+                        "Revenue",
+                      ]}
                     />
-                    <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2} fill="rgba(59,130,246,0.12)" />
+                    <Area
+                      type="monotone"
+                      dataKey="total"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth={2}
+                      fill="rgba(59,130,246,0.12)"
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    This month (sales)
+                  </p>
+                  <p className="text-2xl font-semibold">
+                    {summary
+                      ? (summary.totalSales || 0).toLocaleString() + " ETB"
+                      : "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    Platform fee revenue
+                  </p>
+                  <p className="text-2xl font-semibold">
+                    {platformRevenue.toLocaleString()} ETB
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -70,52 +296,100 @@ export default function MainAdmin() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Total Shops</p>
-                    <p className="text-lg font-semibold">24</p>
+                    <p className="text-lg font-semibold">{marts.length}</p>
                   </div>
-                  <Badge variant="secondary">Active</Badge>
+                  <Badge variant="secondary">
+                    {approvedCount > 0 ? "Active" : "None"}
+                  </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Active Users</p>
-                    <p className="text-lg font-semibold">156</p>
+                    <p className="text-sm text-muted-foreground">
+                      Total Transactions
+                    </p>
+                    <p className="text-lg font-semibold">
+                      {summary ? summary.count : "—"}
+                    </p>
                   </div>
-                  <Badge variant="secondary">Online</Badge>
+                  <Badge variant="secondary">Records</Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Pending Approvals</p>
-                    <p className="text-lg font-semibold">5</p>
+                    <p className="text-sm text-muted-foreground">
+                      Pending Approvals
+                    </p>
+                    <p className="text-lg font-semibold">{pendingCount}</p>
                   </div>
-                  <Badge variant="warning">Review</Badge>
+                  <Badge variant="secondary">Review</Badge>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Users by month chart */}
         <div>
           <Card>
-            <CardHeader>
-              <CardTitle>Users Over Time</CardTitle>
+            <CardHeader className="flex items-center justify-between">
+              <CardTitle>Marts Registered</CardTitle>
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-muted-foreground mr-2 hidden md:block">
+                  {periodLabel}
+                </p>
+                <select
+                  value={period}
+                  onChange={(e) =>
+                    setPeriod(e.target.value as "week" | "month" | "year")
+                  }
+                  className="text-sm rounded-md border px-2 py-1 bg-card"
+                >
+                  <option value="week">Week</option>
+                  <option value="month">Month</option>
+                  <option value="year">Year</option>
+                </select>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="h-[300px]">
+              <div className="h-[220px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={usersByMonth}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="month" className="text-xs" />
+                  <BarChart data={martsByMonth}>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      className="stroke-border"
+                    />
+                    <XAxis dataKey="date" className="text-xs" />
                     <YAxis className="text-xs" />
                     <Tooltip
                       contentStyle={{
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px',
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "8px",
                       }}
                     />
-                    <Bar dataKey="users" fill="hsl(var(--primary))" radius={[4,4,0,0]} />
+                    <Bar
+                      dataKey="total"
+                      fill="hsl(var(--primary))"
+                      radius={[4, 4, 0, 0]}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
+              </div>
+              <div className="mt-4">
+                <p className="text-sm text-muted-foreground">Active users</p>
+                <p className="text-lg font-semibold">{activeUsersCount}</p>
+                <div className="mt-2">
+                  <p className="text-xs text-muted-foreground">
+                    New approved marts ({periodLabel})
+                  </p>
+                  <p className="text-sm font-medium">{newApprovedInPeriod}</p>
+                </div>
+                <div className="mt-2">
+                  <p className="text-xs text-muted-foreground">
+                    Platform fee revenue ({periodLabel})
+                  </p>
+                  <p className="text-sm font-medium">
+                    {(newApprovedInPeriod * PLATFORM_FEE).toLocaleString()} ETB
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>
