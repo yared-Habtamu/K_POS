@@ -139,7 +139,7 @@ export default function OwnerDashboard() {
                 } else {
                   try {
                     // fallback
-                    (window as any).prompt('Copy this link', url);
+                    window.prompt?.('Copy this link', url);
                   } catch {
                     toast({ title: 'Copy failed', description: 'Could not copy link to clipboard.' });
                   }

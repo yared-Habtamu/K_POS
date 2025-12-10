@@ -17,6 +17,7 @@ const expensesRouter = require("./routes/expenses");
 const assetsRouter = require("./routes/assets");
 const salesRouter = require("./routes/sales");
 const reportsRouter = require("./routes/reports");
+const dailyReportsRouter = require("./routes/dailyReports");
 const productsRouter = require('./routes/products');
 
 
@@ -24,6 +25,7 @@ app.use("/api/expenses", expensesRouter);
 app.use("/api/assets", assetsRouter);
 app.use("/api/sales", salesRouter);
 app.use("/api/reports", reportsRouter);
+app.use("/api/daily-reports", dailyReportsRouter);
 app.use('/api/marts', martsRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/products', productsRouter);

@@ -32,6 +32,7 @@ export default function DailyReport() {
     discountsGiven: "",
     notes: "",
   });
+  const [reportsList, setReportsList] = useState<any[]>([]);
 
   const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -67,10 +68,34 @@ export default function DailyReport() {
     }
   };
 
+  const fetchReportsList = async () => {
+    try {
+      const token = user?.token;
+      const martId = user?.martId;
+      if (!martId) return;
+      const day = new Date().toISOString().slice(0, 10);
+      const res = await fetch(
+        `${API_BASE}/api/daily-reports?martId=${martId}&date=${day}`,
+        { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } }
+      );
+      if (!res.ok) return;
+      const list = await res.json();
+      setReportsList(list);
+    } catch (err) {
+      console.error("Fetch reports list error", err);
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
-    if (mounted) fetchDaily();
-    const id = setInterval(fetchDaily, 5000); // poll every 5s to update in near real-time
+    if (mounted) {
+      fetchDaily();
+      fetchReportsList();
+    }
+    const id = setInterval(() => {
+      fetchDaily();
+      fetchReportsList();
+    }, 5000); // poll every 5s
     return () => {
       mounted = false;
       clearInterval(id);
@@ -80,30 +105,59 @@ export default function DailyReport() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-
-    // Simulate submission
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    toast({
-      title: t("report_submitted"),
-      description: `Daily report for ${format(
-        new Date(),
-        "MMM dd, yyyy"
-      )} submitted successfully`,
-    });
-
-    setIsSubmitting(false);
-    setReport({
-      totalSales: "",
-      cashReceived: "",
-      bankTransfer: "",
-      discountsGiven: "",
-      notes: "",
-    });
+    try {
+      const token = user?.token;
+      const martId = user?.martId;
+      if (!martId) throw new Error("No martId");
+      const day = new Date().toISOString().slice(0, 10);
+      const payload = {
+        martId,
+        date: day,
+        totalSales: Number(report.totalSales) || 0,
+        cashReceived: Number(report.cashReceived) || 0,
+        bankTransfer: Number(report.bankTransfer) || 0,
+        discountsGiven: Number(report.discountsGiven) || 0,
+        notes: report.notes || "",
+      };
+      const res = await fetch(`${API_BASE}/api/daily-reports`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to submit report");
+      }
+      const saved = await res.json();
+      toast({
+        title: t("report_submitted"),
+        description: `Daily report for ${format(
+          new Date(),
+          "MMM dd, yyyy"
+        )} submitted successfully`,
+      });
+      setReport({
+        totalSales: "",
+        cashReceived: "",
+        bankTransfer: "",
+        discountsGiven: "",
+        notes: "",
+      });
+      // refresh list
+      await fetchReportsList();
+    } catch (err: any) {
+      console.error("Submit daily report error", err);
+      toast({ title: "Failed to submit report", description: err?.message });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <RoleLayout allowedRoles={["cashier"]}>
+    <RoleLayout allowedRoles={["cashier", "manager", "owner"]}>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -252,26 +306,94 @@ export default function DailyReport() {
               </div>
 
               {/* Submit */}
-              <Button
-                type="submit"
-                className="w-full h-12"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Submitting...
-                  </>
-                ) : (
-                  <>
-                    <Send className="mr-2 h-4 w-4" />
-                    {t("submit")} {t("daily_report")}
-                  </>
-                )}
-              </Button>
+              {user?.role === "cashier" && (
+                <Button
+                  type="submit"
+                  className="w-full h-12"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="mr-2 h-4 w-4" />
+                      {t("submit")} {t("daily_report")}
+                    </>
+                  )}
+                </Button>
+              )}
             </form>
           </CardContent>
         </Card>
+
+        {/* Submitted reports list for managers/owners */}
+        {(user?.role === "manager" ||
+          user?.role === "owner" ||
+          user?.role === "systemAdmin") && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-6"
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle>Submitted Daily Reports</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Reports submitted by cashiers for today
+                </p>
+              </CardHeader>
+              <CardContent>
+                {reportsList.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">
+                    No reports submitted yet.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="text-left text-xs text-muted-foreground">
+                        <tr>
+                          <th className="p-2">Cashier</th>
+                          <th className="p-2">Total Sales</th>
+                          <th className="p-2">Cash</th>
+                          <th className="p-2">Bank</th>
+                          <th className="p-2">Discounts</th>
+                          <th className="p-2">Notes</th>
+                          <th className="p-2">Submitted At</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportsList.map((r) => (
+                          <tr key={r._id} className="border-t">
+                            <td className="p-2">{r.cashierName}</td>
+                            <td className="p-2 font-medium">
+                              {Number(r.totalSales || 0).toLocaleString()}
+                            </td>
+                            <td className="p-2">
+                              {Number(r.cashReceived || 0).toLocaleString()}
+                            </td>
+                            <td className="p-2">
+                              {Number(r.bankTransfer || 0).toLocaleString()}
+                            </td>
+                            <td className="p-2">
+                              {Number(r.discountsGiven || 0).toLocaleString()}
+                            </td>
+                            <td className="p-2">{r.notes || "-"}</td>
+                            <td className="p-2">
+                              {new Date(r.createdAt).toLocaleTimeString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
       </motion.div>
     </RoleLayout>
   );

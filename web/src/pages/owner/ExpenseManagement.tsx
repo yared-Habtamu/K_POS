@@ -125,7 +125,18 @@ export default function ExpenseManagement() {
     return matchSearch && matchCategory;
   });
 
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+  // total expenses for the current month (from DB-fetched expenses)
+  const now = new Date();
+  const totalExpensesThisMonth = expenses
+    .filter((e) => {
+      const d = new Date(e.date);
+      return (
+        d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+      );
+    })
+    .reduce((sum, e) => sum + e.amount, 0);
+
+  const [monthRevenue, setMonthRevenue] = useState<number | null>(null);
 
   const expensesByCategory = expenseCategories
     .map((cat) => ({
@@ -263,6 +274,29 @@ export default function ExpenseManagement() {
     };
   }, [auth]);
 
+  // Fetch this month's revenue from reports summary endpoint
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = auth?.token;
+        const martId = auth?.martId;
+        if (!martId) return;
+        const qs = new URLSearchParams({
+          range: "monthly",
+          ...(martId ? { martId } : {}),
+        }).toString();
+        const res = await fetch(`${API_BASE}/api/reports/summary?${qs}`, {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        setMonthRevenue(Number(json.totalSales || 0));
+      } catch (err) {
+        console.error("Load month revenue error", err);
+      }
+    })();
+  }, [auth]);
+
   const getCategoryIcon = (category: ExpenseCategory) => {
     const cat = expenseCategories.find((c) => c.value === category);
     return cat?.icon || MoreHorizontal;
@@ -383,7 +417,7 @@ export default function ExpenseManagement() {
         </div>
 
         {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -396,7 +430,7 @@ export default function ExpenseManagement() {
                       Total Expenses
                     </p>
                     <p className="text-2xl font-bold">
-                      {totalExpenses.toLocaleString()} ETB
+                      {totalExpensesThisMonth.toLocaleString()} ETB
                     </p>
                   </div>
                   <div className="p-3 rounded-xl bg-destructive/10 text-destructive">
@@ -418,31 +452,12 @@ export default function ExpenseManagement() {
                     <p className="text-sm text-muted-foreground">
                       This Month Revenue
                     </p>
-                    <p className="text-2xl font-bold">156,420 ETB</p>
+                    <p className="text-2xl font-bold">
+                      {(monthRevenue ?? 0).toLocaleString()} ETB
+                    </p>
                   </div>
                   <div className="p-3 rounded-xl bg-success/10 text-success">
                     <TrendingUp className="h-6 w-6" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Net Profit</p>
-                    <p className="text-2xl font-bold">
-                      {(156420 - totalExpenses).toLocaleString()} ETB
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-primary/10 text-primary">
-                    <DollarSign className="h-6 w-6" />
                   </div>
                 </div>
               </CardContent>

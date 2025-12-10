@@ -71,8 +71,9 @@ const roleNavItems: Record<UserRole, NavItem[]> = {
     { label: 'alerts', icon: AlertTriangle, path: '/alerts' },
   ],
   system_admin: [
+    { label: 'dashboard', icon: BarChart3, path: '/admin/reports' },
     { label: 'shop', icon: Building2, path: '/admin/shops' },
-    { label: 'reports', icon: BarChart3, path: '/admin/reports' },
+   
   ],
 };
 

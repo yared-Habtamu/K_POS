@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { useCartStore } from "@/stores/cartStore";
@@ -75,11 +75,16 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
 
   const [discountType, setDiscountType] = useState<DiscountType>("percentage");
   const [discountValue, setDiscountValue] = useState("");
-  const [newChargeName, setNewChargeName] = useState("");
+  const [newChargeType, setNewChargeType] = useState<string>("service_charge");
+  const [newChargeCustomName, setNewChargeCustomName] = useState("");
   const [newChargeAmount, setNewChargeAmount] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [currentReceipt, setCurrentReceipt] = useState<Receipt | null>(null);
+  const [paymentAccounts, setPaymentAccounts] = useState<
+    Record<string, string>
+  >({});
+  const [martCurrency, setMartCurrency] = useState<string | null>(null);
 
   const handleApplyDiscount = () => {
     const value = parseFloat(discountValue);
@@ -89,15 +94,35 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     }
   };
 
+  const chargeTypeToLabel = (type: string) => {
+    switch (type) {
+      case "service_charge":
+        return t("service_charge") || "Service Charge";
+      case "delivery_charge":
+        return t("delivery_charge") || "Delivery Charge";
+      case "packaging_charge":
+        return t("packaging_charge") || "Packaging Charge";
+      case "others":
+        return t("others") || "Others";
+      default:
+        return type;
+    }
+  };
+
   const handleAddCharge = () => {
-    if (newChargeName && parseFloat(newChargeAmount) > 0) {
+    const name =
+      newChargeType === "others"
+        ? newChargeCustomName.trim()
+        : chargeTypeToLabel(newChargeType);
+    if (name && parseFloat(newChargeAmount) > 0) {
       addExtraCharge({
         id: `charge-${Date.now()}`,
-        name: newChargeName,
+        name,
         amount: parseFloat(newChargeAmount),
       });
-      setNewChargeName("");
+      setNewChargeCustomName("");
       setNewChargeAmount("");
+      setNewChargeType("service_charge");
     }
   };
 
@@ -198,6 +223,28 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     });
   };
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const API_BASE = import.meta.env.VITE_API_URL || "";
+        const martId = user?.martId;
+        const token = user?.token;
+        if (!martId) return;
+        const res = await fetch(`${API_BASE}/api/marts/${martId}`, {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        // paymentAccounts may be stored as object or map
+        const accounts = json.paymentAccounts || {};
+        setPaymentAccounts(accounts);
+        setMartCurrency(json.currency || null);
+      } catch (err) {
+        console.error("Load mart settings error", err);
+      }
+    })();
+  }, [user?.martId]);
+
   const handleCloseReceipt = () => {
     setShowReceipt(false);
     setCurrentReceipt(null);
@@ -226,6 +273,40 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
           })}
         </div>
       </div>
+
+      {/* show configured account details for selected payment method */}
+      {paymentMethod && (
+        <div className="pt-2">
+          <p className="text-sm text-muted-foreground">
+            {t("payment_details")}
+          </p>
+          <div className="flex items-center gap-2 mt-2">
+            <div className="flex-1 p-3 border rounded-lg bg-muted">
+              <div className="text-xs text-muted-foreground">
+                {paymentMethod.toUpperCase()}
+              </div>
+              <div className="text-sm font-medium mt-1">
+                {paymentAccounts[paymentMethod] || t("not_configured")}
+              </div>
+            </div>
+            {paymentAccounts[paymentMethod] && (
+              <Button
+                size="sm"
+                onClick={() => {
+                  try {
+                    navigator.clipboard?.writeText(
+                      paymentAccounts[paymentMethod]
+                    );
+                    toast({ title: t("copied") });
+                  } catch {}
+                }}
+              >
+                Copy
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Discount Section */}
       {canApplyDiscount && (
@@ -300,13 +381,31 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
             </Button>
           </div>
         ))}
-        <div className="flex gap-2">
-          <Input
-            placeholder="Charge name"
-            value={newChargeName}
-            onChange={(e) => setNewChargeName(e.target.value)}
-            className="flex-1"
-          />
+        <div className="flex gap-2 items-center">
+          <Select
+            value={newChargeType}
+            onValueChange={(v) => setNewChargeType(v)}
+          >
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="service_charge">Service Charge</SelectItem>
+              <SelectItem value="delivery_charge">Delivery Charge</SelectItem>
+              <SelectItem value="packaging_charge">Packaging Charge</SelectItem>
+              <SelectItem value="others">Others</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {newChargeType === "others" && (
+            <Input
+              placeholder="Custom name"
+              value={newChargeCustomName}
+              onChange={(e) => setNewChargeCustomName(e.target.value)}
+              className="flex-1"
+            />
+          )}
+
           <Input
             type="number"
             placeholder="Amount"
