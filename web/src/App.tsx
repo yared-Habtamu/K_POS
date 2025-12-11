@@ -9,7 +9,7 @@ import "@/i18n";
 import Login from "./pages/Login";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
-import ReportPage from './pages/ReportPage';
+import ReportPage from "./pages/ReportPage";
 
 // Cashier Pages
 import CashierPOS from "./pages/cashier/CashierPOS";
@@ -51,15 +51,16 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
-          
+
           {/* Cashier Routes */}
           <Route path="/cashier" element={<CashierPOS />} />
           <Route path="/cashier/report" element={<DailyReport />} />
-          
+
           {/* Owner Routes */}
           <Route path="/owner" element={<OwnerDashboard />} />
           <Route path="/owner/pos" element={<CashierPOS />} />
           <Route path="/owner/products" element={<ProductManagement />} />
+          <Route path="/owner/products/add" element={<ProductAdd />} />
           <Route path="/owner/inventory" element={<StockManagement />} />
           <Route path="/owner/employees" element={<EmployeeManagement />} />
           <Route path="/owner/expenses" element={<ExpenseManagement />} />
@@ -69,7 +70,10 @@ const App = () => (
           <Route path="/owner/reports" element={<ReportPage />} />
           <Route path="/owner/assets" element={<OwnerAssets />} />
           <Route path="/owner/register" element={<RegisterMart />} />
-          <Route path="/owner/register/waiting/:id" element={<RegisterWaiting />} />
+          <Route
+            path="/owner/register/waiting/:id"
+            element={<RegisterWaiting />}
+          />
 
           {/* Manager Routes */}
           <Route path="/manager" element={<ManagerDashboard />} />
@@ -77,23 +81,25 @@ const App = () => (
           <Route path="/manager/inventory" element={<Inventory />} />
           <Route path="/manager/assets" element={<ManagerAssets />} />
           <Route path="/manager/reports" element={<ReportPage />} />
-          
+
           {/* Store Keeper Routes */}
           <Route path="/store-keeper" element={<StockManagement />} />
-          <Route path="/store-keeper/products/add" element={<ProductAdd />} />
           <Route path="/store-keeper/add-stock" element={<StockManagement />} />
           <Route path="/store-keeper/barcode" element={<BarcodeManagement />} />
-          <Route path="/store-keeper/pictures" element={<BarcodeManagement />} />
+          <Route
+            path="/store-keeper/pictures"
+            element={<BarcodeManagement />}
+          />
 
           {/* Generic Inventory route (top-level) */}
           <Route path="/inventory" element={<Inventory />} />
-          
+
           {/* Admin Routes */}
           <Route path="/admin" element={<MainAdmin />} />
           <Route path="/admin/shops" element={<MartManagement />} />
           <Route path="/admin/reports" element={<MainAdmin />} />
           {/* Generic Inventory route removed (reverted) */}
-          
+
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

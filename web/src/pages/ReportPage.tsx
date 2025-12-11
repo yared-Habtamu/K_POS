@@ -130,22 +130,22 @@ const getMockData = (period: string, startDate: string, endDate: string) => {
       {
         name: "Coffee Latte",
         sold: Math.floor(120 * base),
-        revenue: (2400 * base).toFixed(2),
+        revenue: Number((2400 * base).toFixed(2)),
       },
       {
         name: "Cheeseburger",
         sold: Math.floor(98 * base),
-        revenue: (1960 * base).toFixed(2),
+        revenue: Number((1960 * base).toFixed(2)),
       },
       {
         name: "Iced Tea",
         sold: Math.floor(87 * base),
-        revenue: (870 * base).toFixed(2),
+        revenue: Number((870 * base).toFixed(2)),
       },
       {
         name: "Fries",
         sold: Math.floor(76 * base),
-        revenue: (570 * base).toFixed(2),
+        revenue: Number((570 * base).toFixed(2)),
       },
     ],
     revenue: (24560.75 * base).toFixed(2),
@@ -271,7 +271,18 @@ const ReportPage: React.FC = () => {
             ? (pm.credit || pm["credit"] || 0).toFixed(2)
             : String(pm.credit || pm["credit"] || 0),
         },
-        topProducts: [],
+        topProducts:
+          json.topProducts && json.topProducts.length
+            ? json.topProducts.map((p: any) => ({
+                name: p.name || p.productName || "Unknown",
+                sold: Number(p.sold ?? p.quantity ?? 0),
+                revenue: Number(p.revenue ?? p.total ?? 0),
+              }))
+            : getMockData(
+                period,
+                query.start || customDates.start,
+                query.end || customDates.end
+              ).topProducts,
         revenue: (json.totalSales || 0).toFixed
           ? json.totalSales.toFixed(2)
           : String(json.totalSales),

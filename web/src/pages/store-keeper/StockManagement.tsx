@@ -1,19 +1,19 @@
-import { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
-import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
-import { RoleLayout } from '@/components/layout/RoleLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
+import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
+import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
+import { RoleLayout } from "@/components/layout/RoleLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -21,10 +21,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { toast } from '@/hooks/use-toast';
-import { useAuthStore } from '@/stores/authStore';
-import type { Product } from '@/types';
+} from "@/components/ui/table";
+import { toast } from "@/hooks/use-toast";
+import { useAuthStore } from "@/stores/authStore";
+import type { Product } from "@/types";
 import {
   Package,
   Search,
@@ -33,7 +33,8 @@ import {
   Warehouse,
   Store,
   ArrowRight,
-} from 'lucide-react';
+  Image as ImageIcon,
+} from "lucide-react";
 
 export default function StockManagement() {
   const { t } = useTranslation();
@@ -43,25 +44,30 @@ export default function StockManagement() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+    const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
     const abort = new AbortController();
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`${API_BASE}/api/products`, { headers: { Authorization: token ? `Bearer ${token}` : '' }, signal: abort.signal });
+        const res = await fetch(`${API_BASE}/api/products`, {
+          headers: { Authorization: token ? `Bearer ${token}` : "" },
+          signal: abort.signal,
+        });
         if (!res.ok) throw new Error(`Failed to fetch products: ${res.status}`);
         const data = await res.json();
         const normalized = Array.isArray(data)
           ? data.map((p: any) => ({
               ...p,
               id: p.id || p._id,
-              pictureUrl: p.pictureUrl || p.imageUrl || p.secure_url || p.url || '',
+              pictureUrl:
+                p.pictureUrl || p.imageUrl || p.secure_url || p.url || "",
             }))
           : [];
         setProducts(normalized);
       } catch (err: any) {
-        if (err.name !== 'AbortError') setError(err.message || 'Failed to load products');
+        if (err.name !== "AbortError")
+          setError(err.message || "Failed to load products");
       } finally {
         setLoading(false);
       }
@@ -69,32 +75,57 @@ export default function StockManagement() {
     load();
     return () => abort.abort();
   }, [token]);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [addQuantity, setAddQuantity] = useState('');
+  const [addQuantity, setAddQuantity] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [barcodeEditingFor, setBarcodeEditingFor] = useState<string | null>(
+    null
+  );
+  const [imageUploadFor, setImageUploadFor] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
 
-  const filteredProducts = products.filter(p =>
-    (p.name || '').toLowerCase().includes(search.toLowerCase()) ||
-    (p.barcode || '').includes(search)
+  const filteredProducts = products.filter(
+    (p) =>
+      (p.name || "").toLowerCase().includes(search.toLowerCase()) ||
+      (p.barcode || "").includes(search)
   );
 
-  const updateProduct = async (id: string, updates: Partial<any>) => {
-    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+  const updateProduct = async (
+    id: string,
+    updates: Partial<any> | FormData
+  ) => {
+    const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
     try {
+      const isForm = updates instanceof FormData;
       const res = await fetch(`${API_BASE}/api/products/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: token ? `Bearer ${token}` : '' },
-        body: JSON.stringify(updates),
+        method: "PUT",
+        headers: isForm
+          ? ({ Authorization: token ? `Bearer ${token}` : "" } as any)
+          : {
+              "Content-Type": "application/json",
+              Authorization: token ? `Bearer ${token}` : "",
+            },
+        body: isForm ? updates : JSON.stringify(updates),
       });
       if (!res.ok) throw new Error(`Update failed ${res.status}`);
       const updated = await res.json();
       // normalize image field on updated item
-      const norm = { ...updated, pictureUrl: updated.pictureUrl || updated.imageUrl || updated.secure_url || updated.url || '' };
-      setProducts((cur) => cur.map(p => (p.id === id ? { ...p, ...norm } : p)));
+      const norm = {
+        ...updated,
+        pictureUrl:
+          updated.pictureUrl ||
+          updated.imageUrl ||
+          updated.secure_url ||
+          updated.url ||
+          "",
+      };
+      setProducts((cur) =>
+        cur.map((p) => (p.id === id ? { ...p, ...norm } : p))
+      );
       return updated;
     } catch (err) {
-      console.error('Update product error', err);
+      console.error("Update product error", err);
       throw err;
     }
   };
@@ -117,47 +148,48 @@ export default function StockManagement() {
       });
 
       toast({
-        title: 'Stock Updated',
+        title: "Stock Updated",
         description: `Added ${qty} units of ${selectedProduct.name} to supermarket`,
       });
     } catch (err) {
-      toast({ title: 'Failed to update stock', description: 'Please try again', variant: 'destructive' });
+      toast({
+        title: "Failed to update stock",
+        description: "Please try again",
+        variant: "destructive",
+      });
       return;
     }
 
     toast({
-      title: 'Stock Updated',
+      title: "Stock Updated",
       description: `Added ${qty} units of ${selectedProduct.name} to supermarket`,
     });
 
     setIsDialogOpen(false);
     setSelectedProduct(null);
-    setAddQuantity('');
+    setAddQuantity("");
   };
 
   const openAddStockDialog = (product: Product) => {
     setSelectedProduct(product);
-    setAddQuantity('');
+    setAddQuantity("");
     setIsDialogOpen(true);
   };
 
   return (
-    <RoleLayout allowedRoles={['store_keeper']}>
+    <RoleLayout allowedRoles={["store_keeper"]}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">{t('inventory')}</h1>
-            <p className="text-muted-foreground">Manage store and supermarket stock levels</p>
+            <h1 className="text-2xl font-bold">{t("inventory")}</h1>
+            <p className="text-muted-foreground">
+              Manage store and supermarket stock levels
+            </p>
           </div>
 
           <div>
-            <Link to="/store-keeper/products/add">
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                {t('add_product')}
-              </Button>
-            </Link>
+            {/* Add product is owner-only. Store-keeper should not see Add Product here. */}
           </div>
         </div>
 
@@ -180,28 +212,46 @@ export default function StockManagement() {
 
         {/* Inventory grid: search at top and image cards */}
         <Card>
-              <CardHeader>
+          <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Package className="h-5 w-5" />
               Inventory
-              <Badge variant="secondary" className="ml-2">{filteredProducts.length}</Badge>
+              <Badge variant="secondary" className="ml-2">
+                {filteredProducts.length}
+              </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
-              {loading && <p className="py-6 text-center">Loading products...</p>}
-              {error && <p className="py-6 text-center text-destructive">{error}</p>}
+            {loading && <p className="py-6 text-center">Loading products...</p>}
+            {error && (
+              <p className="py-6 text-center text-destructive">{error}</p>
+            )}
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {filteredProducts.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-6 col-span-full">No products found</p>
+                <p className="text-sm text-muted-foreground text-center py-6 col-span-full">
+                  No products found
+                </p>
               )}
 
               {filteredProducts.map((product) => {
-                const sold = Math.max(0, (product.storeQuantity ?? 0) - (product.supermarketQuantity ?? 0));
-                const remaining = product.supermarketQuantity ?? product.quantity ?? 0;
+                const sold = Math.max(
+                  0,
+                  (product.storeQuantity ?? 0) -
+                    (product.supermarketQuantity ?? 0)
+                );
+                const remaining =
+                  product.supermarketQuantity ?? product.quantity ?? 0;
                 return (
-                  <div key={product.id} className="p-3 rounded-lg bg-accent/50 flex flex-col items-start gap-3">
+                  <div
+                    key={product.id}
+                    className="p-3 rounded-lg bg-accent/50 flex flex-col items-start gap-3"
+                  >
                     {product.pictureUrl ? (
-                      <img src={product.pictureUrl} alt="" className="w-full h-32 rounded-lg object-cover" />
+                      <img
+                        src={product.pictureUrl}
+                        alt=""
+                        className="w-full h-32 rounded-lg object-cover"
+                      />
                     ) : (
                       <div className="w-full h-32 rounded-lg bg-muted flex items-center justify-center">
                         <Package className="w-8 h-8 text-muted-foreground" />
@@ -210,19 +260,92 @@ export default function StockManagement() {
                     <div className="w-full flex items-center justify-between">
                       <div>
                         <p className="font-medium">{product.name}</p>
-                        <p className="text-xs text-muted-foreground">{product.category}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {product.category}
+                        </p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-medium">Sold</p>
                         <p className="text-xs text-muted-foreground">{sold}</p>
                         <p className="text-sm font-medium mt-2">Remaining</p>
-                        <p className="text-xs text-muted-foreground">{remaining}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {remaining}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="w-full flex items-center justify-between">
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const val = window.prompt(
+                              "Enter new barcode",
+                              product.barcode || ""
+                            );
+                            if (val !== null) {
+                              updateProduct(product.id, {
+                                barcode: String(val),
+                              })
+                                .then(() => toast({ title: "Barcode updated" }))
+                                .catch(() =>
+                                  toast({
+                                    title: "Failed to update barcode",
+                                    variant: "destructive",
+                                  })
+                                );
+                            }
+                          }}
+                        >
+                          <Barcode className="mr-2 h-3 w-3" /> Edit Barcode
+                        </Button>
+
+                        <input
+                          ref={imageInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const f = e.target.files?.[0];
+                            if (!f || !imageUploadFor) return;
+                            const fd = new FormData();
+                            fd.append("image", f, f.name);
+                            try {
+                              await updateProduct(imageUploadFor, fd);
+                              toast({ title: "Image uploaded" });
+                            } catch (err) {
+                              toast({
+                                title: "Failed to upload image",
+                                variant: "destructive",
+                              });
+                            } finally {
+                              setImageUploadFor(null);
+                              if (imageInputRef.current)
+                                imageInputRef.current.value = "";
+                            }
+                          }}
+                        />
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setImageUploadFor(product.id);
+                            imageInputRef.current?.click();
+                          }}
+                        >
+                          <ImageIcon className="mr-2 h-3 w-3" /> Add Image
+                        </Button>
                       </div>
                     </div>
                     <div className="w-full flex justify-end">
-                      <Button variant="outline" size="sm" onClick={() => openAddStockDialog(product)}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openAddStockDialog(product)}
+                      >
                         <Plus className="h-3 w-3 mr-1" />
-                        {t('add_stock')}
+                        {t("add_stock")}
                       </Button>
                     </div>
                   </div>
@@ -236,14 +359,18 @@ export default function StockManagement() {
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{t('add_stock')}</DialogTitle>
+              <DialogTitle>{t("add_stock")}</DialogTitle>
             </DialogHeader>
             {selectedProduct && (
               <div className="space-y-4">
                 {/* Product Info */}
                 <div className="flex items-center gap-4 p-4 rounded-xl bg-accent/50">
                   {selectedProduct.pictureUrl ? (
-                    <img src={selectedProduct.pictureUrl} alt="" className="w-16 h-16 rounded-lg object-cover" />
+                    <img
+                      src={selectedProduct.pictureUrl}
+                      alt=""
+                      className="w-16 h-16 rounded-lg object-cover"
+                    />
                   ) : (
                     <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center">
                       <Package className="w-8 h-8 text-muted-foreground" />
@@ -251,7 +378,9 @@ export default function StockManagement() {
                   )}
                   <div>
                     <p className="font-medium">{selectedProduct.name}</p>
-                    <p className="text-sm text-muted-foreground">{selectedProduct.category}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedProduct.category}
+                    </p>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge variant="outline">
                         <Barcode className="w-3 h-3 mr-1" />
@@ -268,20 +397,26 @@ export default function StockManagement() {
                       <Warehouse className="w-4 h-4" />
                       Warehouse Stock
                     </p>
-                    <p className="text-2xl font-bold text-warning">{selectedProduct.storeQuantity}</p>
+                    <p className="text-2xl font-bold text-warning">
+                      {selectedProduct.storeQuantity}
+                    </p>
                   </div>
                   <div className="p-4 rounded-xl bg-success/10 border border-success/20">
                     <p className="text-sm text-muted-foreground flex items-center gap-1">
                       <Store className="w-4 h-4" />
                       Supermarket Stock
                     </p>
-                    <p className="text-2xl font-bold text-success">{selectedProduct.supermarketQuantity}</p>
+                    <p className="text-2xl font-bold text-success">
+                      {selectedProduct.supermarketQuantity}
+                    </p>
                   </div>
                 </div>
 
                 {/* Add Quantity */}
                 <div className="space-y-2">
-                  <Label htmlFor="addQty">Quantity to Transfer (Warehouse → Supermarket)</Label>
+                  <Label htmlFor="addQty">
+                    Quantity to Transfer (Warehouse → Supermarket)
+                  </Label>
                   <Input
                     id="addQty"
                     type="number"
@@ -303,20 +438,37 @@ export default function StockManagement() {
                   <div className="p-4 rounded-xl bg-accent border border-border">
                     <p className="text-sm font-medium mb-2">After Transfer:</p>
                     <div className="flex items-center justify-between text-sm">
-                      <span>Warehouse: {Math.max(0, selectedProduct.storeQuantity - parseInt(addQuantity))}</span>
+                      <span>
+                        Warehouse:{" "}
+                        {Math.max(
+                          0,
+                          selectedProduct.storeQuantity - parseInt(addQuantity)
+                        )}
+                      </span>
                       <ArrowRight className="w-4 h-4" />
-                      <span>Supermarket: {selectedProduct.supermarketQuantity + parseInt(addQuantity)}</span>
+                      <span>
+                        Supermarket:{" "}
+                        {selectedProduct.supermarketQuantity +
+                          parseInt(addQuantity)}
+                      </span>
                     </div>
                   </div>
                 )}
 
                 <div className="flex justify-end gap-2 pt-4">
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                    {t('cancel')}
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsDialogOpen(false)}
+                  >
+                    {t("cancel")}
                   </Button>
-                  <Button 
+                  <Button
                     onClick={handleAddStock}
-                    disabled={!addQuantity || parseInt(addQuantity) <= 0 || parseInt(addQuantity) > selectedProduct.storeQuantity}
+                    disabled={
+                      !addQuantity ||
+                      parseInt(addQuantity) <= 0 ||
+                      parseInt(addQuantity) > selectedProduct.storeQuantity
+                    }
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     Transfer Stock
