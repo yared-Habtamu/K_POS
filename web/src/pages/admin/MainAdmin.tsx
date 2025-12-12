@@ -45,7 +45,7 @@ type Summary = {
 export default function MainAdmin() {
   const { t } = useTranslation();
   const auth = useAuthStore((s) => s.user);
-  const API_BASE = import.meta.env.VITE_API_URL || "";
+  const API_BASE = import.meta.env.VITE_API_URL || import.meta.env.NEXT_PUBLIC_API_URL || "";
 
   const [marts, setMarts] = useState<Mart[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
