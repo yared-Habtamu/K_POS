@@ -81,6 +81,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [currentReceipt, setCurrentReceipt] = useState<Receipt | null>(null);
+  const [savedSalePayload, setSavedSalePayload] = useState<Sale | null>(null);
   const [paymentAccounts, setPaymentAccounts] = useState<
     Record<string, string>
   >({});
@@ -174,53 +175,74 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
       receiptHeader: "Thank you for shopping with us!",
       receiptSlogan: "Quality products at affordable prices",
     };
+    // prepare sale payload but do NOT send it yet; save when user presses Done on the receipt
+    const salePayload: Sale = {
+      martId: user?.martId,
+      receiptId,
+      items: items.map((it) => ({
+        productId: it.id,
+        name: it.name,
+        price: it.price,
+        quantity: it.quantity,
+        total: it.price * it.quantity,
+      })),
+      subtotal: getSubtotal(),
+      discount: receipt.discount,
+      extraCharges: receipt.extraCharges,
+      tax: receipt.tax,
+      total: receipt.total,
+      paymentMethod: receipt.paymentMethod,
+    } as any;
 
-    // send sale to backend
+    setSavedSalePayload(salePayload);
+    setCurrentReceipt(receipt);
+    setShowReceipt(true);
+    setIsProcessing(false);
+
+    toast({ title: t('receipt_ready') || 'Receipt ready', description: `Receipt: ${receiptId}` });
+  };
+
+  const handleDoneReceipt = async () => {
+    // Save the sale to backend when Done is pressed on the receipt.
+    if (!savedSalePayload) {
+      // nothing to save, just close
+      setShowReceipt(false);
+      setCurrentReceipt(null);
+      return;
+    }
+
+    setIsProcessing(true);
     try {
       const API_BASE = import.meta.env.VITE_API_URL || "";
       const token = user?.token;
-      const salePayload: Sale = {
-        martId: user?.martId,
-        receiptId,
-        items: items.map((it) => ({
-          productId: it.id,
-          name: it.name,
-          price: it.price,
-          quantity: it.quantity,
-          total: it.price * it.quantity,
-        })),
-        subtotal: getSubtotal(),
-        discount: receipt.discount,
-        extraCharges: receipt.extraCharges,
-        tax: receipt.tax,
-        total: receipt.total,
-        paymentMethod: receipt.paymentMethod,
-      } as any;
-
       const res = await fetch(`${API_BASE}/api/sales`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify(salePayload),
+        body: JSON.stringify(savedSalePayload),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         console.warn("Failed to record sale", err);
+        toast({ title: "Failed to save sale", description: (err && err.message) || 'Server error', variant: 'destructive' });
+        setIsProcessing(false);
+        return;
       }
+
+      toast({ title: t('sale_complete'), description: `Receipt: ${savedSalePayload.receiptId}` });
+      // clear cart and close receipt
+      setShowReceipt(false);
+      setCurrentReceipt(null);
+      setSavedSalePayload(null);
+      clearCart();
     } catch (err) {
-      console.error("Record sale error", err);
+      console.error('Record sale error', err);
+      toast({ title: 'Failed to save sale', description: String(err), variant: 'destructive' });
+    } finally {
+      setIsProcessing(false);
     }
-
-    setCurrentReceipt(receipt);
-    setShowReceipt(true);
-    setIsProcessing(false);
-
-    toast({
-      title: t("sale_complete"),
-      description: `Receipt: ${receiptId}`,
-    });
   };
 
   useEffect(() => {
@@ -246,9 +268,9 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
   }, [user?.martId]);
 
   const handleCloseReceipt = () => {
+    // Close the receipt preview without saving. Cart remains intact so the user can retry.
     setShowReceipt(false);
     setCurrentReceipt(null);
-    clearCart();
   };
 
   return (
@@ -455,10 +477,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
             <DialogTitle>{t("receipt_preview")}</DialogTitle>
           </DialogHeader>
           {currentReceipt && (
-            <ReceiptPreview
-              receipt={currentReceipt}
-              onClose={handleCloseReceipt}
-            />
+            <ReceiptPreview receipt={currentReceipt} onDone={handleDoneReceipt} />
           )}
         </DialogContent>
       </Dialog>

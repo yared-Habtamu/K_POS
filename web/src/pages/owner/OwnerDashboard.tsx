@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, UserPlus, Share2 } from 'lucide-react';
@@ -10,6 +10,7 @@ import { RoleLayout } from '@/components/layout/RoleLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useProductStore } from '@/stores/productStore';
+import { useAuthStore } from '@/stores/authStore';
 import {
   DollarSign,
   ShoppingCart,
@@ -30,62 +31,73 @@ import {
   Bar,
 } from 'recharts';
 
-// Mock data for charts
-const dailyData = [
-  { name: 'Mon', sales: 4500 },
-  { name: 'Tue', sales: 5200 },
-  { name: 'Wed', sales: 4800 },
-  { name: 'Thu', sales: 6100 },
-  { name: 'Fri', sales: 7200 },
-  { name: 'Sat', sales: 8500 },
-  { name: 'Sun', sales: 5900 },
-];
-
-const weeklyData = [
-  { name: 'Week 1', sales: 12000 },
-  { name: 'Week 2', sales: 15000 },
-  { name: 'Week 3', sales: 9000 },
-  { name: 'Week 4', sales: 18000 },
-];
-
-const monthlyData = [
-  { name: 'January', sales: 42000 },
-  { name: 'February', sales: 38000 },
-  { name: 'March', sales: 45000 },
-  { name: 'April', sales: 47000 },
-  { name: 'May', sales: 52000 },
-  { name: 'June', sales: 49000 },
-  { name: 'July', sales: 53000 },
-  { name: 'August', sales: 55000 },
-  { name: 'September', sales: 50000 },
-  { name: 'October', sales: 57000 },
-  { name: 'November', sales: 60000 },
-  { name: 'December', sales: 65000 },
-];
-
-const topProducts = [
-  { name: 'Coca Cola 500ml', sold: 145, revenue: 3625 },
-  { name: 'Fresh Milk 1L', sold: 98, revenue: 5880 },
-  { name: 'White Bread', sold: 87, revenue: 1566 },
-  { name: 'Sugar 1kg', sold: 65, revenue: 5525 },
-  { name: 'Lays Chips', sold: 52, revenue: 2600 },
-];
+// Metrics will be fetched from the backend (/api/reports/mart)
 
 export default function OwnerDashboard() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [range, setRange] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+  const [metrics, setMetrics] = useState<any>(null);
+  const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+  const API_BASE = import.meta.env.VITE_API_URL || import.meta.env.NEXT_PUBLIC_API_URL || '';
   const { products, getLowStockProducts, searchProducts } = useProductStore();
   const [search, setSearch] = useState('');
 
   const filteredProducts = search ? searchProducts(search) : products;
   const lowStock = getLowStockProducts();
-  const chartData = range === 'daily' ? dailyData : range === 'weekly' ? weeklyData : monthlyData;
+  const chartData = metrics && Array.isArray(metrics.series) && metrics.series.length > 0
+    ? metrics.series.map((s: any) => ({ name: s.date, sales: s.total }))
+    : [];
+
+  const topProducts = metrics && Array.isArray(metrics.topProducts)
+    ? metrics.topProducts.map((p: any) => ({
+        name: p.name || p.productName || (p.product && p.product.name) || '—',
+        sold: p.sold || p.quantity || p.count || 0,
+      }))
+    : [];
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchMetrics = async () => {
+      setIsLoadingMetrics(true);
+      setMetricsError(null);
+      try {
+        const token = useAuthStore.getState().user?.token;
+        console.debug('OwnerDashboard: fetching metrics', { API_BASE, range, tokenPresent: !!token });
+        if (!token) {
+          setMetricsError('Not authenticated: please login');
+          return;
+        }
+        const headers: any = { Authorization: `Bearer ${token}` };
+        const res = await fetch(`${API_BASE}/api/reports/mart?range=${range}`, { headers });
+        const text = await res.text();
+        let json: any = null;
+        try { json = text ? JSON.parse(text) : null; } catch(e) { json = null; }
+        if (!res.ok) {
+          const msg = (json && json.message) || `status ${res.status}`;
+          if (res.status === 401) {
+            setMetricsError('Unauthorized: please login again');
+          } else {
+            setMetricsError(String(msg));
+          }
+          return;
+        }
+        if (mounted) setMetrics(json);
+      } catch (err: any) {
+        setMetricsError(String(err?.message || err));
+      } finally {
+        if (mounted) setIsLoadingMetrics(false);
+      }
+    };
+    fetchMetrics();
+    return () => { mounted = false; };
+  }, [range, API_BASE]);
 
   const stats = [
     {
       title: t('today_sales'),
-      value: '42,350',
+      value: metrics ? Number(metrics.totalSales || 0).toLocaleString() : '—',
       change: '+12.5%',
       trend: 'up',
       icon: DollarSign,
@@ -93,7 +105,7 @@ export default function OwnerDashboard() {
     },
     {
       title: 'Transactions',
-      value: '156',
+      value: metrics ? String(metrics.transactions || 0) : '—',
       change: '+8.2%',
       trend: 'up',
       icon: ShoppingCart,
@@ -109,7 +121,7 @@ export default function OwnerDashboard() {
     },
     {
       title: t('profit'),
-      value: '15,420',
+      value: metrics ? Number(metrics.profit || 0).toLocaleString() : '—',
       change: '+5.3%',
       trend: 'up',
       icon: TrendingUp,
@@ -252,21 +264,35 @@ export default function OwnerDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={topProducts} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis type="number" className="text-xs" />
-                      <YAxis dataKey="name" type="category" width={100} className="text-xs" />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: 'hsl(var(--card))',
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px',
-                        }}
-                      />
-                      <Bar dataKey="sold" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {isLoadingMetrics ? (
+                    <div className="flex items-center justify-center h-full">Loading top products...</div>
+                  ) : metricsError ? (
+                    <div className="text-sm text-destructive p-4">Failed to load top products: {metricsError}
+                      {metricsError && metricsError.toLowerCase().includes('unauthorized') && (
+                        <div className="mt-2">
+                          <Button size="sm" variant="secondary" onClick={() => navigate('/login')}>Login</Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : topProducts.length === 0 ? (
+                    <div className="flex items-center justify-center h-full">No top products data available.</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={topProducts} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis type="number" className="text-xs" />
+                        <YAxis dataKey="name" type="category" width={100} className="text-xs" />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px',
+                          }}
+                        />
+                        <Bar dataKey="sold" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
               </CardContent>
             </Card>

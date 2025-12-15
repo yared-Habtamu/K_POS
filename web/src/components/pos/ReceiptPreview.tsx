@@ -3,19 +3,44 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import type { Receipt } from '@/types';
-import { Printer, Download, Mail, X } from 'lucide-react';
+import { Printer, Download, Mail } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface ReceiptPreviewProps {
   receipt: Receipt;
-  onClose: () => void;
+  onDone: () => void;
 }
 
-export function ReceiptPreview({ receipt, onClose }: ReceiptPreviewProps) {
+export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
   const { t } = useTranslation();
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDownloadPDF = () => {
+    // For now reuse print dialog — browsers can print to PDF.
+    // A more robust implementation could use html2canvas + jsPDF.
+    window.print();
+  };
+
+  const handleEmail = () => {
+    // Build a simple email body with receipt summary
+    const lines = [] as string[];
+    lines.push(`Receipt: ${receipt.id}`);
+    lines.push(`Shop: ${receipt.shopName}`);
+    lines.push(`Total: ${receipt.total.toFixed(2)} ETB`);
+    lines.push('');
+    lines.push('Items:');
+    for (const it of receipt.items) {
+      const name = it.product?.name || it.name || 'Item';
+      const qty = it.quantity || 0;
+      const subtotal = (it.subtotal != null ? it.subtotal : (it.price || 0) * (it.quantity || 0));
+      lines.push(`${name} x${qty} — ${Number(subtotal).toFixed(2)} ETB`);
+    }
+    const body = encodeURIComponent(lines.join('\n'));
+    const subject = encodeURIComponent(`Receipt ${receipt.id} from ${receipt.shopName}`);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
 
   return (
@@ -134,16 +159,16 @@ export function ReceiptPreview({ receipt, onClose }: ReceiptPreviewProps) {
           <Printer className="mr-2 h-4 w-4" />
           {t('print')}
         </Button>
-        <Button variant="outline" className="flex-1">
+        <Button variant="outline" onClick={handleDownloadPDF} className="flex-1">
           <Download className="mr-2 h-4 w-4" />
           PDF
         </Button>
-        <Button variant="outline" className="flex-1">
+        <Button variant="outline" onClick={handleEmail} className="flex-1">
           <Mail className="mr-2 h-4 w-4" />
           Email
         </Button>
-        <Button variant="ghost" size="icon" onClick={onClose}>
-          <X className="h-4 w-4" />
+        <Button onClick={onDone} className="flex-1">
+          {t('done') || 'Done'}
         </Button>
       </div>
     </div>
