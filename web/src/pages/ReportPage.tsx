@@ -18,149 +18,9 @@ import {
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import useReports from '@/hooks/useReports';
 
-// ===== MOCK PRODUCT DATA =====
-const getMockProducts = (base: number) => [
-  {
-    name: "Coffee Latte",
-    category: "Beverages",
-    sku: "CL-001",
-    purchasePrice: 12.5,
-    sellingPrice: 20.0,
-    quantity: Math.floor(150 * base),
-    lowStockThreshold: 20,
-  },
-  {
-    name: "Cheeseburger",
-    category: "Food",
-    sku: "CB-001",
-    purchasePrice: 18.0,
-    sellingPrice: 35.0,
-    quantity: Math.floor(120 * base),
-    lowStockThreshold: 15,
-  },
-  {
-    name: "Iced Tea",
-    category: "Beverages",
-    sku: "IT-001",
-    purchasePrice: 5.0,
-    sellingPrice: 10.0,
-    quantity: Math.floor(200 * base),
-    lowStockThreshold: 25,
-  },
-  {
-    name: "French Fries",
-    category: "Food",
-    sku: "FF-001",
-    purchasePrice: 8.0,
-    sellingPrice: 15.0,
-    quantity: Math.floor(180 * base),
-    lowStockThreshold: 30,
-  },
-  {
-    name: "Milk (1L)",
-    category: "Dairy",
-    sku: "MLK-001",
-    purchasePrice: 25.0,
-    sellingPrice: 35.0,
-    quantity: Math.floor(80 * base),
-    lowStockThreshold: 10,
-  },
-  {
-    name: "Bread Loaf",
-    category: "Bakery",
-    sku: "BRD-001",
-    purchasePrice: 15.0,
-    sellingPrice: 25.0,
-    quantity: Math.floor(60 * base),
-    lowStockThreshold: 8,
-  },
-  {
-    name: "Eggs (Dozen)",
-    category: "Dairy",
-    sku: "EGG-001",
-    purchasePrice: 40.0,
-    sellingPrice: 60.0,
-    quantity: Math.floor(45 * base),
-    lowStockThreshold: 5,
-  },
-  {
-    name: "Tomatoes (kg)",
-    category: "Produce",
-    sku: "TMT-001",
-    purchasePrice: 30.0,
-    sellingPrice: 45.0,
-    quantity: Math.floor(70 * base),
-    lowStockThreshold: 12,
-  },
-];
-
-// ===== HARD-CODED MOCK DATA BY PERIOD =====
-const getMockData = (period: string, startDate: string, endDate: string) => {
-  const base = {
-    daily: 1,
-    weekly: 7,
-    monthly: 30,
-    custom: Math.max(
-      1,
-      Math.floor(
-        (new Date(endDate).getTime() - new Date(startDate).getTime()) /
-          (1000 * 60 * 60 * 24)
-      ) || 1
-    ),
-  }[period];
-
-  return {
-    totalSales: (24560.75 * base).toFixed(2),
-    totalOrders: Math.floor(328 * base),
-    totalItemsSold: Math.floor(892 * base),
-    avgOrderValue: 74.88,
-    grossSales: (25100.0 * base).toFixed(2),
-    netSales: (24560.75 * base).toFixed(2),
-    discounts: (539.25 * base).toFixed(2),
-    refunds: (120.5 * base).toFixed(2),
-    taxes: (2210.47 * base).toFixed(2),
-    paymentMethods: {
-      cash: (9824.3 * base).toFixed(2),
-      card: (11234.2 * base).toFixed(2),
-      mobile: (2890.25 * base).toFixed(2),
-      credit: (612.0 * base).toFixed(2),
-    },
-    topProducts: [
-      {
-        name: "Coffee Latte",
-        sold: Math.floor(120 * base),
-        revenue: Number((2400 * base).toFixed(2)),
-      },
-      {
-        name: "Cheeseburger",
-        sold: Math.floor(98 * base),
-        revenue: Number((1960 * base).toFixed(2)),
-      },
-      {
-        name: "Iced Tea",
-        sold: Math.floor(87 * base),
-        revenue: Number((870 * base).toFixed(2)),
-      },
-      {
-        name: "Fries",
-        sold: Math.floor(76 * base),
-        revenue: Number((570 * base).toFixed(2)),
-      },
-    ],
-    revenue: (24560.75 * base).toFixed(2),
-    cogs: (8500 * base).toFixed(2),
-    grossProfit: (16060.75 * base).toFixed(2),
-    grossMargin: 65.4,
-    netProfit: (12340.25 * base).toFixed(2),
-    totalTax: (2210.47 * base).toFixed(2),
-    taxByCategory: [
-      { category: "Food", tax: (1450 * base).toFixed(2) },
-      { category: "Beverages", tax: (760.47 * base).toFixed(2) },
-    ],
-    products: getMockProducts(base),
-  };
-};
+// Report data is provided by backend; hook `useReports` will fetch and map it
 
 const ReportPage: React.FC = () => {
   const [period, setPeriod] = useState<
@@ -203,108 +63,45 @@ const ReportPage: React.FC = () => {
     }
   };
 
-  const [data, setData] = useState(() =>
-    getMockData(period, customDates.start, customDates.end)
-  );
   const auth = useAuthStore((s) => s.user);
-  const API_BASE = import.meta.env.VITE_API_URL || "";
+  const { data: reportsData, loading: reportsLoading, error: reportsError, refetch } = useReports({ period, start: customDates.start, end: customDates.end });
 
-  const fetchSummary = async () => {
+  const [localData, setLocalData] = useState(() => ({
+    totalSales: '0.00',
+    totalOrders: 0,
+    totalItemsSold: 0,
+    avgOrderValue: '0.00',
+    grossSales: '0.00',
+    netSales: '0.00',
+    discounts: '0.00',
+    refunds: '0.00',
+    taxes: '0.00',
+    paymentMethods: { cash: '0.00', card: '0.00', mobile: '0.00', credit: '0.00' },
+    topProducts: [] as any[],
+    revenue: '0.00',
+    cogs: '0.00',
+    grossProfit: '0.00',
+    grossMargin: 0,
+    netProfit: '0.00',
+    totalTax: '0.00',
+    taxByCategory: [] as any[],
+    products: [] as any[],
+  }));
+
+  React.useEffect(() => {
+    if (reportsData) setLocalData(reportsData as any);
+  }, [reportsData]);
+
+  const paymentTotal = React.useMemo(() => {
     try {
-      const token = auth?.token;
-      const martId = auth?.martId;
-      const query: Record<string, string> = { range: period };
-      if (period === "custom") {
-        query.start = customDates.start;
-        query.end = customDates.end;
-      }
-      // include martId for scoping
-      if (martId) query.martId = martId;
-      const qs = new URLSearchParams(query).toString();
-      const res = await fetch(`${API_BASE}/api/reports/summary?${qs}`, {
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      });
-      if (!res.ok) {
-        console.warn("Failed to fetch report summary", res.status);
-        return;
-      }
-      const json = await res.json();
-      // map response to the shape used by the page
-      const pm = (json.salesByPaymentMethod || []).reduce(
-        (acc: any, p: any) => {
-          acc[p.method] = p.total;
-          return acc;
-        },
-        {}
-      );
-      const mapped = {
-        totalSales: (json.totalSales || 0).toFixed
-          ? json.totalSales.toFixed(2)
-          : String(json.totalSales),
-        totalOrders: json.count || 0,
-        totalItemsSold: 0,
-        avgOrderValue: json.count
-          ? ((json.totalSales || 0) / json.count).toFixed(2)
-          : "0.00",
-        grossSales: (json.grossSales || 0).toFixed
-          ? json.grossSales.toFixed(2)
-          : String(json.grossSales),
-        netSales: (json.totalSales || 0).toFixed
-          ? json.totalSales.toFixed(2)
-          : String(json.totalSales),
-        discounts: (json.discountsTotal || 0).toFixed
-          ? json.discountsTotal.toFixed(2)
-          : String(json.discountsTotal),
-        refunds: "0.00",
-        taxes: "0.00",
-        paymentMethods: {
-          cash: (pm.cash || pm["cash"] || 0).toFixed
-            ? (pm.cash || pm["cash"] || 0).toFixed(2)
-            : String(pm.cash || pm["cash"] || 0),
-          card: (pm.card || pm["card"] || 0).toFixed
-            ? (pm.card || pm["card"] || 0).toFixed(2)
-            : String(pm.card || pm["card"] || 0),
-          mobile: (pm.telebirr || pm.mobile || pm["mobile"] || 0).toFixed
-            ? (pm.telebirr || pm.mobile || pm["mobile"] || 0).toFixed(2)
-            : String(pm.telebirr || pm.mobile || pm["mobile"] || 0),
-          credit: (pm.credit || pm["credit"] || 0).toFixed
-            ? (pm.credit || pm["credit"] || 0).toFixed(2)
-            : String(pm.credit || pm["credit"] || 0),
-        },
-        topProducts:
-          json.topProducts && json.topProducts.length
-            ? json.topProducts.map((p: any) => ({
-                name: p.name || p.productName || "Unknown",
-                sold: Number(p.sold ?? p.quantity ?? 0),
-                revenue: Number(p.revenue ?? p.total ?? 0),
-              }))
-            : getMockData(
-                period,
-                query.start || customDates.start,
-                query.end || customDates.end
-              ).topProducts,
-        revenue: (json.totalSales || 0).toFixed
-          ? json.totalSales.toFixed(2)
-          : String(json.totalSales),
-        cogs: "0.00",
-        grossProfit: (json.grossSales || 0).toFixed
-          ? json.grossSales.toFixed(2)
-          : String(json.grossSales),
-        grossMargin: 0,
-        netProfit: "0.00",
-        totalTax: "0.00",
-        taxByCategory: [],
-        products: getMockProducts(1),
-      } as any;
-      setData(mapped);
-    } catch (err) {
-      console.error("fetchSummary error", err);
+      const pm = localData.paymentMethods || {};
+      return ['cash','card','mobile','credit'].reduce((s, k) => s + Number(pm[k] || 0), 0);
+    } catch {
+      return 0;
     }
-  };
+  }, [localData.paymentMethods]);
 
-  useEffect(() => {
-    fetchSummary();
-  }, [period, customDates, auth?.martId]);
+  const hasTopProducts = !!(localData.topProducts && localData.topProducts.length > 0);
 
   // ===== EXPORTS =====
   const exportToExcel = () => {
@@ -325,29 +122,29 @@ const ReportPage: React.FC = () => {
 
     const salesData = [
       { Metric: "Report Period", Value: dateLabel },
-      { Metric: "Total Sales", Value: `$${data.totalSales}` },
-      { Metric: "Total Orders", Value: data.totalOrders },
-      { Metric: "Total Items Sold", Value: data.totalItemsSold },
-      { Metric: "Avg Order Value", Value: `$${data.avgOrderValue}` },
-      { Metric: "Gross Sales", Value: `$${data.grossSales}` },
-      { Metric: "Net Sales", Value: `$${data.netSales}` },
-      { Metric: "Discounts", Value: `$${data.discounts}` },
-      { Metric: "Refunds", Value: `$${data.refunds}` },
-      { Metric: "Taxes", Value: `$${data.taxes}` },
+      { Metric: "Total Sales", Value: `$${localData.totalSales}` },
+      { Metric: "Total Orders", Value: localData.totalOrders },
+      { Metric: "Total Items Sold", Value: localData.totalItemsSold },
+      { Metric: "Avg Order Value", Value: `$${localData.avgOrderValue}` },
+      { Metric: "Gross Sales", Value: `$${localData.grossSales}` },
+      { Metric: "Net Sales", Value: `$${localData.netSales}` },
+      { Metric: "Discounts", Value: `$${localData.discounts}` },
+      { Metric: "Refunds", Value: `$${localData.refunds}` },
+      { Metric: "Taxes", Value: `$${localData.taxes}` },
     ];
     const salesWS = XLSX.utils.json_to_sheet(salesData);
     XLSX.utils.book_append_sheet(wb, salesWS, "1. Sales Summary");
 
     const paymentsWS = XLSX.utils.json_to_sheet([
-      { Method: "Cash", Amount: `$${data.paymentMethods.cash}` },
-      { Method: "Card", Amount: `$${data.paymentMethods.card}` },
-      { Method: "Mobile", Amount: `$${data.paymentMethods.mobile}` },
-      { Method: "Credit", Amount: `$${data.paymentMethods.credit}` },
+      { Method: "Cash", Amount: `$${localData.paymentMethods.cash}` },
+      { Method: "Card", Amount: `$${localData.paymentMethods.card}` },
+      { Method: "Mobile", Amount: `$${localData.paymentMethods.mobile}` },
+      { Method: "Credit", Amount: `$${localData.paymentMethods.credit}` },
     ]);
     XLSX.utils.book_append_sheet(wb, paymentsWS, "1b. Payment Methods");
 
     const productsWS = XLSX.utils.json_to_sheet(
-      data.topProducts.map((p) => ({
+      localData.topProducts.map((p) => ({
         Product: p.name,
         "Units Sold": p.sold,
         Revenue: `$${p.revenue}`,
@@ -356,7 +153,7 @@ const ReportPage: React.FC = () => {
     XLSX.utils.book_append_sheet(wb, productsWS, "2. Top Products");
 
     const inventoryWS = XLSX.utils.json_to_sheet(
-      data.products.map((p) => ({
+      localData.products.map((p) => ({
         "Product Name": p.name,
         Category: p.category,
         SKU: p.sku,
@@ -370,19 +167,19 @@ const ReportPage: React.FC = () => {
     XLSX.utils.book_append_sheet(wb, inventoryWS, "3. Detailed Inventory");
 
     const financialWS = XLSX.utils.json_to_sheet([
-      { Metric: "Revenue", Value: `$${data.revenue}` },
-      { Metric: "COGS", Value: `$${data.cogs}` },
-      { Metric: "Gross Profit", Value: `$${data.grossProfit}` },
-      { Metric: "Gross Margin %", Value: `${data.grossMargin}%` },
-      { Metric: "Net Profit", Value: `$${data.netProfit}` },
+      { Metric: "Revenue", Value: `$${localData.revenue}` },
+      { Metric: "COGS", Value: `$${localData.cogs}` },
+      { Metric: "Gross Profit", Value: `$${localData.grossProfit}` },
+      { Metric: "Gross Margin %", Value: `${localData.grossMargin}%` },
+      { Metric: "Net Profit", Value: `$${localData.netProfit}` },
     ]);
     XLSX.utils.book_append_sheet(wb, financialWS, "4. Financial");
 
     const taxWS = XLSX.utils.json_to_sheet([
-      { Metric: "Total Tax Collected", Value: `$${data.totalTax}` },
+      { Metric: "Total Tax Collected", Value: `$${localData.totalTax}` },
     ]);
     const taxCatWS = XLSX.utils.json_to_sheet(
-      data.taxByCategory.map((t) => ({
+      localData.taxByCategory.map((t) => ({
         Category: t.category,
         Tax: `$${t.tax}`,
       }))
@@ -467,15 +264,15 @@ const ReportPage: React.FC = () => {
       startY: contentStartY,
       head: [["Metric", "Value"]],
       body: [
-        ["Total Sales", `$${data.totalSales}`],
-        ["Total Orders", data.totalOrders.toString()],
-        ["Total Items Sold", data.totalItemsSold.toString()],
-        ["Avg Order Value", `$${data.avgOrderValue}`],
-        ["Gross Sales", `$${data.grossSales}`],
-        ["Net Sales", `$${data.netSales}`],
-        ["Discounts", `$${data.discounts}`],
-        ["Refunds", `$${data.refunds}`],
-        ["Taxes", `$${data.taxes}`],
+        ["Total Sales", `$${localData.totalSales}`],
+        ["Total Orders", localData.totalOrders.toString()],
+        ["Total Items Sold", localData.totalItemsSold.toString()],
+        ["Avg Order Value", `$${localData.avgOrderValue}`],
+        ["Gross Sales", `$${localData.grossSales}`],
+        ["Net Sales", `$${localData.netSales}`],
+        ["Discounts", `$${localData.discounts}`],
+        ["Refunds", `$${localData.refunds}`],
+        ["Taxes", `$${localData.taxes}`],
       ],
       theme: "grid",
       headStyles: {
@@ -496,7 +293,7 @@ const ReportPage: React.FC = () => {
     autoTable(doc, {
       startY: (doc as any).lastAutoTable.finalY + 10,
       head: [["Product", "Units Sold", "Revenue"]],
-      body: data.topProducts.map((p) => [
+      body: localData.topProducts.map((p) => [
         p.name,
         p.sold.toString(),
         `$${p.revenue}`,
@@ -517,8 +314,8 @@ const ReportPage: React.FC = () => {
       startY: (doc as any).lastAutoTable.finalY + 10,
       head: [["Category", "Tax Amount"]],
       body: [
-        ...data.taxByCategory.map((t) => [t.category, `$${t.tax}`]),
-        ["Total", `$${data.totalTax}`],
+        ...localData.taxByCategory.map((t) => [t.category, `$${t.tax}`]),
+        ["Total", `$${localData.totalTax}`],
       ],
       theme: "grid",
       headStyles: {
@@ -657,10 +454,10 @@ const ReportPage: React.FC = () => {
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { title: "Total Sales", value: `$${data.totalSales}` },
-            { title: "Total Orders", value: data.totalOrders },
-            { title: "Avg Order", value: `$${data.avgOrderValue}` },
-            { title: "Gross Profit", value: `$${data.grossProfit}` },
+            { title: "Total Sales", value: `$${localData.totalSales}` },
+            { title: "Total Orders", value: localData.totalOrders },
+            { title: "Avg Order", value: `$${localData.avgOrderValue}` },
+            { title: "Gross Profit", value: `$${localData.grossProfit}` },
           ].map((item, i) => (
             <div key={i} className="bg-card p-4 rounded-xl border">
               <p className="text-muted-foreground text-sm">{item.title}</p>
@@ -676,43 +473,35 @@ const ReportPage: React.FC = () => {
             <h2 className="text-lg font-semibold mb-4 text-foreground">
               Payment Methods
             </h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={[
-                    {
-                      name: "Cash",
-                      value: parseFloat(data.paymentMethods.cash),
-                    },
-                    {
-                      name: "Card",
-                      value: parseFloat(data.paymentMethods.card),
-                    },
-                    {
-                      name: "Mobile",
-                      value: parseFloat(data.paymentMethods.mobile),
-                    },
-                    {
-                      name: "Credit",
-                      value: parseFloat(data.paymentMethods.credit),
-                    },
-                  ]}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  dataKey="value"
-                  label={({ name, percent }) =>
-                    `${name}: ${(percent * 100).toFixed(0)}%`
-                  }
-                >
-                  {COLORS.map((color, i) => (
-                    <Cell key={`cell-${i}`} fill={color} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => [`$${value}`, "Amount"]} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+            {paymentTotal > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: 'Cash', value: parseFloat(localData.paymentMethods.cash) || 0 },
+                      { name: 'Card', value: parseFloat(localData.paymentMethods.card) || 0 },
+                      { name: 'Mobile', value: parseFloat(localData.paymentMethods.mobile) || 0 },
+                      { name: 'Credit', value: parseFloat(localData.paymentMethods.credit) || 0 },
+                    ]}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    dataKey="value"
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  >
+                    {COLORS.map((color, i) => (
+                      <Cell key={`cell-${i}`} fill={color} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => [`$${value}`, 'Amount']} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-64 text-muted-foreground">
+                No payment methods yet
+              </div>
+            )}
           </div>
 
           {/* Top Products */}
@@ -720,21 +509,22 @@ const ReportPage: React.FC = () => {
             <h2 className="text-lg font-semibold mb-4 text-foreground">
               Top Selling Products
             </h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data.topProducts}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-                <XAxis dataKey="name" stroke="#666" />
-                <YAxis stroke="#666" />
-                <Tooltip formatter={(value) => [`$${value}`, "Revenue"]} />
-                <Legend />
-                <Bar
-                  dataKey="revenue"
-                  fill="#10b981"
-                  name="Revenue ($)"
-                  radius={[4, 4, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
+            {hasTopProducts ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={localData.topProducts}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                  <XAxis dataKey="name" stroke="#666" />
+                  <YAxis stroke="#666" />
+                  <Tooltip formatter={(value) => [`$${value}`, 'Revenue']} />
+                  <Legend />
+                  <Bar dataKey="revenue" fill="#10b981" name="Revenue ($)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-64 text-muted-foreground">
+                No top selling products yet
+              </div>
+            )}
           </div>
         </div>
 
@@ -756,7 +546,7 @@ const ReportPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {data.taxByCategory.map((item, i) => (
+                {localData.taxByCategory.map((item, i) => (
                   <tr
                     key={i}
                     className="border-b border-border last:border-0 hover:bg-accent/30"
@@ -767,7 +557,7 @@ const ReportPage: React.FC = () => {
                 ))}
                 <tr className="font-bold bg-accent/20">
                   <td className="py-3">Total</td>
-                  <td className="py-3 text-right">${data.totalTax}</td>
+                  <td className="py-3 text-right">${localData.totalTax}</td>
                 </tr>
               </tbody>
             </table>
