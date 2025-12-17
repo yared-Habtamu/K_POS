@@ -1,5 +1,10 @@
 // User Roles
-export type UserRole = 'system_admin' | 'owner' | 'manager' | 'cashier' | 'store_keeper';
+export type UserRole =
+  | "system_admin"
+  | "owner"
+  | "manager"
+  | "cashier"
+  | "store_keeper";
 
 export interface User {
   id: string;
@@ -16,7 +21,7 @@ export interface User {
 }
 
 // Product Types
-export type ProductUnit = 'kg' | 'g' | 'ml' | 'l' | 'pcs' | 'box';
+export type ProductUnit = "kg" | "g" | "ml" | "l" | "pcs" | "box";
 
 export interface Product {
   id: string;
@@ -46,8 +51,14 @@ export interface Category {
 }
 
 // Sales Types
-export type PaymentMethod = 'cash' | 'card' | 'telebirr' | 'cbe_bank' | 'wallet';
-export type DiscountType = 'percentage' | 'fixed';
+export type PaymentMethod =
+  | "cash"
+  | "card"
+  | "telebirr"
+  | "cbe_bank"
+  | "wallet"
+  | "other";
+export type DiscountType = "percentage" | "fixed";
 
 export interface CartItem {
   product: Product;
@@ -76,6 +87,7 @@ export interface Sale {
   };
   extraCharges: ExtraCharge[];
   tax: number;
+  taxRate?: number;
   total: number;
   paymentMethod: PaymentMethod;
   cashierId: string;
@@ -101,7 +113,12 @@ export interface Customer {
 }
 
 // Inventory Types
-export type InventoryAction = 'add' | 'remove' | 'sale' | 'adjustment' | 'transfer';
+export type InventoryAction =
+  | "add"
+  | "remove"
+  | "sale"
+  | "adjustment"
+  | "transfer";
 
 export interface InventoryLog {
   id: string;
@@ -117,14 +134,14 @@ export interface InventoryLog {
 }
 
 // Expense Types
-export type ExpenseCategory = 
-  | 'salary' 
-  | 'rent' 
-  | 'electricity' 
-  | 'water' 
-  | 'cleaning' 
-  | 'miscellaneous' 
-  | 'other';
+export type ExpenseCategory =
+  | "salary"
+  | "rent"
+  | "electricity"
+  | "water"
+  | "cleaning"
+  | "miscellaneous"
+  | "other";
 
 export interface Expense {
   id: string;
@@ -183,7 +200,12 @@ export interface DailyReport {
   cashReceived: number;
   bankTransferReceived: number;
   discountsGiven: number;
-  itemsSold: { productId: string; productName: string; quantity: number; total: number }[];
+  itemsSold: {
+    productId: string;
+    productName: string;
+    quantity: number;
+    total: number;
+  }[];
   shopId: string;
   submittedAt: Date;
 }
@@ -202,6 +224,7 @@ export interface Receipt {
   discount?: { type: DiscountType; value: number; amount: number };
   extraCharges: ExtraCharge[];
   tax: number;
+  taxRate?: number;
   total: number;
   paymentMethod: PaymentMethod;
   cashierName: string;
@@ -216,8 +239,17 @@ export interface SalesAnalytics {
   totalRevenue: number;
   averageOrderValue: number;
   topProducts: { product: Product; totalSold: number; revenue: number }[];
-  salesByPaymentMethod: { method: PaymentMethod; count: number; total: number }[];
-  salesByCashier: { cashierId: string; cashierName: string; sales: number; revenue: number }[];
+  salesByPaymentMethod: {
+    method: PaymentMethod;
+    count: number;
+    total: number;
+  }[];
+  salesByCashier: {
+    cashierId: string;
+    cashierName: string;
+    sales: number;
+    revenue: number;
+  }[];
 }
 
 export interface InventoryAnalytics {

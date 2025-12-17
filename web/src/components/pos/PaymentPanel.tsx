@@ -46,6 +46,7 @@ const paymentMethods: {
   { value: "telebirr", label: "telebirr", icon: Smartphone },
   { value: "cbe_bank", label: "cbe_bank", icon: Building2 },
   { value: "wallet", label: "wallet", icon: Wallet },
+  { value: "other", label: "other", icon: Wallet },
 ];
 
 interface PaymentPanelProps {
@@ -71,6 +72,8 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     getExtraChargesTotal,
     getTax,
     getTotal,
+    setTaxRate,
+    taxRate,
   } = useCartStore();
 
   const [discountType, setDiscountType] = useState<DiscountType>("percentage");
@@ -82,9 +85,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
   const [showReceipt, setShowReceipt] = useState(false);
   const [currentReceipt, setCurrentReceipt] = useState<Receipt | null>(null);
   const [savedSalePayload, setSavedSalePayload] = useState<Sale | null>(null);
-  const [paymentAccounts, setPaymentAccounts] = useState<
-    Record<string, string>
-  >({});
+  const [paymentAccounts, setPaymentAccounts] = useState<Record<string, string>>({});
   const [martCurrency, setMartCurrency] = useState<string | null>(null);
 
   const handleApplyDiscount = () => {
@@ -168,6 +169,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
         : undefined,
       extraCharges,
       tax: getTax(),
+      taxRate: taxRate,
       total: getTotal(),
       paymentMethod,
       cashierName: user?.name || "Unknown",
@@ -175,21 +177,23 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
       receiptHeader: "Thank you for shopping with us!",
       receiptSlogan: "Quality products at affordable prices",
     };
+
     // prepare sale payload but do NOT send it yet; save when user presses Done on the receipt
     const salePayload: Sale = {
       martId: user?.martId,
       receiptId,
       items: items.map((it) => ({
-        productId: it.id,
-        name: it.name,
-        price: it.price,
+        productId: it.product.id,
+        name: it.product.name,
+        price: it.product.sellingPrice,
         quantity: it.quantity,
-        total: it.price * it.quantity,
+        total: it.subtotal,
       })),
       subtotal: getSubtotal(),
       discount: receipt.discount,
       extraCharges: receipt.extraCharges,
       tax: receipt.tax,
+      taxRate: receipt.taxRate,
       total: receipt.total,
       paymentMethod: receipt.paymentMethod,
     } as any;
@@ -199,7 +203,10 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     setShowReceipt(true);
     setIsProcessing(false);
 
-    toast({ title: t('receipt_ready') || 'Receipt ready', description: `Receipt: ${receiptId}` });
+    toast({
+      title: t("receipt_ready") || "Receipt ready",
+      description: `Receipt: ${receiptId}`,
+    });
   };
 
   const handleDoneReceipt = async () => {
@@ -226,45 +233,165 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         console.warn("Failed to record sale", err);
-        toast({ title: "Failed to save sale", description: (err && err.message) || 'Server error', variant: 'destructive' });
+        toast({
+          title: "Failed to save sale",
+          description: (err && err.message) || "Server error",
+          variant: "destructive",
+        });
         setIsProcessing(false);
         return;
       }
 
-      toast({ title: t('sale_complete'), description: `Receipt: ${savedSalePayload.receiptId}` });
+      toast({
+        title: t("sale_complete"),
+        description: `Receipt: ${savedSalePayload.receiptId}`,
+      });
       // clear cart and close receipt
       setShowReceipt(false);
       setCurrentReceipt(null);
       setSavedSalePayload(null);
       clearCart();
     } catch (err) {
-      console.error('Record sale error', err);
-      toast({ title: 'Failed to save sale', description: String(err), variant: 'destructive' });
+      console.error("Record sale error", err);
+      toast({
+        title: "Failed to save sale",
+        description: String(err),
+        variant: "destructive",
+      });
     } finally {
       setIsProcessing(false);
     }
   };
 
+  // Fetch mart settings (payment accounts, currency, tax) and normalize keys
   useEffect(() => {
-    (async () => {
+    let mounted = true;
+
+    const fetchMart = async () => {
       try {
         const API_BASE = import.meta.env.VITE_API_URL || "";
         const martId = user?.martId;
         const token = user?.token;
         if (!martId) return;
+
+        // avoid refetching the same mart repeatedly
+        if ((PaymentPanel as any)._cachedMartId === martId) return;
+
         const res = await fetch(`${API_BASE}/api/marts/${martId}`, {
           headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         });
         if (!res.ok) return;
         const json = await res.json();
-        // paymentAccounts may be stored as object or map
-        const accounts = json.paymentAccounts || {};
-        setPaymentAccounts(accounts);
-        setMartCurrency(json.currency || null);
+        if (!mounted) return;
+
+        const accounts: Record<string, string> = {};
+        let raw: any = undefined;
+        if (Array.isArray(json.customPaymentFields)) {
+          for (const entry of json.customPaymentFields) {
+            try {
+              if (!entry) continue;
+              const k = String((entry as any).key || "").trim().toLowerCase();
+              const v = (entry as any).value == null ? "" : String((entry as any).value);
+              if (k) accounts[k] = v;
+            } catch (e) {
+              continue;
+            }
+          }
+        } else {
+          raw = json.paymentAccounts;
+        }
+
+        try {
+          if (Array.isArray(raw)) {
+            if (raw.length > 0 && raw.every((r) => typeof r === "string")) {
+              for (let i = 0; i + 1 < raw.length; i += 2) {
+                const k = String(raw[i] || "").trim().toLowerCase();
+                const v = String(raw[i + 1] || "");
+                if (k) accounts[k] = v;
+              }
+            } else {
+              for (const entry of raw) {
+                if (!entry) continue;
+                if (typeof entry === "object") {
+                  if ("key" in entry && "value" in entry) {
+                    accounts[String((entry as any).key || "").trim().toLowerCase()] = String((entry as any).value || "");
+                  } else {
+                    Object.entries(entry as any).forEach(([k, v]) => {
+                      const nk = String(k || "").trim().toLowerCase();
+                      accounts[nk] = Array.isArray(v) ? String((v as any)[0] || "") : String(v || "");
+                    });
+                  }
+                }
+              }
+            }
+          } else if (raw && typeof raw === "object") {
+            Object.entries(raw).forEach(([k, v]) => {
+              const nk = String(k || "").trim().toLowerCase();
+              if (Array.isArray(v)) accounts[nk] = String((v as any)[0] || "");
+              else accounts[nk] = v == null ? "" : String(v);
+            });
+          }
+        } catch (e) {
+          // fallback to empty
+        }
+
+        if (!accounts.card && accounts.bank) accounts.card = accounts.bank;
+        if (!accounts.wallet && accounts.amole) accounts.wallet = accounts.amole;
+        if (!accounts.telebirr && (accounts.telebirr_number || accounts.tel || accounts.phone)) {
+          accounts.telebirr = accounts.telebirr_number || accounts.tel || accounts.phone;
+        }
+
+        setPaymentAccounts((prev) => {
+          try {
+            const prevJson = JSON.stringify(prev || {});
+            const nextJson = JSON.stringify(accounts || {});
+            return prevJson === nextJson ? prev : accounts;
+          } catch {
+            return accounts;
+          }
+        });
+
+        // DEV: show normalized accounts so owners can see what the cashier reads
+        if (import.meta.env.DEV) console.debug("Normalized payment accounts:", accounts);
+
+        setMartCurrency((prev) => (prev === (json.currency || null) ? prev : json.currency || null));
+
+        const incomingRate = Number(json.taxRate) || 0;
+        if (typeof setTaxRate === "function") {
+          try {
+            const curr = taxRate;
+            if (Number(curr) !== Number(incomingRate)) setTaxRate(incomingRate);
+          } catch {
+            setTaxRate(incomingRate);
+          }
+        }
+
+        // cache mart id to avoid repeated fetches
+        (PaymentPanel as any)._cachedMartId = martId;
       } catch (err) {
         console.error("Load mart settings error", err);
       }
-    })();
+    };
+
+    fetchMart();
+
+    const handleMartSettingsUpdated = (ev: any) => {
+      try {
+        const changedId = ev?.detail?.martId;
+        if (changedId && changedId === user?.martId) {
+          // invalidate cache and refetch
+          (PaymentPanel as any)._cachedMartId = null;
+          fetchMart();
+        }
+      } catch (e) {}
+    };
+
+    window.addEventListener("mart-settings-updated", handleMartSettingsUpdated as EventListener);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener("mart-settings-updated", handleMartSettingsUpdated as EventListener);
+    };
   }, [user?.martId]);
 
   const handleCloseReceipt = () => {
@@ -296,36 +423,41 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
         </div>
       </div>
 
-      {/* show configured account details for selected payment method */}
-      {paymentMethod && (
-        <div className="pt-2">
-          <p className="text-sm text-muted-foreground">
-            {t("payment_details")}
-          </p>
-          <div className="flex items-center gap-2 mt-2">
-            <div className="flex-1 p-3 border rounded-lg bg-muted">
-              <div className="text-xs text-muted-foreground">
-                {paymentMethod.toUpperCase()}
-              </div>
-              <div className="text-sm font-medium mt-1">
-                {paymentAccounts[paymentMethod] || t("not_configured")}
-              </div>
-            </div>
-            {paymentAccounts[paymentMethod] && (
-              <Button
-                size="sm"
-                onClick={() => {
-                  try {
-                    navigator.clipboard?.writeText(
-                      paymentAccounts[paymentMethod]
-                    );
-                    toast({ title: t("copied") });
-                  } catch {}
-                }}
-              >
-                Copy
-              </Button>
-            )}
+      {/* Saved Accounts (show all configured payment accounts) */}
+      {Object.keys(paymentAccounts || {}).length > 0 && (
+        <div className="space-y-2 pt-2">
+          <Label>{t("saved_accounts") || "Saved Accounts"}</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {Object.entries(paymentAccounts).map(([key, value]) => {
+              const niceKey = String(key || "").replace(/_/g, " ").toUpperCase();
+              return (
+                <div
+                  key={key}
+                  className="p-2 border rounded-lg bg-muted flex items-center justify-between"
+                >
+                  <div className="text-sm">
+                    <div className="text-xs text-muted-foreground">{niceKey}</div>
+                    <div className="text-sm font-medium mt-1">
+                      {value || t("not_configured")}
+                    </div>
+                  </div>
+                  {value ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        try {
+                          navigator.clipboard?.writeText(value);
+                          toast({ title: t("copied") });
+                        } catch {}
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -477,7 +609,10 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
             <DialogTitle>{t("receipt_preview")}</DialogTitle>
           </DialogHeader>
           {currentReceipt && (
-            <ReceiptPreview receipt={currentReceipt} onDone={handleDoneReceipt} />
+            <ReceiptPreview
+              receipt={currentReceipt}
+              onDone={handleDoneReceipt}
+            />
           )}
         </DialogContent>
       </Dialog>

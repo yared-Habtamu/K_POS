@@ -1,8 +1,8 @@
 // src/pages/Inventory.tsx
-import { useState, useEffect } from 'react';
-import { RoleLayout } from '@/components/layout/RoleLayout';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { useState, useEffect } from "react";
+import { RoleLayout } from "@/components/layout/RoleLayout";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -10,14 +10,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { useAuthStore } from '@/stores/authStore';
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { useAuthStore } from "@/stores/authStore";
 
 const ITEMS_PER_PAGE = 7; // ✅ 7 items per page
 
 export default function Inventory() {
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1); // ✅ Pagination state
   const token = useAuthStore.getState().user?.token;
 
@@ -26,14 +26,14 @@ export default function Inventory() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+    const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
     const abort = new AbortController();
     async function load() {
       setLoading(true);
       setError(null);
       try {
         const res = await fetch(`${API_BASE}/api/products`, {
-          headers: { Authorization: token ? `Bearer ${token}` : '' },
+          headers: { Authorization: token ? `Bearer ${token}` : "" },
           signal: abort.signal,
         });
         if (!res.ok) throw new Error(`Failed to fetch products: ${res.status}`);
@@ -43,28 +43,78 @@ export default function Inventory() {
           ? data.map((p: any) => ({
               ...p,
               id: p.id || p._id,
-              pictureUrl: p.pictureUrl || p.imageUrl || p.secure_url || p.url || '',
+              pictureUrl:
+                p.pictureUrl || p.imageUrl || p.secure_url || p.url || "",
             }))
           : [];
         setProducts(normalized);
       } catch (err: any) {
-        if (err.name !== 'AbortError') setError(err.message || 'Failed to load products');
+        if (err.name !== "AbortError")
+          setError(err.message || "Failed to load products");
       } finally {
         setLoading(false);
       }
     }
     load();
+    // also fetch sales once to compute accurate sold quantities per product
+    (async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/sales${
+            useAuthStore.getState().user?.role === "systemAdmin"
+              ? ""
+              : "?martId=" + useAuthStore.getState().user?.martId
+          }`,
+          {
+            headers: { Authorization: token ? `Bearer ${token}` : "" },
+            signal: abort.signal,
+          }
+        );
+        if (!res.ok) return;
+        const sales = await res.json();
+        const map: Record<string, number> = {};
+        for (const s of sales || []) {
+          for (const it of s.items || []) {
+            const pid = (
+              it.productId ||
+              it.product?._id ||
+              it.product?.id ||
+              it.id ||
+              ""
+            ).toString();
+            map[pid] = (map[pid] || 0) + Number(it.quantity || 0);
+          }
+        }
+        setProducts((prev) => {
+          // attach sold count to each product object (non-destructive)
+          return prev.map((p) => ({
+            ...p,
+            _sold: map[p.id] || map[p._id] || 0,
+          }));
+        });
+      } catch (err) {
+        // ignore
+      }
+    })();
     return () => abort.abort();
   }, [token]);
 
   const filteredProducts = search
-    ? products.filter(p => (p.name || '').toLowerCase().includes(search.toLowerCase()) || (p.barcode || '').includes(search) || (p.category || '').toLowerCase().includes(search.toLowerCase()))
+    ? products.filter(
+        (p) =>
+          (p.name || "").toLowerCase().includes(search.toLowerCase()) ||
+          (p.barcode || "").includes(search) ||
+          (p.category || "").toLowerCase().includes(search.toLowerCase())
+      )
     : products;
 
   // ✅ Pagination logic
   const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedProducts = filteredProducts.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const paginatedProducts = filteredProducts.slice(
+    startIndex,
+    startIndex + ITEMS_PER_PAGE
+  );
 
   // ✅ Pagination handlers
   const goToPage = (page: number) => {
@@ -86,7 +136,7 @@ export default function Inventory() {
   };
 
   return (
-    <RoleLayout allowedRoles={['owner', 'manager', 'store_keeper']}>
+    <RoleLayout allowedRoles={["owner", "manager", "store_keeper"]}>
       <div className="space-y-6">
         <Card>
           <CardHeader>
@@ -104,8 +154,12 @@ export default function Inventory() {
             </div>
 
             {/* Inventory Table */}
-            {loading && <div className="py-6 text-center">Loading products...</div>}
-            {error && <div className="py-6 text-center text-destructive">{error}</div>}
+            {loading && (
+              <div className="py-6 text-center">Loading products...</div>
+            )}
+            {error && (
+              <div className="py-6 text-center text-destructive">{error}</div>
+            )}
             <div className="overflow-x-auto">
               <Table className="w-full table-fixed">
                 <TableHeader>
@@ -121,19 +175,18 @@ export default function Inventory() {
                 <TableBody>
                   {paginatedProducts.length > 0 ? (
                     paginatedProducts.map((product) => {
-                      const sold = Math.max(
-                        0,
-                        (product.storeQuantity ?? 0) -
-                          (product.supermarketQuantity ?? 0)
-                      );
+                      // prefer computed sold (_sold) if present (from sales aggregation)
+                      const sold = Math.max(0, Number(product._sold || 0));
 
-                      const remaining =
-                        product.supermarketQuantity ??
-                        product.quantity ??
-                        0;
+                      // remaining = product.quantity - sold when quantity exists
+                      const remainingRaw = Number(product.quantity ?? 0) - sold;
+                      const remaining = Math.max(0, remainingRaw);
 
                       return (
-                        <TableRow key={product.id} className="h-20 align-middle">
+                        <TableRow
+                          key={product.id}
+                          className="h-20 align-middle"
+                        >
                           <TableCell className="py-4">
                             {product.pictureUrl ? (
                               <img
@@ -164,8 +217,11 @@ export default function Inventory() {
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
-                        {search ? 'No products found' : 'No products available'}
+                      <TableCell
+                        colSpan={5}
+                        className="text-center py-4 text-muted-foreground"
+                      >
+                        {search ? "No products found" : "No products available"}
                       </TableCell>
                     </TableRow>
                   )}
@@ -178,10 +234,20 @@ export default function Inventory() {
               <div className="flex flex-col sm:flex-row items-center justify-between px-2 py-3 border-t border-border mt-4">
                 <div className="text-xs text-muted-foreground mb-2 sm:mb-0">
                   Showing <span className="font-medium">{startIndex + 1}</span>–
-                  <span className="font-medium">{Math.min(startIndex + ITEMS_PER_PAGE, filteredProducts.length)}</span> of 
-                  <span className="font-medium"> {filteredProducts.length}</span> products
+                  <span className="font-medium">
+                    {Math.min(
+                      startIndex + ITEMS_PER_PAGE,
+                      filteredProducts.length
+                    )}
+                  </span>{" "}
+                  of
+                  <span className="font-medium">
+                    {" "}
+                    {filteredProducts.length}
+                  </span>{" "}
+                  products
                 </div>
-                
+
                 <div className="flex items-center gap-1">
                   <Button
                     variant="outline"
@@ -191,19 +257,21 @@ export default function Inventory() {
                   >
                     Prev
                   </Button>
-                  
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                    <Button
-                      key={page}
-                      variant={currentPage === page ? 'default' : 'outline'}
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      onClick={() => goToPage(page)}
-                    >
-                      {page}
-                    </Button>
-                  ))}
-                  
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                    (page) => (
+                      <Button
+                        key={page}
+                        variant={currentPage === page ? "default" : "outline"}
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => goToPage(page)}
+                      >
+                        {page}
+                      </Button>
+                    )
+                  )}
+
                   <Button
                     variant="outline"
                     size="sm"

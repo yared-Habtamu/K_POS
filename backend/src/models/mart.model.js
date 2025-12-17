@@ -21,6 +21,17 @@ const MartSchema = new mongoose.Schema(
     // paymentAccounts: map of payment method key -> account identifier (string)
     paymentAccounts: { type: Map, of: String },
 
+    // customPaymentFields: owner-defined array of key/value pairs
+    // Example: [{ key: 'telebirr', value: '0912345678' }, { key: 'other', value: '101214...' }]
+    customPaymentFields: [
+      {
+        key: { type: String, required: true },
+        value: { type: String },
+      },
+    ],
+
+    // Tax / VAT settings (percentage). Owner can update this setting.
+    taxRate: { type: Number, default: 15 },
     status: {
       type: String,
       enum: ["pending", "approved", "disabled"],
