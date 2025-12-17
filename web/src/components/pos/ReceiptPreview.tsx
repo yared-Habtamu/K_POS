@@ -1,9 +1,14 @@
 import { useTranslation } from 'react-i18next';
+import { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { useAuthStore } from '@/stores/authStore';
+import { toast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import type { Receipt } from '@/types';
-import { Printer, Download, Mail } from 'lucide-react';
+import { Printer, Download, MessageSquare } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface ReceiptPreviewProps {
@@ -43,9 +48,51 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
 
+  // SMS dialog state
+  const [smsOpen, setSmsOpen] = useState(false);
+  const [smsName, setSmsName] = useState('');
+  const [smsPhone, setSmsPhone] = useState('');
+  const [sendingSms, setSendingSms] = useState(false);
+  const [smsResult, setSmsResult] = useState<string | null>(null);
+
+  const sendSms = async () => {
+    if (!smsPhone) { setSmsResult('Phone number required'); return; }
+    const token = useAuthStore.getState().user?.token;
+    if (!token) { setSmsResult('Not authenticated'); return; }
+    setSendingSms(true);
+    setSmsResult(null);
+    try {
+      const payload = { saleId: receipt.saleId || receipt.id, phone: smsPhone, name: smsName };
+      const res = await fetch((import.meta.env.VITE_API_URL || import.meta.env.NEXT_PUBLIC_API_URL || '') + '/api/notifications/sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error('SMS send failed', res.status, data);
+        let detail = data?.message || 'Failed to send SMS';
+        if (data?.error) {
+          try { detail += `: ${typeof data.error === 'string' ? data.error : JSON.stringify(data.error)}`; } catch(e) { detail += ': (error details)'; }
+        }
+        setSmsResult(detail);
+        toast({ title: 'SMS failed', description: detail });
+      } else {
+        setSmsResult('SMS sent');
+        toast({ title: 'SMS sent', description: `Receipt sent to ${smsPhone}` });
+        // close dialog after a short delay
+        setTimeout(() => setSmsOpen(false), 800);
+      }
+    } catch (err: any) {
+      console.error('SMS send exception', err);
+      setSmsResult(String(err?.message || err));
+    } finally {
+      setSendingSms(false);
+    }
+  };
+
   return (
     <div className="flex flex-col">
-      {/* Receipt content */}
       <div className="receipt-preview bg-white text-black p-6 rounded-lg max-h-[60vh] overflow-y-auto">
         {/* Header */}
         <div className="text-center mb-4">
@@ -163,14 +210,39 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
           <Download className="mr-2 h-4 w-4" />
           PDF
         </Button>
-        <Button variant="outline" onClick={handleEmail} className="flex-1">
-          <Mail className="mr-2 h-4 w-4" />
-          Email
+        <Button variant="outline" onClick={() => setSmsOpen(true)} className="flex-1">
+          <MessageSquare className="mr-2 h-4 w-4" />
+          SMS
         </Button>
         <Button onClick={onDone} className="flex-1">
           {t('done') || 'Done'}
         </Button>
       </div>
+      
+      {/* SMS Dialog */}
+      <Dialog open={smsOpen} onOpenChange={setSmsOpen}>
+        <DialogContent>
+          <DialogTitle>Send Receipt via SMS</DialogTitle>
+          <DialogDescription>Enter customer name and phone number to send the receipt.</DialogDescription>
+          <div className="space-y-2 mt-4">
+            <div>
+              <label className="text-sm">Name</label>
+              <Input value={smsName} onChange={(e) => setSmsName((e.target as HTMLInputElement).value)} />
+            </div>
+            <div>
+              <label className="text-sm">Phone</label>
+              <Input value={smsPhone} onChange={(e) => setSmsPhone((e.target as HTMLInputElement).value)} placeholder="e.g. +251912345678" />
+            </div>
+            {smsResult && <div className="text-sm text-muted-foreground">{smsResult}</div>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSmsOpen(false)}>Cancel</Button>
+            <Button onClick={sendSms} disabled={sendingSms}>
+              {sendingSms ? 'Sending...' : 'Send SMS'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

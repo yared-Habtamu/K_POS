@@ -19,6 +19,7 @@ const salesRouter = require("./routes/sales");
 const reportsRouter = require("./routes/reports");
 const dailyReportsRouter = require("./routes/dailyReports");
 const productsRouter = require('./routes/products');
+const notificationsRouter = require('./routes/notifications');
 
 
 app.use("/api/expenses", expensesRouter);
@@ -29,6 +30,7 @@ app.use("/api/daily-reports", dailyReportsRouter);
 app.use('/api/marts', martsRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/products', productsRouter);
+app.use('/api/notifications', notificationsRouter);
 
 const PORT = process.env.PORT || 4000;
 
