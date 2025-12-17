@@ -20,6 +20,7 @@ router.post("/register", async (req, res) => {
       receiptHeader,
       receiptMessage,
       shopLogoUrl,
+      taxRate,
       ownerName,
       ownerPhone,
       ownerUsername,
@@ -102,6 +103,10 @@ router.post("/register", async (req, res) => {
       receiptHeader,
       receiptMessage,
       shopLogoUrl,
+      taxRate: Number(taxRate) || 15,
+      customPaymentFields: Array.isArray(req.body.customPaymentFields)
+        ? req.body.customPaymentFields
+        : [],
       status: "pending",
     });
 
@@ -204,6 +209,8 @@ router.put("/:id", authenticate, async (req, res) => {
       "currency",
       "paymentSystem",
       "paymentAccounts",
+      "customPaymentFields",
+      "taxRate",
       "receiptHeader",
       "receiptMessage",
       "shopLogoUrl",

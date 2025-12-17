@@ -1,5 +1,11 @@
-import { create } from 'zustand';
-import type { CartItem, Product, DiscountType, ExtraCharge, PaymentMethod } from '@/types';
+import { create } from "zustand";
+import type {
+  CartItem,
+  Product,
+  DiscountType,
+  ExtraCharge,
+  PaymentMethod,
+} from "@/types";
 
 interface CartState {
   items: CartItem[];
@@ -7,12 +13,17 @@ interface CartState {
   discount: { type: DiscountType; value: number } | null;
   paymentMethod: PaymentMethod;
   customerId: string | null;
-  
+  taxRate: number;
+
   // Actions
   addItem: (product: Product, quantity?: number) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
-  setItemDiscount: (productId: string, type: DiscountType, value: number) => void;
+  setItemDiscount: (
+    productId: string,
+    type: DiscountType,
+    value: number
+  ) => void;
   removeItemDiscount: (productId: string) => void;
   setCartDiscount: (type: DiscountType, value: number) => void;
   removeCartDiscount: () => void;
@@ -20,8 +31,9 @@ interface CartState {
   removeExtraCharge: (chargeId: string) => void;
   setPaymentMethod: (method: PaymentMethod) => void;
   setCustomer: (customerId: string | null) => void;
+  setTaxRate: (rate: number) => void;
   clearCart: () => void;
-  
+
   // Computed
   getSubtotal: () => number;
   getDiscountAmount: () => number;
@@ -30,19 +42,22 @@ interface CartState {
   getTotal: () => number;
 }
 
-const TAX_RATE = 0.15; // 15% VAT
+const DEFAULT_TAX_RATE = 15; // percentage (15% VAT)
 
 export const useCartStore = create<CartState>((set, get) => ({
   items: [],
   extraCharges: [],
   discount: null,
-  paymentMethod: 'cash',
+  paymentMethod: "cash",
   customerId: null,
+  taxRate: DEFAULT_TAX_RATE,
 
   addItem: (product, quantity = 1) => {
     set((state) => {
-      const existingIndex = state.items.findIndex(item => item.product.id === product.id);
-      
+      const existingIndex = state.items.findIndex(
+        (item) => item.product.id === product.id
+      );
+
       if (existingIndex >= 0) {
         const newItems = [...state.items];
         const newQty = newItems[existingIndex].quantity + quantity;
@@ -53,20 +68,23 @@ export const useCartStore = create<CartState>((set, get) => ({
         };
         return { items: newItems };
       }
-      
+
       return {
-        items: [...state.items, {
-          product,
-          quantity,
-          subtotal: quantity * product.sellingPrice,
-        }],
+        items: [
+          ...state.items,
+          {
+            product,
+            quantity,
+            subtotal: quantity * product.sellingPrice,
+          },
+        ],
       };
     });
   },
 
   removeItem: (productId) => {
     set((state) => ({
-      items: state.items.filter(item => item.product.id !== productId),
+      items: state.items.filter((item) => item.product.id !== productId),
     }));
   },
 
@@ -75,11 +93,15 @@ export const useCartStore = create<CartState>((set, get) => ({
       get().removeItem(productId);
       return;
     }
-    
+
     set((state) => ({
-      items: state.items.map(item =>
+      items: state.items.map((item) =>
         item.product.id === productId
-          ? { ...item, quantity, subtotal: quantity * item.product.sellingPrice }
+          ? {
+              ...item,
+              quantity,
+              subtotal: quantity * item.product.sellingPrice,
+            }
           : item
       ),
     }));
@@ -87,7 +109,7 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   setItemDiscount: (productId, type, value) => {
     set((state) => ({
-      items: state.items.map(item =>
+      items: state.items.map((item) =>
         item.product.id === productId
           ? { ...item, discount: { type, value } }
           : item
@@ -97,10 +119,8 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   removeItemDiscount: (productId) => {
     set((state) => ({
-      items: state.items.map(item =>
-        item.product.id === productId
-          ? { ...item, discount: undefined }
-          : item
+      items: state.items.map((item) =>
+        item.product.id === productId ? { ...item, discount: undefined } : item
       ),
     }));
   },
@@ -121,7 +141,7 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   removeExtraCharge: (chargeId) => {
     set((state) => ({
-      extraCharges: state.extraCharges.filter(c => c.id !== chargeId),
+      extraCharges: state.extraCharges.filter((c) => c.id !== chargeId),
     }));
   },
 
@@ -133,12 +153,16 @@ export const useCartStore = create<CartState>((set, get) => ({
     set({ customerId });
   },
 
+  setTaxRate: (rate) => {
+    set({ taxRate: Number(rate) || DEFAULT_TAX_RATE });
+  },
+
   clearCart: () => {
     set({
       items: [],
       extraCharges: [],
       discount: null,
-      paymentMethod: 'cash',
+      paymentMethod: "cash",
       customerId: null,
     });
   },
@@ -148,7 +172,7 @@ export const useCartStore = create<CartState>((set, get) => ({
     return items.reduce((sum, item) => {
       let itemTotal = item.subtotal;
       if (item.discount) {
-        if (item.discount.type === 'percentage') {
+        if (item.discount.type === "percentage") {
           itemTotal -= itemTotal * (item.discount.value / 100);
         } else {
           itemTotal -= item.discount.value;
@@ -161,9 +185,9 @@ export const useCartStore = create<CartState>((set, get) => ({
   getDiscountAmount: () => {
     const { discount } = get();
     if (!discount) return 0;
-    
+
     const subtotal = get().getSubtotal();
-    if (discount.type === 'percentage') {
+    if (discount.type === "percentage") {
       return subtotal * (discount.value / 100);
     }
     return discount.value;
@@ -177,7 +201,9 @@ export const useCartStore = create<CartState>((set, get) => ({
   getTax: () => {
     const subtotal = get().getSubtotal();
     const discountAmount = get().getDiscountAmount();
-    return (subtotal - discountAmount) * TAX_RATE;
+    const rate = (get().taxRate || DEFAULT_TAX_RATE) / 100;
+    const taxable = subtotal - discountAmount + get().getExtraChargesTotal();
+    return Math.round((taxable * rate + Number.EPSILON) * 100) / 100;
   },
 
   getTotal: () => {
@@ -185,6 +211,10 @@ export const useCartStore = create<CartState>((set, get) => ({
     const discountAmount = get().getDiscountAmount();
     const extraCharges = get().getExtraChargesTotal();
     const tax = get().getTax();
-    return subtotal - discountAmount + extraCharges + tax;
+    return (
+      Math.round(
+        (subtotal - discountAmount + extraCharges + tax + Number.EPSILON) * 100
+      ) / 100
+    );
   },
 }));

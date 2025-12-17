@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const Sale = require("../models/sale.model");
+const Mart = require("../models/mart.model");
 const { authenticate } = require("../middleware/auth");
 
 // Create a sale (record transaction)
@@ -24,8 +25,34 @@ router.post("/", authenticate, async (req, res) => {
         : req.user.martId;
     if (!targetMartId)
       return res.status(400).json({ message: "martId required" });
-    if (total == null)
-      return res.status(400).json({ message: "total required" });
+    // fetch mart to get taxRate
+    const mart = await Mart.findById(targetMartId).lean();
+    const taxRate = (mart && Number(mart.taxRate)) || 15;
+
+    // compute subtotal from items if not provided
+    let computedSubtotal = Number(subtotal || 0);
+    if ((!computedSubtotal || computedSubtotal === 0) && Array.isArray(items)) {
+      computedSubtotal = items.reduce(
+        (s, it) => s + (Number(it.total) || 0),
+        0
+      );
+    }
+
+    // compute extra charges sum
+    const extraSum = Array.isArray(extraCharges)
+      ? extraCharges.reduce((s, e) => s + (Number(e.amount) || 0), 0)
+      : 0;
+
+    // discount amount (if discount object uses .amount)
+    const discountAmt = (discount && Number(discount.amount)) || 0;
+
+    // taxable base: subtotal - discount + extra charges
+    const taxableBase = computedSubtotal - discountAmt + extraSum;
+    const taxAmount =
+      Math.round((taxableBase * taxRate + Number.EPSILON) * 100) / 100;
+
+    const computedTotal =
+      Math.round((taxableBase + taxAmount + Number.EPSILON) * 100) / 100;
 
     const sale = new Sale({
       martId: targetMartId,
@@ -33,11 +60,12 @@ router.post("/", authenticate, async (req, res) => {
       cashierName: req.user.username,
       receiptId,
       items,
-      subtotal,
+      subtotal: computedSubtotal,
       discount,
       extraCharges,
-      tax,
-      total,
+      tax: taxAmount,
+      taxRate,
+      total: computedTotal,
       paymentMethod,
       date: new Date(),
     });
