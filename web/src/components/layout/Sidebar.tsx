@@ -42,6 +42,8 @@ const roleNavItems: Record<UserRole, NavItem[]> = {
   cashier: [
     { label: 'pos', icon: ShoppingCart, path: '/cashier' },
     { label: 'daily_report', icon: FileText, path: '/cashier/report' },
+    { label: 'today_sales', icon: Receipt, path: '/cashier/today-sales' },
+    { label: 'customers', icon: Users, path: '/cashier/customers' },
   ],
   manager: [
     { label: 'dashboard', icon: LayoutDashboard, path: '/manager' },
@@ -50,6 +52,7 @@ const roleNavItems: Record<UserRole, NavItem[]> = {
     { label: 'inventory', icon: Package, path: '/manager/inventory' },
     { label: 'assets', icon: Boxes, path: '/manager/assets' },
     { label: 'reports', icon: BarChart3, path: '/manager/reports' },
+    { label: 'today_sales', icon: Receipt, path: '/manager/today-sales' },
     { label: 'alerts', icon: AlertTriangle, path: '/alerts' },
   ],
   owner: [
@@ -61,6 +64,7 @@ const roleNavItems: Record<UserRole, NavItem[]> = {
     { label: 'expenses', icon: Wallet, path: '/owner/expenses' },
     { label: 'alerts', icon: AlertTriangle, path: '/alerts' },
     { label: 'reports', icon: BarChart3, path: '/owner/reports' },
+    { label: 'today_sales', icon: Receipt, path: '/owner/today-sales' },
     {label: 'assets', icon: Boxes, path: '/manager/assets'},
     { label: 'settings', icon: Settings, path: '/owner/settings' },
   ],

@@ -10,10 +10,12 @@ import Login from "./pages/Login";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import ReportPage from "./pages/ReportPage";
+import TodaysSales from "./pages/TodaysSales";
 
 // Cashier Pages
 import CashierPOS from "./pages/cashier/CashierPOS";
 import DailyReport from "./pages/cashier/DailyReport";
+import CustomerManagement from "./pages/cashier/CustomerManagement";
 
 // Owner Pages
 import OwnerDashboard from "./pages/owner/OwnerDashboard";
@@ -55,6 +57,8 @@ const App = () => (
           {/* Cashier Routes */}
           <Route path="/cashier" element={<CashierPOS />} />
           <Route path="/cashier/report" element={<DailyReport />} />
+          <Route path="/cashier/today-sales" element={<TodaysSales />} />
+          <Route path="/cashier/customers" element={<CustomerManagement />} />
 
           {/* Owner Routes */}
           <Route path="/owner" element={<OwnerDashboard />} />
@@ -68,6 +72,7 @@ const App = () => (
           <Route path="/owner/alerts" element={<OwnerAlerts />} />
           <Route path="/owner/settings" element={<OwnerSettings />} />
           <Route path="/owner/reports" element={<ReportPage />} />
+          <Route path="/owner/today-sales" element={<TodaysSales />} />
           <Route path="/owner/assets" element={<OwnerAssets />} />
           <Route path="/owner/register" element={<RegisterMart />} />
           <Route
@@ -81,6 +86,7 @@ const App = () => (
           <Route path="/manager/inventory" element={<Inventory />} />
           <Route path="/manager/assets" element={<ManagerAssets />} />
           <Route path="/manager/reports" element={<ReportPage />} />
+          <Route path="/manager/today-sales" element={<TodaysSales />} />
 
           {/* Store Keeper Routes */}
           <Route path="/store-keeper" element={<StockManagement />} />
