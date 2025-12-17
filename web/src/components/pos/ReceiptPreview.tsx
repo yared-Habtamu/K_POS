@@ -35,16 +35,21 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
     lines.push(`Receipt: ${receipt.id}`);
     lines.push(`Shop: ${receipt.shopName}`);
     lines.push(`Total: ${receipt.total.toFixed(2)} ETB`);
-    lines.push('');
-    lines.push('Items:');
+    lines.push("");
+    lines.push("Items:");
     for (const it of receipt.items) {
-      const name = it.product?.name || it.name || 'Item';
+      const name = it.product?.name || it.name || "Item";
       const qty = it.quantity || 0;
-      const subtotal = (it.subtotal != null ? it.subtotal : (it.price || 0) * (it.quantity || 0));
+      const subtotal =
+        it.subtotal != null
+          ? it.subtotal
+          : (it.price || 0) * (it.quantity || 0);
       lines.push(`${name} x${qty} — ${Number(subtotal).toFixed(2)} ETB`);
     }
-    const body = encodeURIComponent(lines.join('\n'));
-    const subject = encodeURIComponent(`Receipt ${receipt.id} from ${receipt.shopName}`);
+    const body = encodeURIComponent(lines.join("\n"));
+    const subject = encodeURIComponent(
+      `Receipt ${receipt.id} from ${receipt.shopName}`
+    );
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
 
@@ -100,9 +105,7 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
           {receipt.shopAddress && (
             <p className="text-xs">{receipt.shopAddress}</p>
           )}
-          {receipt.shopPhone && (
-            <p className="text-xs">{receipt.shopPhone}</p>
-          )}
+          {receipt.shopPhone && <p className="text-xs">{receipt.shopPhone}</p>}
           {receipt.receiptHeader && (
             <p className="text-xs mt-2 italic">{receipt.receiptHeader}</p>
           )}
@@ -117,8 +120,8 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
             <p>Cashier: {receipt.cashierName}</p>
           </div>
           <div className="text-right">
-            <p>{format(new Date(receipt.date), 'MMM dd, yyyy')}</p>
-            <p>{format(new Date(receipt.date), 'HH:mm:ss')}</p>
+            <p>{format(new Date(receipt.date), "MMM dd, yyyy")}</p>
+            <p>{format(new Date(receipt.date), "HH:mm:ss")}</p>
           </div>
         </div>
 
@@ -136,8 +139,12 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
             <div key={idx} className="flex justify-between text-xs">
               <span className="flex-1 truncate pr-2">{item.product.name}</span>
               <span className="w-12 text-center">{item.quantity}</span>
-              <span className="w-16 text-right">{item.product.sellingPrice.toFixed(2)}</span>
-              <span className="w-20 text-right">{item.subtotal.toFixed(2)}</span>
+              <span className="w-16 text-right">
+                {item.product.sellingPrice.toFixed(2)}
+              </span>
+              <span className="w-20 text-right">
+                {item.subtotal.toFixed(2)}
+              </span>
             </div>
           ))}
         </div>
@@ -156,14 +163,14 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
               <span>-{receipt.discount.amount.toFixed(2)} ETB</span>
             </div>
           )}
-          {receipt.extraCharges.map((charge) => (
+          {(receipt.extraCharges || []).map((charge) => (
             <div key={charge.id} className="flex justify-between">
               <span>{charge.name}:</span>
               <span>+{charge.amount.toFixed(2)} ETB</span>
             </div>
           ))}
           <div className="flex justify-between">
-            <span>VAT (15%):</span>
+            <span>VAT ({(receipt.taxRate || 15).toFixed(2)}%):</span>
             <span>{receipt.tax.toFixed(2)} ETB</span>
           </div>
           <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-400">
@@ -172,7 +179,9 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
           </div>
           <div className="flex justify-between text-xs pt-1">
             <span>Payment Method:</span>
-            <span className="uppercase">{receipt.paymentMethod.replace('_', ' ')}</span>
+            <span className="uppercase">
+              {receipt.paymentMethod.replace("_", " ")}
+            </span>
           </div>
         </div>
 
@@ -204,9 +213,13 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
       <div className="flex gap-2 mt-4 pt-4 border-t border-border">
         <Button onClick={handlePrint} className="flex-1">
           <Printer className="mr-2 h-4 w-4" />
-          {t('print')}
+          {t("print")}
         </Button>
-        <Button variant="outline" onClick={handleDownloadPDF} className="flex-1">
+        <Button
+          variant="outline"
+          onClick={handleDownloadPDF}
+          className="flex-1"
+        >
           <Download className="mr-2 h-4 w-4" />
           PDF
         </Button>
@@ -215,7 +228,7 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
           SMS
         </Button>
         <Button onClick={onDone} className="flex-1">
-          {t('done') || 'Done'}
+          {t("done") || "Done"}
         </Button>
       </div>
       

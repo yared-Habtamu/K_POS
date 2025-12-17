@@ -24,6 +24,8 @@ const SaleSchema = new mongoose.Schema(
     discount: { type: Object },
     extraCharges: { type: [Object], default: [] },
     tax: { type: Number, default: 0 },
+    // taxRate stores the percentage rate (e.g., 15 for 15%) that was applied for this sale
+    taxRate: { type: Number, default: 0 },
     total: { type: Number, required: true },
     paymentMethod: { type: String },
     date: { type: Date, default: Date.now, index: true },

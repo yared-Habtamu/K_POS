@@ -215,9 +215,10 @@ export const useProductStore = create<ProductState>((set, get) => ({
         : mockProducts;
       set({ products: normalized, isLoading: false });
     } catch (err) {
-      // fallback to mock data
-      set({ products: mockProducts, isLoading: false });
-      console.warn("fetchProducts fallback to mock:", err);
+      // Don't silently fallback to mock data here; surface the error so the UI
+      // and developer can notice the failure during debugging.
+      set({ products: [], isLoading: false });
+      console.error("fetchProducts failed:", err);
     }
   },
 

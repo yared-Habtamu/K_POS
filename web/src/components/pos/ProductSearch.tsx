@@ -1,24 +1,37 @@
-import { useState, useEffect, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useProductStore } from '@/stores/productStore';
-import { useCartStore } from '@/stores/cartStore';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { toast } from '@/hooks/use-toast';
-import { Search, Barcode, X, Package } from 'lucide-react';
-import type { Product } from '@/types';
+import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
+import { motion, AnimatePresence } from "framer-motion";
+import { useProductStore } from "@/stores/productStore";
+import { useCartStore } from "@/stores/cartStore";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "@/hooks/use-toast";
+import { Search, Barcode, X, Package } from "lucide-react";
+import type { Product } from "@/types";
 
 export function ProductSearch() {
   const { t } = useTranslation();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [results, setResults] = useState<Product[]>([]);
   const [showResults, setShowResults] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  
-  const { searchProducts, getProductByBarcode } = useProductStore();
+
+  const searchProducts = useProductStore((s) => s.searchProducts);
+  const getProductByBarcode = useProductStore((s) => s.getProductByBarcode);
   const { addItem } = useCartStore();
+
+  // Ensure we load real products from the API when the POS mounts.
+  // Use the store's getState() to avoid subscribing to the whole store
+  // which would change identity on updates and retrigger this effect.
+  useEffect(() => {
+    try {
+      // fire-and-forget
+      useProductStore.getState().fetchProducts();
+    } catch (err) {
+      console.warn("Product fetch failed to start:", err);
+    }
+  }, []);
 
   useEffect(() => {
     if (query.length >= 2) {
@@ -34,17 +47,17 @@ export function ProductSearch() {
   const handleSelect = (product: Product) => {
     addItem(product, 1);
     toast({
-      title: t('product_added'),
+      title: t("product_added"),
       description: `${product.name} added to cart`,
     });
-    setQuery('');
+    setQuery("");
     setShowResults(false);
     inputRef.current?.focus();
   };
 
   const handleBarcodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Check if it's a barcode (numeric)
     if (/^\d+$/.test(query)) {
       const product = getProductByBarcode(query);
@@ -52,9 +65,9 @@ export function ProductSearch() {
         handleSelect(product);
       } else {
         toast({
-          title: 'Not Found',
-          description: 'No product found with this barcode',
-          variant: 'destructive',
+          title: "Not Found",
+          description: "No product found with this barcode",
+          variant: "destructive",
         });
       }
     }
@@ -70,14 +83,17 @@ export function ProductSearch() {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('scan_barcode')}
+            placeholder={t("scan_barcode")}
             className="pl-12 pr-12 h-14 text-lg rounded-xl"
             autoFocus
           />
           {query && (
             <button
               type="button"
-              onClick={() => { setQuery(''); setShowResults(false); }}
+              onClick={() => {
+                setQuery("");
+                setShowResults(false);
+              }}
               className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               <X className="h-5 w-5" />
@@ -127,9 +143,18 @@ export function ProductSearch() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-bold text-primary">{product.sellingPrice} {t('etb')}</p>
-                  <Badge variant={product.supermarketQuantity > product.lowStockThreshold ? 'secondary' : 'destructive'} className="text-xs">
-                    {product.supermarketQuantity} {t('stock')}
+                  <p className="font-bold text-primary">
+                    {product.sellingPrice} {t("etb")}
+                  </p>
+                  <Badge
+                    variant={
+                      product.supermarketQuantity > product.lowStockThreshold
+                        ? "secondary"
+                        : "destructive"
+                    }
+                    className="text-xs"
+                  >
+                    {product.supermarketQuantity} {t("stock")}
                   </Badge>
                 </div>
               </button>

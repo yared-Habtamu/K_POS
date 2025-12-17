@@ -341,4 +341,87 @@ router.get("/mart", authenticate, async (req, res) => {
 });
 
 module.exports = router;
+// GET /api/reports/today-sales?martId=...
+// Returns aggregated items sold today with quantity and purchasing cost.
+router.get('/today-sales', authenticate, async (req, res) => {
+  try {
+    const { martId } = req.query;
+    const day = new Date().toISOString().slice(0, 10);
+    const start = new Date(day + 'T00:00:00.000Z');
+    const end = new Date(day + 'T23:59:59.999Z');
+
+    const filter = { date: { $gte: start, $lte: end } };
+
+    // Cashiers only see their own sales
+    if (req.user.role === 'cashier') {
+      filter.cashierId = req.user._id || req.user.id;
+      if (req.user.martId) filter.martId = req.user.martId;
+    } else if (req.user.role !== 'systemAdmin') {
+      // owner/manager/store_keeper see mart-wide sales
+      filter.martId = req.user.martId;
+    } else if (martId) {
+      // system admin may provide martId to scope
+      filter.martId = martId;
+    }
+
+    const sales = await Sale.find(filter).lean();
+
+    // aggregate by productId when available, else by name
+    const prodAgg = {};
+    const productIds = Array.from(
+      new Set(
+        sales.flatMap((s) => (s.items || []).map((it) => it.productId).filter(Boolean))
+      )
+    );
+
+    const products = productIds.length ? await Product.find({ _id: { $in: productIds } }).lean() : [];
+    const productMap = {};
+    for (const p of products) productMap[String(p._id)] = p;
+
+    for (const s of sales) {
+      for (const it of s.items || []) {
+        const rawPid = it.productId ? String(it.productId) : null;
+        const key = rawPid ? `pid:${rawPid}` : `name:${(it.name || '').trim().toLowerCase()}`;
+
+        let productName = (it.name && String(it.name).trim()) || 'Unknown';
+        if (rawPid && productMap[rawPid] && productMap[rawPid].name) {
+          productName = productMap[rawPid].name;
+        }
+
+        if (!prodAgg[key]) {
+          prodAgg[key] = {
+            productId: rawPid,
+            name: productName,
+            image: rawPid && productMap[rawPid] ? productMap[rawPid].imageUrl || '' : it.imageUrl || '',
+            qty: 0,
+            purchasePrice: rawPid && productMap[rawPid] ? Number(productMap[rawPid].purchasePrice || 0) : Number(it.purchasePrice || 0),
+          };
+        }
+
+        prodAgg[key].qty += Number(it.quantity || 0);
+        // keep purchasePrice from canonical product when available
+        if (rawPid && productMap[rawPid]) {
+          prodAgg[key].purchasePrice = Number(productMap[rawPid].purchasePrice || 0);
+        }
+      }
+    }
+
+    const items = Object.values(prodAgg).map((x) => ({
+      productId: x.productId,
+      name: x.name,
+      image: x.image,
+      qty: x.qty,
+      purchasePrice: Number(x.purchasePrice || 0),
+      total: Number((x.purchasePrice || 0) * (x.qty || 0)),
+    }));
+
+    const totalItemsSold = items.reduce((s, it) => s + (it.qty || 0), 0);
+    const totalPurchasingCost = items.reduce((s, it) => s + (it.total || 0), 0);
+
+    res.json({ date: day, items, totalItemsSold, totalPurchasingCost });
+  } catch (err) {
+    console.error('today-sales error', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
