@@ -9,8 +9,14 @@ function authenticate(req, res, next) {
   const token = parts[1];
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-    // attach a sanitized user object
-    req.user = { id: payload.id, username: payload.username, role: payload.role, martId: payload.martId };
+    // attach a sanitized user object (including permissions if present)
+    req.user = {
+      id: payload.id,
+      username: payload.username,
+      role: payload.role,
+      martId: payload.martId,
+      permissions: Array.isArray(payload.permissions) ? payload.permissions : [],
+    };
     return next();
   } catch (err) {
     return res.status(401).json({ message: 'Invalid or expired token' });

@@ -15,17 +15,24 @@ interface Props {
   items: Item[];
   loading?: boolean;
   totals: { totalItemsSold: number; totalPurchasingCost: number };
+  // hide header when an external dashboard header is shown
+  hideHeader?: boolean;
 }
 
-export default function TodaysSalesView({ items, loading, totals }: Props) {
+export default function TodaysSalesView({ items, loading, totals, hideHeader }: Props) {
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Today's Sales</h1>
-          <p className="text-sm text-muted-foreground mt-1">Items sold today</p>
+      {!hideHeader && (
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Today's Sales</h1>
+            <p className="text-sm text-muted-foreground mt-1">Items sold today</p>
+          </div>
+          <div className="flex gap-3">
+          </div>
         </div>
-        <div className="flex gap-3">
+      )}
+      <div className="flex gap-3">
           <div className="bg-card p-3 rounded-xl border text-center">
             <p className="text-sm text-muted-foreground">Total Items Sold</p>
             <p className="text-lg font-bold">{totals.totalItemsSold}</p>
@@ -35,8 +42,6 @@ export default function TodaysSalesView({ items, loading, totals }: Props) {
             <p className="text-lg font-bold">{currency(totals.totalPurchasingCost)} </p>
           </div>
         </div>
-      </div>
-
       <div className="bg-card p-4 rounded-xl border">
         <h2 className="text-lg font-semibold mb-4 text-foreground">Sold Items</h2>
         {loading ? (

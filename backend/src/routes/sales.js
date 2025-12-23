@@ -46,10 +46,18 @@ router.post("/", authenticate, async (req, res) => {
     // discount amount (if discount object uses .amount)
     const discountAmt = (discount && Number(discount.amount)) || 0;
 
+    // enforce permission: applying a discount requires 'discount' permission
+    if (discountAmt > 0) {
+      const userPerms = Array.isArray(req.user.permissions) ? req.user.permissions : [];
+      if (!(req.user.role === 'systemAdmin' || req.user.role === 'owner' || userPerms.includes('discount'))) {
+        return res.status(403).json({ message: 'Insufficient permissions to apply discount' });
+      }
+    }
+
     // taxable base: subtotal - discount + extra charges
     const taxableBase = computedSubtotal - discountAmt + extraSum;
     const taxAmount =
-      Math.round((taxableBase * taxRate + Number.EPSILON) * 100) / 100;
+      Math.round((taxableBase * (taxRate / 100) + Number.EPSILON) * 100) / 100;
 
     const computedTotal =
       Math.round((taxableBase + taxAmount + Number.EPSILON) * 100) / 100;
