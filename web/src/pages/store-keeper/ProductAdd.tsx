@@ -43,7 +43,8 @@ export default function ProductAdd() {
     quantity: "",
     lowStockThreshold: "10",
     expiryDate: "",
-    barcode: "",
+    barcodes: [] as string[], // store as array
+    barcodeInput: "",
   });
 
   const resetForm = () => {
@@ -56,7 +57,8 @@ export default function ProductAdd() {
       quantity: "",
       lowStockThreshold: "10",
       expiryDate: "",
-      barcode: "",
+      barcodes: [],
+      barcodeInput: "",
     });
     setImageFile(null);
     setImagePreview(null);
@@ -120,7 +122,10 @@ export default function ProductAdd() {
       String(parseInt(form.lowStockThreshold || "10"))
     );
     if (form.expiryDate) formData.append("expiryDate", form.expiryDate);
-    formData.append("barcode", form.barcode || `${Date.now()}`.slice(-12));
+    // barcodes: send as repeated form fields; prefer explicit array from UI
+    const barcodesArr = Array.isArray(form.barcodes) ? form.barcodes.filter(Boolean) : [];
+    if (barcodesArr.length === 0) barcodesArr.push(`${Date.now()}`.slice(-12));
+    for (const b of barcodesArr) formData.append('barcodes', b);
     if (imageFile) formData.append("image", imageFile, imageFile.name);
 
     try {
@@ -181,8 +186,11 @@ export default function ProductAdd() {
     }
   };
 
-  const generateBarcode = () =>
-    setForm({ ...form, barcode: `${Date.now()}`.slice(-12) });
+  const generateBarcode = () => {
+    const b = `${Date.now()}`.slice(-12);
+    const existing = Array.isArray(form.barcodes) ? form.barcodes.slice() : [];
+    setForm({ ...form, barcodes: [...existing, b], barcodeInput: '' });
+  };
 
   return (
     // Product creation should be restricted to owners. Use RoleLayout to enforce.
@@ -383,16 +391,26 @@ export default function ProductAdd() {
                 </div>
 
                 <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="barcode">{t("barcode")}</Label>
+                  <Label htmlFor="barcodeInput">{t("barcodes")}</Label>
                   <div className="flex gap-2">
                     <Input
-                      id="barcode"
-                      value={form.barcode}
-                      onChange={(e) =>
-                        setForm({ ...form, barcode: e.target.value })
-                      }
-                      placeholder="Enter or generate barcode"
+                      id="barcodeInput"
+                      value={form.barcodeInput}
+                      onChange={(e) => setForm({ ...form, barcodeInput: e.target.value })}
+                      placeholder="Enter barcode to add"
                     />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        const val = (form.barcodeInput || '').trim();
+                        if (!val) return;
+                        const existing = Array.isArray(form.barcodes) ? form.barcodes.slice() : [];
+                        setForm({ ...form, barcodes: [...existing, val], barcodeInput: '' });
+                      }}
+                    >
+                      Add
+                    </Button>
                     <Button
                       type="button"
                       variant="outline"
@@ -401,6 +419,25 @@ export default function ProductAdd() {
                       <Barcode className="mr-2 h-4 w-4" />
                       Generate
                     </Button>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {(Array.isArray(form.barcodes) ? form.barcodes : []).map((b, idx) => (
+                      <div key={b + '-' + idx} className="inline-flex items-center gap-2 px-2 py-1 rounded border">
+                        <span className="font-mono text-sm">{b}</span>
+                        <Button type="button" variant="ghost" className="text-destructive p-1" onClick={() => {
+                          const arr = (form.barcodes || []).slice();
+                          arr.splice(idx, 1);
+                          setForm({ ...form, barcodes: arr });
+                        }}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="text-xs text-muted-foreground">
+                    Previously registered barcodes are shown above. Add or generate new ones.
                   </div>
                 </div>
               </div>

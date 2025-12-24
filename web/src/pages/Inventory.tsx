@@ -13,91 +13,29 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/stores/authStore";
+import { useProductStore } from "@/stores/productStore";
 
 const ITEMS_PER_PAGE = 7; // ✅ 7 items per page
 
 export default function Inventory() {
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1); // ✅ Pagination state
-  const token = useAuthStore.getState().user?.token;
+  const { products, isLoading, fetchProducts, fetchError } = useProductStore();
 
-  const [products, setProducts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
+  // ensure store is refreshed when this page mounts
   useEffect(() => {
-    const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
-    const abort = new AbortController();
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(`${API_BASE}/api/products`, {
-          headers: { Authorization: token ? `Bearer ${token}` : "" },
-          signal: abort.signal,
-        });
-        if (!res.ok) throw new Error(`Failed to fetch products: ${res.status}`);
-        const data = await res.json();
-        // normalize id field and image field (backend uses imageUrl)
-        const normalized = Array.isArray(data)
-          ? data.map((p: any) => ({
-              ...p,
-              id: p.id || p._id,
-              pictureUrl:
-                p.pictureUrl || p.imageUrl || p.secure_url || p.url || "",
-            }))
-          : [];
-        setProducts(normalized);
-      } catch (err: any) {
-        if (err.name !== "AbortError")
-          setError(err.message || "Failed to load products");
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-    // also fetch sales once to compute accurate sold quantities per product
     (async () => {
       try {
-        const res = await fetch(
-          `${API_BASE}/api/sales${
-            useAuthStore.getState().user?.role === "systemAdmin"
-              ? ""
-              : "?martId=" + useAuthStore.getState().user?.martId
-          }`,
-          {
-            headers: { Authorization: token ? `Bearer ${token}` : "" },
-            signal: abort.signal,
-          }
-        );
-        if (!res.ok) return;
-        const sales = await res.json();
-        const map: Record<string, number> = {};
-        for (const s of sales || []) {
-          for (const it of s.items || []) {
-            const pid = (
-              it.productId ||
-              it.product?._id ||
-              it.product?.id ||
-              it.id ||
-              ""
-            ).toString();
-            map[pid] = (map[pid] || 0) + Number(it.quantity || 0);
-          }
-        }
-        setProducts((prev) => {
-          // attach sold count to each product object (non-destructive)
-          return prev.map((p) => ({
-            ...p,
-            _sold: map[p.id] || map[p._id] || 0,
-          }));
-        });
-      } catch (err) {
+        await fetchProducts?.();
+      } catch (e) {
         // ignore
       }
     })();
-    return () => abort.abort();
-  }, [token]);
+  }, [fetchProducts]);
+
+  // map store fields into local-friendly naming (products already normalized in store)
+  const loading = isLoading;
+  const error = fetchError || null;
 
   const filteredProducts = search
     ? products.filter(
@@ -178,9 +116,8 @@ export default function Inventory() {
                       // prefer computed sold (_sold) if present (from sales aggregation)
                       const sold = Math.max(0, Number(product._sold || 0));
 
-                      // remaining = product.quantity - sold when quantity exists
-                      const remainingRaw = Number(product.quantity ?? 0) - sold;
-                      const remaining = Math.max(0, remainingRaw);
+                      // product.quantity is authoritative remaining (backend decrements it on sale)
+                      const remaining = Number(product.quantity ?? product.supermarketQuantity ?? product.storeQuantity ?? 0);
 
                       return (
                         <TableRow

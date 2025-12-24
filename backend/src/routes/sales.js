@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const Sale = require("../models/sale.model");
 const Mart = require("../models/mart.model");
+const Product = require("../models/product.model");
+const mongoose = require("mongoose");
 const { authenticate } = require("../middleware/auth");
 
 // Create a sale (record transaction)
@@ -54,6 +56,93 @@ router.post("/", authenticate, async (req, res) => {
     const computedTotal =
       Math.round((taxableBase + taxAmount + Number.EPSILON) * 100) / 100;
 
+    // Validate stock: aggregate quantities per productId
+    if (Array.isArray(items) && items.length > 0) {
+      const qtyMap = {};
+      items.forEach((it) => {
+        if (it && it.productId) {
+          const q = Number(it.quantity) || 0;
+          qtyMap[it.productId] = (qtyMap[it.productId] || 0) + q;
+        }
+      });
+
+      const productIds = Object.keys(qtyMap);
+      if (productIds.length > 0) {
+        const products = await Product.find({
+          _id: { $in: productIds },
+          martId: targetMartId,
+        }).lean();
+
+        // check for missing products
+        if (products.length !== productIds.length) {
+          const foundIds = products.map((p) => String(p._id));
+          const missing = productIds.filter((id) => !foundIds.includes(String(id)));
+          return res.status(400).json({ message: "Some products not found in this mart", missing });
+        }
+
+        const insufficient = products
+          .filter((p) => (qtyMap[String(p._id)] || 0) > (p.quantity || 0))
+          .map((p) => ({
+            productId: p._id,
+            name: p.name,
+            available: p.quantity,
+            requested: qtyMap[String(p._id)],
+          }));
+
+        if (insufficient.length) {
+          return res.status(400).json({ message: "Insufficient stock for some products", insufficient });
+        }
+
+        // perform atomic decrement using transaction if available
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        try {
+          const sale = new Sale({
+            martId: targetMartId,
+            cashierId: req.user.id,
+            cashierName: req.user.username,
+            receiptId,
+            items,
+            subtotal: computedSubtotal,
+            discount,
+            extraCharges,
+            tax: taxAmount,
+            taxRate,
+            total: computedTotal,
+            paymentMethod,
+            date: new Date(),
+          });
+
+          const savedSale = await sale.save({ session });
+
+          for (const pid of productIds) {
+            const qty = qtyMap[pid];
+            const upd = await Product.updateOne(
+              { _id: pid, martId: targetMartId, quantity: { $gte: qty } },
+              { $inc: { quantity: -qty } },
+              { session }
+            );
+            const matched = (upd.matchedCount || upd.nMatched || 0);
+            const modified = (upd.modifiedCount || upd.nModified || 0);
+            if (!matched || !modified) {
+              throw new Error(`Insufficient stock for product ${pid} during update`);
+            }
+          }
+
+          await session.commitTransaction();
+          session.endSession();
+          res.status(201).json(savedSale);
+          return;
+        } catch (err) {
+          await session.abortTransaction();
+          session.endSession();
+          console.error(err);
+          return res.status(400).json({ message: err.message || "Stock update failed" });
+        }
+      }
+    }
+
+    // Fallback: no stock-managed items, just save sale
     const sale = new Sale({
       martId: targetMartId,
       cashierId: req.user.id,

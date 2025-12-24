@@ -67,7 +67,7 @@ export default function BarcodeManagement() {
     return () => abort.abort();
   }, [token]);
 
-  const getProductByBarcode = (code: string) => products.find(p => p.barcode === code || (p.barcode || '').includes(code));
+  const getProductByBarcode = (code: string) => products.find(p => (p.barcodes || []).includes(code) || p.barcode === code || (p.barcode || '').includes(code));
 
   const updateProduct = async (id: string, updates: Partial<any>) => {
     const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -89,8 +89,9 @@ export default function BarcodeManagement() {
   );
 
   useEffect(() => {
-    if (selectedProduct?.barcode && barcodeRef.current) {
-      JsBarcode(barcodeRef.current, selectedProduct.barcode, {
+    const code = (selectedProduct?.barcodes && selectedProduct.barcodes[0]) || selectedProduct?.barcode;
+    if (code && barcodeRef.current) {
+      JsBarcode(barcodeRef.current, code, {
         format: 'CODE128',
         width: 2,
         height: 80,
@@ -232,7 +233,7 @@ export default function BarcodeManagement() {
                       <Package className="w-16 h-16 text-muted-foreground/50" />
                     </div>
                   )}
-                  {!product.barcode && (
+                  {(!(product.barcodes && product.barcodes.length > 0) && !product.barcode) && (
                     <Badge variant="destructive" className="absolute top-2 right-2">
                       No Barcode
                     </Badge>
@@ -243,9 +244,11 @@ export default function BarcodeManagement() {
                   <p className="text-sm text-muted-foreground">{product.category}</p>
                   <div className="mt-2 flex items-center justify-between">
                     <span className="font-bold text-primary">{product.sellingPrice} ETB</span>
-                    {product.barcode && (
+                    {(product.barcodes && product.barcodes.length > 0) ? (
+                      <div className="text-xs font-mono text-muted-foreground">{(product.barcodes || []).join(', ')}</div>
+                    ) : product.barcode ? (
                       <span className="text-xs font-mono text-muted-foreground">{product.barcode}</span>
-                    )}
+                    ) : null}
                   </div>
                 </CardContent>
               </Card>

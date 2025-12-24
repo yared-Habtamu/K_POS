@@ -11,7 +11,8 @@ const ProductSchema = new mongoose.Schema(
     quantity: { type: Number, default: 0 },
     lowStockThreshold: { type: Number, default: 10 },
     expiryDate: { type: Date },
-    barcode: { type: String, index: true },
+    // support multiple barcodes per product (array of strings)
+    barcodes: { type: [String], index: true },
     imageUrl: { type: String },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   },

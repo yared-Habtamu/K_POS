@@ -35,6 +35,8 @@ export interface Product {
   quantity: number;
   storeQuantity: number; // warehouse
   supermarketQuantity: number; // front store
+  barcodes?: string[];
+  // legacy single barcode (kept for backward compatibility)
   barcode?: string;
   expiryDate?: Date;
   lowStockThreshold: number;

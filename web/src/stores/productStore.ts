@@ -191,33 +191,75 @@ interface ProductState {
 }
 
 export const useProductStore = create<ProductState>((set, get) => ({
-  products: mockProducts,
+  products: [],
   categories: mockCategories,
   isLoading: false,
+  fetchError: null,
 
   fetchProducts: async () => {
     set({ isLoading: true });
     const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
     const token = useAuthStore.getState().user?.token;
+    const martId = useAuthStore.getState().user?.martId;
     try {
       const res = await fetch(`${API_BASE}/api/products`, {
         headers: { Authorization: token ? `Bearer ${token}` : "" },
       });
       if (!res.ok) throw new Error("Failed to fetch products");
       const data = await res.json();
+
+      // normalize products
       const normalized = Array.isArray(data)
         ? data.map((p: any) => ({
             ...p,
             id: p.id || p._id,
             pictureUrl:
               p.pictureUrl || p.imageUrl || p.secure_url || p.url || "",
+            // normalize quantities so UI components use same fields
+            quantity: Number(p.quantity ?? p.supermarketQuantity ?? p.storeQuantity ?? 0),
+            supermarketQuantity: Number(p.supermarketQuantity ?? p.quantity ?? p.storeQuantity ?? 0),
+            storeQuantity: Number(p.storeQuantity ?? p.quantity ?? p.supermarketQuantity ?? 0),
+            // barcodes: prefer array from backend; fallback to single barcode
+            barcodes: Array.isArray(p.barcodes) ? p.barcodes.map(String) : p.barcode ? [String(p.barcode)] : [],
+            barcode: Array.isArray(p.barcodes) ? (p.barcodes[0] || '') : (p.barcode || ''),
+            _sold: 0,
           }))
-        : mockProducts;
-      set({ products: normalized, isLoading: false });
+        : [];
+
+      // fetch sales for mart to compute sold counts (so remaining = quantity - sold can be derived)
+      let soldMap: Record<string, number> = {};
+      try {
+        if (martId) {
+          const salesRes = await fetch(`${API_BASE}/api/sales?martId=${martId}`, {
+            headers: { Authorization: token ? `Bearer ${token}` : "" },
+          });
+          if (salesRes.ok) {
+            const sales = await salesRes.json();
+            for (const s of sales || []) {
+              for (const it of s.items || []) {
+                const pid = (
+                  it.productId || it.product?._id || it.product?.id || it.id || ""
+                ).toString();
+                soldMap[pid] = (soldMap[pid] || 0) + Number(it.quantity || 0);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // ignore sales fetch errors
+      }
+
+      // attach _sold to normalized products
+      const withSold = normalized.map((p: any) => ({
+        ...p,
+        _sold: soldMap[p.id] || soldMap[p._id] || 0,
+      }));
+
+      set({ products: withSold, isLoading: false, fetchError: null });
     } catch (err) {
-      // Don't silently fallback to mock data here; surface the error so the UI
-      // and developer can notice the failure during debugging.
-      set({ products: [], isLoading: false });
+      // On error, clear products and expose the error so UI can show a message.
+      const msg = String(err?.message || err || "Failed to fetch products");
+      set({ products: [], isLoading: false, fetchError: msg });
       console.error("fetchProducts failed:", err);
     }
   },
@@ -331,13 +373,32 @@ export const useProductStore = create<ProductState>((set, get) => ({
   },
 
   getProductByBarcode: (barcode) => {
-    return get().products.find((p) => p.barcode === barcode);
+    return get().products.find((p) => (p.barcodes || []).includes(barcode) || p.barcode === barcode);
   },
 
   getLowStockProducts: () => {
-    return get().products.filter(
-      (p) => p.supermarketQuantity <= p.lowStockThreshold
-    );
+    return get().products.filter((p) => {
+      // product.quantity is authoritative (backend decrements on sale)
+      const remaining = Number(p.quantity ?? p.supermarketQuantity ?? p.storeQuantity ?? 0);
+      return remaining <= Number(p.lowStockThreshold || 0);
+    });
+  },
+
+  // Products that require attention: low stock or expiring soon
+  getAlertProducts: (expiringWithinDays = 7) => {
+    const low = get().getLowStockProducts();
+    const exp = get().getExpiringProducts(expiringWithinDays);
+    const byId = new Map<string, any>();
+    for (const p of low) byId.set(p.id || p._id, { ...p, reason: 'low_stock' });
+    for (const p of exp) {
+      const key = p.id || p._id;
+      if (byId.has(key)) {
+        byId.set(key, { ...byId.get(key), reason: 'low_stock_and_expiring' });
+      } else {
+        byId.set(key, { ...p, reason: 'expiring' });
+      }
+    }
+    return Array.from(byId.values());
   },
 
   getExpiringProducts: (days = 7) => {

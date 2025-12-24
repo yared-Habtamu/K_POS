@@ -19,6 +19,7 @@ const salesRouter = require("./routes/sales");
 const reportsRouter = require("./routes/reports");
 const dailyReportsRouter = require("./routes/dailyReports");
 const productsRouter = require('./routes/products');
+const productEditRequestsRouter = require('./routes/productEditRequests');
 const customersRouter = require('./routes/customers');
 
 
@@ -30,6 +31,7 @@ app.use("/api/daily-reports", dailyReportsRouter);
 app.use('/api/marts', martsRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/products', productsRouter);
+app.use('/api/product-edit-requests', productEditRequestsRouter);
 app.use('/api/customers', customersRouter);
 
 const PORT = process.env.PORT || 4000;

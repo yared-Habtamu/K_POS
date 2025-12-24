@@ -42,11 +42,11 @@ export default function OwnerDashboard() {
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const API_BASE =
     import.meta.env.VITE_API_URL || import.meta.env.NEXT_PUBLIC_API_URL || "";
-  const { products, getLowStockProducts, searchProducts } = useProductStore();
+  const { products, getAlertProducts, searchProducts, isLoading: productsLoading, fetchError } = useProductStore();
   const [search, setSearch] = useState("");
 
   const filteredProducts = search ? searchProducts(search) : products;
-  const lowStock = getLowStockProducts();
+  const alerts = fetchError ? [] : getAlertProducts();
   const chartData =
     metrics && Array.isArray(metrics.series) && metrics.series.length > 0
       ? metrics.series.map((s: any) => ({ name: s.date, sales: s.total }))
@@ -110,7 +110,7 @@ export default function OwnerDashboard() {
       try {
         await (useProductStore.getState().fetchProducts?.() as Promise<void>);
       } catch (e) {
-        // ignore fetch errors; productStore falls back to mock data
+        // ignore here; product store exposes fetchError for UI to react to
       }
     })();
     return () => {
@@ -137,8 +137,8 @@ export default function OwnerDashboard() {
     },
     {
       title: t("products"),
-      value: products.length.toString(),
-      change: `${lowStock.length} low`,
+      value: fetchError ? "Failed" : productsLoading ? "Loading..." : products.length.toString(),
+      change: fetchError ? "Failed to load" : `${alerts.length} low/exp`,
       trend: "down",
       icon: Package,
       color: "text-warning",
@@ -164,6 +164,11 @@ export default function OwnerDashboard() {
               <p className="text-muted-foreground">
                 Welcome back! Here's what's happening today.
               </p>
+              {fetchError && (
+                <div className="mt-2 text-sm text-destructive">
+                  Failed to load products: {fetchError}
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <Button

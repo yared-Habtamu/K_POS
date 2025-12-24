@@ -239,8 +239,8 @@ export default function StockManagement() {
                   (product.storeQuantity ?? 0) -
                     (product.supermarketQuantity ?? 0)
                 );
-                const remaining =
-                  product.supermarketQuantity ?? product.quantity ?? 0;
+                // product.quantity is authoritative remaining after sales
+                const remaining = Number(product.quantity ?? product.supermarketQuantity ?? product.storeQuantity ?? 0);
                 return (
                   <div
                     key={product.id}
@@ -279,25 +279,32 @@ export default function StockManagement() {
                           size="sm"
                           variant="outline"
                           onClick={() => {
+                            const current = Array.isArray(product.barcodes)
+                              ? product.barcodes.join(',')
+                              : (product.barcode || '');
                             const val = window.prompt(
-                              "Enter new barcode",
-                              product.barcode || ""
+                              "Enter barcodes (comma-separated)",
+                              current
                             );
                             if (val !== null) {
+                              const arr = String(val)
+                                .split(',')
+                                .map((s) => s.trim())
+                                .filter(Boolean);
                               updateProduct(product.id, {
-                                barcode: String(val),
+                                barcodes: arr,
                               })
-                                .then(() => toast({ title: "Barcode updated" }))
+                                .then(() => toast({ title: "Barcodes updated" }))
                                 .catch(() =>
                                   toast({
-                                    title: "Failed to update barcode",
+                                    title: "Failed to update barcodes",
                                     variant: "destructive",
                                   })
                                 );
                             }
                           }}
                         >
-                          <Barcode className="mr-2 h-3 w-3" /> Edit Barcode
+                          <Barcode className="mr-2 h-3 w-3" /> Edit Barcodes
                         </Button>
 
                         <input

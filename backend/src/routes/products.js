@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 
 const Product = require('../models/product.model');
+const ProductEditRequest = require('../models/productEditRequest.model');
+const Notification = require('../models/notification.model');
 const { authenticate } = require('../middleware/auth');
 const multer = require('multer');
 const { uploadBuffer } = require('../utils/cloudinary');
@@ -23,6 +25,7 @@ router.post('/', authenticate, upload.single('image'), async (req, res) => {
       lowStockThreshold,
       expiryDate,
       barcode,
+      barcodes,
       imageUrl,
       martId,
     } = req.body;
@@ -55,7 +58,8 @@ router.post('/', authenticate, upload.single('image'), async (req, res) => {
       quantity: quantity || 0,
       lowStockThreshold: lowStockThreshold || 10,
       expiryDate: expiryDate || null,
-      barcode: barcode || '',
+      // accept either single `barcode` or array `barcodes`
+      barcodes: Array.isArray(barcodes) ? barcodes : barcode ? [String(barcode)] : [],
       imageUrl: finalImageUrl || '',
       createdBy: user.id,
     });
@@ -128,6 +132,7 @@ router.put('/:id', authenticate, upload.single('image'), async (req, res) => {
       'lowStockThreshold',
       'expiryDate',
       'barcode',
+      'barcodes',
       'imageUrl',
     ];
     for (const k of allowed) if (req.body[k] !== undefined) update[k] = req.body[k];
@@ -150,8 +155,64 @@ router.put('/:id', authenticate, upload.single('image'), async (req, res) => {
       return res.status(403).json({ message: 'Access denied for this product' });
     }
 
+    // If an owner (not system admin) edits quantity, create a pending edit request and notify admins
+    if (update.quantity !== undefined && user.role !== 'systemAdmin') {
+      // create request
+      const reqDoc = new ProductEditRequest({
+        productId: product._id,
+        martId: product.martId,
+        requesterId: user.id,
+        requesterName: user.username || user.name,
+        changes: { quantity: update.quantity },
+      });
+      await reqDoc.save();
+
+      // create a notification for system admins (not assigning specific user)
+      await Notification.create({
+        martId: product.martId,
+        type: 'product_edit_request',
+        title: 'Product quantity edit requested',
+        message: `${reqDoc.requesterName} requested to change quantity for product ${product.name}`,
+        data: { requestId: reqDoc._id, productId: product._id, requestedChanges: reqDoc.changes },
+      });
+
+      return res.status(202).json({ message: 'Quantity change request submitted for approval', requestId: reqDoc._id });
+    }
+
+    // Handle barcode updates: support adding/removing barcodes
+    if (update.barcodes !== undefined || update.barcode !== undefined) {
+      // normalize to array
+      const newBarcodes = Array.isArray(update.barcodes)
+        ? update.barcodes.map(String)
+        : update.barcode
+        ? [String(update.barcode)]
+        : undefined;
+      if (newBarcodes !== undefined) {
+        update.barcodes = newBarcodes;
+      }
+      // remove single barcode field if present
+      delete update.barcode;
+    }
+
     const updated = await Product.findByIdAndUpdate(id, update, { new: true });
     res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Find product by barcode
+router.get('/by-barcode/:code', authenticate, async (req, res) => {
+  try {
+    const { code } = req.params;
+    const user = req.user;
+    const filter = { $or: [ { barcodes: code }, { barcode: code } ] };
+    // ensure mart scoping for non-admin
+    if (user.role !== 'systemAdmin') filter.martId = user.martId;
+    const product = await Product.findOne(filter).lean();
+    if (!product) return res.status(404).json({ message: 'Product not found' });
+    res.json(product);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });
@@ -175,6 +236,28 @@ router.delete('/:id', authenticate, async (req, res) => {
 
     await Product.findByIdAndDelete(id);
     res.json({ message: 'Product deleted' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Notifications: list notifications for mart or user
+router.get('/notifications', authenticate, async (req, res) => {
+  try {
+    const user = req.user;
+    const { martId } = req.query;
+    const filter = {};
+    if (user.role === 'systemAdmin') {
+      if (martId) filter.martId = martId;
+    } else {
+      filter.martId = user.martId;
+    }
+    // optionally limit to user-specific notifications
+    filter.$or = [ { userId: null }, { userId: user.id } ];
+
+    const list = await Notification.find(filter).sort({ createdAt: -1 }).limit(200);
+    res.json(list);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });

@@ -131,7 +131,15 @@ export function ProductSearch() {
                   <p className="font-medium truncate">{product.name}</p>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <span>{product.category}</span>
-                    {product.barcode && (
+                    {(product.barcodes && product.barcodes.length > 0) ? (
+                      <>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <Barcode className="h-3 w-3" />
+                          {(product.barcodes || []).join(', ')}
+                        </span>
+                      </>
+                    ) : product.barcode ? (
                       <>
                         <span>•</span>
                         <span className="flex items-center gap-1">
@@ -139,7 +147,7 @@ export function ProductSearch() {
                           {product.barcode}
                         </span>
                       </>
-                    )}
+                    ) : null}
                   </div>
                 </div>
                 <div className="text-right">

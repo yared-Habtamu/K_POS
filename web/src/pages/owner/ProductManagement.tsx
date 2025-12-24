@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import { useProductStore } from "@/stores/productStore";
+import { useAuthStore } from "@/stores/authStore";
 import type { Product, ProductUnit } from "@/types";
 import {
   Package,
@@ -63,12 +64,51 @@ export default function ProductManagement() {
     })();
   }, []);
 
+  // Fetch sales to compute sold counts per product (so we can show remaining = quantity - sold)
+  useEffect(() => {
+    let mounted = true;
+    const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+    const token = useAuthStore.getState().user?.token;
+    const martId = useAuthStore.getState().user?.martId;
+
+    async function loadSales() {
+      if (!martId) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/sales?martId=${martId}`, {
+          headers: { Authorization: token ? `Bearer ${token}` : "" },
+        });
+        if (!res.ok) return;
+        const sales = await res.json();
+        const map: Record<string, number> = {};
+        for (const s of sales || []) {
+          for (const it of s.items || []) {
+            const pid = (
+              it.productId || it.product?._id || it.product?.id || it.id || ""
+            ).toString();
+            map[pid] = (map[pid] || 0) + Number(it.quantity || 0);
+          }
+        }
+        if (!mounted) return;
+        setSoldMap(map);
+      } catch (err) {
+        // ignore
+      }
+    }
+
+    // run on mount and whenever products change (so UI updates after product list refresh)
+    loadSales();
+    return () => {
+      mounted = false;
+    };
+  }, [useProductStore.getState().products]);
+
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1); // Pagination state
+  const [soldMap, setSoldMap] = useState<Record<string, number>>({});
 
   const [form, setForm] = useState({
     name: "",
@@ -79,7 +119,8 @@ export default function ProductManagement() {
     quantity: "",
     lowStockThreshold: "10",
     expiryDate: "",
-    barcode: "",
+    barcodes: [] as string[],
+    barcodeInput: "",
   });
 
   // Filter products based on search and category
@@ -110,25 +151,31 @@ export default function ProductManagement() {
       quantity: "",
       lowStockThreshold: "10",
       expiryDate: "",
-      barcode: "",
+      barcodes: [],
+      barcodeInput: "",
     });
     setEditingProduct(null);
-  };
+  }; 
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
+    // product.quantity is authoritative remaining value after sales
+    const remaining = Number(product.quantity ?? product.supermarketQuantity ?? product.storeQuantity ?? 0);
+
     setForm({
       name: product.name,
       category: product.category,
       unit: product.unit,
       purchasePrice: product.purchasePrice.toString(),
       sellingPrice: product.sellingPrice.toString(),
-      quantity: product.quantity.toString(),
+      // show remaining quantity in the edit form so owner edits the remaining amount
+      quantity: String(remaining),
       lowStockThreshold: product.lowStockThreshold.toString(),
       expiryDate: product.expiryDate
         ? new Date(product.expiryDate).toISOString().split("T")[0]
         : "",
-      barcode: product.barcode || "",
+      barcodes: Array.isArray(product.barcodes) ? product.barcodes.slice() : (product.barcode ? [product.barcode] : []),
+      barcodeInput: "",
     });
     setIsDialogOpen(true);
   };
@@ -160,7 +207,7 @@ export default function ProductManagement() {
       supermarketQuantity: parseInt(form.quantity),
       lowStockThreshold: parseInt(form.lowStockThreshold),
       expiryDate: form.expiryDate ? new Date(form.expiryDate) : undefined,
-      barcode: form.barcode || `${Date.now()}`.slice(-12),
+      barcodes: Array.isArray(form.barcodes) ? form.barcodes.filter(Boolean) : [],
       shopId: "shop-001",
     };
 
@@ -184,9 +231,10 @@ export default function ProductManagement() {
   };
 
   const generateBarcode = () => {
-    const barcode = `${Date.now()}`.slice(-12);
-    setForm({ ...form, barcode });
-  };
+    const b = `${Date.now()}`.slice(-12);
+    const existing = Array.isArray(form.barcodes) ? form.barcodes.slice() : [];
+    setForm({ ...form, barcodes: [...existing, b], barcodeInput: '' });
+  }; 
 
   // Pagination handlers
   const goToPage = (page: number) => {
@@ -300,6 +348,11 @@ export default function ProductManagement() {
                       }
                       required
                     />
+                    {editingProduct && (
+                      <div className="text-xs text-muted-foreground">
+                        Showing remaining quantity (total - sold). If you change this value it will be submitted as the new remaining quantity and may require approval.
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="purchasePrice">
@@ -354,16 +407,26 @@ export default function ProductManagement() {
                     />
                   </div>
                   <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor="barcode">{t("barcode")}</Label>
+                    <Label htmlFor="barcodeInput">{t("barcodes")}</Label>
                     <div className="flex gap-2">
                       <Input
-                        id="barcode"
-                        value={form.barcode}
-                        onChange={(e) =>
-                          setForm({ ...form, barcode: e.target.value })
-                        }
-                        placeholder="Enter or generate barcode"
+                        id="barcodeInput"
+                        value={form.barcodeInput}
+                        onChange={(e) => setForm({ ...form, barcodeInput: e.target.value })}
+                        placeholder="Enter barcode to add"
                       />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          const val = (form.barcodeInput || '').trim();
+                          if (!val) return;
+                          const existing = Array.isArray(form.barcodes) ? form.barcodes.slice() : [];
+                          setForm({ ...form, barcodes: [...existing, val], barcodeInput: '' });
+                        }}
+                      >
+                        Add
+                      </Button>
                       <Button
                         type="button"
                         variant="outline"
@@ -373,6 +436,27 @@ export default function ProductManagement() {
                         Generate
                       </Button>
                     </div>
+
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {(Array.isArray(form.barcodes) ? form.barcodes : []).map((b, idx) => (
+                        <div key={b + '-' + idx} className="inline-flex items-center gap-2 px-2 py-1 rounded border">
+                          <span className="font-mono text-sm">{b}</span>
+                          <Button type="button" variant="ghost" className="text-destructive p-1" onClick={() => {
+                            const arr = (form.barcodes || []).slice();
+                            arr.splice(idx, 1);
+                            setForm({ ...form, barcodes: arr });
+                          }}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+
+                    {editingProduct && (
+                      <div className="text-xs text-muted-foreground">
+                        Previously registered barcodes are shown above. Add or generate new ones.
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -456,7 +540,6 @@ export default function ProductManagement() {
                       {t("selling_price")}
                     </TableHead>
                     <TableHead className="text-right">{t("stock")}</TableHead>
-                    <TableHead>{t("barcode")}</TableHead>
                     <TableHead className="text-right">{t("actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -490,19 +573,17 @@ export default function ProductManagement() {
                           {product.sellingPrice} ETB
                         </TableCell>
                         <TableCell className="text-right">
-                          <Badge
-                            variant={
-                              product.supermarketQuantity <=
-                              product.lowStockThreshold
-                                ? "destructive"
-                                : "secondary"
-                            }
-                          >
-                            {product.supermarketQuantity} {product.unit}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {product.barcode}
+                          {(() => {
+                                                    // product.quantity is the authoritative remaining value (backend decrements it on sale)
+                            const remaining = Number(product.quantity ?? product.supermarketQuantity ?? product.storeQuantity ?? 0);
+                            const lowThreshold = Number(product.lowStockThreshold || 0);
+                            const variant = remaining <= lowThreshold ? "destructive" : "secondary";
+                            return (
+                              <Badge variant={variant}>
+                                {remaining} {product.unit}
+                              </Badge>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
@@ -528,7 +609,7 @@ export default function ProductManagement() {
                   ) : (
                     <TableRow>
                       <TableCell
-                        colSpan={8}
+                        colSpan={7}
                         className="text-center py-4 text-muted-foreground"
                       >
                         {search || categoryFilter !== "all"

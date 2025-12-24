@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
+import { useProductStore } from "@/stores/productStore";
 import { ReceiptPreview } from "./ReceiptPreview";
 import type { PaymentMethod, DiscountType, Sale, Receipt } from "@/types";
 import {
@@ -246,6 +247,12 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
         title: t("sale_complete"),
         description: `Receipt: ${savedSalePayload.receiptId}`,
       });
+      // refresh products so UI reflects updated quantities
+      try {
+        await useProductStore.getState().fetchProducts?.();
+      } catch (e) {
+        // ignore refresh errors
+      }
       // clear cart and close receipt
       setShowReceipt(false);
       setCurrentReceipt(null);
