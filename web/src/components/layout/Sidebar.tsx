@@ -40,9 +40,9 @@ interface NavItem {
 
 const roleNavItems: Record<UserRole, NavItem[]> = {
   cashier: [
+    { label: 'dashboard', icon: LayoutDashboard, path: '/cashier/today-sales' },
     { label: 'pos', icon: ShoppingCart, path: '/cashier' },
     { label: 'daily_report', icon: FileText, path: '/cashier/report' },
-    { label: 'today_sales', icon: Receipt, path: '/cashier/today-sales' },
     { label: 'customers', icon: Users, path: '/cashier/customers' },
   ],
   manager: [

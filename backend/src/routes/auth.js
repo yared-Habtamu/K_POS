@@ -16,8 +16,8 @@ router.post('/login', async (req, res) => {
   if (!user) return res.status(401).json({ message: 'Invalid username or password' });
   const valid = await bcrypt.compare(password, user.passwordHash || '');
   if (!valid) return res.status(401).json({ message: 'Invalid username or password' });
-  const token = jwt.sign({ id: user._id, username: user.username, role: user.role, martId: user.martId }, JWT_SECRET, { expiresIn: '7d' });
-  res.json({ token, user: { id: user._id, username: user.username, name: user.name, role: user.role, martId: user.martId } });
+  const token = jwt.sign({ id: user._id, username: user.username, role: user.role, martId: user.martId, permissions: user.permissions || [] }, JWT_SECRET, { expiresIn: '7d' });
+  res.json({ token, user: { id: user._id, username: user.username, name: user.name, role: user.role, martId: user.martId, permissions: user.permissions || [] } });
 });
 
 // Register endpoint (owner creates manager/cashier/storeKeeper)
