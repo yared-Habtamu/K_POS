@@ -46,6 +46,8 @@ import {
   Download,
   FileText,
   Calendar,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import type { UserRole } from '@/types';
 
@@ -442,6 +444,21 @@ export default function OwnerEmployeeManagement() {
     return include;
   });
 
+  const shiftAttendanceDay = (delta: number) => {
+    const baseStr = attendanceFilter.dateRange === 'custom'
+      ? attendanceFilter.startDate
+      : new Date().toISOString().split('T')[0];
+    const base = new Date(baseStr);
+    base.setDate(base.getDate() + delta);
+    const nextStr = base.toISOString().split('T')[0];
+    setAttendanceFilter(prev => ({
+      ...prev,
+      dateRange: 'custom',
+      startDate: nextStr,
+      endDate: nextStr,
+    }));
+  };
+
   // ===== PAGINATION FOR ATTENDANCE =====
   const [attendancePage, setAttendancePage] = useState(1);
   const attendanceTotalPages = Math.ceil(filteredAttendance.length / ITEMS_PER_PAGE);
@@ -797,9 +814,6 @@ export default function OwnerEmployeeManagement() {
                                 <div>
                                   <div className="flex items-center gap-2">
                                     <span className="font-medium">{e.name}</span>
-                                    {e.martId && e.martId === martId ? (
-                                      <Badge variant="secondary" className="text-xs">My employee</Badge>
-                                    ) : null}
                                   </div>
                                 </div>
                               </div>
@@ -1129,9 +1143,22 @@ export default function OwnerEmployeeManagement() {
             <Card>
               <CardHeader>
                 <CardTitle>Attendance Records</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Showing {filteredAttendance.length} records
-                </p>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {filteredAttendance.length} records
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="icon" onClick={() => shiftAttendanceDay(-1)} aria-label="Previous day">
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <div className="text-sm font-medium">
+                      {(attendanceFilter.dateRange === 'custom' ? attendanceFilter.startDate : new Date().toISOString().split('T')[0])}
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => shiftAttendanceDay(1)} aria-label="Next day">
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">

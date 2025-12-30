@@ -33,6 +33,7 @@ import RegisterWaiting from "./pages/owner/RegisterWaiting";
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
 import ManagerAssets from "./pages/manager/Assets";
 import MEmployeeManagement from "./pages/manager/MEmployeeManagement";
+import ManagerApprovals from "./pages/manager/Approvals";
 // Store Keeper Pages
 import StockManagement from "./pages/store-keeper/StockManagement";
 import BarcodeManagement from "./pages/store-keeper/BarcodeManagement";
@@ -83,6 +84,7 @@ const App = () => (
           {/* Manager Routes */}
           <Route path="/manager" element={<ManagerDashboard />} />
           <Route path="/manager/employees" element={<MEmployeeManagement />} />
+          <Route path="/manager/approvals" element={<ManagerApprovals />} />
           <Route path="/manager/inventory" element={<Inventory />} />
           <Route path="/manager/assets" element={<ManagerAssets />} />
           <Route path="/manager/reports" element={<ReportPage />} />

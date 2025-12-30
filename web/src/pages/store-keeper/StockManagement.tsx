@@ -135,39 +135,36 @@ export default function StockManagement() {
 
     const qty = parseInt(addQuantity);
     if (qty <= 0) return;
-
-    // Transfer from store to supermarket
-    const newStoreQty = Math.max(0, selectedProduct.storeQuantity - qty);
-    const newSupermarketQty = selectedProduct.supermarketQuantity + qty;
-
+    const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
     try {
-      await updateProduct(selectedProduct.id, {
-        storeQuantity: newStoreQty,
-        supermarketQuantity: newSupermarketQty,
-        quantity: newSupermarketQty,
+      const res = await fetch(`${API_BASE}/api/stock-transfer-requests`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({ productId: selectedProduct.id, quantity: qty }),
       });
 
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.message || `Request failed ${res.status}`);
+      }
+
       toast({
-        title: "Stock Updated",
-        description: `Added ${qty} units of ${selectedProduct.name} to supermarket`,
+        title: "Transfer submitted",
+        description: `Request sent for ${qty} units of ${selectedProduct.name}. Awaiting manager approval.`,
       });
-    } catch (err) {
+      setIsDialogOpen(false);
+      setSelectedProduct(null);
+      setAddQuantity("");
+    } catch (err: any) {
       toast({
-        title: "Failed to update stock",
-        description: "Please try again",
+        title: "Could not submit transfer",
+        description: err?.message || "Please try again",
         variant: "destructive",
       });
-      return;
     }
-
-    toast({
-      title: "Stock Updated",
-      description: `Added ${qty} units of ${selectedProduct.name} to supermarket`,
-    });
-
-    setIsDialogOpen(false);
-    setSelectedProduct(null);
-    setAddQuantity("");
   };
 
   const openAddStockDialog = (product: Product) => {

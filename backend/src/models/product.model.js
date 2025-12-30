@@ -9,6 +9,10 @@ const ProductSchema = new mongoose.Schema(
     purchasePrice: { type: Number, default: 0 },
     sellingPrice: { type: Number, default: 0 },
     quantity: { type: Number, default: 0 },
+    // warehouse/store quantity (not directly sellable until transferred)
+    storeQuantity: { type: Number, default: 0 },
+    // quantity available on the mart / front store
+    supermarketQuantity: { type: Number, default: 0 },
     lowStockThreshold: { type: Number, default: 10 },
     expiryDate: { type: Date },
     // support multiple barcodes per product (array of strings)

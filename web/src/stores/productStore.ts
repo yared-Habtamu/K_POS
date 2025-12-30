@@ -315,16 +315,23 @@ export const useProductStore = create<ProductState>((set, get) => ({
             },
         body: isForm ? updates : JSON.stringify(updates),
       });
-      if (!res.ok) throw new Error("Failed to update product");
-      const updated = await res.json();
+      const data = await res.json();
+
+      // If the backend accepts but defers (202), do not mutate local cache
+      if (res.status === 202) {
+        return { status: res.status, data };
+      }
+
+      if (!res.ok) throw new Error(data?.message || "Failed to update product");
+
       const norm = {
-        ...updated,
-        id: updated.id || updated._id,
+        ...data,
+        id: data.id || data._id,
         pictureUrl:
-          updated.pictureUrl ||
-          updated.imageUrl ||
-          updated.secure_url ||
-          updated.url ||
+          data.pictureUrl ||
+          data.imageUrl ||
+          data.secure_url ||
+          data.url ||
           "",
       };
       set((state) => ({
@@ -332,6 +339,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
           p.id === id ? { ...p, ...norm, updatedAt: new Date() } : p
         ),
       }));
+      return { status: res.status, data: norm };
     } catch (err) {
       // fallback to local update
       set((state) => ({
@@ -340,6 +348,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
         ),
       }));
       console.warn("updateProduct fallback:", err);
+      return { status: 200, data: updates };
     }
   },
 

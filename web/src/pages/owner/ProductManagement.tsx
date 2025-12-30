@@ -213,8 +213,15 @@ export default function ProductManagement() {
 
     try {
       if (editingProduct) {
-        await updateProduct(editingProduct.id, productData);
-        toast({ title: t("product_updated") });
+        const result = await updateProduct(editingProduct.id, productData);
+        if (result?.status === 202) {
+          toast({
+            title: "Sent for manager approval",
+            description: "Your changes will apply after approval.",
+          });
+        } else {
+          toast({ title: t("product_updated") });
+        }
       } else {
         await addProduct(productData);
         toast({ title: t("product_added") });
@@ -540,6 +547,7 @@ export default function ProductManagement() {
                       {t("selling_price")}
                     </TableHead>
                     <TableHead className="text-right">{t("stock")}</TableHead>
+                    <TableHead className="text-right">Mart Qty</TableHead>
                     <TableHead className="text-right">{t("actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -574,13 +582,23 @@ export default function ProductManagement() {
                         </TableCell>
                         <TableCell className="text-right">
                           {(() => {
-                                                    // product.quantity is the authoritative remaining value (backend decrements it on sale)
-                            const remaining = Number(product.quantity ?? product.supermarketQuantity ?? product.storeQuantity ?? 0);
+                            const storeQty = Number(product.storeQuantity ?? 0);
+                            return (
+                              <Badge variant="secondary">
+                                {storeQty} {product.unit}
+                              </Badge>
+                            );
+                          })()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {(() => {
+                            // product.quantity is the authoritative sellable quantity (mart/front)
+                            const martQty = Number(product.quantity ?? product.supermarketQuantity ?? 0);
                             const lowThreshold = Number(product.lowStockThreshold || 0);
-                            const variant = remaining <= lowThreshold ? "destructive" : "secondary";
+                            const variant = martQty <= lowThreshold ? "destructive" : "secondary";
                             return (
                               <Badge variant={variant}>
-                                {remaining} {product.unit}
+                                {martQty} {product.unit}
                               </Badge>
                             );
                           })()}
@@ -609,7 +627,7 @@ export default function ProductManagement() {
                   ) : (
                     <TableRow>
                       <TableCell
-                        colSpan={7}
+                        colSpan={8}
                         className="text-center py-4 text-muted-foreground"
                       >
                         {search || categoryFilter !== "all"

@@ -3,6 +3,7 @@ const router = express.Router();
 
 const Product = require('../models/product.model');
 const ProductEditRequest = require('../models/productEditRequest.model');
+const ProductAddRequest = require('../models/productAddRequest.model');
 const Notification = require('../models/notification.model');
 const { authenticate } = require('../middleware/auth');
 const multer = require('multer');
@@ -48,21 +49,54 @@ router.post('/', authenticate, upload.single('image'), async (req, res) => {
     const finalMartId = user.role === 'systemAdmin' ? martId || user.martId : user.martId;
     if (!finalMartId) return res.status(400).json({ message: 'martId is required' });
 
-    const product = new Product({
+    const requestedQty = Number(quantity || 0);
+    const storeQty = req.body.storeQuantity !== undefined ? Number(req.body.storeQuantity) : requestedQty;
+    const supermarketQty = req.body.supermarketQuantity !== undefined
+      ? Number(req.body.supermarketQuantity)
+      : (user.role === 'owner' ? 0 : requestedQty);
+
+    const productPayload = {
       martId: finalMartId,
       name,
       category: category || '',
       unit: unit || 'pcs',
-      purchasePrice: purchasePrice || 0,
-      sellingPrice: sellingPrice || 0,
-      quantity: quantity || 0,
-      lowStockThreshold: lowStockThreshold || 10,
+      purchasePrice: Number(purchasePrice || 0),
+      sellingPrice: Number(sellingPrice || 0),
+      // sellable quantity equals supermarket quantity; warehouse quantity stored separately
+      quantity: Number(supermarketQty),
+      storeQuantity: Math.max(0, Number(storeQty)),
+      supermarketQuantity: Math.max(0, Number(supermarketQty)),
+      lowStockThreshold: Number(lowStockThreshold || 10),
       expiryDate: expiryDate || null,
       // accept either single `barcode` or array `barcodes`
       barcodes: Array.isArray(barcodes) ? barcodes : barcode ? [String(barcode)] : [],
       imageUrl: finalImageUrl || '',
       createdBy: user.id,
-    });
+    };
+
+    // Owners require manager approval before product is created
+    if (user.role === 'owner' && user.role !== 'systemAdmin') {
+      const reqDoc = new ProductAddRequest({
+        martId: finalMartId,
+        requesterId: user.id,
+        requesterName: user.username || user.name,
+        payload: productPayload,
+      });
+
+      await reqDoc.save();
+
+      await Notification.create({
+        martId: finalMartId,
+        type: 'product_add_request',
+        title: 'Product creation requested',
+        message: `${reqDoc.requesterName || 'Owner'} requested to add product ${name}`,
+        data: { requestId: reqDoc._id, name },
+      });
+
+      return res.status(202).json({ message: 'Product submitted for manager approval', requestId: reqDoc._id });
+    }
+
+    const product = new Product(productPayload);
 
     await product.save();
     res.status(201).json(product);
@@ -134,6 +168,8 @@ router.put('/:id', authenticate, upload.single('image'), async (req, res) => {
       'barcode',
       'barcodes',
       'imageUrl',
+      'storeQuantity',
+      'supermarketQuantity',
     ];
     for (const k of allowed) if (req.body[k] !== undefined) update[k] = req.body[k];
 
@@ -155,28 +191,41 @@ router.put('/:id', authenticate, upload.single('image'), async (req, res) => {
       return res.status(403).json({ message: 'Access denied for this product' });
     }
 
-    // If an owner (not system admin) edits quantity, create a pending edit request and notify admins
-    if (update.quantity !== undefined && user.role !== 'systemAdmin') {
-      // create request
+    // Owners require manager/systemAdmin approval for any update
+    if (user.role === 'owner' && user.role !== 'systemAdmin') {
+      const changes = { ...update };
+      if (Object.keys(changes).length === 0) {
+        return res.status(400).json({ message: 'No changes supplied' });
+      }
+
+      // Business rule: owner edits/adds should adjust warehouse/store stock, not front/mart stock.
+      if (changes.quantity !== undefined || changes.supermarketQuantity !== undefined) {
+        const storeVal = changes.storeQuantity !== undefined
+          ? Number(changes.storeQuantity)
+          : Number(changes.quantity ?? changes.supermarketQuantity ?? 0);
+        changes.storeQuantity = Number.isFinite(storeVal) ? storeVal : 0;
+        delete changes.quantity;
+        delete changes.supermarketQuantity;
+      }
+
       const reqDoc = new ProductEditRequest({
         productId: product._id,
         martId: product.martId,
         requesterId: user.id,
         requesterName: user.username || user.name,
-        changes: { quantity: update.quantity },
+        changes,
       });
       await reqDoc.save();
 
-      // create a notification for system admins (not assigning specific user)
       await Notification.create({
         martId: product.martId,
         type: 'product_edit_request',
-        title: 'Product quantity edit requested',
-        message: `${reqDoc.requesterName} requested to change quantity for product ${product.name}`,
+        title: 'Product edit requested',
+        message: `${reqDoc.requesterName} requested updates for product ${product.name}`,
         data: { requestId: reqDoc._id, productId: product._id, requestedChanges: reqDoc.changes },
       });
 
-      return res.status(202).json({ message: 'Quantity change request submitted for approval', requestId: reqDoc._id });
+      return res.status(202).json({ message: 'Update submitted for manager approval', requestId: reqDoc._id });
     }
 
     // Handle barcode updates: support adding/removing barcodes

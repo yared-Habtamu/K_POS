@@ -122,6 +122,56 @@ export type InventoryAction =
   | "adjustment"
   | "transfer";
 
+export interface ProductAddRequest {
+  id?: string;
+  _id?: string;
+  martId: string;
+  requesterId: string;
+  requesterName?: string;
+  payload: Partial<Product> & { name?: string };
+  status: "pending" | "approved" | "rejected";
+  approverId?: string;
+  approverName?: string;
+  reason?: string;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+  decidedAt?: Date | string;
+}
+
+export interface StockTransferRequest {
+  id?: string;
+  _id?: string;
+  martId: string;
+  productId: string;
+  quantity: number;
+  requesterId: string;
+  requesterName?: string;
+  status: "pending" | "approved" | "rejected";
+  approverId?: string;
+  approverName?: string;
+  reason?: string;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+  decidedAt?: Date | string;
+}
+
+export interface ProductEditRequest {
+  id?: string;
+  _id?: string;
+  martId: string;
+  productId: string;
+  changes: Partial<Product>;
+  requesterId: string;
+  requesterName?: string;
+  status: "pending" | "approved" | "rejected";
+  approverId?: string;
+  approverName?: string;
+  reason?: string;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+  decidedAt?: Date | string;
+}
+
 export interface InventoryLog {
   id: string;
   productId: string;

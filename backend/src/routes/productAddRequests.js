@@ -1,29 +1,35 @@
 const express = require('express');
-const router = express.Router();
 const mongoose = require('mongoose');
 const { authenticate } = require('../middleware/auth');
-const ProductEditRequest = require('../models/productEditRequest.model');
+const ProductAddRequest = require('../models/productAddRequest.model');
 const Product = require('../models/product.model');
 const Notification = require('../models/notification.model');
 
-function isApprover(user) {
-  return user.role === 'systemAdmin' || user.role === 'manager';
+const router = express.Router();
+
+function isManager(user) {
+  return user.role === 'manager' || user.role === 'systemAdmin';
 }
 
-// List requests (systemAdmin or mart owner can filter by martId)
+// List requests for a mart
 router.get('/', authenticate, async (req, res) => {
   try {
     const user = req.user;
     const { status, martId, startDate, endDate } = req.query;
     const filter = {};
+
     if (status) filter.status = status;
+
     if (user.role === 'systemAdmin') {
       if (martId) filter.martId = martId;
     } else {
-      // non-admins can only see requests for their mart
       filter.martId = user.martId;
+      if (martId && String(martId) !== String(user.martId)) {
+        return res.status(403).json({ message: 'Cannot view requests for another mart' });
+      }
     }
 
+    // date range filter
     if (startDate || endDate) {
       filter.createdAt = {};
       if (startDate) filter.createdAt.$gte = new Date(startDate);
@@ -34,10 +40,7 @@ router.get('/', authenticate, async (req, res) => {
       }
     }
 
-    const list = await ProductEditRequest.find(filter)
-      .populate('productId', 'name')
-      .sort({ createdAt: -1 })
-      .lean();
+    const list = await ProductAddRequest.find(filter).sort({ createdAt: -1 }).lean();
     res.json(list);
   } catch (err) {
     console.error(err);
@@ -45,31 +48,45 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
-// Approve a request
+// Approve request -> create product
 router.put('/:id/approve', authenticate, async (req, res) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const reqDoc = await ProductEditRequest.findById(id);
+
+    if (!isManager(user)) return res.status(403).json({ message: 'Only managers or system admins can approve' });
+
+    const reqDoc = await ProductAddRequest.findById(id);
     if (!reqDoc) return res.status(404).json({ message: 'Request not found' });
     if (reqDoc.status !== 'pending') return res.status(400).json({ message: 'Request already processed' });
-
-    if (!isApprover(user)) return res.status(403).json({ message: 'Only managers or system admins can approve requests' });
     if (user.role !== 'systemAdmin' && String(reqDoc.martId) !== String(user.martId)) {
       return res.status(403).json({ message: 'Cannot approve request for another mart' });
     }
 
+    const payload = reqDoc.payload || {};
+    if (!payload.name || !reqDoc.martId) {
+      return res.status(400).json({ message: 'Request payload missing required fields' });
+    }
+
+    // Normalize quantities: store quantity holds warehouse stock; supermarket/sellable starts at provided or zero
+    const storeQty = payload.storeQuantity != null ? Number(payload.storeQuantity) : Number(payload.quantity || 0);
+    const superQty = payload.supermarketQuantity != null ? Number(payload.supermarketQuantity) : 0;
+    const saleQty = superQty;
+
+    const productData = {
+      ...payload,
+      martId: reqDoc.martId,
+      quantity: Number.isFinite(saleQty) ? saleQty : 0,
+      storeQuantity: Number.isFinite(storeQty) ? Math.max(0, storeQty) : 0,
+      supermarketQuantity: Number.isFinite(superQty) ? Math.max(0, superQty) : 0,
+      createdBy: reqDoc.requesterId,
+    };
+
     const session = await mongoose.startSession();
     session.startTransaction();
     try {
-      // Apply changes to product
-      const update = reqDoc.changes || {};
-      const product = await Product.findOneAndUpdate(
-        { _id: reqDoc.productId, martId: reqDoc.martId },
-        update,
-        { new: true, session }
-      );
-      if (!product) throw new Error('Product not found for update');
+      const product = new Product(productData);
+      await product.save({ session });
 
       reqDoc.status = 'approved';
       reqDoc.approverId = user.id;
@@ -77,27 +94,26 @@ router.put('/:id/approve', authenticate, async (req, res) => {
       reqDoc.decidedAt = new Date();
       await reqDoc.save({ session });
 
-      // notify requester
       await Notification.create([
         {
           martId: reqDoc.martId,
           userId: reqDoc.requesterId,
-          type: 'product_edit_result',
-          title: 'Product edit approved',
-          message: `Your requested edit for product ${String(reqDoc.productId)} was approved.`,
-          data: { requestId: reqDoc._id, productId: reqDoc.productId, result: 'approved' },
+          type: 'product_add_result',
+          title: 'Product request approved',
+          message: `Your product request for ${payload.name} was approved`,
+          data: { requestId: reqDoc._id, productId: product._id, result: 'approved' },
         },
       ], { session });
 
       await session.commitTransaction();
       session.endSession();
 
-      res.json({ message: 'Request approved', product });
+      return res.json({ message: 'Product created', product });
     } catch (err) {
       await session.abortTransaction();
       session.endSession();
       console.error(err);
-      res.status(500).json({ message: err.message || 'Failed to approve request' });
+      return res.status(500).json({ message: err.message || 'Failed to approve request' });
     }
   } catch (err) {
     console.error(err);
@@ -105,17 +121,18 @@ router.put('/:id/approve', authenticate, async (req, res) => {
   }
 });
 
-// Reject a request
+// Reject request
 router.put('/:id/reject', authenticate, async (req, res) => {
   try {
     const user = req.user;
     const { id } = req.params;
     const { reason } = req.body || {};
-    const reqDoc = await ProductEditRequest.findById(id);
+
+    if (!isManager(user)) return res.status(403).json({ message: 'Only managers or system admins can reject' });
+
+    const reqDoc = await ProductAddRequest.findById(id);
     if (!reqDoc) return res.status(404).json({ message: 'Request not found' });
     if (reqDoc.status !== 'pending') return res.status(400).json({ message: 'Request already processed' });
-
-    if (!isApprover(user)) return res.status(403).json({ message: 'Only managers or system admins can reject requests' });
     if (user.role !== 'systemAdmin' && String(reqDoc.martId) !== String(user.martId)) {
       return res.status(403).json({ message: 'Cannot reject request for another mart' });
     }
@@ -130,10 +147,10 @@ router.put('/:id/reject', authenticate, async (req, res) => {
     await Notification.create({
       martId: reqDoc.martId,
       userId: reqDoc.requesterId,
-      type: 'product_edit_result',
-      title: 'Product edit rejected',
-      message: `Your requested edit for product ${String(reqDoc.productId)} was rejected. ${reason || ''}`,
-      data: { requestId: reqDoc._id, productId: reqDoc.productId, result: 'rejected' },
+      type: 'product_add_result',
+      title: 'Product request rejected',
+      message: `Your product request for ${(reqDoc.payload && reqDoc.payload.name) || 'product'} was rejected. ${reason || ''}`,
+      data: { requestId: reqDoc._id, result: 'rejected' },
     });
 
     res.json({ message: 'Request rejected' });

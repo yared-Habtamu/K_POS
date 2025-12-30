@@ -50,6 +50,20 @@ import {
   Eye,
   Filter,
 } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+    const baseStr = attendanceFilter.dateRange === 'custom'
+      ? attendanceFilter.startDate
+      : new Date().toISOString().split('T')[0];
+    const base = new Date(baseStr);
+    base.setDate(base.getDate() + delta);
+    const nextStr = base.toISOString().split('T')[0];
+    setAttendanceFilter(prev => ({
+      ...prev,
+      dateRange: 'custom',
+      startDate: nextStr,
+      endDate: nextStr,
+    }));
+  };
 import type { UserRole } from '@/types';
 
 // PDF Dependencies
@@ -498,6 +512,21 @@ case 'this-week':
 
     return records.sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
   }, [attendance, attendanceFilter]);
+
+  const shiftAttendanceDay = (delta: number) => {
+    const baseStr = attendanceFilter.dateRange === 'custom'
+      ? attendanceFilter.startDate
+      : formatDateKey(new Date());
+    const base = new Date(baseStr);
+    base.setDate(base.getDate() + delta);
+    const nextStr = formatDateKey(base);
+    setAttendanceFilter(prev => ({
+      ...prev,
+      dateRange: 'custom',
+      startDate: nextStr,
+      endDate: nextStr,
+    }));
+  };
 
   // Handle manual entry save
   const handleSaveManualEntry = () => {
@@ -951,9 +980,6 @@ case 'this-week':
                               </Avatar>
                               <div className="flex items-center gap-2">
                                 <span className="font-medium">{e.name}</span>
-                                {e.martId && e.martId === martId ? (
-                                  <Badge variant="secondary" className="text-xs">My employee</Badge>
-                                ) : null}
                               </div>
                             </div>
                           </TableCell>
@@ -1231,9 +1257,22 @@ case 'this-week':
             <Card>
               <CardHeader>
                 <CardTitle>Attendance Records</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Showing {filteredAttendance.length} records
-                </p>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {filteredAttendance.length} records
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="icon" onClick={() => shiftAttendanceDay(-1)} aria-label="Previous day">
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <div className="text-sm font-medium">
+                      {(attendanceFilter.dateRange === 'custom' ? attendanceFilter.startDate : new Date().toISOString().split('T')[0])}
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => shiftAttendanceDay(1)} aria-label="Next day">
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">

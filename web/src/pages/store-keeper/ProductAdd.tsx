@@ -138,16 +138,18 @@ export default function ProductAdd() {
       if (res && (res.status === 200 || res.status === 201)) {
         toast({ title: t("product_added") });
         resetForm();
-        // refresh product list and navigate back to owner products
         try {
           await fetchProducts?.();
         } catch (err) {
           console.error("Failed to refresh products", err);
-          toast({
-            title: t("product_refresh_failed") || "Failed to refresh products",
-            variant: "destructive",
-          });
         }
+        navigate("/owner/products");
+      } else if (res && res.status === 202) {
+        toast({
+          title: "Sent for manager approval",
+          description: "Your product will appear after approval.",
+        });
+        resetForm();
         navigate("/owner/products");
       } else {
         console.warn("Unexpected response creating product", res);
