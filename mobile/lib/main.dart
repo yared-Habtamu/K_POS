@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:get/get_navigation/src/root/get_material_app.dart';
+import 'package:pos_app/features/owners_page/presentation/bloc/owner_bloc.dart';
 import 'package:pos_app/services/get_current_user.dart';
 import 'package:pos_app/services/global.dart';
 import 'package:provider/provider.dart';
@@ -10,7 +11,6 @@ import 'config/routes/name.dart';
 import 'config/routes/pages.dart';
 import 'config/theme/theme_mode_provider.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
-import 'features/home/presentation/bloc/home_bloc.dart';
 import 'init_dependencies.dart';
 
 void main() async {
@@ -58,7 +58,7 @@ class MyApp extends StatelessWidget {
       child: MultiBlocProvider(
         providers: [
           BlocProvider(create: (create) => serviceLocator<AuthBloc>()),
-          BlocProvider(create: (create) => serviceLocator<HomeBloc>()),
+          BlocProvider(create: (create) => serviceLocator<OwnerBloc>()),
         ],
         child: Consumer<ThemeManager>(
           builder: (context, themeManager, child) {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pos_app/utils/common_snackbar.dart';
 
 import '../../config/routes/name.dart';
 import '../../services/get_current_user.dart';
@@ -29,12 +30,28 @@ class _SplashPageState extends State<SplashPage> {
             context, NamedRoutes.OnboardingPage, (predicate) => false);
         return;
       } else if (isUserLogin != null) {
-        Navigator.pushNamedAndRemoveUntil(
-            context, NamedRoutes.HomePage, (predicate) => false);
+        ///load the current user by using his id
+        final role = 'owner';
+        if (role == 'cashier') {
+          Navigator.pushNamedAndRemoveUntil(
+              context, NamedRoutes.OwnerDashboardPage, (predicate) => false);
+        } else if (role == 'owner') {
+          Navigator.pushNamedAndRemoveUntil(
+              context, NamedRoutes.OwnerDashboardPage, (predicate) => false);
+        } else if (role == 'manager') {
+          Navigator.pushNamedAndRemoveUntil(
+              context, NamedRoutes.OwnerDashboardPage, (predicate) => false);
+        } else if (role == 'superagent') {
+          Navigator.pushNamedAndRemoveUntil(
+              context, NamedRoutes.OwnerDashboardPage, (predicate) => false);
+        } else {
+          commonSnackBar(context, "role doesn't exist", Colors.grey);
+        }
       } else {
         Navigator.pushNamedAndRemoveUntil(
             context, NamedRoutes.SigninPage, (predicate) => false);
       }
+      return;
     });
   }
 

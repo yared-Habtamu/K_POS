@@ -2,7 +2,14 @@ import '../domain/user_model.dart';
 
 class AuthService {
   // Mock Database
-  static final List<UserM> _mockUsers = [];
+  static final List<UserM> _mockUsers = [
+    UserM(
+        username: "jon",
+        phone: "90990999",
+        password: '112233',
+        uid: 'uid',
+        createdAt: DateTime.now())
+  ];
 
   Future<UserM?> signIn({
     required String username,
@@ -12,7 +19,7 @@ class AuthService {
       await Future.delayed(const Duration(seconds: 1));
 
       final user = _mockUsers.firstWhere(
-        (u) => u.phone == username,
+        (u) => u.username == username,
         orElse: () => throw Exception('user-not-found'),
       );
 

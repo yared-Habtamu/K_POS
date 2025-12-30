@@ -8,7 +8,7 @@ class NamedRoutes {
   static const String SplashScreenPage = "/";
   static const String OnboardingPage = "/onboarding_page";
   static const String SigninPage = "/signin_page";
-  static const String HomePage = "/home_page";
+  static const String OwnerDashboardPage = "/owner_dashboard_page";
 
 
 }
