@@ -1,97 +1,86 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
-# Getting Started
+# New Flutter Project
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+This is a new Flutter project, created using the standard Flutter CLI.
 
-## Step 1: Start Metro
+## Getting Started
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+**Note:** Make sure you have set up your environment by following the [Flutter Installation Guide](https://docs.flutter.dev/get-started/install) before proceeding.
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+### Step 1: Install Dependencies
 
-```sh
-# Using npm
-npm start
+Before running the app, you need to download the package dependencies defined in `pubspec.yaml`.
 
-# OR using Yarn
-yarn start
+Run the following command from the root of your Flutter project:
+
+```bash
+flutter pub get
 ```
 
-## Step 2: Build and run your app
+### Step 2: Run your app
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+With dependencies installed, ensure you have a connected device or an emulator/simulator running.
 
-### Android
+**Android & iOS**
 
-```sh
-# Using npm
-npm run android
+To run the app on the connected device (Android or iOS), use:
 
-# OR using Yarn
-yarn android
+```bash
+flutter run
 ```
 
-### iOS
+**iOS Specifics**
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+For iOS, you generally don't need to install CocoaPods manually as Flutter handles this during the build. However, if you add complex native dependencies or run into issues, you may need to run:
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
+```bash
+cd ios
+pod install
+cd ..
 ```
 
 If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+You can also build and run the app directly from **VS Code** (Run > Start Debugging) or **Android Studio**.
 
-## Step 3: Modify your app
+### Step 3: Modify your app
 
 Now that you have successfully run the app, let's make changes!
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+Open `lib/main.dart` in your text editor of choice and make some changes. When you save, you can trigger **Hot Reload** to see changes almost instantly without losing the app's state.
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+**Terminal Controls:**
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+While the app is running in the terminal:
 
-## Congratulations! :tada:
+*   **Hot Reload:** Press `r` (lower case). This updates code quickly while maintaining state.
+*   **Hot Restart:** Press `R` (upper case). This resets the app state and rebuilds the app completely.
+*   **Quit:** Press `q` to stop the app.
 
-You've successfully run and modified your React Native App. :partying_face:
+## Congratulations! 🎉
 
-### Now what?
+You've successfully run and modified your Flutter App. 🥳
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+## Now what?
 
-# Troubleshooting
+If you want to add this new Flutter code to an existing native application, check out the [Add-to-App guide](https://docs.flutter.dev/add-to-app).
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+## Troubleshooting
 
-# Learn More
+If you're having issues getting the above steps to work, run the following command to diagnose your environment:
 
-To learn more about React Native, take a look at the following resources:
+```bash
+flutter doctor
+```
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+This tool checks your environment and displays a report to the terminal of the status of your Flutter installation.
+
+## Learn More
+
+To learn more about Flutter, take a look at the following resources:
+
+*   [Flutter Website](https://flutter.dev) - learn more about Flutter.
+*   [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab) - a guided codelab.
+*   [Cookbook](https://docs.flutter.dev/cookbook) - useful Flutter samples.
+*   [Flutter API Reference](https://api.flutter.dev/) - detailed documentation for the framework.
+*   [flutter/flutter](https://github.com/flutter/flutter) - the Open Source GitHub repository for Flutter.
