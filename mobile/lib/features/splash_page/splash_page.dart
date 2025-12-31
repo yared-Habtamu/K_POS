@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:pos_app/utils/common_snackbar.dart';
 
 import '../../config/routes/name.dart';
 import '../../services/get_current_user.dart';
@@ -21,8 +20,9 @@ class _SplashPageState extends State<SplashPage> {
   }
 
   OnLoadingFun() async {
-    bool isUserNew = await Global.storageServices.GetDeviceFirstOpen();
+    bool isUserNew = Global.storageServices.GetDeviceFirstOpen();
     String? isUserLogin = await UserProvider().getUuid();
+    String? role = await UserProvider().getRole();
     await Future.delayed(Duration(seconds: 2)).then((_) {
       print("....on splash screen...");
       if (isUserNew) {
@@ -30,23 +30,11 @@ class _SplashPageState extends State<SplashPage> {
             context, NamedRoutes.OnboardingPage, (predicate) => false);
         return;
       } else if (isUserLogin != null) {
-        ///load the current user by using his id
-        final role = 'owner';
-        if (role == 'cashier') {
-          Navigator.pushNamedAndRemoveUntil(
-              context, NamedRoutes.OwnerDashboardPage, (predicate) => false);
-        } else if (role == 'owner') {
-          Navigator.pushNamedAndRemoveUntil(
-              context, NamedRoutes.OwnerDashboardPage, (predicate) => false);
-        } else if (role == 'manager') {
-          Navigator.pushNamedAndRemoveUntil(
-              context, NamedRoutes.OwnerDashboardPage, (predicate) => false);
-        } else if (role == 'superagent') {
-          Navigator.pushNamedAndRemoveUntil(
-              context, NamedRoutes.OwnerDashboardPage, (predicate) => false);
-        } else {
-          commonSnackBar(context, "role doesn't exist", Colors.grey);
+        if (role?.isEmpty ?? true) {
+          role = 'cashier';
         }
+        Navigator.pushNamedAndRemoveUntil(
+            context, NamedRoutes.RoleDashboardPage, (predicate) => false);
       } else {
         Navigator.pushNamedAndRemoveUntil(
             context, NamedRoutes.SigninPage, (predicate) => false);

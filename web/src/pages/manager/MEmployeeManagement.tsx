@@ -51,19 +51,6 @@ import {
   Filter,
 } from 'lucide-react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-    const baseStr = attendanceFilter.dateRange === 'custom'
-      ? attendanceFilter.startDate
-      : new Date().toISOString().split('T')[0];
-    const base = new Date(baseStr);
-    base.setDate(base.getDate() + delta);
-    const nextStr = base.toISOString().split('T')[0];
-    setAttendanceFilter(prev => ({
-      ...prev,
-      dateRange: 'custom',
-      startDate: nextStr,
-      endDate: nextStr,
-    }));
-  };
 import type { UserRole } from '@/types';
 
 // PDF Dependencies

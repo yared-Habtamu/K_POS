@@ -1,0 +1,98 @@
+import '../domain/admin_shop.dart';
+
+class MockAdminData {
+  static const int platformFeeEtb = 10000;
+
+  static List<AdminShop> shops() {
+    return const [
+      AdminShop(
+        id: '1',
+        name: 'Kiya Supermarket',
+        owner: 'Abebe Kebede',
+        status: AdminShopStatus.active,
+        users: 8,
+        sales: 156420,
+        city: 'Addis Ababa',
+        region: 'Addis Ababa',
+        country: 'Ethiopia',
+      ),
+      AdminShop(
+        id: '2',
+        name: 'Habesha Mart',
+        owner: 'Sara Bekele',
+        status: AdminShopStatus.active,
+        users: 5,
+        sales: 98750,
+        city: 'Adama',
+        region: 'Oromia',
+        country: 'Ethiopia',
+      ),
+      AdminShop(
+        id: '3',
+        name: 'Addis Groceries',
+        owner: 'Yonas Gebre',
+        status: AdminShopStatus.pending,
+        users: 2,
+        sales: 0,
+        city: 'Bahir Dar',
+        region: 'Amhara',
+        country: 'Ethiopia',
+      ),
+      AdminShop(
+        id: '4',
+        name: 'Ethio Retail',
+        owner: 'Tigist Haile',
+        status: AdminShopStatus.active,
+        users: 4,
+        sales: 67890,
+        city: 'Mekelle',
+        region: 'Tigray',
+        country: 'Ethiopia',
+      ),
+      AdminShop(
+        id: '5',
+        name: 'Unity Store',
+        owner: 'Dawit Tadesse',
+        status: AdminShopStatus.suspended,
+        users: 3,
+        sales: 34500,
+        city: 'Hawassa',
+        region: 'Southern Nations',
+        country: 'Ethiopia',
+      ),
+      AdminShop(
+        id: '6',
+        name: 'Beta Mart',
+        owner: 'Mesfin Alem',
+        status: AdminShopStatus.pending,
+        users: 1,
+        sales: 0,
+        city: 'Gambela',
+        region: 'Gambela',
+        country: 'Ethiopia',
+      ),
+      AdminShop(
+        id: '7',
+        name: 'Gamma Grocers',
+        owner: 'Lensa Kassa',
+        status: AdminShopStatus.pending,
+        users: 2,
+        sales: 0,
+        city: 'Dilla',
+        region: 'Sidama',
+        country: 'Ethiopia',
+      ),
+      AdminShop(
+        id: '8',
+        name: 'Delta Supplies',
+        owner: 'Fikru Solomon',
+        status: AdminShopStatus.rejected,
+        users: 1,
+        sales: 0,
+        city: 'Assosa',
+        region: 'Benishangul',
+        country: 'Ethiopia',
+      ),
+    ];
+  }
+}

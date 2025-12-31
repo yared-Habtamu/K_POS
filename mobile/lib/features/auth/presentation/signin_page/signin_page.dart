@@ -32,26 +32,8 @@ class _SignInPageState extends State<SignInPage> {
                 context, "${state.errMsg}", Colors.white, Colors.red.shade200);
           }
           if (state is AuthSuccessState) {
-            ///load the current user by using his id
-            final role = 'owner';
-            if (role == 'cashier') {
-              Navigator.pushNamedAndRemoveUntil(context,
-                  NamedRoutes.OwnerDashboardPage, (predicate) => false);
-            } else if (role == 'owner') {
-              Navigator.pushNamedAndRemoveUntil(context,
-                  NamedRoutes.OwnerDashboardPage, (predicate) => false);
-            } else if (role == 'manager') {
-              Navigator.pushNamedAndRemoveUntil(context,
-                  NamedRoutes.OwnerDashboardPage, (predicate) => false);
-            } else if (role == 'superagent') {
-              Navigator.pushNamedAndRemoveUntil(context,
-                  NamedRoutes.OwnerDashboardPage, (predicate) => false);
-            } else {
-              commonSnackBar(context, "role doesn't exist", Colors.grey);
-            }
-          } else {
             Navigator.pushNamedAndRemoveUntil(
-                context, NamedRoutes.SigninPage, (predicate) => false);
+                context, NamedRoutes.RoleDashboardPage, (predicate) => false);
           }
           return;
         },

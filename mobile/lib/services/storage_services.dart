@@ -46,6 +46,14 @@ class StorageServices {
     return _prefs.getString(AppConstants.UserId) ?? "";
   }
 
+  Future<void> saveUserRole(String value) async {
+    await _prefs.setString(AppConstants.UserRole, value);
+  }
+
+  String getUserRole() {
+    return _prefs.getString(AppConstants.UserRole) ?? "";
+  }
+
 // Future<void> saveUserData(String key, UserData value) async {
 //   await _prefs.setString(key, jsonEncode(value.toJson()));
 // }

@@ -26,17 +26,19 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(AuthLoadingState());
     if (event.username.isEmpty || event.password.isEmpty) {
       emit(AuthFailureState(errMsg: "required input is empty"));
+      return;
     }
-
-    emit(AuthLoadingState());
     try {
       final user = await authService.signIn(
         username: event.username,
         password: event.password,
       );
       if (user != null) {
-        await Global.storageServices.saveUserId('uuid');
-        emit(AuthSuccessState());
+        await Global.storageServices.saveUserId(user.uid ?? "");
+        await Global.storageServices.saveUserRole(user.role);
+        emit(AuthSuccessState(role: user.role));
+      } else {
+        emit(AuthFailureState(errMsg: "Login failed"));
       }
     } catch (e) {
       emit(AuthFailureState(errMsg: e.toString()));

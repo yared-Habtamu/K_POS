@@ -30,7 +30,7 @@ class UserProvider extends ChangeNotifier {
     _setLoading(true);
 
     try {
-      final prefs = await Global.storageServices;
+      final prefs = Global.storageServices;
       // 2. Get UUID from Local Storage
       final String? uuid = prefs.getUserId();
 
@@ -66,8 +66,15 @@ class UserProvider extends ChangeNotifier {
   /// ----------------------------------------------------------------
 
   Future<String?> getUuid() async {
-    final prefs = await Global.storageServices.getUserId();
-    return prefs;
+    final id = Global.storageServices.getUserId();
+    if (id.isEmpty) return null;
+    return id;
+  }
+
+  Future<String?> getRole() async {
+    final role = Global.storageServices.getUserRole();
+    if (role.isEmpty) return null;
+    return role;
   }
 
   Future<void> updateLocalAvatar(String assetPath) async {
@@ -89,6 +96,7 @@ class UserProvider extends ChangeNotifier {
     // 1. Clear Local Storage
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(AppConstants.UserId);
+    await prefs.remove(AppConstants.UserRole);
 
     // 2. Firebase Sign Out
     // await _auth.signOut();

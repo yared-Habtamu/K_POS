@@ -2,6 +2,7 @@ class UserM {
   String username;
   String phone;
   String password;
+  String role;
   String? profilePicture;
   String? uid;
   DateTime createdAt;
@@ -10,6 +11,7 @@ class UserM {
     required this.username,
     required this.phone,
     required this.password,
+    required this.role,
     this.profilePicture,
     required this.uid,
     required this.createdAt,
@@ -23,6 +25,7 @@ class UserM {
       uid: json['id'],
       createdAt: DateTime.parse(json['created_at']),
       password: json['password'],
+      role: (json['role'] ?? 'cashier').toString(),
     );
   }
 
@@ -34,6 +37,7 @@ class UserM {
       profilePicture: map['profile_picture'],
       uid: map['id'],
       createdAt: DateTime.parse(map['created_at']),
+      role: (map['role'] ?? 'cashier').toString(),
     );
   }
 
@@ -42,6 +46,7 @@ class UserM {
       'username': username,
       'phone': phone,
       'password': password,
+      'role': role,
       'profile_picture': profilePicture,
       'id': uid,
       'created_at': createdAt.toIso8601String(),

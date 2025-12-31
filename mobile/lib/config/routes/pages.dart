@@ -7,6 +7,7 @@ import 'package:pos_app/features/owners_page/presentation/pages/owner_dashboard.
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
 import '../../features/auth/presentation/signin_page/signin_page.dart';
 import '../../features/onboarding/presentation/pages/onboarding_page.dart';
+import '../../features/role_based/presentation/pages/role_dashboard_page.dart';
 import '../../features/splash_page/splash_page.dart';
 
 class NamedRouteSettings {
@@ -34,11 +35,8 @@ class NamedRouteSettings {
         bloc: BlocProvider(create: (_) => AuthBloc()),
       ),
       pageEntity(
-        route: NamedRoutes.OwnerDashboardPage,
-        page: OwnerDashboard(),
-        bloc: BlocProvider(
-          create: (_) => OwnerBloc(),
-        ),
+        route: NamedRoutes.RoleDashboardPage,
+        page: const RoleDashboardPage(),
       ),
     ];
   }

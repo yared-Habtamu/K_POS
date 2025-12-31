@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 Widget CommonDrawer({
   required BuildContext context,
   required List<Widget> drawerItems,
+  String roleLabel = 'cashier',
 }) {
   return Row(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -37,7 +38,7 @@ Widget CommonDrawer({
                           ),
                     ),
                     Text(
-                      "cashier",
+                      roleLabel,
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey,
