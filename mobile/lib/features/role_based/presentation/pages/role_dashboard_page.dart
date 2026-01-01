@@ -5,6 +5,9 @@ import 'package:pos_app/features/admin/presentation/pages/admin_mart_management_
 import 'package:pos_app/features/store_keeper/presentation/pages/store_keeper_inventory_page.dart';
 import 'package:pos_app/features/store_keeper/presentation/pages/store_keeper_barcode_scanner_page.dart';
 import 'package:pos_app/features/store_keeper/presentation/pages/store_keeper_alerts_page.dart';
+import 'package:pos_app/features/owners_page/presentation/pages/owner_dashboard_page.dart';
+import 'package:pos_app/features/owners_page/presentation/pages/owner_pos_page.dart';
+import 'package:pos_app/features/owners_page/presentation/pages/owner_products_page.dart';
 import 'package:pos_app/services/global.dart';
 
 class RoleDashboardPage extends StatefulWidget {
@@ -140,6 +143,22 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
           return const AdminDashboardPage();
         case _RolePage.adminShops:
           return const AdminMartManagementPage();
+        default:
+          return _RolePlaceholderPage(
+            title: _titleForPage(_selected),
+            subtitle: _subtitleForPage(_selected, _role),
+          );
+      }
+    }
+
+    if (_role == 'owner') {
+      switch (_selected) {
+        case _RolePage.dashboard:
+          return const OwnerDashboardPage();
+        case _RolePage.pos:
+          return const OwnerPosPage();
+        case _RolePage.products:
+          return const OwnerProductsPage();
         default:
           return _RolePlaceholderPage(
             title: _titleForPage(_selected),
