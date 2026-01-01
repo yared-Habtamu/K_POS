@@ -1,30 +1,17 @@
 import 'dart:developer' as dev;
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:meditrack/features/home/domain/med_user_data.dart';
+import 'package:pos_app/features/home/domain/med_user_data.dart';
 
 class MedicationService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  // NOTE: This app currently runs with mock/local data.
+  // Keeping this service in-memory avoids requiring Firebase/Firestore
+  // dependencies just to compile and run the POS UI.
+  static final Map<String, List<MedicationModel>> _storeByUser = {};
 
   // Helper to log and format error messages
   String _handleError(String action, dynamic e) {
-    print("ERR: [$action]");
-
-    if (e is FirebaseException) {
-      switch (e.code) {
-        case 'permission-denied':
-          return "Access denied. Please ensure you are logged in.";
-        case 'unavailable':
-          return "Network error. Please check your internet connection.";
-        case 'not-found':
-          return "The requested medication data was not found.";
-        case 'deadline-exceeded':
-          return "The connection timed out. Please try again.";
-        default:
-          return "Database error: ${e.message}";
-      }
-    }
-    return "An unexpected error occurred. Please try again later.";
+    dev.log('ERR: [$action] $e', name: 'MedicationService');
+    return 'An unexpected error occurred. Please try again later.';
   }
 
   // 1. ADD OR UPDATE MEDICATION
@@ -32,13 +19,14 @@ class MedicationService {
     dev.log("Action: Adding schedule '${med.name}' for user: $userId",
         name: "MedicationService");
     try {
-      await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('medSchedules')
-          .doc(med.id.toString())
-          .set(med.toMap());
-      print("Success: Added ${med.name} MedicationService");
+      final list = _storeByUser.putIfAbsent(userId, () => <MedicationModel>[]);
+      final existingIndex = list.indexWhere((m) => m.id == med.id);
+      if (existingIndex >= 0) {
+        list[existingIndex] = med;
+      } else {
+        list.insert(0, med);
+      }
+      dev.log("Success: Added ${med.name}", name: "MedicationService");
     } catch (e) {
       throw _handleError("addUserSchedule", e);
     }
@@ -49,16 +37,7 @@ class MedicationService {
     dev.log("Action: Fetching schedules for user: $userId",
         name: "MedicationService");
     try {
-      QuerySnapshot snapshot = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('medSchedules')
-          .orderBy('created_at', descending: true)
-          .get();
-
-      final meds = snapshot.docs.map((doc) {
-        return MedicationModel.fromMap(doc.data() as Map<String, dynamic>);
-      }).toList();
+      final meds = List<MedicationModel>.of(_storeByUser[userId] ?? const <MedicationModel>[]);
 
       dev.log("Success: Fetched ${meds.length} medications",
           name: "MedicationService");
@@ -73,12 +52,13 @@ class MedicationService {
     dev.log("Action: Updating pill count for med: $medId to $newCount",
         name: "MedicationService");
     try {
-      await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('medSchedules')
-          .doc(medId.toString())
-          .update({'total_pills_count': newCount});
+      final list = _storeByUser[userId];
+      if (list == null) return;
+
+      final idx = list.indexWhere((m) => m.id == medId);
+      if (idx < 0) return;
+
+      list[idx] = list[idx].copyWith(totalPillsCount: newCount);
       dev.log("Success: Updated pill count", name: "MedicationService");
     } catch (e) {
       throw _handleError("updatePillCount", e);
@@ -89,12 +69,9 @@ class MedicationService {
   Future<void> deleteMedication(String userId, int medId) async {
     dev.log("Action: Deleting medication: $medId", name: "MedicationService");
     try {
-      await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('medSchedules')
-          .doc(medId.toString())
-          .delete();
+      final list = _storeByUser[userId];
+      if (list == null) return;
+      list.removeWhere((m) => m.id == medId);
       dev.log("Success: Deleted medication", name: "MedicationService");
     } catch (e) {
       throw _handleError("deleteMedication", e);

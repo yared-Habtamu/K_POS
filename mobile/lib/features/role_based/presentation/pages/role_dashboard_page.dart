@@ -8,6 +8,8 @@ import 'package:pos_app/features/store_keeper/presentation/pages/store_keeper_al
 import 'package:pos_app/features/owners_page/presentation/pages/owner_dashboard_page.dart';
 import 'package:pos_app/features/owners_page/presentation/pages/owner_pos_page.dart';
 import 'package:pos_app/features/owners_page/presentation/pages/owner_products_page.dart';
+import 'package:pos_app/features/owners_page/presentation/pages/owner_inventory_page.dart';
+import 'package:pos_app/features/owners_page/presentation/pages/owner_employees_page.dart';
 import 'package:pos_app/services/global.dart';
 
 class RoleDashboardPage extends StatefulWidget {
@@ -57,7 +59,6 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
           _MenuItem(_RolePage.dashboard, Icons.dashboard, 'Dashboard'),
           _MenuItem(_RolePage.pos, Icons.point_of_sale, 'Point Of Sale'),
           _MenuItem(_RolePage.products, Icons.inventory_2, 'Products'),
-          _MenuItem(_RolePage.addProduct, Icons.add_box, 'Add Product'),
           _MenuItem(_RolePage.inventory, Icons.warehouse, 'Inventory'),
           _MenuItem(_RolePage.employees, Icons.groups, 'Employees'),
           _MenuItem(_RolePage.expenses, Icons.payments, 'Expenses'),
@@ -159,6 +160,10 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
           return const OwnerPosPage();
         case _RolePage.products:
           return const OwnerProductsPage();
+        case _RolePage.inventory:
+          return const OwnerInventoryPage();
+        case _RolePage.employees:
+          return const OwnerEmployeesPage();
         default:
           return _RolePlaceholderPage(
             title: _titleForPage(_selected),

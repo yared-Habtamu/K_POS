@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:meditrack/features/home/domain/med_user_data.dart';
-import 'package:meditrack/utils/common_snackbar.dart';
-import 'package:meditrack/utils/notifications_utils.dart';
+import 'package:pos_app/features/home/domain/med_user_data.dart';
+import 'package:pos_app/utils/common_snackbar.dart';
 
 import '../bloc/home_bloc.dart';
 import '../widget/home_widget.dart';
@@ -255,4 +254,78 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
     );
   }
+}
+
+class _MultiSchedule {
+  final List<int> daysOfTheWeek;
+  final TimeOfDay timeOfDay;
+
+  const _MultiSchedule({required this.daysOfTheWeek, required this.timeOfDay});
+}
+
+int createUniqueId() => DateTime.now().millisecondsSinceEpoch;
+
+Future<_MultiSchedule?> pickMultiSchedule(BuildContext context) async {
+  // Minimal picker to keep this legacy screen compiling/runnable.
+  // 1) pick time
+  final pickedTime = await showTimePicker(
+    context: context,
+    initialTime: const TimeOfDay(hour: 9, minute: 0),
+  );
+  if (pickedTime == null) return null;
+
+  // 2) pick days (simple dialog)
+  final selected = <int>{1, 2, 3, 4, 5};
+  final result = await showDialog<List<int>>(
+    context: context,
+    builder: (ctx) {
+      final labels = const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      return AlertDialog(
+        title: const Text('Select days'),
+        content: StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return SizedBox(
+              width: 320,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: List.generate(7, (i) {
+                  final day = i + 1;
+                  final isOn = selected.contains(day);
+                  return FilterChip(
+                    label: Text(labels[i]),
+                    selected: isOn,
+                    onSelected: (v) {
+                      setLocal(() {
+                        if (v) {
+                          selected.add(day);
+                        } else {
+                          selected.remove(day);
+                        }
+                      });
+                    },
+                  );
+                }),
+              ),
+            );
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(selected.toList()..sort()),
+            child: const Text('Done'),
+          ),
+        ],
+      );
+    },
+  );
+
+  final days = (result ?? <int>[]);
+  if (days.isEmpty) return null;
+
+  return _MultiSchedule(daysOfTheWeek: days, timeOfDay: pickedTime);
 }
