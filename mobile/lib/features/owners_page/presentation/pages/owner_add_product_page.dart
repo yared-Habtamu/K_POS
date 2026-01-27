@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:pos_app/services/global.dart';
+import 'package:pos_app/utils/common_widgets.dart';
 
 class OwnerAddProductPage extends StatefulWidget {
   const OwnerAddProductPage({super.key});
@@ -77,7 +79,13 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
 
   @override
   Widget build(BuildContext context) {
-    final categories = const <String>['Select category', 'Beverage', 'Snacks', 'Dairy', 'Household'];
+    final categories = const <String>[
+      'Select category',
+      'Beverage',
+      'Snacks',
+      'Dairy',
+      'Household'
+    ];
     final units = const <String>['PCS', 'KG', 'L'];
 
     return Scaffold(
@@ -88,14 +96,39 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Add Product',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'product_add_description',
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    icon: const Icon(Icons.arrow_back_ios),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Add Product',
+                          style: TextStyle(
+                              fontSize: 28, fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'product_add_description',
+                          style: TextStyle(
+                              fontSize: 14, color: Colors.grey.shade700),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      // Show the standard logout dialog
+                      Global.storageServices.setDeviceOpenedFirst(false);
+                      LogoutShowDialogue(context);
+                    },
+                    icon: const Icon(Icons.logout_outlined),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
               _Card(
@@ -184,7 +217,9 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
                             _Labeled(
                               label: 'Expiry Date',
                               child: _DateField(
-                                text: _expiryDate == null ? 'mm/dd/yyyy' : _formatDate(_expiryDate!),
+                                text: _expiryDate == null
+                                    ? 'mm/dd/yyyy'
+                                    : _formatDate(_expiryDate!),
                                 onPick: _pickExpiryDate,
                               ),
                             ),
@@ -217,7 +252,8 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
                       barcodes: _barcodes,
                       onAdd: _addBarcode,
                       onGenerate: _generateBarcode,
-                      onRemove: (code) => setState(() => _barcodes.remove(code)),
+                      onRemove: (code) =>
+                          setState(() => _barcodes.remove(code)),
                     ),
                     const SizedBox(height: 18),
                     Row(
@@ -226,8 +262,10 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
                         OutlinedButton(
                           onPressed: () => Navigator.of(context).maybePop(),
                           style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 18, vertical: 14),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14)),
                             side: BorderSide(color: Colors.grey.shade300),
                             foregroundColor: Colors.grey.shade800,
                           ),
@@ -242,8 +280,10 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blue.shade900,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 18, vertical: 14),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14)),
                           ),
                           child: const Text('Save'),
                         ),
@@ -332,8 +372,10 @@ class _ImagePickerCard extends StatelessWidget {
                   OutlinedButton(
                     onPressed: onChooseImage,
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       side: BorderSide(color: Colors.grey.shade300),
                       foregroundColor: Colors.grey.shade800,
                     ),
@@ -342,8 +384,10 @@ class _ImagePickerCard extends StatelessWidget {
                   OutlinedButton(
                     onPressed: onTakePhoto,
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       side: BorderSide(color: Colors.grey.shade300),
                       foregroundColor: Colors.grey.shade800,
                     ),
@@ -396,7 +440,10 @@ class _Labeled extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade800, fontWeight: FontWeight.w700),
+          style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey.shade800,
+              fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 8),
         child,
@@ -467,7 +514,8 @@ class _Dropdown extends StatelessWidget {
         child: DropdownButton<String>(
           isExpanded: true,
           value: value,
-          icon: Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey.shade700),
+          icon: Icon(Icons.keyboard_arrow_down_rounded,
+              color: Colors.grey.shade700),
           items: items
               .map(
                 (c) => DropdownMenuItem<String>(
@@ -475,7 +523,10 @@ class _Dropdown extends StatelessWidget {
                   child: Text(
                     c,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade800, fontWeight: FontWeight.w700),
+                    style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade800,
+                        fontWeight: FontWeight.w700),
                   ),
                 ),
               )
@@ -515,11 +566,16 @@ class _DateField extends StatelessWidget {
                 text,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 13, color: text == 'mm/dd/yyyy' ? Colors.grey.shade500 : Colors.grey.shade800),
+                style: TextStyle(
+                    fontSize: 13,
+                    color: text == 'mm/dd/yyyy'
+                        ? Colors.grey.shade500
+                        : Colors.grey.shade800),
               ),
             ),
             const SizedBox(width: 8),
-            Icon(Icons.calendar_month_outlined, size: 18, color: Colors.grey.shade700),
+            Icon(Icons.calendar_month_outlined,
+                size: 18, color: Colors.grey.shade700),
           ],
         ),
       ),
@@ -549,7 +605,10 @@ class _BarcodesSection extends StatelessWidget {
       children: [
         Text(
           'barcodes',
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade800, fontWeight: FontWeight.w700),
+          style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey.shade800,
+              fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 8),
         LayoutBuilder(
@@ -581,8 +640,10 @@ class _BarcodesSection extends StatelessWidget {
             final addBtn = OutlinedButton(
               onPressed: onAdd,
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
                 side: BorderSide(color: Colors.grey.shade300),
                 foregroundColor: Colors.grey.shade800,
               ),
@@ -594,8 +655,10 @@ class _BarcodesSection extends StatelessWidget {
               icon: const Icon(Icons.qr_code_2, size: 18),
               label: const Text('Generate'),
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
                 side: BorderSide(color: Colors.grey.shade300),
                 foregroundColor: Colors.grey.shade800,
               ),
@@ -643,7 +706,10 @@ class _BarcodesSection extends StatelessWidget {
                   (b) => InputChip(
                     label: Text(
                       b,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade800, fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade800,
+                          fontWeight: FontWeight.w700),
                     ),
                     onDeleted: () => onRemove(b),
                     deleteIconColor: Colors.grey.shade700,

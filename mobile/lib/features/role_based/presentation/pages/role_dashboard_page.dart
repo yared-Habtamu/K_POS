@@ -10,7 +10,10 @@ import 'package:pos_app/features/owners_page/presentation/pages/owner_pos_page.d
 import 'package:pos_app/features/owners_page/presentation/pages/owner_products_page.dart';
 import 'package:pos_app/features/owners_page/presentation/pages/owner_inventory_page.dart';
 import 'package:pos_app/features/owners_page/presentation/pages/owner_employees_page.dart';
+import 'package:pos_app/features/owners_page/presentation/pages/owner_settings_page.dart';
+import 'package:pos_app/features/owners_page/presentation/pages/owner_reports_page.dart';
 import 'package:pos_app/services/global.dart';
+import 'package:pos_app/utils/common_widgets.dart';
 
 class RoleDashboardPage extends StatefulWidget {
   const RoleDashboardPage({super.key});
@@ -35,7 +38,8 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
     final stored = Global.storageServices.getUserRole();
     setState(() {
       _role = _normalizeRole(stored);
-      _selected = _role == 'store_keeper' ? _RolePage.inventory : _RolePage.dashboard;
+      _selected =
+          _role == 'store_keeper' ? _RolePage.inventory : _RolePage.dashboard;
     });
   }
 
@@ -52,7 +56,8 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
       case 'system_admin':
         return const [
           _MenuItem(_RolePage.dashboard, Icons.dashboard, 'Dashboard'),
-          _MenuItem(_RolePage.adminShops, Icons.store_mall_directory, 'Marts / Shops'),
+          _MenuItem(_RolePage.adminShops, Icons.store_mall_directory,
+              'Marts / Shops'),
         ];
       case 'owner':
         return const [
@@ -125,12 +130,28 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
       ),
       appBar: AppBar(
         leading: IconButton(
-          onPressed: () => _drawerKey.currentState?.openDrawer(),
-          icon: Image.asset('assets/icons/hamburger.png'),
+          onPressed: () {
+            if (_selected != _RolePage.dashboard) {
+              setState(() => _selected = _RolePage.dashboard);
+            } else {
+              _drawerKey.currentState?.openDrawer();
+            }
+          },
+          icon: _selected != _RolePage.dashboard
+              ? const Icon(Icons.arrow_back_ios)
+              : Image.asset('assets/icons/hamburger.png'),
         ),
         title: Text(_titleForPage(_selected)),
-        actions: const [
-          SizedBox(width: 12),
+        actions: [
+          IconButton(
+            tooltip: 'Logout',
+            onPressed: () {
+              Global.storageServices.setDeviceOpenedFirst(false);
+              LogoutShowDialogue(context);
+            },
+            icon: const Icon(Icons.logout_outlined),
+          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: _buildBody(),
@@ -164,6 +185,10 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
           return const OwnerInventoryPage();
         case _RolePage.employees:
           return const OwnerEmployeesPage();
+        case _RolePage.reports:
+          return const OwnerReportsPage();
+        case _RolePage.settings:
+          return const OwnerSettingsPage();
         default:
           return _RolePlaceholderPage(
             title: _titleForPage(_selected),
