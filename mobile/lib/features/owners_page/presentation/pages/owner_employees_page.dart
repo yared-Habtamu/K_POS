@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
 
 class OwnerEmployeesPage extends StatefulWidget {
-  const OwnerEmployeesPage({super.key});
+  final bool hideOtherManagers;
+  final String? currentUserId;
+  final List<String>? allowedRoles;
+
+  const OwnerEmployeesPage({
+    super.key,
+    this.hideOtherManagers = false,
+    this.currentUserId,
+    this.allowedRoles,
+  });
 
   @override
   State<OwnerEmployeesPage> createState() => _OwnerEmployeesPageState();
@@ -81,7 +90,8 @@ class _OwnerEmployeesPageState extends State<OwnerEmployeesPage> {
     _employees ??= List<_EmployeeRow>.of(_mockEmployees());
 
     final newId = DateTime.now().millisecondsSinceEpoch.toString();
-    final salaryText = '${result.salary.trim().isEmpty ? '0' : result.salary.trim()} ETB';
+    final salaryText =
+        '${result.salary.trim().isEmpty ? '0' : result.salary.trim()} ETB';
 
     final newEmployee = _EmployeeRow(
       id: newId,
@@ -131,7 +141,22 @@ class _OwnerEmployeesPageState extends State<OwnerEmployeesPage> {
 
   @override
   Widget build(BuildContext context) {
-    final all = _employees ??= List<_EmployeeRow>.of(_mockEmployees());
+    var baseAll = _employees ??= List<_EmployeeRow>.of(_mockEmployees());
+
+    // If allowedRoles is set (e.g. managers should only see certain roles), filter first
+    if (widget.allowedRoles != null) {
+      final allowed = widget.allowedRoles!;
+      baseAll = baseAll.where((e) => allowed.contains(e.role)).toList();
+    }
+
+    // When used in manager view, hide other managers (keep current user if manager)
+    final all = widget.hideOtherManagers && widget.currentUserId != null
+        ? baseAll
+            .where(
+                (e) => !(e.role == 'Manager' && e.id != widget.currentUserId))
+            .toList()
+        : baseAll;
+
     _seedPermissionsFor(all);
 
     final roles = <String>{'All Roles', ...all.map((e) => e.role)}.toList();
@@ -148,8 +173,14 @@ class _OwnerEmployeesPageState extends State<OwnerEmployeesPage> {
     // Match screenshot footer: showing 1-7 of 11
     final pageItems = filtered.take(7).toList();
 
-    final employeeOptions = <String>{'All Employees', ...all.map((e) => e.name)}.toList();
-    final dateRanges = const <String>['Today', 'This Week', 'This Month', 'Custom'];
+    final employeeOptions =
+        <String>{'All Employees', ...all.map((e) => e.name)}.toList();
+    final dateRanges = const <String>[
+      'Today',
+      'This Week',
+      'This Month',
+      'Custom'
+    ];
 
     final records = _mockAttendanceRecords();
 
@@ -188,10 +219,14 @@ class _OwnerEmployeesPageState extends State<OwnerEmployeesPage> {
               managerAddItemsWithPrice: _managerAddItemsWithPrice,
               storeManageQty: _storeManageQty,
               cashierApplyDiscount: _cashierApplyDiscount,
-              onToggleManagerDiscount: (id, v) => setState(() => _managerApplyDiscount[id] = v),
-              onToggleManagerAddItemsWithPrice: (id, v) => setState(() => _managerAddItemsWithPrice[id] = v),
-              onToggleStoreManageQty: (id, v) => setState(() => _storeManageQty[id] = v),
-              onToggleCashierDiscount: (id, v) => setState(() => _cashierApplyDiscount[id] = v),
+              onToggleManagerDiscount: (id, v) =>
+                  setState(() => _managerApplyDiscount[id] = v),
+              onToggleManagerAddItemsWithPrice: (id, v) =>
+                  setState(() => _managerAddItemsWithPrice[id] = v),
+              onToggleStoreManageQty: (id, v) =>
+                  setState(() => _storeManageQty[id] = v),
+              onToggleCashierDiscount: (id, v) =>
+                  setState(() => _cashierApplyDiscount[id] = v),
             ),
           ] else ...[
             _Header(
@@ -220,20 +255,27 @@ class _OwnerEmployeesPageState extends State<OwnerEmployeesPage> {
             _AttendanceFiltersCard(
               employeeValue: _attendanceEmployeeFilter,
               employeeItems: employeeOptions,
-              onEmployeeChanged: (v) => setState(() => _attendanceEmployeeFilter = v),
+              onEmployeeChanged: (v) =>
+                  setState(() => _attendanceEmployeeFilter = v),
               dateRangeValue: _attendanceDateRange,
               dateRangeItems: dateRanges,
-              onDateRangeChanged: (v) => setState(() => _attendanceDateRange = v),
+              onDateRangeChanged: (v) =>
+                  setState(() => _attendanceDateRange = v),
             ),
             const SizedBox(height: 14),
             _AddAttendanceManuallyCard(
-              employees: employeeOptions.where((e) => e != 'All Employees').toList(),
+              employees:
+                  employeeOptions.where((e) => e != 'All Employees').toList(),
               selectedEmployee: _manualEmployee,
               onEmployeeChanged: (v) => setState(() => _manualEmployee = v),
               dateText: _formatYmd(_manualDate),
               onPickDate: _pickManualDate,
-              clockInText: _manualClockIn == null ? '--:-- --' : _formatTime(_manualClockIn!),
-              clockOutText: _manualClockOut == null ? '--:-- --' : _formatTime(_manualClockOut!),
+              clockInText: _manualClockIn == null
+                  ? '--:-- --'
+                  : _formatTime(_manualClockIn!),
+              clockOutText: _manualClockOut == null
+                  ? '--:-- --'
+                  : _formatTime(_manualClockOut!),
               onPickClockIn: _pickClockIn,
               onPickClockOut: _pickClockOut,
               onSave: () => _toast('Save Attendance (mock)'),
@@ -241,8 +283,10 @@ class _OwnerEmployeesPageState extends State<OwnerEmployeesPage> {
             const SizedBox(height: 14),
             _AttendanceRecordsCard(
               recordsDate: _recordsDate,
-              onPrevDate: () => setState(() => _recordsDate = _recordsDate.subtract(const Duration(days: 1))),
-              onNextDate: () => setState(() => _recordsDate = _recordsDate.add(const Duration(days: 1))),
+              onPrevDate: () => setState(() => _recordsDate =
+                  _recordsDate.subtract(const Duration(days: 1))),
+              onNextDate: () => setState(() =>
+                  _recordsDate = _recordsDate.add(const Duration(days: 1))),
               records: records,
             ),
           ],
@@ -340,8 +384,10 @@ class _Header extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue.shade900,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
                 ),
               );
 
@@ -417,7 +463,8 @@ class _AttendanceFiltersCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget dropdown(String value, List<String> items, ValueChanged<String> onChanged) {
+    Widget dropdown(
+        String value, List<String> items, ValueChanged<String> onChanged) {
       return Container(
         height: 46,
         padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -437,7 +484,10 @@ class _AttendanceFiltersCard extends StatelessWidget {
                     child: Text(
                       r,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade800, fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade800,
+                          fontWeight: FontWeight.w700),
                     ),
                   ),
                 )
@@ -464,7 +514,11 @@ class _AttendanceFiltersCard extends StatelessWidget {
           final employee = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Employee', style: TextStyle(fontSize: 13, color: Colors.grey.shade800, fontWeight: FontWeight.w700)),
+              Text('Employee',
+                  style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade800,
+                      fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
               dropdown(employeeValue, employeeItems, onEmployeeChanged),
             ],
@@ -473,7 +527,11 @@ class _AttendanceFiltersCard extends StatelessWidget {
           final range = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Date Range', style: TextStyle(fontSize: 13, color: Colors.grey.shade800, fontWeight: FontWeight.w700)),
+              Text('Date Range',
+                  style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade800,
+                      fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
               dropdown(dateRangeValue, dateRangeItems, onDateRangeChanged),
             ],
@@ -529,7 +587,8 @@ class _AddAttendanceManuallyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget dropdown(String value, List<String> items, ValueChanged<String> onChanged) {
+    Widget dropdown(
+        String value, List<String> items, ValueChanged<String> onChanged) {
       return Container(
         height: 46,
         padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -549,7 +608,10 @@ class _AddAttendanceManuallyCard extends StatelessWidget {
                     child: Text(
                       r,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade800, fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade800,
+                          fontWeight: FontWeight.w700),
                     ),
                   ),
                 )
@@ -562,7 +624,10 @@ class _AddAttendanceManuallyCard extends StatelessWidget {
       );
     }
 
-    Widget field({required String text, required IconData icon, required VoidCallback onTap}) {
+    Widget field(
+        {required String text,
+        required IconData icon,
+        required VoidCallback onTap}) {
       return InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
@@ -581,7 +646,12 @@ class _AddAttendanceManuallyCard extends StatelessWidget {
                   text,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 13, color: text.startsWith('--') ? Colors.grey.shade500 : Colors.grey.shade800, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                      fontSize: 13,
+                      color: text.startsWith('--')
+                          ? Colors.grey.shade500
+                          : Colors.grey.shade800,
+                      fontWeight: FontWeight.w700),
                 ),
               ),
               const SizedBox(width: 8),
@@ -604,7 +674,11 @@ class _AddAttendanceManuallyCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Add Attendance Manually', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.grey.shade900)),
+          Text('Add Attendance Manually',
+              style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey.shade900)),
           const SizedBox(height: 14),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -613,7 +687,11 @@ class _AddAttendanceManuallyCard extends StatelessWidget {
               final employee = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Employee', style: TextStyle(fontSize: 13, color: Colors.grey.shade800, fontWeight: FontWeight.w700)),
+                  Text('Employee',
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade800,
+                          fontWeight: FontWeight.w700)),
                   const SizedBox(height: 8),
                   dropdown(selectedEmployee, employeeItems, onEmployeeChanged),
                 ],
@@ -622,27 +700,48 @@ class _AddAttendanceManuallyCard extends StatelessWidget {
               final date = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Date', style: TextStyle(fontSize: 13, color: Colors.grey.shade800, fontWeight: FontWeight.w700)),
+                  Text('Date',
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade800,
+                          fontWeight: FontWeight.w700)),
                   const SizedBox(height: 8),
-                  field(text: dateText, icon: Icons.calendar_month_outlined, onTap: onPickDate),
+                  field(
+                      text: dateText,
+                      icon: Icons.calendar_month_outlined,
+                      onTap: onPickDate),
                 ],
               );
 
               final clockIn = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Clock In', style: TextStyle(fontSize: 13, color: Colors.grey.shade800, fontWeight: FontWeight.w700)),
+                  Text('Clock In',
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade800,
+                          fontWeight: FontWeight.w700)),
                   const SizedBox(height: 8),
-                  field(text: clockInText, icon: Icons.access_time, onTap: onPickClockIn),
+                  field(
+                      text: clockInText,
+                      icon: Icons.access_time,
+                      onTap: onPickClockIn),
                 ],
               );
 
               final clockOut = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Clock Out', style: TextStyle(fontSize: 13, color: Colors.grey.shade800, fontWeight: FontWeight.w700)),
+                  Text('Clock Out',
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade800,
+                          fontWeight: FontWeight.w700)),
                   const SizedBox(height: 8),
-                  field(text: clockOutText, icon: Icons.access_time, onTap: onPickClockOut),
+                  field(
+                      text: clockOutText,
+                      icon: Icons.access_time,
+                      onTap: onPickClockOut),
                 ],
               );
 
@@ -651,8 +750,10 @@ class _AddAttendanceManuallyCard extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue.shade900,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
                 ),
                 child: const Text('Save Attendance'),
               );
@@ -710,7 +811,8 @@ class _AttendanceRecordsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final headerStyle = TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.grey.shade700);
+    final headerStyle = TextStyle(
+        fontSize: 12, fontWeight: FontWeight.w700, color: Colors.grey.shade700);
     final columns = <DataColumn>[
       DataColumn(label: Text('Employee', style: headerStyle)),
       DataColumn(label: Text('Date', style: headerStyle)),
@@ -725,10 +827,18 @@ class _AttendanceRecordsCard extends StatelessWidget {
           (r) => DataRow(
             cells: [
               DataCell(_NameCell(name: r.employeeName)),
-              DataCell(Text(r.dateYmd, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-              DataCell(Text(r.clockIn, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-              DataCell(Text(r.clockOut, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-              DataCell(Text(r.duration, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+              DataCell(Text(r.dateYmd,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600))),
+              DataCell(Text(r.clockIn,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600))),
+              DataCell(Text(r.clockOut,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600))),
+              DataCell(Text(r.duration,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600))),
               DataCell(
                 Row(
                   mainAxisSize: MainAxisSize.min,
@@ -777,11 +887,15 @@ class _AttendanceRecordsCard extends StatelessWidget {
                       children: [
                         Text(
                           'Attendance Records',
-                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.grey.shade900),
+                          style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.grey.shade900),
                         ),
                         Text(
                           'Showing ${records.length} records',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey.shade700),
                         ),
                       ],
                     ),
@@ -802,7 +916,10 @@ class _AttendanceRecordsCard extends StatelessWidget {
                         _formatYmd(recordsDate),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.grey.shade800),
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.grey.shade800),
                       ),
                     ),
                   ),
@@ -936,7 +1053,10 @@ class _SearchAndRoleRow extends StatelessWidget {
                         child: Text(
                           r,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade800, fontWeight: FontWeight.w700),
+                          style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade800,
+                              fontWeight: FontWeight.w700),
                         ),
                       ),
                     )
@@ -979,7 +1099,8 @@ class _EmployeesTableCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final headerStyle = TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.grey.shade700);
+    final headerStyle = TextStyle(
+        fontSize: 12, fontWeight: FontWeight.w700, color: Colors.grey.shade700);
 
     final columns = <DataColumn>[
       DataColumn(label: Text('Employee Name', style: headerStyle)),
@@ -997,7 +1118,9 @@ class _EmployeesTableCard extends StatelessWidget {
               DataCell(_NameCell(name: e.name)),
               DataCell(_PhoneCell(phone: e.phone)),
               DataCell(_RoleChip(role: e.role)),
-              DataCell(Text(e.salaryText, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+              DataCell(Text(e.salaryText,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600))),
               DataCell(_StatusChip(active: e.active)),
               DataCell(
                 Row(
@@ -1037,7 +1160,11 @@ class _EmployeesTableCard extends StatelessWidget {
             children: [
               Icon(Icons.groups, size: 18, color: Colors.grey.shade800),
               const SizedBox(width: 8),
-              Text('Employees', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.grey.shade900)),
+              Text('Employees',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.grey.shade900)),
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1048,7 +1175,10 @@ class _EmployeesTableCard extends StatelessWidget {
                 ),
                 child: Text(
                   '$totalCount',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.grey.shade800),
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.grey.shade800),
                 ),
               ),
             ],
@@ -1141,7 +1271,8 @@ class _PagerButton extends StatelessWidget {
   final bool enabled;
   final VoidCallback onPressed;
 
-  const _PagerButton({required this.label, required this.enabled, required this.onPressed});
+  const _PagerButton(
+      {required this.label, required this.enabled, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -1163,7 +1294,8 @@ class _PagePill extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  const _PagePill({required this.label, required this.selected, required this.onTap});
+  const _PagePill(
+      {required this.label, required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1182,7 +1314,8 @@ class _PagePill extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: Colors.grey.shade300),
         ),
-        child: Text(label, style: TextStyle(color: fg, fontWeight: FontWeight.w800)),
+        child: Text(label,
+            style: TextStyle(color: fg, fontWeight: FontWeight.w800)),
       ),
     );
   }
@@ -1195,7 +1328,8 @@ class _NameCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase();
+    final initial =
+        name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase();
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -1210,11 +1344,15 @@ class _NameCell extends StatelessWidget {
           ),
           child: Text(
             initial,
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.grey.shade800),
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: Colors.grey.shade800),
           ),
         ),
         const SizedBox(width: 10),
-        Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+        Text(name,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
       ],
     );
   }
@@ -1232,7 +1370,8 @@ class _PhoneCell extends StatelessWidget {
       children: [
         Icon(Icons.phone, size: 14, color: Colors.grey.shade700),
         const SizedBox(width: 6),
-        Text(phone, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+        Text(phone,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
       ],
     );
   }
@@ -1291,7 +1430,10 @@ class _StatusChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.grey.shade800),
+        style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: Colors.grey.shade800),
       ),
     );
   }
@@ -1325,7 +1467,8 @@ class _PermissionsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final managers = employees.where((e) => e.role == 'Manager').toList();
-    final storeKeepers = employees.where((e) => e.role == 'Store Keeper').toList();
+    final storeKeepers =
+        employees.where((e) => e.role == 'Store Keeper').toList();
     final cashiers = employees.where((e) => e.role == 'Cashier').toList();
 
     return Container(
@@ -1342,7 +1485,11 @@ class _PermissionsCard extends StatelessWidget {
             children: [
               Icon(Icons.key, size: 18, color: Colors.grey.shade800),
               const SizedBox(width: 8),
-              Text('Manage Permissions', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.grey.shade900)),
+              Text('Manage Permissions',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.grey.shade900)),
             ],
           ),
           const SizedBox(height: 4),
@@ -1420,9 +1567,14 @@ class _PermissionGroup extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.grey.shade900)),
+        Text(title,
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: Colors.grey.shade900)),
         const SizedBox(height: 2),
-        Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+        Text(subtitle,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
         const SizedBox(height: 10),
         ...rows.map(
           (r) => Padding(
@@ -1474,14 +1626,21 @@ class _PermissionRow extends StatelessWidget {
               name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.grey.shade900),
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey.shade900),
             ),
           );
 
           final first = Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(rightLabel1, style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+              Text(rightLabel1,
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade700,
+                      fontWeight: FontWeight.w600)),
               const SizedBox(width: 10),
               Switch(
                 value: switch1Value,
@@ -1501,7 +1660,10 @@ class _PermissionRow extends StatelessWidget {
                   children: [
                     Text(
                       rightLabel2!,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(width: 10),
                     Switch(
@@ -1709,7 +1871,10 @@ class _AddEmployeeDialogState extends State<_AddEmployeeDialog> {
         children: [
           Text(
             required ? '$label *' : label,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade900, fontWeight: FontWeight.w800),
+            style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade900,
+                fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           child,
@@ -1764,14 +1929,18 @@ class _AddEmployeeDialogState extends State<_AddEmployeeDialog> {
           child: DropdownButton<String>(
             isExpanded: true,
             value: value,
-            icon: Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey.shade700),
+            icon: Icon(Icons.keyboard_arrow_down_rounded,
+                color: Colors.grey.shade700),
             items: items
                 .map(
                   (r) => DropdownMenuItem<String>(
                     value: r,
                     child: Text(
                       r,
-                      style: TextStyle(fontSize: 14, color: Colors.grey.shade900, fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade900,
+                          fontWeight: FontWeight.w700),
                     ),
                   ),
                 )
@@ -1811,7 +1980,9 @@ class _AddEmployeeDialogState extends State<_AddEmployeeDialog> {
           const SizedBox(height: 14),
           labeled(
             'Username (optional)',
-            input(controller: _usernameController, hint: 'login username (optional)'),
+            input(
+                controller: _usernameController,
+                hint: 'login username (optional)'),
           ),
           const SizedBox(height: 14),
           labeled(
@@ -1822,7 +1993,10 @@ class _AddEmployeeDialogState extends State<_AddEmployeeDialog> {
           const SizedBox(height: 14),
           labeled(
             'Phone',
-            input(controller: _phoneController, hint: '+251...', keyboardType: TextInputType.phone),
+            input(
+                controller: _phoneController,
+                hint: '+251...',
+                keyboardType: TextInputType.phone),
             required: true,
           ),
           const SizedBox(height: 14),
@@ -1838,7 +2012,10 @@ class _AddEmployeeDialogState extends State<_AddEmployeeDialog> {
           const SizedBox(height: 14),
           labeled(
             'Salary (ETB)',
-            input(controller: _salaryController, hint: '', keyboardType: TextInputType.number),
+            input(
+                controller: _salaryController,
+                hint: '',
+                keyboardType: TextInputType.number),
             required: true,
           ),
           const SizedBox(height: 14),
@@ -1848,7 +2025,10 @@ class _AddEmployeeDialogState extends State<_AddEmployeeDialog> {
             required: true,
           ),
           const SizedBox(height: 12),
-          input(controller: _confirmPasswordController, hint: 'Confirm password', obscure: true),
+          input(
+              controller: _confirmPasswordController,
+              hint: 'Confirm password',
+              obscure: true),
           const SizedBox(height: 18),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
@@ -1856,8 +2036,10 @@ class _AddEmployeeDialogState extends State<_AddEmployeeDialog> {
               OutlinedButton(
                 onPressed: () => Navigator.of(context).pop(),
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
                   side: BorderSide(color: Colors.grey.shade300),
                   foregroundColor: Colors.grey.shade800,
                 ),
@@ -1869,8 +2051,10 @@ class _AddEmployeeDialogState extends State<_AddEmployeeDialog> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue.shade900,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
                 ),
                 child: const Text('Save'),
               ),
