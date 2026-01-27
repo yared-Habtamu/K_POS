@@ -5,6 +5,15 @@ import 'package:pos_app/features/admin/presentation/pages/admin_mart_management_
 import 'package:pos_app/features/store_keeper/presentation/pages/store_keeper_inventory_page.dart';
 import 'package:pos_app/features/store_keeper/presentation/pages/store_keeper_barcode_scanner_page.dart';
 import 'package:pos_app/features/store_keeper/presentation/pages/store_keeper_alerts_page.dart';
+import 'package:pos_app/features/manager/presentation/pages/manager_alerts_page.dart';
+import 'package:pos_app/features/manager/presentation/pages/manager_products_page.dart';
+import 'package:pos_app/features/manager/presentation/pages/manager_dashboard_page.dart';
+import 'package:pos_app/features/manager/presentation/pages/manager_todays_sales_page.dart';
+import 'package:pos_app/features/manager/presentation/pages/manager_inventory_page.dart';
+import 'package:pos_app/features/manager/presentation/pages/manager_pos_page.dart';
+import 'package:pos_app/features/manager/presentation/pages/manager_approvals_page.dart';
+import 'package:pos_app/features/manager/presentation/pages/manager_assets_page.dart';
+import 'package:pos_app/features/manager/presentation/pages/manager_employees_page.dart';
 import 'package:pos_app/features/owners_page/presentation/pages/owner_dashboard_page.dart';
 import 'package:pos_app/features/owners_page/presentation/pages/owner_pos_page.dart';
 import 'package:pos_app/features/owners_page/presentation/pages/owner_products_page.dart';
@@ -76,6 +85,8 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
       case 'manager':
         return const [
           _MenuItem(_RolePage.dashboard, Icons.dashboard, 'Dashboard'),
+          _MenuItem(_RolePage.pos, Icons.point_of_sale, 'Point Of Sale'),
+          _MenuItem(_RolePage.products, Icons.inventory_2, 'Products'),
           _MenuItem(_RolePage.employees, Icons.groups, 'Employees'),
           _MenuItem(_RolePage.approvals, Icons.verified, 'Approvals'),
           _MenuItem(_RolePage.inventory, Icons.warehouse, 'Inventory'),
@@ -189,6 +200,34 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
           return const OwnerReportsPage();
         case _RolePage.settings:
           return const OwnerSettingsPage();
+        default:
+          return _RolePlaceholderPage(
+            title: _titleForPage(_selected),
+            subtitle: _subtitleForPage(_selected, _role),
+          );
+      }
+    }
+
+    if (_role == 'manager') {
+      switch (_selected) {
+        case _RolePage.dashboard:
+          return const ManagerDashboardPage();
+        case _RolePage.products:
+          return const ManagerProductsPage();
+        case _RolePage.pos:
+          return const ManagerPosPage();
+        case _RolePage.inventory:
+          return const ManagerInventoryPage();
+        case _RolePage.employees:
+          return const ManagerEmployeesPage();
+        case _RolePage.todaySales:
+          return const ManagerTodaysSalesPage();
+        case _RolePage.alerts:
+          return const ManagerAlertsPage();
+        case _RolePage.approvals:
+          return const ManagerApprovalsPage();
+        case _RolePage.assets:
+          return const ManagerAssetsPage();
         default:
           return _RolePlaceholderPage(
             title: _titleForPage(_selected),
@@ -333,10 +372,7 @@ class _RolePlaceholderPage extends StatelessWidget {
   final String title;
   final String subtitle;
 
-  const _RolePlaceholderPage({
-    required this.title,
-    required this.subtitle,
-  });
+  const _RolePlaceholderPage({required this.title, required this.subtitle});
 
   @override
   Widget build(BuildContext context) {
