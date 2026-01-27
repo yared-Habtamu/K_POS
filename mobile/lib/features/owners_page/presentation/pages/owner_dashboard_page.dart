@@ -173,6 +173,24 @@ class _StatsGrid extends StatelessWidget {
             iconFg: Colors.blue.shade900,
           ),
           _StatCard(
+            title: 'Alerts',
+            value: '${stats.alerts}',
+            deltaText: '${stats.productsLowStock} low/exp',
+            deltaUp: false,
+            icon: Icons.notifications,
+            iconBg: Colors.orange.shade50,
+            iconFg: Colors.orange.shade800,
+          ),
+          _StatCard(
+            title: 'Assets',
+            value: '${stats.assets}',
+            deltaText: '',
+            deltaUp: true,
+            icon: Icons.shopping_bag_outlined,
+            iconBg: Colors.purple.shade50,
+            iconFg: Colors.purple.shade800,
+          ),
+          _StatCard(
             title: 'Transactions',
             value: '${stats.transactions}',
             deltaText: '+${stats.transactionsDeltaPct.toStringAsFixed(1)}%',
@@ -239,7 +257,7 @@ class _StatCard extends StatelessWidget {
     final deltaColor = deltaUp ? Colors.green.shade700 : Colors.red.shade700;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -254,9 +272,9 @@ class _StatCard extends StatelessWidget {
               children: [
                 Text(title, style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
                 const SizedBox(height: 8),
-                Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 6),
-                Text(deltaText, style: TextStyle(fontSize: 13, color: deltaColor, fontWeight: FontWeight.w700)),
+                FittedBox(alignment: Alignment.centerLeft, fit: BoxFit.scaleDown, child: Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800))),
+                const SizedBox(height: 4),
+                Text(deltaText, style: TextStyle(fontSize: 12, color: deltaColor, fontWeight: FontWeight.w700)),
               ],
             ),
           ),
@@ -522,6 +540,8 @@ class _OwnerStats {
   final int productsLowStock;
   final double profitEtb;
   final double profitDeltaPct;
+  final int alerts;
+  final int assets;
 
   const _OwnerStats({
     required this.todaySalesEtb,
@@ -532,6 +552,8 @@ class _OwnerStats {
     required this.productsLowStock,
     required this.profitEtb,
     required this.profitDeltaPct,
+    required this.alerts,
+    required this.assets,
   });
 }
 
@@ -552,6 +574,8 @@ _OwnerStats _mockOwnerStats() {
     productsLowStock: 3,
     profitEtb: 5592,
     profitDeltaPct: 5.3,
+    alerts: 2,
+    assets: 12,
   );
 }
 

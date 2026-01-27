@@ -19,8 +19,7 @@ import 'package:pos_app/features/owners_page/presentation/pages/owner_pos_page.d
 import 'package:pos_app/features/owners_page/presentation/pages/owner_products_page.dart';
 import 'package:pos_app/features/owners_page/presentation/pages/owner_inventory_page.dart';
 import 'package:pos_app/features/owners_page/presentation/pages/owner_employees_page.dart';
-import 'package:pos_app/features/owners_page/presentation/pages/owner_settings_page.dart';
-import 'package:pos_app/features/owners_page/presentation/pages/owner_reports_page.dart';
+import 'package:pos_app/features/owners_page/presentation/pages/owner_settings_page.dart';import 'package:pos_app/features/owners_page/presentation/pages/owner_expenses_page.dart';import 'package:pos_app/features/owners_page/presentation/pages/owner_reports_page.dart';
 import 'package:pos_app/services/global.dart';
 import 'package:pos_app/utils/common_widgets.dart';
 
@@ -196,6 +195,17 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
           return const OwnerInventoryPage();
         case _RolePage.employees:
           return const OwnerEmployeesPage();
+        case _RolePage.expenses:
+          return const OwnerExpensesPage();
+        case _RolePage.alerts:
+          // Show manager alerts page UI inside owner
+          return const ManagerAlertsPage();
+        case _RolePage.todaySales:
+          // Show manager today's sales page UI inside owner
+          return const ManagerTodaysSalesPage();
+        case _RolePage.assets:
+          // Show manager assets page UI inside owner
+          return const ManagerAssetsPage();
         case _RolePage.reports:
           return const OwnerReportsPage();
         case _RolePage.settings:
