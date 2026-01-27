@@ -3,6 +3,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:pos_app/services/get_current_user.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -10,7 +11,6 @@ import 'package:numberpicker/numberpicker.dart';
 
 import '../config/theme/app_color_pallet.dart';
 import '../services/global.dart';
-
 
 class FullPageContainer extends StatelessWidget {
   const FullPageContainer({super.key});
@@ -650,8 +650,7 @@ CustomShowDialoge(BuildContext context) {
               children: [
                 Center(
                   child: ReusableText(
-                    TextString:
-                        " AppLocalizations.of(context)!.youHaveSuccessfully",
+                    TextString: 'Success!',
                     FontSize: 20,
                   ),
                 ),
@@ -668,7 +667,7 @@ CustomShowDialoge(BuildContext context) {
                   children: [
                     ReusableText(
                       FromLeft: 15,
-                      TextString: " AppLocalizations.of(context)!.category",
+                      TextString: 'Category',
                       FontSize: 15,
                       TextColor: ColorCollections.TeritiaryColor,
                     ),
@@ -690,7 +689,7 @@ CustomShowDialoge(BuildContext context) {
                   children: [
                     ReusableText(
                       FromLeft: 15,
-                      TextString: "AppLocalizations.of(context)!.itemName",
+                      TextString: 'Item Name',
                       FontSize: 15,
                       TextColor: ColorCollections.TeritiaryColor,
                     ),
@@ -714,7 +713,7 @@ CustomShowDialoge(BuildContext context) {
                   children: [
                     ReusableText(
                       FromLeft: 15,
-                      TextString: "AppLocalizations.of(context)!.description",
+                      TextString: 'Description',
                       FontSize: 15,
                       TextColor: ColorCollections.TeritiaryColor,
                     ),
@@ -736,30 +735,28 @@ CustomShowDialoge(BuildContext context) {
                 SizedBox(
                   height: 10,
                 ),
-                "item_model.pickedImage" != null
-                    ? Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          ReusableText(
-                            FromLeft: 15,
-                            TextString: "AppLocalizations.of(context)!.photo",
-                            FontSize: 15,
-                            TextColor: ColorCollections.TeritiaryColor,
-                          ),
-                          Container(
-                            margin: EdgeInsets.only(left: 57),
-                            height: 100,
-                            width: 150,
-                            decoration: BoxDecoration(
-                                color: ColorCollections.SecondaryColor,
-                                borderRadius: BorderRadius.circular(5),
-                                image: DecorationImage(
-                                  image: AssetImage("assets/inspire.jpg"),
-                                )),
-                          )
-                        ],
-                      )
-                    : SizedBox(),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ReusableText(
+                      FromLeft: 15,
+                      TextString: 'Photo',
+                      FontSize: 15,
+                      TextColor: ColorCollections.TeritiaryColor,
+                    ),
+                    Container(
+                      margin: EdgeInsets.only(left: 57),
+                      height: 100,
+                      width: 150,
+                      decoration: BoxDecoration(
+                          color: ColorCollections.SecondaryColor,
+                          borderRadius: BorderRadius.circular(5),
+                          image: DecorationImage(
+                            image: AssetImage("assets/inspire.jpg"),
+                          )),
+                    )
+                  ],
+                ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -779,8 +776,7 @@ CustomShowDialoge(BuildContext context) {
                           ),
                           child: Center(
                             child: ReusableText(
-                              TextString:
-                                  "AppLocalizations.of(context)!.goToHome",
+                              TextString: 'Go to Home',
                               TextColor: ColorCollections.PrimaryColor,
                               FontSize: 20,
                             ),
@@ -823,22 +819,17 @@ Drawer CustomDrowerElement(
           Container(
             child: Column(
               children: [
-                DrowerWidget(
-                    Icons.settings, "AppLocalizations.of(context)!.settings",
-                    () {
+                DrowerWidget(Icons.settings, 'Settings', () {
                   Navigator.of(context).pushNamed('/welcome_page');
                 }),
-                DrowerWidget(Icons.language_outlined,
-                    "AppLocalizations.of(context)!.language", () {
+                DrowerWidget(Icons.language_outlined, 'Language', () {
                   Navigator.of(context).pushNamed('/language_page');
                 }),
-                DrowerWidget(
-                    Icons.info, "AppLocalizations.of(context)!.aboutUs", () {
+                DrowerWidget(Icons.info, 'About Us', () {
                   Navigator.of(context).pushNamedAndRemoveUntil(
                       '/about_us_page', (route) => false);
                 }),
-                DrowerWidget(Icons.logout_outlined,
-                    "AppLocalizations.of(context)!.logOut", () {
+                DrowerWidget(Icons.logout_outlined, 'Log Out', () {
                   Global.storageServices.setDeviceOpenedFirst(false);
                   LogoutShowDialogue(context);
                 }),
@@ -919,14 +910,13 @@ LogoutShowDialogue(BuildContext context) {
                       children: [
                         ReusableText(
                           TextColor: Colors.red.shade900,
-                          TextString: "AppLocalizations.of(context)!.logOut",
+                          TextString: 'Log Out',
                           FontSize: 20,
                           TextFontWeight: FontWeight.w700,
                         ),
                         ReusableText(
                           TextColor: ColorCollections.TeritiaryColor,
-                          TextString:
-                              " AppLocalizations.of(context)!.areYouSureLogout",
+                          TextString: 'Are you sure you want to log out?',
                           FontSize: 19,
                         ),
                       ],
@@ -938,8 +928,11 @@ LogoutShowDialogue(BuildContext context) {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         GestureDetector(
-                          onTap: () {
-                            Navigator.of(context).pushNamed('/sign_in_page');
+                          onTap: () async {
+                            // Perform app logout then navigate to sign-in screen.
+                            await UserProvider().logout();
+                            Navigator.of(context).pushNamedAndRemoveUntil(
+                                '/sign_in_page', (route) => false);
                           },
                           child: Container(
                             height: 40,
@@ -950,8 +943,7 @@ LogoutShowDialogue(BuildContext context) {
                             ),
                             child: Center(
                               child: ReusableText(
-                                TextString:
-                                    " AppLocalizations.of(context)!.confirm",
+                                TextString: 'Confirm',
                                 FontSize: 18,
                                 TextColor: Colors.red.shade900,
                               ),
@@ -971,8 +963,7 @@ LogoutShowDialogue(BuildContext context) {
                             ),
                             child: Center(
                               child: ReusableText(
-                                TextString:
-                                    "AppLocalizations.of(context)!.cancel",
+                                TextString: 'Cancel',
                                 FontSize: 18,
                                 TextColor: ColorCollections.PrimaryColor,
                               ),
