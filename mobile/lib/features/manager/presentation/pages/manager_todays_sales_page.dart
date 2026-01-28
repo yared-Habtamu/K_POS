@@ -15,8 +15,6 @@ class ManagerTodaysSalesPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Today\'s Sales',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
           Text('Items sold today',
               style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),

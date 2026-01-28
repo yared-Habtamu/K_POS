@@ -63,7 +63,7 @@ class MyApp extends StatelessWidget {
         child: Consumer<ThemeManager>(
           builder: (context, themeManager, child) {
             return GetMaterialApp(
-              title: 'UniHub',
+              title: 'Simple Pos',
               debugShowCheckedModeBanner: false,
               themeMode: themeManager.themeMode,
               theme: ThemeData.light(),

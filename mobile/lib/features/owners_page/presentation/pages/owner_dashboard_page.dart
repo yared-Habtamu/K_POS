@@ -1,5 +1,5 @@
 import 'dart:math' as math;
-
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 class OwnerDashboardPage extends StatefulWidget {
@@ -18,276 +18,398 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
     final sales = _mockSales(_period);
     final topProducts = _mockTopProducts();
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final isWide = width >= 1000;
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FD),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final isDesktop = width >= 1100;
+          final isTablet = width >= 700 && width < 1100;
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _HeaderRow(
-                onInviteOwner: () => _toast(context, 'Invite Owner (mock)'),
-                onRegisterMart: () => _toast(context, 'Register a Mart (mock)'),
-              ),
-              const SizedBox(height: 16),
-              _StatsGrid(stats: stats),
-              const SizedBox(height: 16),
-              if (isWide)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _WeeklySalesCard(
-                        period: _period,
-                        onPeriodChanged: (p) => setState(() => _period = p),
-                        series: sales,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _TopSellingCard(products: topProducts),
-                    ),
-                  ],
-                )
-              else ...[
-                _WeeklySalesCard(
-                  period: _period,
-                  onPeriodChanged: (p) => setState(() => _period = p),
-                  series: sales,
+          return SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: width > 600 ? 32 : 16,
+              vertical: 24,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _ModernHeader(
+                  onInvite: () => _toast(context, 'Invite Owner'),
+                  onRegister: () => _toast(context, 'Register Mart'),
                 ),
-                const SizedBox(height: 16),
-                _TopSellingCard(products: topProducts),
+                const SizedBox(height: 32),
+                _StatsGrid(stats: stats, isDesktop: isDesktop, isTablet: isTablet),
+                const SizedBox(height: 32),
+                if (isDesktop)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: _SalesChartCard(
+                          period: _period,
+                          data: sales,
+                          onPeriodChanged: (p) => setState(() => _period = p),
+                        ),
+                      ),
+                      const SizedBox(width: 24),
+                      Expanded(
+                        flex: 1,
+                        child: _TopProductsCard(products: topProducts),
+                      ),
+                    ],
+                  )
+                else ...[
+                  _SalesChartCard(
+                    period: _period,
+                    data: sales,
+                    onPeriodChanged: (p) => setState(() => _period = p),
+                  ),
+                  const SizedBox(height: 24),
+                  _TopProductsCard(products: topProducts),
+                ],
               ],
-            ],
-          ),
-        );
-      },
+            ),
+          );
+        },
+      ),
     );
+  }
+
+  void _toast(BuildContext context, String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }
 
-class _HeaderRow extends StatelessWidget {
-  final VoidCallback onInviteOwner;
-  final VoidCallback onRegisterMart;
+class _ModernHeader extends StatelessWidget {
+  final VoidCallback onInvite;
+  final VoidCallback onRegister;
 
-  const _HeaderRow({
-    required this.onInviteOwner,
-    required this.onRegisterMart,
+  const _ModernHeader({required this.onInvite, required this.onRegister});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, constraints) {
+      final isSmall = constraints.maxWidth < 600;
+
+      final textSection = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Overview',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1A1D1E),
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            "Here's what's happening with your store today.",
+            style: TextStyle(
+              fontSize: 15,
+              color: Colors.grey.shade600,
+              height: 1.4,
+            ),
+          ),
+        ],
+      );
+
+      final buttons = Row(
+        children: [
+          _ActionButton(
+            label: 'Invite',
+            icon: Icons.person_add_alt_1_rounded,
+            isPrimary: false,
+            onTap: onInvite,
+          ),
+          const SizedBox(width: 12),
+          _ActionButton(
+            label: 'New Mart',
+            icon: Icons.store_rounded,
+            isPrimary: true,
+            onTap: onRegister,
+          ),
+        ],
+      );
+
+      if (isSmall) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [textSection, const SizedBox(height: 20), buttons],
+        );
+      }
+
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [textSection, buttons],
+      );
+    });
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isPrimary;
+  final VoidCallback onTap;
+
+  const _ActionButton({
+    required this.label,
+    required this.icon,
+    required this.isPrimary,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 650;
-
-        final title = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        decoration: BoxDecoration(
+          color: isPrimary ? const Color(0xFF0F172A) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: isPrimary ? null : Border.all(color: Colors.grey.shade300),
+          boxShadow: isPrimary
+              ? [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withOpacity(0.2),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            )
+          ]
+              : null,
+        ),
+        child: Row(
           children: [
-            const Text(
-              'Dashboard',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
+            Icon(
+              icon,
+              size: 18,
+              color: isPrimary ? Colors.white : const Color(0xFF0F172A),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(width: 8),
             Text(
-              "Welcome back! Here's what's happening today.",
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-            ),
-          ],
-        );
-
-        final actions = Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          alignment: WrapAlignment.end,
-          children: [
-            OutlinedButton.icon(
-              onPressed: onInviteOwner,
-              icon: const Icon(Icons.share_outlined, size: 18),
-              label: const Text('Invite Owner'),
-            ),
-            ElevatedButton.icon(
-              onPressed: onRegisterMart,
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Register a Mart'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue.shade900,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                color: isPrimary ? Colors.white : const Color(0xFF0F172A),
               ),
             ),
           ],
-        );
-
-        if (isNarrow) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              title,
-              const SizedBox(height: 12),
-              actions,
-            ],
-          );
-        }
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: title),
-            actions,
-          ],
-        );
-      },
+        ),
+      ),
     );
   }
 }
 
 class _StatsGrid extends StatelessWidget {
   final _OwnerStats stats;
+  final bool isDesktop;
+  final bool isTablet;
 
-  const _StatsGrid({required this.stats});
+  const _StatsGrid({
+    required this.stats,
+    required this.isDesktop,
+    required this.isTablet,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final columns = width >= 1200
-            ? 4
-            : width >= 900
-                ? 2
-                : 1;
+    final cards = [
+      _StatData(
+        title: "Total Revenue",
+        value: "${stats.todaySalesEtb.toInt()}",
+        suffix: "ETB",
+        trend: "+${stats.salesDeltaPct}%",
+        isTrendUp: true,
+        icon: Icons.payments_rounded,
+        color: const Color(0xFF6366F1),
+      ),
+      _StatData(
+        title: "Transactions",
+        value: "${stats.transactions}",
+        trend: "+${stats.transactionsDeltaPct}%",
+        isTrendUp: true,
+        icon: Icons.receipt_long_rounded,
+        color: const Color(0xFF10B981),
+      ),
+      _StatData(
+        title: "Net Profit",
+        value: "${stats.profitEtb.toInt()}",
+        suffix: "ETB",
+        trend: "+${stats.profitDeltaPct}%",
+        isTrendUp: true,
+        icon: Icons.pie_chart_rounded,
+        color: const Color(0xFFF59E0B),
+      ),
+      _StatData(
+        title: "Active Alerts",
+        value: "${stats.alerts}",
+        trend: "Action needed",
+        isTrendUp: false,
+        icon: Icons.notifications_active_rounded,
+        color: const Color(0xFFEF4444),
+      ),
+    ];
 
-        final cards = [
-          _StatCard(
-            title: "Today's Sales",
-            value: '${stats.todaySalesEtb.toStringAsFixed(0)} ETB',
-            deltaText: '+${stats.salesDeltaPct.toStringAsFixed(1)}%',
-            deltaUp: true,
-            icon: Icons.attach_money,
-            iconBg: Colors.blue.shade50,
-            iconFg: Colors.blue.shade900,
-          ),
-          _StatCard(
-            title: 'Alerts',
-            value: '${stats.alerts}',
-            deltaText: '${stats.productsLowStock} low/exp',
-            deltaUp: false,
-            icon: Icons.notifications,
-            iconBg: Colors.orange.shade50,
-            iconFg: Colors.orange.shade800,
-          ),
-          _StatCard(
-            title: 'Assets',
-            value: '${stats.assets}',
-            deltaText: '',
-            deltaUp: true,
-            icon: Icons.shopping_bag_outlined,
-            iconBg: Colors.purple.shade50,
-            iconFg: Colors.purple.shade800,
-          ),
-          _StatCard(
-            title: 'Transactions',
-            value: '${stats.transactions}',
-            deltaText: '+${stats.transactionsDeltaPct.toStringAsFixed(1)}%',
-            deltaUp: true,
-            icon: Icons.shopping_cart_outlined,
-            iconBg: Colors.green.shade50,
-            iconFg: Colors.green.shade800,
-          ),
-          _StatCard(
-            title: 'Products',
-            value: '${stats.products}',
-            deltaText: '${stats.productsLowStock} low/exp',
-            deltaUp: false,
-            icon: Icons.inventory_2_outlined,
-            iconBg: Colors.orange.shade50,
-            iconFg: Colors.orange.shade800,
-          ),
-          _StatCard(
-            title: 'Profit',
-            value: '${stats.profitEtb.toStringAsFixed(0)} ETB',
-            deltaText: '+${stats.profitDeltaPct.toStringAsFixed(1)}%',
-            deltaUp: true,
-            icon: Icons.show_chart,
-            iconBg: Colors.purple.shade50,
-            iconFg: Colors.purple.shade800,
-          ),
-        ];
+    int crossAxisCount = 1;
+    if (isDesktop) crossAxisCount = 4;
+    else if (isTablet) crossAxisCount = 2;
 
-        return GridView.count(
-          crossAxisCount: columns,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: columns >= 2 ? 3.2 : 2.8,
-          children: cards,
+    return Wrap(
+      spacing: 16,
+      runSpacing: 16,
+      children: cards.map((data) {
+        final w = isDesktop
+            ? (MediaQuery.of(context).size.width - 64 - (16 * 3)) / 4
+            : isTablet
+            ? (MediaQuery.of(context).size.width - 64 - 16) / 2
+            : double.infinity;
+
+        return SizedBox(
+          width: w,
+          child: _StatCard(data: data),
         );
-      },
+      }).toList(),
     );
   }
+}
+
+class _StatData {
+  final String title;
+  final String value;
+  final String? suffix;
+  final String trend;
+  final bool isTrendUp;
+  final IconData icon;
+  final Color color;
+
+  _StatData({
+    required this.title,
+    required this.value,
+    this.suffix,
+    required this.trend,
+    required this.isTrendUp,
+    required this.icon,
+    required this.color,
+  });
 }
 
 class _StatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final String deltaText;
-  final bool deltaUp;
-  final IconData icon;
-  final Color iconBg;
-  final Color iconFg;
+  final _StatData data;
 
-  const _StatCard({
-    required this.title,
-    required this.value,
-    required this.deltaText,
-    required this.deltaUp,
-    required this.icon,
-    required this.iconBg,
-    required this.iconFg,
-  });
+  const _StatCard({required this.data});
 
   @override
   Widget build(BuildContext context) {
-    final deltaColor = deltaUp ? Colors.green.shade700 : Colors.red.shade700;
-
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.06),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: data.color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(data.icon, color: data.color, size: 20),
+              ),
+              _TrendBadge(text: data.trend, isUp: data.isTrendUp),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Text(
+            data.title,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                data.value,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+              if (data.suffix != null) ...[
+                const SizedBox(width: 4),
+                Text(
+                  data.suffix!,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade400,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrendBadge extends StatelessWidget {
+  final String text;
+  final bool isUp;
+
+  const _TrendBadge({required this.text, required this.isUp});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isUp ? const Color(0xFF10B981) : const Color(0xFFEF4444);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(title, style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
-                const SizedBox(height: 8),
-                FittedBox(alignment: Alignment.centerLeft, fit: BoxFit.scaleDown, child: Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800))),
-                const SizedBox(height: 4),
-                Text(deltaText, style: TextStyle(fontSize: 12, color: deltaColor, fontWeight: FontWeight.w700)),
-              ],
-            ),
+          Icon(
+            isUp ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+            size: 14,
+            color: color,
           ),
-          const SizedBox(width: 12),
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: iconBg,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.grey.shade200),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color,
             ),
-            child: Icon(icon, color: iconFg),
           ),
         ],
       ),
@@ -295,75 +417,59 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _WeeklySalesCard extends StatelessWidget {
+class _SalesChartCard extends StatelessWidget {
   final _SalesPeriod period;
+  final List<double> data;
   final ValueChanged<_SalesPeriod> onPeriodChanged;
-  final List<double> series;
 
-  const _WeeklySalesCard({
+  const _SalesChartCard({
     required this.period,
+    required this.data,
     required this.onPeriodChanged,
-    required this.series,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      height: 400,
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Weekly Sales', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 12),
-          _PeriodTabs(period: period, onChanged: onPeriodChanged),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 240,
-            width: double.infinity,
-            child: CustomPaint(
-              painter: _LineChartPainter(values: series, lineColor: Colors.blue.shade900),
-            ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.06),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _TopSellingCard extends StatelessWidget {
-  final List<_TopProduct> products;
-
-  const _TopSellingCard({required this.products});
-
-  @override
-  Widget build(BuildContext context) {
-    final maxV = products.isEmpty ? 1.0 : products.map((p) => p.value).reduce(math.max);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Top Selling Products', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 240,
-            width: double.infinity,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Sales Analytics',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+              _ModernTabs(
+                selected: period,
+                onChanged: onPeriodChanged,
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
+          Expanded(
             child: CustomPaint(
-              painter: _BarChartPainter(
-                items: products,
-                maxValue: maxV,
-                barColor: Colors.blue.shade900,
+              size: Size.infinite,
+              painter: _SmoothChartPainter(
+                values: data,
+                color: const Color(0xFF6366F1),
               ),
             ),
           ),
@@ -373,161 +479,235 @@ class _TopSellingCard extends StatelessWidget {
   }
 }
 
-class _PeriodTabs extends StatelessWidget {
-  final _SalesPeriod period;
-  final ValueChanged<_SalesPeriod> onChanged;
+class _TopProductsCard extends StatelessWidget {
+  final List<_TopProduct> products;
 
-  const _PeriodTabs({required this.period, required this.onChanged});
+  const _TopProductsCard({required this.products});
 
   @override
   Widget build(BuildContext context) {
-    Widget chip(String label, _SalesPeriod value) {
-      final selected = period == value;
-      return ChoiceChip(
-        label: Text(label),
-        selected: selected,
-        onSelected: (_) => onChanged(value),
-        selectedColor: Colors.blue.shade900,
-        labelStyle: TextStyle(
-          color: selected ? Colors.white : Colors.grey.shade800,
-          fontWeight: FontWeight.w700,
-        ),
-        backgroundColor: Colors.grey.shade100,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-      );
-    }
+    final maxVal = products.fold<double>(0, (p, c) => math.max(p, c.value));
 
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: [
-        chip('Daily', _SalesPeriod.daily),
-        chip('Weekly', _SalesPeriod.weekly),
-        chip('Monthly', _SalesPeriod.monthly),
-      ],
+    return Container(
+      height: 400,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.06),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Top Performers',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Expanded(
+            child: ListView.separated(
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: products.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 20),
+              itemBuilder: (context, index) {
+                final p = products[index];
+                final pct = p.value / (maxVal == 0 ? 1 : maxVal);
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          p.label,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF475569),
+                          ),
+                        ),
+                        Text(
+                          "${p.value.toStringAsFixed(1)}k",
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 8,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: FractionallySizedBox(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: pct,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF6366F1), Color(0xFF818CF8)],
+                            ),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                    )
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _LineChartPainter extends CustomPainter {
-  final List<double> values;
-  final Color lineColor;
+class _ModernTabs extends StatelessWidget {
+  final _SalesPeriod selected;
+  final ValueChanged<_SalesPeriod> onChanged;
 
-  _LineChartPainter({required this.values, required this.lineColor});
+  const _ModernTabs({required this.selected, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: _SalesPeriod.values.map((p) {
+          final isSel = p == selected;
+          return GestureDetector(
+            onTap: () => onChanged(p),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSel ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: isSel
+                    ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  )
+                ]
+                    : null,
+              ),
+              child: Text(
+                p.name[0].toUpperCase() + p.name.substring(1),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isSel ? const Color(0xFF1E293B) : const Color(0xFF94A3B8),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _SmoothChartPainter extends CustomPainter {
+  final List<double> values;
+  final Color color;
+
+  _SmoothChartPainter({required this.values, required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (values.isEmpty) return;
+
     final paint = Paint()
-      ..color = lineColor
-      ..strokeWidth = 2.5
+      ..color = color
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
 
-    final gridPaint = Paint()
-      ..color = Colors.grey.shade300
-      ..strokeWidth = 1;
+    final maxVal = values.reduce(math.max);
+    final minVal = values.reduce(math.min);
+    final range = maxVal - minVal;
+    final wStep = size.width / (values.length - 1);
 
-    // grid
-    const gridLines = 4;
-    for (int i = 0; i <= gridLines; i++) {
-      final y = (size.height / gridLines) * i;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    // Normalize logic
+    double getY(double val) {
+      if (range == 0) return size.height / 2;
+      return size.height - ((val - minVal) / range) * (size.height * 0.8) - (size.height * 0.1);
     }
-
-    if (values.length < 2) return;
-
-    final minV = values.reduce(math.min);
-    final maxV = values.reduce(math.max);
-    final range = (maxV - minV).abs() < 0.0001 ? 1.0 : (maxV - minV);
 
     final path = Path();
-    for (int i = 0; i < values.length; i++) {
-      final x = (size.width / (values.length - 1)) * i;
-      final norm = (values[i] - minV) / range;
-      final y = size.height - (norm * (size.height - 12)) - 6;
+    path.moveTo(0, getY(values[0]));
 
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
+    for (int i = 0; i < values.length - 1; i++) {
+      final x1 = i * wStep;
+      final y1 = getY(values[i]);
+      final x2 = (i + 1) * wStep;
+      final y2 = getY(values[i + 1]);
+
+      final controlX = (x1 + x2) / 2;
+      path.cubicTo(controlX, y1, controlX, y2, x2, y2);
     }
 
+    // Draw Shadow
+    final fillPath = Path.from(path)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+
+    final gradient = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [color.withOpacity(0.2), color.withOpacity(0.0)],
+    );
+
+    canvas.drawPath(
+      fillPath,
+      Paint()..shader = gradient.createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
+    );
+
+    // Draw Line
     canvas.drawPath(path, paint);
 
-    // points
-    final dotPaint = Paint()..color = lineColor;
+    // Draw Dots
+    final dotPaint = Paint()..color = Colors.white;
+    final borderPaint = Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = 2;
+
     for (int i = 0; i < values.length; i++) {
-      final x = (size.width / (values.length - 1)) * i;
-      final norm = (values[i] - minV) / range;
-      final y = size.height - (norm * (size.height - 12)) - 6;
-      canvas.drawCircle(Offset(x, y), 3.2, dotPaint);
+      final cx = i * wStep;
+      final cy = getY(values[i]);
+      canvas.drawCircle(Offset(cx, cy), 5, dotPaint);
+      canvas.drawCircle(Offset(cx, cy), 5, borderPaint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant _LineChartPainter oldDelegate) {
-    return oldDelegate.values != values || oldDelegate.lineColor != lineColor;
-  }
+  bool shouldRepaint(covariant _SmoothChartPainter oldDelegate) => true;
 }
 
-class _BarChartPainter extends CustomPainter {
-  final List<_TopProduct> items;
-  final double maxValue;
-  final Color barColor;
-
-  _BarChartPainter({
-    required this.items,
-    required this.maxValue,
-    required this.barColor,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final gridPaint = Paint()
-      ..color = Colors.grey.shade300
-      ..strokeWidth = 1;
-
-    // vertical grid lines
-    const gridLines = 4;
-    for (int i = 0; i <= gridLines; i++) {
-      final x = (size.width / gridLines) * i;
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
-    }
-
-    if (items.isEmpty) return;
-
-    final barPaint = Paint()..color = barColor;
-    final textPainter = TextPainter(textDirection: TextDirection.ltr);
-
-    final rowH = size.height / items.length;
-    final barH = math.min(44.0, rowH * 0.65);
-
-    for (int i = 0; i < items.length; i++) {
-      final item = items[i];
-      final yCenter = (rowH * i) + (rowH / 2);
-      final yTop = yCenter - (barH / 2);
-
-      final barW = (item.value / (maxValue <= 0 ? 1 : maxValue)) * (size.width - 90);
-      final rect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(90, yTop, math.max(8, barW), barH),
-        const Radius.circular(10),
-      );
-      canvas.drawRRect(rect, barPaint);
-
-      textPainter.text = TextSpan(
-        text: item.label,
-        style: TextStyle(fontSize: 12, color: Colors.grey.shade800, fontWeight: FontWeight.w600),
-      );
-      textPainter.layout(maxWidth: 85);
-      textPainter.paint(canvas, Offset(0, yCenter - (textPainter.height / 2)));
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _BarChartPainter oldDelegate) {
-    return oldDelegate.items != items || oldDelegate.maxValue != maxValue || oldDelegate.barColor != barColor;
-  }
-}
+// --- Data Models ---
 
 enum _SalesPeriod { daily, weekly, monthly }
 
@@ -536,67 +716,48 @@ class _OwnerStats {
   final double salesDeltaPct;
   final int transactions;
   final double transactionsDeltaPct;
-  final int products;
-  final int productsLowStock;
   final double profitEtb;
   final double profitDeltaPct;
   final int alerts;
-  final int assets;
 
   const _OwnerStats({
     required this.todaySalesEtb,
     required this.salesDeltaPct,
     required this.transactions,
     required this.transactionsDeltaPct,
-    required this.products,
-    required this.productsLowStock,
     required this.profitEtb,
     required this.profitDeltaPct,
     required this.alerts,
-    required this.assets,
   });
 }
 
 class _TopProduct {
   final String label;
   final double value;
-
-  const _TopProduct({required this.label, required this.value});
+  _TopProduct({required this.label, required this.value});
 }
 
-_OwnerStats _mockOwnerStats() {
-  return const _OwnerStats(
-    todaySalesEtb: 8292,
-    salesDeltaPct: 12.5,
-    transactions: 6,
-    transactionsDeltaPct: 8.2,
-    products: 8,
-    productsLowStock: 3,
-    profitEtb: 5592,
-    profitDeltaPct: 5.3,
-    alerts: 2,
-    assets: 12,
-  );
-}
+_OwnerStats _mockOwnerStats() => const _OwnerStats(
+  todaySalesEtb: 8292,
+  salesDeltaPct: 12.5,
+  transactions: 24,
+  transactionsDeltaPct: 8.2,
+  profitEtb: 5592,
+  profitDeltaPct: 5.3,
+  alerts: 3,
+);
 
 List<double> _mockSales(_SalesPeriod period) {
   switch (period) {
-    case _SalesPeriod.daily:
-      return const [1200, 1800, 900, 2200, 1600, 1400, 2100];
-    case _SalesPeriod.weekly:
-      return const [0, 4500, 0, 0, 0, 3200, 0];
-    case _SalesPeriod.monthly:
-      return const [800, 1200, 1600, 900, 1400, 1800, 1500, 2100, 1700, 2300, 1900, 2500];
+    case _SalesPeriod.daily: return [12, 18, 14, 22, 19, 24, 21];
+    case _SalesPeriod.weekly: return [40, 65, 50, 80, 75, 90, 85];
+    case _SalesPeriod.monthly: return [30, 45, 40, 60, 55, 70, 65, 80, 75, 90, 85, 95];
   }
 }
 
-List<_TopProduct> _mockTopProducts() {
-  return const [
-    _TopProduct(label: 'Blue Magic', value: 7.2),
-    _TopProduct(label: 'coca', value: 5.0),
-  ];
-}
-
-void _toast(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-}
+List<_TopProduct> _mockTopProducts() => [
+  _TopProduct(label: 'Blue Magic', value: 7.2),
+  _TopProduct(label: 'Coca Cola', value: 5.0),
+  _TopProduct(label: 'Water 1L', value: 3.5),
+  _TopProduct(label: 'Bread', value: 2.8),
+];

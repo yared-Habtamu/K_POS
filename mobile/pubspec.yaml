@@ -55,6 +55,7 @@ dependencies:
   confetti:
   intl:
   video_player:
+  mobile_scanner:
 
 dev_dependencies:
   flutter_test:
