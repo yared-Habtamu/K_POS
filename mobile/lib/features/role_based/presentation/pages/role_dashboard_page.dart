@@ -197,6 +197,17 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
           return const OwnerInventoryPage();
         case _RolePage.employees:
           return const OwnerEmployeesPage();
+        case _RolePage.expenses:
+          return const OwnerExpensesPage();
+        case _RolePage.alerts:
+          // Show manager alerts page UI inside owner
+          return const ManagerAlertsPage();
+        case _RolePage.todaySales:
+          // Show manager today's sales page UI inside owner
+          return const ManagerTodaysSalesPage();
+        case _RolePage.assets:
+          // Show manager assets page UI inside owner
+          return const ManagerAssetsPage();
         case _RolePage.reports:
           return const OwnerReportsPage();
         case _RolePage.expenses:
