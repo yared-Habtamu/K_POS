@@ -19,7 +19,9 @@ import 'package:pos_app/features/owners_page/presentation/pages/owner_pos_page.d
 import 'package:pos_app/features/owners_page/presentation/pages/owner_products_page.dart';
 import 'package:pos_app/features/owners_page/presentation/pages/owner_inventory_page.dart';
 import 'package:pos_app/features/owners_page/presentation/pages/owner_employees_page.dart';
-import 'package:pos_app/features/owners_page/presentation/pages/owner_settings_page.dart';import 'package:pos_app/features/owners_page/presentation/pages/owner_expenses_page.dart';import 'package:pos_app/features/owners_page/presentation/pages/owner_reports_page.dart';
+import 'package:pos_app/features/owners_page/presentation/pages/owner_settings_page.dart';
+import 'package:pos_app/features/owners_page/presentation/pages/owner_expenses_page.dart';
+import 'package:pos_app/features/owners_page/presentation/pages/owner_reports_page.dart';
 import 'package:pos_app/services/global.dart';
 import 'package:pos_app/utils/common_widgets.dart';
 
@@ -44,7 +46,7 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
 
   void _loadRole() {
     final stored = Global.storageServices.getUserRole();
-    setState(() {
+    setState(() { 
       _role = _normalizeRole(stored);
       _selected =
           _role == 'store_keeper' ? _RolePage.inventory : _RolePage.dashboard;
@@ -208,8 +210,16 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
           return const ManagerAssetsPage();
         case _RolePage.reports:
           return const OwnerReportsPage();
+        case _RolePage.expenses:
+          return const OwnerExpensesPage();
         case _RolePage.settings:
           return const OwnerSettingsPage();
+        case _RolePage.todaySales:
+          return const ManagerTodaysSalesPage();
+        case _RolePage.alerts:
+          return const ManagerAlertsPage();
+        case _RolePage.assets:
+          return const ManagerAssetsPage();
         default:
           return _RolePlaceholderPage(
             title: _titleForPage(_selected),
