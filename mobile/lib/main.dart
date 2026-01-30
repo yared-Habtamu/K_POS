@@ -1,6 +1,7 @@
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:get/get_navigation/src/root/get_material_app.dart';
 import 'package:pos_app/features/owners_page/presentation/bloc/owner_bloc.dart';
@@ -50,31 +51,38 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => ThemeManager()),
-        ChangeNotifierProvider(create: (_) => UserProvider()),
-      ],
-      child: MultiBlocProvider(
-        providers: [
-          BlocProvider(create: (create) => serviceLocator<AuthBloc>()),
-          BlocProvider(create: (create) => serviceLocator<OwnerBloc>()),
-        ],
-        child: Consumer<ThemeManager>(
-          builder: (context, themeManager, child) {
-            return GetMaterialApp(
-              title: 'Simple Pos',
-              debugShowCheckedModeBanner: false,
-              themeMode: themeManager.themeMode,
-              theme: ThemeData.light(),
-              darkTheme: ThemeData.dark(),
-              onGenerateRoute: NamedRouteSettings.GenerateRouteSettings,
-              initialRoute: NamedRoutes.SplashScreenPage,
-              // getPages: AppPages.routes,
-            );
-          },
-        ),
-      ),
+    return ScreenUtilInit(
+      designSize: const Size(375, 812), // iPhone X design size
+      minTextAdapt: true,
+      splitScreenMode: true,
+      builder: (context, child) {
+        return MultiProvider(
+          providers: [
+            ChangeNotifierProvider(create: (_) => ThemeManager()),
+            ChangeNotifierProvider(create: (_) => UserProvider()),
+          ],
+          child: MultiBlocProvider(
+            providers: [
+              BlocProvider(create: (create) => serviceLocator<AuthBloc>()),
+              BlocProvider(create: (create) => serviceLocator<OwnerBloc>()),
+            ],
+            child: Consumer<ThemeManager>(
+              builder: (context, themeManager, child) {
+                return GetMaterialApp(
+                  title: 'UniHub',
+                  debugShowCheckedModeBanner: false,
+                  themeMode: themeManager.themeMode,
+                  theme: ThemeData.light(),
+                  darkTheme: ThemeData.dark(),
+                  onGenerateRoute: NamedRouteSettings.GenerateRouteSettings,
+                  initialRoute: NamedRoutes.SplashScreenPage,
+                  // getPages: AppPages.routes,
+                );
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 }

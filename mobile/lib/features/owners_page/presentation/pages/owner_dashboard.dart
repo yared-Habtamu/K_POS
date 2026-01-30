@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:pos_app/features/common_dashboard_pages/common_drawer_and_header.dart';
 
 class OwnerDashboard extends StatefulWidget {
@@ -24,25 +25,16 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
               onTap: () {
                 Navigator.pop(context);
               }),
-          SizedBox(
-            height: 2,
-          ),
           commonDrawerWidget(
               icon: Icons.shopping_cart_outlined,
               text: "Point Of Sales",
               isClicked: false,
               onTap: () {}),
-          SizedBox(
-            height: 2,
-          ),
           commonDrawerWidget(
               icon: Icons.library_books_sharp,
               text: "Daily Report",
               isClicked: false,
               onTap: () {}),
-          SizedBox(
-            height: 2,
-          ),
           commonDrawerWidget(
               icon: Icons.groups,
               text: "Customers",
@@ -62,41 +54,35 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
             onTap: () {},
             child: CircleAvatar(
               backgroundColor: Colors.white,
-              radius: 20,
+              radius: 20.0.r,
               child: Center(
-                child: Icon(Icons.language),
+                child: Icon(Icons.language, size: 20.0.sp),
               ),
             ),
           ),
-          SizedBox(
-            width: 15,
-          ),
+          SizedBox(width: 15.0.w),
           InkWell(
             onTap: () {},
             child: CircleAvatar(
               backgroundColor: Colors.white,
-              radius: 20,
+              radius: 20.0.r,
               child: Center(
-                child: Icon(Icons.notifications_none_outlined),
+                child: Icon(Icons.notifications_none_outlined, size: 20.0.sp),
               ),
             ),
           ),
-          SizedBox(
-            width: 15,
-          ),
+          SizedBox(width: 15.0.w),
           InkWell(
             onTap: () {},
             child: CircleAvatar(
               backgroundColor: Colors.white,
-              radius: 20,
+              radius: 20.0.r,
               child: Center(
-                child: Text("J"),
+                child: Text("J", style: TextStyle(fontSize: 16.0.sp)),
               ),
             ),
           ),
-          SizedBox(
-            width: 20,
-          ),
+          SizedBox(width: 20.0.w),
         ],
       ),
       body: Center(

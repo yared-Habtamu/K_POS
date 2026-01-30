@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class OwnerDashboardPage extends StatefulWidget {
   const OwnerDashboardPage({super.key});
@@ -23,13 +24,14 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final width = constraints.maxWidth;
+          final isWide = width >= 1000;
           final isDesktop = width >= 1100;
           final isTablet = width >= 700 && width < 1100;
 
           return SingleChildScrollView(
             padding: EdgeInsets.symmetric(
-              horizontal: width > 600 ? 32 : 16,
-              vertical: 24,
+              horizontal: width > 600 ? 32.w : 16.w,
+              vertical: 24.h,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -38,10 +40,10 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                   onInvite: () => _toast(context, 'Invite Owner'),
                   onRegister: () => _toast(context, 'Register Mart'),
                 ),
-                const SizedBox(height: 32),
+                SizedBox(height: 32.h),
                 _StatsGrid(stats: stats, isDesktop: isDesktop, isTablet: isTablet),
-                const SizedBox(height: 32),
-                if (isDesktop)
+                SizedBox(height: 32.h),
+                if (isWide)
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -93,23 +95,22 @@ class _ModernHeader extends StatelessWidget {
     return LayoutBuilder(builder: (context, constraints) {
       final isSmall = constraints.maxWidth < 600;
 
-      final textSection = Column(
+      final title = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Overview',
+          Text(
+            'Dashboard',
             style: TextStyle(
-              fontSize: 28,
+              fontSize: 28.0.sp,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF1A1D1E),
-              letterSpacing: -0.5,
+              color: const Color(0xFF1A1D1E),
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6.0.h),
           Text(
-            "Here's what's happening with your store today.",
+            "Welcome back! Here's what's happening with your store today.",
             style: TextStyle(
-              fontSize: 15,
+              fontSize: 15.0.sp,
               color: Colors.grey.shade600,
               height: 1.4,
             ),
@@ -138,13 +139,13 @@ class _ModernHeader extends StatelessWidget {
       if (isSmall) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [textSection, const SizedBox(height: 20), buttons],
+          children: [title, const SizedBox(height: 20), buttons],
         );
       }
 
       return Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [textSection, buttons],
+        children: [title, buttons],
       );
     });
   }
@@ -167,37 +168,38 @@ class _ActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(12.r),
       child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        height: 48.h,
+        padding: EdgeInsets.symmetric(horizontal: 20.w),
         decoration: BoxDecoration(
           color: isPrimary ? const Color(0xFF0F172A) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(12.r),
           border: isPrimary ? null : Border.all(color: Colors.grey.shade300),
           boxShadow: isPrimary
               ? [
-            BoxShadow(
-              color: const Color(0xFF0F172A).withOpacity(0.2),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            )
-          ]
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withOpacity(0.2),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  )
+                ]
               : null,
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
-              size: 18,
+              size: 18.sp,
               color: isPrimary ? Colors.white : const Color(0xFF0F172A),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8.w),
             Text(
               label,
               style: TextStyle(
                 fontWeight: FontWeight.w600,
-                fontSize: 14,
+                fontSize: 14.sp,
                 color: isPrimary ? Colors.white : const Color(0xFF0F172A),
               ),
             ),
@@ -221,62 +223,58 @@ class _StatsGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cards = [
-      _StatData(
-        title: "Total Revenue",
-        value: "${stats.todaySalesEtb.toInt()}",
-        suffix: "ETB",
-        trend: "+${stats.salesDeltaPct}%",
-        isTrendUp: true,
-        icon: Icons.payments_rounded,
-        color: const Color(0xFF6366F1),
-      ),
-      _StatData(
-        title: "Transactions",
-        value: "${stats.transactions}",
-        trend: "+${stats.transactionsDeltaPct}%",
-        isTrendUp: true,
-        icon: Icons.receipt_long_rounded,
-        color: const Color(0xFF10B981),
-      ),
-      _StatData(
-        title: "Net Profit",
-        value: "${stats.profitEtb.toInt()}",
-        suffix: "ETB",
-        trend: "+${stats.profitDeltaPct}%",
-        isTrendUp: true,
-        icon: Icons.pie_chart_rounded,
-        color: const Color(0xFFF59E0B),
-      ),
-      _StatData(
-        title: "Active Alerts",
-        value: "${stats.alerts}",
-        trend: "Action needed",
-        isTrendUp: false,
-        icon: Icons.notifications_active_rounded,
-        color: const Color(0xFFEF4444),
-      ),
-    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final columns = width >= 1200 ? 4 : width >= 900 ? 2 : 1;
 
-    int crossAxisCount = 1;
-    if (isDesktop) crossAxisCount = 4;
-    else if (isTablet) crossAxisCount = 2;
+        final cards = [
+          _StatData(
+            title: "Today's Sales",
+            value: "${stats.todaySalesEtb.toInt()}",
+            suffix: "ETB",
+            trend: "+${stats.salesDeltaPct.toStringAsFixed(1)}%",
+            isTrendUp: true,
+            icon: Icons.payments_rounded,
+            color: const Color(0xFF6366F1),
+          ),
+          _StatData(
+            title: "Transactions",
+            value: "${stats.transactions}",
+            trend: "+${stats.transactionsDeltaPct.toStringAsFixed(1)}%",
+            isTrendUp: true,
+            icon: Icons.receipt_long_rounded,
+            color: const Color(0xFF10B981),
+          ),
+          _StatData(
+            title: "Net Profit",
+            value: "${stats.profitEtb.toInt()}",
+            suffix: "ETB",
+            trend: "+${stats.profitDeltaPct.toStringAsFixed(1)}%",
+            isTrendUp: true,
+            icon: Icons.pie_chart_rounded,
+            color: const Color(0xFFF59E0B),
+          ),
+          _StatData(
+            title: "Active Alerts",
+            value: "${stats.alerts}",
+            trend: "Action needed",
+            isTrendUp: false,
+            icon: Icons.notifications_active_rounded,
+            color: const Color(0xFFEF4444),
+          ),
+        ];
 
-    return Wrap(
-      spacing: 16,
-      runSpacing: 16,
-      children: cards.map((data) {
-        final w = isDesktop
-            ? (MediaQuery.of(context).size.width - 64 - (16 * 3)) / 4
-            : isTablet
-            ? (MediaQuery.of(context).size.width - 64 - 16) / 2
-            : double.infinity;
-
-        return SizedBox(
-          width: w,
-          child: _StatCard(data: data),
+        return GridView.count(
+          crossAxisCount: columns,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 16.0.w,
+          mainAxisSpacing: 16.0.h,
+          childAspectRatio: columns >= 2 ? 3.2 : 2.8,
+          children: cards.map((data) => _StatCard(data: data)).toList(),
         );
-      }).toList(),
+      },
     );
   }
 }
@@ -308,11 +306,13 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final deltaColor = data.isTrendUp ? const Color(0xFF10B981) : const Color(0xFFEF4444);
+    
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(20.0.w),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20.r),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.06),
@@ -333,16 +333,16 @@ class _StatCard extends StatelessWidget {
                   color: data.color.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(data.icon, color: data.color, size: 20),
+                child: Icon(data.icon, color: data.color, size: 20.sp),
               ),
               _TrendBadge(text: data.trend, isUp: data.isTrendUp),
             ],
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24.h),
           Text(
             data.title,
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 14.sp,
               fontWeight: FontWeight.w600,
               color: Colors.grey.shade500,
             ),
@@ -365,7 +365,7 @@ class _StatCard extends StatelessWidget {
                 Text(
                   data.suffix!,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 14.sp,
                     fontWeight: FontWeight.w600,
                     color: Colors.grey.shade400,
                   ),
@@ -431,11 +431,11 @@ class _SalesChartCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 400,
-      padding: const EdgeInsets.all(24),
+      height: 400.h,
+      padding: EdgeInsets.all(24.0.w),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(24.r),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.06),
@@ -452,7 +452,7 @@ class _SalesChartCard extends StatelessWidget {
               const Text(
                 'Sales Analytics',
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: 18.sp,
                   fontWeight: FontWeight.w700,
                   color: Color(0xFF1E293B),
                 ),
@@ -463,7 +463,7 @@ class _SalesChartCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 32),
+          SizedBox(height: 32.h),
           Expanded(
             child: CustomPaint(
               size: Size.infinite,
@@ -489,11 +489,11 @@ class _TopProductsCard extends StatelessWidget {
     final maxVal = products.fold<double>(0, (p, c) => math.max(p, c.value));
 
     return Container(
-      height: 400,
-      padding: const EdgeInsets.all(24),
+      height: 400.h,
+      padding: EdgeInsets.all(24.0.w),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(24.r),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.06),
@@ -508,17 +508,17 @@ class _TopProductsCard extends StatelessWidget {
           const Text(
             'Top Performers',
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 18.sp,
               fontWeight: FontWeight.w700,
               color: Color(0xFF1E293B),
             ),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24.h),
           Expanded(
             child: ListView.separated(
               physics: const NeverScrollableScrollPhysics(),
               itemCount: products.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 20),
+              separatorBuilder: (_, __) => SizedBox(height: 20.h),
               itemBuilder: (context, index) {
                 final p = products[index];
                 final pct = p.value / (maxVal == 0 ? 1 : maxVal);
@@ -531,29 +531,29 @@ class _TopProductsCard extends StatelessWidget {
                       children: [
                         Text(
                           p.label,
-                          style: const TextStyle(
-                            fontSize: 14,
+                          style: TextStyle(
+                            fontSize: 14.sp,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF475569),
+                            color: const Color(0xFF475569),
                           ),
                         ),
                         Text(
                           "${p.value.toStringAsFixed(1)}k",
-                          style: const TextStyle(
-                            fontSize: 14,
+                          style: TextStyle(
+                            fontSize: 14.sp,
                             fontWeight: FontWeight.w700,
-                            color: Color(0xFF1E293B),
+                            color: const Color(0xFF1E293B),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8.h),
                     Container(
-                      height: 8,
+                      height: 8.h,
                       width: double.infinity,
                       decoration: BoxDecoration(
                         color: const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(4.r),
                       ),
                       child: FractionallySizedBox(
                         alignment: Alignment.centerLeft,
@@ -563,11 +563,11 @@ class _TopProductsCard extends StatelessWidget {
                             gradient: const LinearGradient(
                               colors: [Color(0xFF6366F1), Color(0xFF818CF8)],
                             ),
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: BorderRadius.circular(4.r),
                           ),
                         ),
                       ),
-                    )
+                    ),
                   ],
                 );
               },
@@ -588,10 +588,10 @@ class _ModernTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(4),
+      padding: EdgeInsets.all(4.0.w),
       decoration: BoxDecoration(
         color: const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(10.r),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -601,24 +601,24 @@ class _ModernTabs extends StatelessWidget {
             onTap: () => onChanged(p),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
               decoration: BoxDecoration(
                 color: isSel ? Colors.white : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(8.r),
                 boxShadow: isSel
                     ? [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  )
-                ]
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        )
+                      ]
                     : null,
               ),
               child: Text(
                 p.name[0].toUpperCase() + p.name.substring(1),
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: 13.sp,
                   fontWeight: FontWeight.w600,
                   color: isSel ? const Color(0xFF1E293B) : const Color(0xFF94A3B8),
                 ),
@@ -652,7 +652,6 @@ class _SmoothChartPainter extends CustomPainter {
     final range = maxVal - minVal;
     final wStep = size.width / (values.length - 1);
 
-    // Normalize logic
     double getY(double val) {
       if (range == 0) return size.height / 2;
       return size.height - ((val - minVal) / range) * (size.height * 0.8) - (size.height * 0.1);
@@ -671,7 +670,6 @@ class _SmoothChartPainter extends CustomPainter {
       path.cubicTo(controlX, y1, controlX, y2, x2, y2);
     }
 
-    // Draw Shadow
     final fillPath = Path.from(path)
       ..lineTo(size.width, size.height)
       ..lineTo(0, size.height)
@@ -688,12 +686,13 @@ class _SmoothChartPainter extends CustomPainter {
       Paint()..shader = gradient.createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
     );
 
-    // Draw Line
     canvas.drawPath(path, paint);
 
-    // Draw Dots
     final dotPaint = Paint()..color = Colors.white;
-    final borderPaint = Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = 2;
+    final borderPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
 
     for (int i = 0; i < values.length; i++) {
       final cx = i * wStep;
@@ -707,9 +706,12 @@ class _SmoothChartPainter extends CustomPainter {
   bool shouldRepaint(covariant _SmoothChartPainter oldDelegate) => true;
 }
 
-// --- Data Models ---
-
+// Data Models
 enum _SalesPeriod { daily, weekly, monthly }
+
+extension on _SalesPeriod {
+  String get name => toString().split('.').last;
+}
 
 class _OwnerStats {
   final double todaySalesEtb;
@@ -734,30 +736,36 @@ class _OwnerStats {
 class _TopProduct {
   final String label;
   final double value;
+
   _TopProduct({required this.label, required this.value});
 }
 
 _OwnerStats _mockOwnerStats() => const _OwnerStats(
-  todaySalesEtb: 8292,
-  salesDeltaPct: 12.5,
-  transactions: 24,
-  transactionsDeltaPct: 8.2,
-  profitEtb: 5592,
-  profitDeltaPct: 5.3,
-  alerts: 3,
-);
+      todaySalesEtb: 8292,
+      salesDeltaPct: 12.5,
+      transactions: 24,
+      transactionsDeltaPct: 8.2,
+      profitEtb: 5592,
+      profitDeltaPct: 5.3,
+      alerts: 3,
+    );
 
 List<double> _mockSales(_SalesPeriod period) {
   switch (period) {
-    case _SalesPeriod.daily: return [12, 18, 14, 22, 19, 24, 21];
-    case _SalesPeriod.weekly: return [40, 65, 50, 80, 75, 90, 85];
-    case _SalesPeriod.monthly: return [30, 45, 40, 60, 55, 70, 65, 80, 75, 90, 85, 95];
+    case _SalesPeriod.daily:
+      return [1200, 1800, 900, 2200, 1600, 1400, 2100];
+    case _SalesPeriod.weekly:
+      return [0, 4500, 0, 0, 0, 3200, 0];
+    case _SalesPeriod.monthly:
+      return [
+        800, 1200, 1600, 900, 1400, 1800, 1500, 2100, 1700, 2300, 1900, 2500
+      ];
   }
 }
 
 List<_TopProduct> _mockTopProducts() => [
-  _TopProduct(label: 'Blue Magic', value: 7.2),
-  _TopProduct(label: 'Coca Cola', value: 5.0),
-  _TopProduct(label: 'Water 1L', value: 3.5),
-  _TopProduct(label: 'Bread', value: 2.8),
-];
+      _TopProduct(label: 'Blue Magic', value: 7.2),
+      _TopProduct(label: 'Coca Cola', value: 5.0),
+      _TopProduct(label: 'Water 1L', value: 3.5),
+      _TopProduct(label: 'Bread', value: 2.8),
+    ];

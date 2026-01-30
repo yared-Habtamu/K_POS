@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:pos_app/features/common_dashboard_pages/common_drawer_and_header.dart';
 import 'package:pos_app/features/admin/presentation/pages/admin_dashboard_page.dart';
 import 'package:pos_app/features/admin/presentation/pages/admin_mart_management_page.dart';
@@ -48,8 +49,13 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
     final stored = Global.storageServices.getUserRole();
     setState(() {
       _role = _normalizeRole(stored);
-      _selected =
-          _role == 'store_keeper' ? _RolePage.inventory : _RolePage.dashboard;
+      // Default selection: store keeper -> inventory, cashier variants -> dashboard, else dashboard
+      if (_role.startsWith('cashier')) {
+        _selected = _RolePage.dashboard;
+      } else {
+        _selected =
+            _role == 'store_keeper' ? _RolePage.inventory : _RolePage.dashboard;
+      }
     });
   }
 
@@ -108,7 +114,6 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
           _MenuItem(_RolePage.dashboard, Icons.dashboard, 'Dashboard'),
           _MenuItem(_RolePage.pos, Icons.point_of_sale, 'Point Of Sale'),
           _MenuItem(_RolePage.dailyReport, Icons.library_books, 'Daily Report'),
-          _MenuItem(_RolePage.todaySales, Icons.today, "Today's Sales"),
           _MenuItem(_RolePage.customers, Icons.groups, 'Customers'),
         ];
     }
@@ -125,17 +130,14 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
         roleLabel: _role,
         drawerItems: menu
             .map(
-              (item) => Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: commonDrawerWidget(
-                  icon: item.icon,
-                  text: item.label,
-                  isClicked: _selected == item.page,
-                  onTap: () {
-                    setState(() => _selected = item.page);
-                    Navigator.pop(context);
-                  },
-                ),
+              (item) => commonDrawerWidget(
+                icon: item.icon,
+                text: item.label,
+                isClicked: _selected == item.page,
+                onTap: () {
+                  setState(() => _selected = item.page);
+                  Navigator.pop(context);
+                },
               ),
             )
             .toList(),
@@ -171,7 +173,7 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
             },
             icon: const Icon(Icons.logout_outlined),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8.0.w),
         ],
       ),
       body: _buildBody(),
@@ -218,8 +220,16 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
           return const ManagerAssetsPage();
         case _RolePage.reports:
           return const OwnerReportsPage();
+        case _RolePage.expenses:
+          return const OwnerExpensesPage();
         case _RolePage.settings:
           return const OwnerSettingsPage();
+        case _RolePage.todaySales:
+          return const ManagerTodaysSalesPage();
+        case _RolePage.alerts:
+          return const ManagerAlertsPage();
+        case _RolePage.assets:
+          return const ManagerAssetsPage();
         default:
           return _RolePlaceholderPage(
             title: _titleForPage(_selected),
@@ -264,6 +274,26 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
           return const StoreKeeperBarcodeScannerPage();
         case _RolePage.alerts:
           return const StoreKeeperAlertsPage();
+        default:
+          return _RolePlaceholderPage(
+            title: _titleForPage(_selected),
+            subtitle: _subtitleForPage(_selected, _role),
+          );
+      }
+    }
+
+    // Cashier: custom dashboard view (accept variants like 'cashier2')
+    if (_role.startsWith('cashier')) {
+      switch (_selected) {
+        case _RolePage.dashboard:
+          return const CashierDashboardPage();
+        case _RolePage.pos:
+          // Cashiers use the same POS as owners
+          return const OwnerPosPage();
+        case _RolePage.dailyReport:
+          return const CashierDailyReportPage();
+        case _RolePage.customers:
+          return const CashierCustomersPage();
         default:
           return _RolePlaceholderPage(
             title: _titleForPage(_selected),
@@ -388,6 +418,599 @@ class _MenuItem {
   const _MenuItem(this.page, this.icon, this.label);
 }
 
+class CashierDashboardPage extends StatelessWidget {
+  const CashierDashboardPage({super.key});
+
+  Widget _infoCard(String label, String value) {
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 12.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8.r),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black12, blurRadius: 6.r, offset: Offset(0, 2.h)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: TextStyle(fontSize: 10.sp, color: Colors.grey[600])),
+          SizedBox(height: 6.h),
+          Text(value,
+              style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryCard(String label, String value) {
+    return Container(
+      width: 150.w,
+      padding: EdgeInsets.all(12.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10.r),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: TextStyle(fontSize: 12.sp, color: Colors.grey[700])),
+          SizedBox(height: 8.h),
+          Text(value,
+              style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(12.w),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Dashboard',
+                      style: TextStyle(
+                          fontSize: 18.sp, fontWeight: FontWeight.bold)),
+                  SizedBox(height: 4.h),
+                  Text('Quick overview',
+                      style:
+                          TextStyle(fontSize: 12.sp, color: Colors.grey[600])),
+                ],
+              ),
+              Row(
+                children: [
+                  _infoCard('Items Sold', '16'),
+                  SizedBox(width: 8.w),
+                  _infoCard('Total Sales', '\$520.00'),
+                ],
+              )
+            ],
+          ),
+          SizedBox(height: 12.h),
+
+          // Charts (placeholders)
+          Container(
+            height: 180.h,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12.r),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Center(
+                child: Text('Chart: Top items (placeholder)',
+                    style: TextStyle(fontSize: 12.sp))),
+          ),
+          SizedBox(height: 12.h),
+
+          Container(
+            height: 140.h,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12.r),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Center(
+                child: Text('Chart: Sales share (placeholder)',
+                    style: TextStyle(fontSize: 12.sp))),
+          ),
+          SizedBox(height: 12.h),
+
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _summaryCard('Total Items Sold', '16'),
+                SizedBox(width: 8.w),
+                _summaryCard('Total Purchasing Cost', '\$520.00'),
+              ],
+            ),
+          ),
+          SizedBox(height: 16.h),
+
+          Text('Sold Items',
+              style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold)),
+          SizedBox(height: 8.h),
+          Card(
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10.r)),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: CircleAvatar(
+                      backgroundColor: Colors.grey.shade200,
+                      child: Icon(Icons.shopping_bag)),
+                  title: Text('Bread2', style: TextStyle(fontSize: 14.sp)),
+                  subtitle: Text('Qty: 6', style: TextStyle(fontSize: 12.sp)),
+                  trailing: Text('\$120.00',
+                      style: TextStyle(
+                          fontSize: 14.sp, fontWeight: FontWeight.bold)),
+                ),
+                Divider(height: 1.h),
+                ListTile(
+                  leading: CircleAvatar(
+                      backgroundColor: Colors.grey.shade200,
+                      child: Icon(Icons.shopping_bag)),
+                  title: Text('Baby oil', style: TextStyle(fontSize: 14.sp)),
+                  subtitle: Text('Qty: 10', style: TextStyle(fontSize: 12.sp)),
+                  trailing: Text('\$400.00',
+                      style: TextStyle(
+                          fontSize: 14.sp, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 20.h),
+        ],
+      ),
+    );
+  }
+}
+
+class CashierCustomersPage extends StatefulWidget {
+  const CashierCustomersPage({super.key});
+
+  @override
+  State<CashierCustomersPage> createState() => _CashierCustomersPageState();
+}
+
+class CashierDailyReportPage extends StatefulWidget {
+  const CashierDailyReportPage({super.key});
+
+  @override
+  State<CashierDailyReportPage> createState() => _CashierDailyReportPageState();
+}
+
+class _CashierDailyReportPageState extends State<CashierDailyReportPage> {
+  final _totalSalesCtrl = TextEditingController(text: '0');
+  final _cashReceivedCtrl = TextEditingController(text: '0');
+  final _bankTransfersCtrl = TextEditingController(text: '0');
+  final _discountCtrl = TextEditingController(text: '0');
+  final _notesCtrl = TextEditingController();
+
+  void _refresh() {
+    // Placeholder for refresh logic (e.g., fetch today's POS totals)
+    setState(() {
+      // simple mock: set cash received to 70% of total sales if numeric
+      final total = double.tryParse(_totalSalesCtrl.text) ?? 0.0;
+      _cashReceivedCtrl.text = (total * 0.7).toStringAsFixed(0);
+    });
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Refreshed totals')));
+  }
+
+  void _submitReport() {
+    // Basic validation & feedback; replace with real submission logic later
+    final total = double.tryParse(_totalSalesCtrl.text) ?? 0.0;
+    if (total <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter total sales')));
+      return;
+    }
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Daily report submitted')));
+  }
+
+  @override
+  void dispose() {
+    _totalSalesCtrl.dispose();
+    _cashReceivedCtrl.dispose();
+    _bankTransfersCtrl.dispose();
+    _discountCtrl.dispose();
+    _notesCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cashierName = Global.storageServices.getUserName() ?? 'cashier';
+    final now = DateTime.now();
+    final weekdayNames = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday'
+    ];
+    final monthNames = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December'
+    ];
+    final weekdayStr = weekdayNames[now.weekday - 1];
+    final monthStr = monthNames[now.month - 1];
+    final dateStr = '$weekdayStr, $monthStr ${now.day}, ${now.year}';
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 20.h),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 720.w),
+          child: Card(
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.r)),
+            child: Padding(
+              padding: EdgeInsets.all(16.w),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Daily Report',
+                      style: TextStyle(
+                          fontSize: 18.sp, fontWeight: FontWeight.bold)),
+                  SizedBox(height: 6.h),
+                  Text('Submit your daily financial report • $dateStr',
+                      style:
+                          TextStyle(fontSize: 12.sp, color: Colors.grey[600])),
+                  SizedBox(height: 12.h),
+
+                  Container(
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 12.w, vertical: 14.h),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8.r),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Cashier:',
+                                style: TextStyle(
+                                    fontSize: 12.sp, color: Colors.grey[700])),
+                            SizedBox(height: 6.h),
+                            Text(cashierName,
+                                style: TextStyle(
+                                    fontSize: 14.sp,
+                                    fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text('Date:',
+                                style: TextStyle(
+                                    fontSize: 12.sp, color: Colors.grey[700])),
+                            SizedBox(height: 6.h),
+                            Text(dateStr, style: TextStyle(fontSize: 14.sp)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  SizedBox(height: 16.h),
+
+                  // Four inputs in two columns
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('\$ Total Sales (ETB)',
+                                style: TextStyle(
+                                    fontSize: 12.sp, color: Colors.grey[700])),
+                            SizedBox(height: 8.h),
+                            TextField(
+                              controller: _totalSalesCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                  border: OutlineInputBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(8.r))),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(width: 12.w),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Cash Received (ETB)',
+                                style: TextStyle(
+                                    fontSize: 12.sp, color: Colors.grey[700])),
+                            SizedBox(height: 8.h),
+                            TextField(
+                              controller: _cashReceivedCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                  border: OutlineInputBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(8.r))),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 12.h),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Bank Transfers (ETB)',
+                                style: TextStyle(
+                                    fontSize: 12.sp, color: Colors.grey[700])),
+                            SizedBox(height: 8.h),
+                            TextField(
+                              controller: _bankTransfersCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                  border: OutlineInputBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(8.r))),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(width: 12.w),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Discount Given (ETB)',
+                                style: TextStyle(
+                                    fontSize: 12.sp, color: Colors.grey[700])),
+                            SizedBox(height: 8.h),
+                            TextField(
+                              controller: _discountCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                  border: OutlineInputBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(8.r))),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 12.h),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: OutlinedButton.icon(
+                      onPressed: _refresh,
+                      icon: const Icon(Icons.refresh),
+                      label: Text('Refresh', style: TextStyle(fontSize: 12.sp)),
+                    ),
+                  ),
+
+                  SizedBox(height: 12.h),
+
+                  Text('Additional Notes (Optional)',
+                      style:
+                          TextStyle(fontSize: 12.sp, color: Colors.grey[700])),
+                  SizedBox(height: 8.h),
+                  TextField(
+                    controller: _notesCtrl,
+                    maxLines: 5,
+                    decoration: InputDecoration(
+                      hintText: 'Any additional information...',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8.r)),
+                    ),
+                  ),
+
+                  SizedBox(height: 16.h),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _submitReport,
+                      icon: const Icon(Icons.send),
+                      label: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12.h),
+                        child: Text('Submit Daily Report',
+                            style: TextStyle(fontSize: 14.sp)),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8.r))),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CashierCustomersPageState extends State<CashierCustomersPage> {
+  final _nameCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _cityCtrl = TextEditingController();
+
+  final List<Map<String, String>> _customers = [
+    {
+      'name': 'Yared Habtamu Desalegn',
+      'phone': '0968757961',
+      'city': 'Addis Ababa'
+    },
+    {'name': 'Abebe kebede', 'phone': '0916757961', 'city': 'Addis Ababa'},
+  ];
+
+  void _addCustomer() {
+    final name = _nameCtrl.text.trim();
+    final phone = _phoneCtrl.text.trim();
+    final city = _cityCtrl.text.trim();
+    if (name.isEmpty || phone.isEmpty) return;
+    setState(() {
+      _customers.insert(0, {'name': name, 'phone': phone, 'city': city});
+      _nameCtrl.clear();
+      _phoneCtrl.clear();
+      _cityCtrl.clear();
+    });
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _phoneCtrl.dispose();
+    _cityCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(12.w),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Customer Management',
+              style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.bold)),
+          SizedBox(height: 6.h),
+          Text('Add and view customers (cashier only)',
+              style: TextStyle(fontSize: 12.sp, color: Colors.grey[600])),
+          SizedBox(height: 12.h),
+          Container(
+            padding: EdgeInsets.all(12.w),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12.r),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: TextField(
+                    controller: _nameCtrl,
+                    decoration: InputDecoration(hintText: 'Name'),
+                  ),
+                ),
+                SizedBox(width: 8.w),
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: _phoneCtrl,
+                    decoration: InputDecoration(hintText: 'Phone number'),
+                    keyboardType: TextInputType.phone,
+                  ),
+                ),
+                SizedBox(width: 8.w),
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: _cityCtrl,
+                    decoration: InputDecoration(hintText: 'City'),
+                  ),
+                ),
+                SizedBox(width: 8.w),
+                ElevatedButton(
+                  onPressed: _addCustomer,
+                  style: ElevatedButton.styleFrom(
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
+                  ),
+                  child:
+                      Text('Add Customer', style: TextStyle(fontSize: 12.sp)),
+                )
+              ],
+            ),
+          ),
+          SizedBox(height: 18.h),
+          Card(
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10.r)),
+            child: Padding(
+              padding: EdgeInsets.all(12.w),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Your Customers',
+                      style: TextStyle(
+                          fontSize: 16.sp, fontWeight: FontWeight.w600)),
+                  SizedBox(height: 12.h),
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: NeverScrollableScrollPhysics(),
+                    itemCount: _customers.length,
+                    separatorBuilder: (_, __) => Divider(height: 1.h),
+                    itemBuilder: (context, index) {
+                      final c = _customers[index];
+                      return Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8.h),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(c['name'] ?? '',
+                                style: TextStyle(
+                                    fontSize: 14.sp,
+                                    fontWeight: FontWeight.w600)),
+                            SizedBox(height: 4.h),
+                            Text('${c['phone'] ?? ''} • ${c['city'] ?? ''}',
+                                style: TextStyle(
+                                    fontSize: 12.sp, color: Colors.grey[600])),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _RolePlaceholderPage extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -398,34 +1021,35 @@ class _RolePlaceholderPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(24.0.w),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.layers, size: 64, color: Colors.grey.shade600),
-            const SizedBox(height: 16),
+            Icon(Icons.layers, size: 64.0.sp, color: Colors.grey.shade600),
+            SizedBox(height: 16.0.h),
             Text(
               title,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 22.0.sp, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8.0.h),
             Text(
               subtitle,
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+              style: TextStyle(fontSize: 14.0.sp, color: Colors.grey.shade700),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: 18.0.h),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.all(12.0.w),
               decoration: BoxDecoration(
                 color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(12.0.r),
                 border: Border.all(color: Colors.green.shade100),
               ),
-              child: const Text(
+              child: Text(
                 'Note: These pages are placeholders (cashier-style)\nso you can wire real UI later.',
                 textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12.0.sp),
               ),
             ),
           ],
