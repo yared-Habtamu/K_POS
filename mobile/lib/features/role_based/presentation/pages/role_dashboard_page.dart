@@ -11,7 +11,7 @@ import 'package:pos_app/features/manager/presentation/pages/manager_products_pag
 import 'package:pos_app/features/manager/presentation/pages/manager_dashboard_page.dart';
 import 'package:pos_app/features/manager/presentation/pages/manager_todays_sales_page.dart';
 import 'package:pos_app/features/manager/presentation/pages/manager_inventory_page.dart';
-import 'package:pos_app/features/manager/presentation/pages/manager_pos_page.dart';
+import 'package:pos_app/features/manager/presentation/pages/manager_point_of_sale_page.dart';
 import 'package:pos_app/features/manager/presentation/pages/manager_approvals_page.dart';
 import 'package:pos_app/features/manager/presentation/pages/manager_assets_page.dart';
 import 'package:pos_app/features/manager/presentation/pages/manager_employees_page.dart';
@@ -143,6 +143,7 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
             .toList(),
       ),
       appBar: AppBar(
+        backgroundColor: Colors.white,
         leading: IconButton(
           onPressed: () {
             if (_selected != _RolePage.dashboard) {
@@ -153,9 +154,16 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
           },
           icon: _selected != _RolePage.dashboard
               ? const Icon(Icons.arrow_back_ios)
-              : Image.asset('assets/icons/hamburger.png'),
+              : Image.asset(
+                  'assets/icons/hamburger.png',
+                  height: 25,
+                  width: 25,
+                ),
         ),
-        title: Text(_titleForPage(_selected)),
+        title: Text(
+          _titleForPage(_selected),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+        ),
         actions: [
           IconButton(
             tooltip: 'Logout',
@@ -237,7 +245,7 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
         case _RolePage.products:
           return const ManagerProductsPage();
         case _RolePage.pos:
-          return const ManagerPosPage();
+          return const PointOfSalePage();
         case _RolePage.inventory:
           return const ManagerInventoryPage();
         case _RolePage.employees:

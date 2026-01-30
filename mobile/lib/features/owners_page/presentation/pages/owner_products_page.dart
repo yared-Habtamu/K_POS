@@ -83,10 +83,6 @@ class _Header extends StatelessWidget {
         final title = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Products',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
-            ),
             const SizedBox(height: 4),
             Text(
               'Manage your product inventory',

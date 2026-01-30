@@ -13,10 +13,6 @@ class ManagerAlertsPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Alerts',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
-          ),
           const SizedBox(height: 6),
           Text(
             'alerts_summary',

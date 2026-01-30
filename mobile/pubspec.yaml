@@ -55,6 +55,7 @@ dependencies:
   confetti:
   intl:
   video_player:
+  mobile_scanner:
   fl_chart: ^1.1.1
 
 dev_dependencies:

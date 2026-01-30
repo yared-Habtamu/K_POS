@@ -44,10 +44,6 @@ class _OwnerInventoryPageState extends State<OwnerInventoryPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Inventory',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
-            ),
             const SizedBox(height: 12),
             _SearchBar(
               controller: _searchController,

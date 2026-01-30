@@ -70,9 +70,6 @@ class _ManagerAssetsPageState extends State<ManagerAssetsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Asset Registration',
-                        style: TextStyle(
-                            fontSize: 28, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 6),
                     Text('Register company assets quickly',
                         style: TextStyle(

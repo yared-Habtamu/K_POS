@@ -44,10 +44,6 @@ class _ManagerApprovalsPageState extends State<ManagerApprovalsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Approvals',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
-          ),
           const SizedBox(height: 6),
           Text(
             'Review product creations and stock transfers',
