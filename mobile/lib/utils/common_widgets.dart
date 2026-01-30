@@ -59,17 +59,17 @@ class ReusableText extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: EdgeInsets.only(
-        top: FromTop,
-        left: FromLeft,
-        right: FromRight,
-        bottom: FromBottom,
+        top: FromTop.h,
+        left: FromLeft.w,
+        right: FromRight.w,
+        bottom: FromBottom.h,
       ),
       child: Text(
         TextString,
         overflow: TextOverflow.fade,
         style: GoogleFonts.lato(
           color: TextColor,
-          fontSize: FontSize,
+          fontSize: FontSize.sp,
           fontWeight: TextFontWeight,
         ),
       ),
@@ -102,18 +102,18 @@ class AppButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: ButtonHeight,
-      width: ButtonWidth,
+      height: ButtonHeight.h,
+      width: ButtonWidth.w,
       decoration: BoxDecoration(
         boxShadow: [
           BoxShadow(
             color: ColorCollections.SecondaryColor,
-            spreadRadius: 2,
-            blurRadius: 5,
-            offset: Offset(5, 5),
+            spreadRadius: 2.r,
+            blurRadius: 5.r,
+            offset: Offset(5.w, 5.h),
           ),
         ],
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(10.r),
         color: ContainerColor.withOpacity(1),
       ),
       child: Center(
@@ -121,7 +121,7 @@ class AppButton extends StatelessWidget {
           ButtonText,
           style: TextStyle(
             fontWeight: ButtonFontWeight,
-            fontSize: FontSize,
+            fontSize: FontSize.sp,
             color: ButtonColor,
           ),
         ),
@@ -150,14 +150,14 @@ Widget reusableTextField({
     height: 45.h,
     // width: WidthOfContainer.w,
     margin: EdgeInsets.only(
-      top: FromTop.w,
-      bottom: FromBottom.w,
+      top: FromTop.h,
+      bottom: FromBottom.h,
       left: FromLeft.w,
       right: FromRight.w,
     ),
     decoration: BoxDecoration(
       color: Theme.of(context).colorScheme.primaryContainer,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(10.r),
       // border: Border.all(color: Colors.grey.shade100),
     ),
     child: Row(
@@ -165,9 +165,9 @@ Widget reusableTextField({
       children: [
         icon_name != null
             ? Container(
-                height: 16.w,
+                height: 16.h,
                 width: 16.w,
-                margin: const EdgeInsets.only(left: 17),
+                margin: EdgeInsets.only(left: 17.w),
                 decoration: BoxDecoration(
                   image: DecorationImage(
                     image: AssetImage("assets/icons/flat_icons/$icon_name.png"),
@@ -177,15 +177,17 @@ Widget reusableTextField({
             : SizedBox(),
         Expanded(
           child: TextField(
-            style: TextStyle(color: Theme.of(context).colorScheme.primary),
+            style: TextStyle(
+                color: Theme.of(context).colorScheme.primary, fontSize: 14.sp),
             onChanged: (value) => onchange!(value),
             keyboardType: TextInputType.multiline,
             decoration: InputDecoration(
               isDense: true,
               // suffixIcon: suffixIcon,
               hintText: hintText,
-              hintStyle:
-                  TextStyle(color: Theme.of(context).colorScheme.onPrimary),
+              hintStyle: TextStyle(
+                  color: Theme.of(context).colorScheme.onPrimary,
+                  fontSize: 14.sp),
               border: const OutlineInputBorder(
                 borderSide: BorderSide(
                   color: Colors.transparent,

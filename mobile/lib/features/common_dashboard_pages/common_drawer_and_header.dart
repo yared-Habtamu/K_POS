@@ -1,80 +1,90 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 Widget CommonDrawer({
   required BuildContext context,
   required List<Widget> drawerItems,
   String roleLabel = 'cashier',
 }) {
-  return Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Drawer(
-        semanticLabel: "Drawer",
-        child: ListView(
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(10),
-                  margin: EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      color: Colors.blue.shade900),
-                  child: Image.asset(
-                    "assets/logos/pos.png",
-                    height: 40,
-                    width: 40,
-                    fit: BoxFit.fill,
+  return Drawer(
+    semanticLabel: "Drawer",
+    child: Column(
+      children: [
+        // Header with logo and close button
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 16.0.w, vertical: 10.0.h),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade900,
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(10.0.r),
+              bottomRight: Radius.circular(10.0.r),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(8.0.w),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8.0.r),
+                      color: Colors.white,
+                    ),
+                    child: Image.asset(
+                      "assets/logos/pos.png",
+                      height: 32.0.h,
+                      width: 32.0.w,
+                      fit: BoxFit.fill,
+                    ),
                   ),
-                ),
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Smart POS",
-                      style: TextStyle(
-                          // color: isClicked ? Colors.white : Colors.black,
-                          ),
-                    ),
-                    Text(
-                      roleLabel,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey,
+                  SizedBox(width: 12.0.w),
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Smart POS",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18.0.sp,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                  ],
+                      Text(
+                        roleLabel,
+                        style: TextStyle(
+                          fontSize: 14.0.sp,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              IconButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                icon: Icon(
+                  Icons.close,
+                  color: Colors.white,
+                  size: 24.0.sp,
                 ),
-              ],
-            ),
-            SizedBox(
-              height: 30,
-            ),
-            ListView.builder(
-              scrollDirection: Axis.vertical,
-              shrinkWrap:true,
-              itemCount: drawerItems.length,
-                itemBuilder: (context,index){
-                return drawerItems[index];
-                },),
-          ],
-        ),
-      ),
-      Container(
-        height: 60,
-        width: 60,
-        child: IconButton(
-          onPressed: () {
-            Navigator.pop(context);
-          },
-          icon: Icon(
-            Icons.cancel_presentation,
-            color: Colors.white,
+              ),
+            ],
           ),
         ),
-      ),
-    ],
+        SizedBox(height: 20.0.h),
+        // Drawer items
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.symmetric(horizontal: 8.0.w),
+            children: drawerItems,
+          ),
+        ),
+      ],
+    ),
   );
 }
 
@@ -87,10 +97,10 @@ Widget commonDrawerWidget({
   return InkWell(
     onTap: onTap,
     child: Container(
-      padding: EdgeInsets.all(10),
-      margin: EdgeInsets.only(left: 15, right: 15),
+      padding: EdgeInsets.symmetric(horizontal: 16.0.w, vertical: 12.0.h),
+      margin: EdgeInsets.symmetric(horizontal: 8.0.w, vertical: 4.0.h),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(5),
+        borderRadius: BorderRadius.circular(8.0.r),
         color: isClicked ? Colors.green : Colors.white,
       ),
       child: Row(
@@ -98,14 +108,17 @@ Widget commonDrawerWidget({
           Icon(
             icon,
             color: isClicked ? Colors.white : Colors.black,
+            size: 24.0.sp,
           ),
-          SizedBox(
-            width: 20,
-          ),
-          Text(
-            text,
-            style: TextStyle(
-              color: isClicked ? Colors.white : Colors.black,
+          SizedBox(width: 16.0.w),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: isClicked ? Colors.white : Colors.black,
+                fontSize: 16.0.sp,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
