@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, UserPlus, Share2 } from "lucide-react";
+// removed unused header icons (Invite / Register buttons removed)
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { RoleLayout } from "@/components/layout/RoleLayout";
@@ -170,48 +170,7 @@ export default function OwnerDashboard() {
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  const url = `${window.location.origin}/owner/register`;
-                  if (navigator.clipboard) {
-                    navigator.clipboard
-                      .writeText(url)
-                      .then(() => {
-                        toast({
-                          title: "Link copied",
-                          description: "Registration link copied to clipboard.",
-                        });
-                      })
-                      .catch(() => {
-                        toast({
-                          title: "Copy failed",
-                          description: "Could not copy link to clipboard.",
-                        });
-                      });
-                  } else {
-                    try {
-                      // fallback
-                      window.prompt?.("Copy this link", url);
-                    } catch {
-                      toast({
-                        title: "Copy failed",
-                        description: "Could not copy link to clipboard.",
-                      });
-                    }
-                  }
-                }}
-              >
-                <Share2 className="mr-2 h-4 w-4" />
-                Invite Owner
-              </Button>
-              <Button size="sm" onClick={() => navigate("/owner/register")}>
-                <UserPlus className="mr-2 h-4 w-4" />
-                Register a Mart
-              </Button>
-            </div>
+            {/* Owner actions removed: Invite Owner and Register a Mart buttons intentionally hidden for owner role */}
           </div>
         </div>
 

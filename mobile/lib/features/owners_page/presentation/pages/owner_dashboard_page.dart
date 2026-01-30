@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class OwnerDashboardPage extends StatefulWidget {
   const OwnerDashboardPage({super.key});
@@ -24,17 +25,14 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
         final isWide = width >= 1000;
 
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(16.0.w),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _HeaderRow(
-                onInviteOwner: () => _toast(context, 'Invite Owner (mock)'),
-                onRegisterMart: () => _toast(context, 'Register a Mart (mock)'),
-              ),
-              const SizedBox(height: 16),
+              _HeaderRow(),
+              SizedBox(height: 16.0.h),
               _StatsGrid(stats: stats),
-              const SizedBox(height: 16),
+              SizedBox(height: 16.0.h),
               if (isWide)
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -58,7 +56,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                   onPeriodChanged: (p) => setState(() => _period = p),
                   series: sales,
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16.0.h),
                 _TopSellingCard(products: topProducts),
               ],
             ],
@@ -70,13 +68,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
 }
 
 class _HeaderRow extends StatelessWidget {
-  final VoidCallback onInviteOwner;
-  final VoidCallback onRegisterMart;
-
-  const _HeaderRow({
-    required this.onInviteOwner,
-    required this.onRegisterMart,
-  });
+  const _HeaderRow();
 
   @override
   Widget build(BuildContext context) {
@@ -87,48 +79,26 @@ class _HeaderRow extends StatelessWidget {
         final title = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Dashboard',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
+              style: TextStyle(fontSize: 28.0.sp, fontWeight: FontWeight.w700),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4.0.h),
             Text(
               "Welcome back! Here's what's happening today.",
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+              style: TextStyle(fontSize: 14.0.sp, color: Colors.grey.shade700),
             ),
           ],
         );
 
-        final actions = Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          alignment: WrapAlignment.end,
-          children: [
-            OutlinedButton.icon(
-              onPressed: onInviteOwner,
-              icon: const Icon(Icons.share_outlined, size: 18),
-              label: const Text('Invite Owner'),
-            ),
-            ElevatedButton.icon(
-              onPressed: onRegisterMart,
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Register a Mart'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue.shade900,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-            ),
-          ],
-        );
+        final actions = const SizedBox.shrink();
 
         if (isNarrow) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               title,
-              const SizedBox(height: 12),
+              SizedBox(height: 12.0.h),
               actions,
             ],
           );
@@ -223,8 +193,8 @@ class _StatsGrid extends StatelessWidget {
           crossAxisCount: columns,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
+          crossAxisSpacing: 16.0.w,
+          mainAxisSpacing: 16.0.h,
           childAspectRatio: columns >= 2 ? 3.2 : 2.8,
           children: cards,
         );
@@ -257,10 +227,10 @@ class _StatCard extends StatelessWidget {
     final deltaColor = deltaUp ? Colors.green.shade700 : Colors.red.shade700;
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      padding: EdgeInsets.symmetric(vertical: 8.0.h, horizontal: 12.0.w),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16.0.r),
         border: Border.all(color: Colors.grey.shade300),
       ),
       child: Row(
@@ -270,24 +240,35 @@ class _StatCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(title, style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
-                const SizedBox(height: 8),
-                FittedBox(alignment: Alignment.centerLeft, fit: BoxFit.scaleDown, child: Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800))),
-                const SizedBox(height: 4),
-                Text(deltaText, style: TextStyle(fontSize: 12, color: deltaColor, fontWeight: FontWeight.w700)),
+                Text(title,
+                    style: TextStyle(
+                        fontSize: 14.0.sp, color: Colors.grey.shade700)),
+                SizedBox(height: 8.0.h),
+                FittedBox(
+                    alignment: Alignment.centerLeft,
+                    fit: BoxFit.scaleDown,
+                    child: Text(value,
+                        style: TextStyle(
+                            fontSize: 22.0.sp, fontWeight: FontWeight.w800))),
+                SizedBox(height: 4.0.h),
+                Text(deltaText,
+                    style: TextStyle(
+                        fontSize: 12.0.sp,
+                        color: deltaColor,
+                        fontWeight: FontWeight.w700)),
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12.0.w),
           Container(
-            width: 44,
-            height: 44,
+            width: 44.0.w,
+            height: 44.0.h,
             decoration: BoxDecoration(
               color: iconBg,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(14.0.r),
               border: Border.all(color: Colors.grey.shade200),
             ),
-            child: Icon(icon, color: iconFg),
+            child: Icon(icon, color: iconFg, size: 24.0.sp),
           ),
         ],
       ),
@@ -318,7 +299,8 @@ class _WeeklySalesCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Weekly Sales', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+          const Text('Weekly Sales',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
           const SizedBox(height: 12),
           _PeriodTabs(period: period, onChanged: onPeriodChanged),
           const SizedBox(height: 12),
@@ -326,7 +308,8 @@ class _WeeklySalesCard extends StatelessWidget {
             height: 240,
             width: double.infinity,
             child: CustomPaint(
-              painter: _LineChartPainter(values: series, lineColor: Colors.blue.shade900),
+              painter: _LineChartPainter(
+                  values: series, lineColor: Colors.blue.shade900),
             ),
           ),
         ],
@@ -342,7 +325,8 @@ class _TopSellingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxV = products.isEmpty ? 1.0 : products.map((p) => p.value).reduce(math.max);
+    final maxV =
+        products.isEmpty ? 1.0 : products.map((p) => p.value).reduce(math.max);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -354,7 +338,8 @@ class _TopSellingCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Top Selling Products', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+          const Text('Top Selling Products',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
           const SizedBox(height: 16),
           SizedBox(
             height: 240,
@@ -507,7 +492,8 @@ class _BarChartPainter extends CustomPainter {
       final yCenter = (rowH * i) + (rowH / 2);
       final yTop = yCenter - (barH / 2);
 
-      final barW = (item.value / (maxValue <= 0 ? 1 : maxValue)) * (size.width - 90);
+      final barW =
+          (item.value / (maxValue <= 0 ? 1 : maxValue)) * (size.width - 90);
       final rect = RRect.fromRectAndRadius(
         Rect.fromLTWH(90, yTop, math.max(8, barW), barH),
         const Radius.circular(10),
@@ -516,7 +502,10 @@ class _BarChartPainter extends CustomPainter {
 
       textPainter.text = TextSpan(
         text: item.label,
-        style: TextStyle(fontSize: 12, color: Colors.grey.shade800, fontWeight: FontWeight.w600),
+        style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade800,
+            fontWeight: FontWeight.w600),
       );
       textPainter.layout(maxWidth: 85);
       textPainter.paint(canvas, Offset(0, yCenter - (textPainter.height / 2)));
@@ -525,7 +514,9 @@ class _BarChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _BarChartPainter oldDelegate) {
-    return oldDelegate.items != items || oldDelegate.maxValue != maxValue || oldDelegate.barColor != barColor;
+    return oldDelegate.items != items ||
+        oldDelegate.maxValue != maxValue ||
+        oldDelegate.barColor != barColor;
   }
 }
 
@@ -586,7 +577,20 @@ List<double> _mockSales(_SalesPeriod period) {
     case _SalesPeriod.weekly:
       return const [0, 4500, 0, 0, 0, 3200, 0];
     case _SalesPeriod.monthly:
-      return const [800, 1200, 1600, 900, 1400, 1800, 1500, 2100, 1700, 2300, 1900, 2500];
+      return const [
+        800,
+        1200,
+        1600,
+        900,
+        1400,
+        1800,
+        1500,
+        2100,
+        1700,
+        2300,
+        1900,
+        2500
+      ];
   }
 }
 
