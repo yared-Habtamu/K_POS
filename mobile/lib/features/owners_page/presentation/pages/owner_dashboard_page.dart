@@ -449,7 +449,7 @@ class _SalesChartCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Sales Analytics',
                 style: TextStyle(
                   fontSize: 18.sp,
@@ -505,7 +505,7 @@ class _TopProductsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Top Performers',
             style: TextStyle(
               fontSize: 18.sp,
