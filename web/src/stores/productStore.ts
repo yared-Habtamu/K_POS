@@ -200,10 +200,11 @@ export const useProductStore = create<ProductState>((set, get) => ({
     set({ isLoading: true });
     const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
     const token = useAuthStore.getState().user?.token;
+    const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
     const martId = useAuthStore.getState().user?.martId;
     try {
       const res = await fetch(`${API_BASE}/api/products`, {
-        headers: { Authorization: token ? `Bearer ${token}` : "" },
+        headers: authHeader,
       });
       if (!res.ok) throw new Error("Failed to fetch products");
       const data = await res.json();
@@ -231,7 +232,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
       try {
         if (martId) {
           const salesRes = await fetch(`${API_BASE}/api/sales?martId=${martId}`, {
-            headers: { Authorization: token ? `Bearer ${token}` : "" },
+            headers: authHeader,
           });
           if (salesRes.ok) {
             const sales = await salesRes.json();
@@ -267,12 +268,13 @@ export const useProductStore = create<ProductState>((set, get) => ({
   addProduct: async (productData) => {
     const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
     const token = useAuthStore.getState().user?.token;
+    const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
     try {
       const res = await fetch(`${API_BASE}/api/products`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: token ? `Bearer ${token}` : "",
+          ...authHeader,
         },
         body: JSON.stringify(productData),
       });
@@ -308,10 +310,10 @@ export const useProductStore = create<ProductState>((set, get) => ({
       const res = await fetch(`${API_BASE}/api/products/${id}`, {
         method: "PUT",
         headers: isForm
-          ? ({ Authorization: token ? `Bearer ${token}` : "" } as any)
+          ? ({ ...authHeader } as any)
           : {
               "Content-Type": "application/json",
-              Authorization: token ? `Bearer ${token}` : "",
+              ...authHeader,
             },
         body: isForm ? updates : JSON.stringify(updates),
       });
@@ -358,7 +360,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
     try {
       const res = await fetch(`${API_BASE}/api/products/${id}`, {
         method: "DELETE",
-        headers: { Authorization: token ? `Bearer ${token}` : "" },
+        headers: authHeader,
       });
       if (!res.ok) throw new Error("Failed to delete");
       set((state) => ({ products: state.products.filter((p) => p.id !== id) }));

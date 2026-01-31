@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:pos_app/features/common_dashboard_pages/reusable_qr_scanner_page.dart';
+import 'mock_products.dart';
+import 'cart_provider.dart';
+import 'receipt_preview.dart';
+import 'package:provider/provider.dart';
 
 class CommonPointOfSale extends StatefulWidget {
   const CommonPointOfSale({super.key});
@@ -67,6 +71,74 @@ class _CommonPointOfSaleState extends State<CommonPointOfSale> {
                   ],
                 ),
                 const SizedBox(height: 14),
+                // Search results (mock) — show when user types something
+                Builder(builder: (context) {
+                  final all = mockProducts();
+                  final q = _searchController.text.trim().toLowerCase();
+                  final results = q.isEmpty
+                      ? <POSProduct>[]
+                      : all.where((p) {
+                          final lo = p.name.toLowerCase();
+                          return lo.contains(q) || p.category.toLowerCase().contains(q) || p.barcodes.any((b) => b.contains(q));
+                        }).toList();
+
+                  if (results.isEmpty) return const SizedBox.shrink();
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 6),
+                      Text('Search results', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.grey.shade800)),
+                      const SizedBox(height: 8),
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: results.length,
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: isWide ? 3 : (width < 360 ? 1 : 2),
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          childAspectRatio: isWide ? 3.6 : (width < 360 ? 1.2 : 2.0),
+                        ),
+                        itemBuilder: (context, index) {
+                          final p = results[index];
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(10),
+                            onTap: () {
+                              final cart = Provider.of<CartProvider>(context, listen: false);
+                              cart.addProduct(p);
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Added ${p.name} to cart')));
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              constraints: const BoxConstraints(minHeight: 64),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: ClipRect(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(p.name, style: const TextStyle(fontWeight: FontWeight.w700), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                    const SizedBox(height: 6),
+                                    Text('${p.priceEtb} ETB', style: TextStyle(color: Colors.blue.shade900, fontWeight: FontWeight.w800), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    const SizedBox(height: 4),
+                                    Text(p.category, style: TextStyle(fontSize: 12, color: Colors.grey.shade600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  );
+                }),
+
                 if (isWide)
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -204,62 +276,84 @@ class _CartCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          minWidth: 150.0,
-          minHeight: 200.0,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.shopping_cart_outlined, color: Colors.grey.shade800),
-                const SizedBox(width: 10),
-                const Text('Cart',
-                    style:
-                        TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-              ],
+    return Consumer<CartProvider>(
+      builder: (context, cart, child) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: 150.0,
+              minHeight: 200.0,
             ),
-            const SizedBox(height: 20),
-            // NOTE: This page sits inside a SingleChildScrollView.
-            // Using Expanded/Spacer here can cause: "incoming height constraints are unbounded".
-            SizedBox(
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Icon(Icons.shopping_cart_outlined,
-                        size: 56, color: Colors.grey.shade400),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Cart is empty',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.grey.shade800,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Scan or search products to add',
-                      style:
-                          TextStyle(fontSize: 13, color: Colors.grey.shade700),
-                    ),
+                    Icon(Icons.shopping_cart_outlined, color: Colors.grey.shade800),
+                    const SizedBox(width: 10),
+                    Text('Cart', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+                    const Spacer(),
+                    Text('${cart.items.length} items', style: TextStyle(color: Colors.grey.shade600)),
                   ],
                 ),
-              ),
+                const SizedBox(height: 12),
+                if (cart.isEmpty)
+                  SizedBox(
+                    height: 220,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.shopping_cart_outlined, size: 56, color: Colors.grey.shade400),
+                          const SizedBox(height: 12),
+                          Text('Cart is empty', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.grey.shade800)),
+                          const SizedBox(height: 6),
+                          Text('Scan or search products to add', style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+                        ],
+                      ),
+                    ),
+                  )
+                else ...[
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: cart.items.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final it = cart.items[index];
+                        return Row(
+                          children: [
+                            Expanded(child: Text(it.product.name, style: TextStyle(fontWeight: FontWeight.w700))),
+                            IconButton(onPressed: () => cart.changeQty(it.product, it.qty - 1), icon: const Icon(Icons.remove_circle)),
+                            Text('${it.qty}'),
+                            IconButton(onPressed: () => cart.changeQty(it.product, it.qty + 1), icon: const Icon(Icons.add_circle)),
+                            const SizedBox(width: 8),
+                            Text('${it.subtotal} ETB', style: TextStyle(fontWeight: FontWeight.w800)),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Text('Total', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                      const Spacer(),
+                      Text('${cart.total} ETB', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.blue.shade900)),
+                    ],
+                  ),
+                ],
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -560,43 +654,69 @@ class _PaymentCardState extends State<_PaymentCard> {
             },
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: ElevatedButton.icon(
-              onPressed: null,
-              icon: const Icon(Icons.payment),
-              label: const Text(
-                'Complete Sale - 0.00 ETB',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueGrey.shade300,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            height: 42,
-            child: OutlinedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Cart cleared (mock)')));
-              },
-              style: OutlinedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-              child: Text('Clear Cart',
-                  style: TextStyle(
-                      color: Colors.grey.shade700,
-                      fontWeight: FontWeight.w700)),
-            ),
+          Consumer<CartProvider>(
+            builder: (context, cart, child) {
+              final total = cart.total;
+              return Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: ElevatedButton.icon(
+                      onPressed: cart.isEmpty
+                          ? null
+                          : () async {
+                              try {
+                                debugPrint('Complete pressed — opening receipt preview directly');
+                                await showReceiptPreviewDialog(context, cart);
+                              } catch (e, st) {
+                                debugPrint('Failed to show receipt preview: $e\n$st');
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text('Receipt'),
+                                    content: SingleChildScrollView(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text('Total: $total ETB'),
+                                          const SizedBox(height: 8),
+                                          ...cart.items.map((it) => Text('${it.product.name} x${it.qty} - ${it.subtotal} ETB')),
+                                          const SizedBox(height: 8),
+                                          Text('Error showing full receipt: $e', style: const TextStyle(fontSize: 12, color: Colors.red)),
+                                        ],
+                                      ),
+                                    ),
+                                    actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close'))],
+                                  ),
+                                );
+                              }
+                            },
+
+                      icon: const Icon(Icons.payment),
+                      label: Text('Complete Sale - $total ETB', maxLines: 1, overflow: TextOverflow.ellipsis),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: cart.isEmpty ? Colors.blueGrey.shade300 : Colors.blue.shade900,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 42,
+                    child: OutlinedButton(
+                      onPressed: cart.isEmpty ? null : () => cart.clear(),
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: Text('Clear Cart', style: TextStyle(color: cart.isEmpty ? Colors.grey.shade400 : Colors.grey.shade700, fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),

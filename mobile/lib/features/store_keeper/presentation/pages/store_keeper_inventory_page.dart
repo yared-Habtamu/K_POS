@@ -66,14 +66,14 @@ class _StoreKeeperInventoryPageState extends State<StoreKeeperInventoryPage> {
                     mainAxisSpacing: 16,
                     // Make tiles taller so the card actions never overflow.
                     childAspectRatio: width >= 1200
-                      ? 0.78
-                      : width >= 1000
-                        ? 0.82
-                        : width >= 850
-                          ? 0.86
-                          : width >= 650
-                            ? 0.9
-                            : 0.82,
+                        ? 0.78
+                        : width >= 1000
+                            ? 0.82
+                            : width >= 850
+                                ? 0.86
+                                : width >= 650
+                                    ? 0.80
+                                    : 0.68,
                   ),
                   itemBuilder: (context, index) {
                     final item = items[index];
@@ -87,7 +87,7 @@ class _StoreKeeperInventoryPageState extends State<StoreKeeperInventoryPage> {
                         );
                       },
                       onAddImage: () => _toast('Add Image (mock): ${item.name}'),
-                      onAddStock: () => _toast('Add Stock (mock): ${item.name}'),
+                      onAddStock: () => showAddStockDialog(context, item),
                     );
                   },
                 ),
@@ -263,7 +263,7 @@ class _InventoryCard extends StatelessWidget {
             ),
           );
 
-          return Column(
+          final content = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _ImageArea(imageUrl: item.imageUrl),
@@ -351,6 +351,17 @@ class _InventoryCard extends StatelessWidget {
               ),
             ],
           );
+
+          // If the tile height is tight on smaller phones, allow the card to scroll internally
+          if (constraints.hasBoundedHeight && constraints.maxHeight < 380) {
+            return ClipRect(
+              child: SingleChildScrollView(
+                child: content,
+              ),
+            );
+          }
+
+          return content;
         },
       ),
     );
@@ -394,6 +405,211 @@ class _ImageArea extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> showAddStockDialog(BuildContext context, _InventoryItem item) async {
+  final warehouseStock = item.sold + item.remaining; // total available in warehouse
+  final supermarketStock = item.remaining;
+  final controller = TextEditingController();
+
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) {
+      return Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 520, maxHeight: MediaQuery.of(ctx).size.height * 0.9),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    const Expanded(child: Text('Add Stock', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700))),
+                    IconButton(onPressed: () => Navigator.of(ctx).pop(), icon: const Icon(Icons.close)),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Product preview
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12)),
+                        child: Row(
+                          children: [
+                            ClipRRect(borderRadius: BorderRadius.circular(8), child: Container(height: 56, width: 56, color: Colors.grey.shade200, child: item.imageUrl != null && item.imageUrl!.isNotEmpty ? Image.network(item.imageUrl!, fit: BoxFit.cover) : const Icon(Icons.inventory_2_outlined, size: 30, color: Colors.grey))),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(item.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                                const SizedBox(height: 4),
+                                Text(item.category, style: TextStyle(color: Colors.grey.shade700)),
+                                const SizedBox(height: 6),
+                                // mock barcode display
+                                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)), child: const Text('||||'))
+                              ]),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      // Stock boxes
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.shade100)),
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Row(children: [
+                                  Icon(Icons.warehouse, color: Colors.orange.shade700),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: Text('Warehouse Stock', style: TextStyle(color: Colors.orange.shade700), overflow: TextOverflow.ellipsis))
+                                ]),
+                                const SizedBox(height: 8),
+                                Text('$warehouseStock', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Colors.orange.shade700)),
+                              ]),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.green.shade100)),
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Row(children: [
+                                  Icon(Icons.store, color: Colors.green.shade700),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: Text('Supermarket Stock', style: TextStyle(color: Colors.green.shade700), overflow: TextOverflow.ellipsis))
+                                ]),
+                                const SizedBox(height: 8),
+                                Text('$supermarketStock', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Colors.green.shade700)),
+                              ]),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      // Quantity input
+                      const Text('Quantity to Transfer (Warehouse → Supermarket)', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        height: 54,
+                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.blue.shade200), color: Colors.white),
+                        child: Row(children: [
+                          Expanded(
+                            child: TextField(
+                              controller: controller,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(border: InputBorder.none, hintText: 'Enter quantity'),
+                            ),
+                          ),
+                          Icon(Icons.arrow_drop_up_outlined, color: Colors.grey.shade600),
+                        ]),
+                      ),
+                      const SizedBox(height: 6),
+                      Text('Max available: $warehouseStock units', style: TextStyle(color: Colors.grey.shade600)),
+                    ],
+                  ),
+                ),
+              ),
+
+              const Divider(height: 1),
+
+              // Actions
+              Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: LayoutBuilder(
+                  builder: (context, c) {
+                    final veryNarrow = c.maxWidth < 320;
+                    if (veryNarrow) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          OutlinedButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            height: 44,
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                final val = int.tryParse(controller.text.trim()) ?? 0;
+                                if (val <= 0) {
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid quantity')));
+                                  return;
+                                }
+                                if (val > warehouseStock) {
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Quantity exceeds warehouse stock')));
+                                  return;
+                                }
+                                Navigator.of(ctx).pop();
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Transferred $val units')));
+                              },
+                              icon: const Icon(Icons.add),
+                              label: const Text('Transfer Stock'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue.shade900,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        Expanded(child: OutlinedButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel'))),
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          height: 44,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                          final val = int.tryParse(controller.text.trim()) ?? 0;
+                          if (val <= 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid quantity')));
+                            return;
+                          }
+                          if (val > warehouseStock) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Quantity exceeds warehouse stock')));
+                            return;
+                          }
+                          // perform transfer (mock)
+                          Navigator.of(ctx).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Transferred $val units')));
+                            },
+                            icon: const Icon(Icons.add),
+                            label: const Text('Transfer Stock'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue.shade900,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              )
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _InventoryItem {
