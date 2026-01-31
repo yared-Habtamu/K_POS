@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:pos_app/features/common_dashboard_pages/common_drawer_and_header.dart';
+import 'package:pos_app/features/common_use_pages/common_drawer_and_header.dart';
 
 class OwnerDashboard extends StatefulWidget {
   const OwnerDashboard({super.key});

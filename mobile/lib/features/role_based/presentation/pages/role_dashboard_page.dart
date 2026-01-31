@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:pos_app/features/common_dashboard_pages/common_drawer_and_header.dart';
+import 'package:pos_app/features/common_use_pages/common_drawer_and_header.dart';
 import 'package:pos_app/features/admin/presentation/pages/admin_dashboard_page.dart';
 import 'package:pos_app/features/admin/presentation/pages/admin_mart_management_page.dart';
 import 'package:pos_app/features/store_keeper/presentation/pages/store_keeper_inventory_page.dart';
@@ -26,7 +26,7 @@ import 'package:pos_app/features/owners_page/presentation/pages/owner_reports_pa
 import 'package:pos_app/services/global.dart';
 import 'package:pos_app/utils/common_widgets.dart';
 
-import '../../../common_dashboard_pages/common_language_dropdown.dart';
+import '../../../common_use_pages/common_language_dropdown.dart';
 
 class RoleDashboardPage extends StatefulWidget {
   const RoleDashboardPage({super.key});

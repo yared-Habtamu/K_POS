@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:pos_app/features/common_dashboard_pages/reusable_qr_scanner_page.dart';
+import 'package:pos_app/features/common_use_pages/reusable_qr_scanner_page.dart';
 
 class CommonPointOfSale extends StatefulWidget {
   const CommonPointOfSale({super.key});
