@@ -8,10 +8,12 @@ import 'package:pos_app/features/owners_page/presentation/bloc/owner_bloc.dart';
 import 'package:pos_app/services/get_current_user.dart';
 import 'package:pos_app/services/global.dart';
 import 'package:provider/provider.dart';
+import 'package:pos_app/features/common_use_pages/cart_provider.dart';
 import 'config/routes/name.dart';
 import 'config/routes/pages.dart';
 import 'config/theme/theme_mode_provider.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
+import 'features/common_use_pages/cart_provider.dart';
 import 'init_dependencies.dart';
 import 'languages.dart';
 
@@ -61,7 +63,7 @@ class MyApp extends StatelessWidget {
           providers: [
             ChangeNotifierProvider(create: (_) => ThemeManager()),
             ChangeNotifierProvider(create: (_) => UserProvider()),
-          ],
+            ChangeNotifierProvider(create: (_) => CartProvider()),          ],
           child: MultiBlocProvider(
             providers: [
               BlocProvider(create: (create) => serviceLocator<AuthBloc>()),
