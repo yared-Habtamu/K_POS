@@ -8,82 +8,97 @@ Widget CommonDrawer({
 }) {
   return Drawer(
     semanticLabel: "Drawer",
-    child: Column(
-      children: [
-        // Header with logo and close button
-        Container(
-          padding: EdgeInsets.symmetric(horizontal: 16.0.w, vertical: 10.0.h),
-          decoration: BoxDecoration(
-            color: Colors.blue.shade900,
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(10.0.r),
-              bottomRight: Radius.circular(10.0.r),
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(8.0.w),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8.0.r),
-                      color: Colors.white,
-                    ),
-                    child: Image.asset(
-                      "assets/logos/pos.png",
-                      height: 32.0.h,
-                      width: 32.0.w,
-                      fit: BoxFit.fill,
-                    ),
+    child: MediaQuery.removePadding(
+      context: context,
+      removeTop: true,
+      child: Container(
+        color: Colors.white,
+        child: Column(
+          children: [
+
+            // Header with logo and close button
+            Padding(
+              padding: const EdgeInsets.only(top: 0),
+              child: Container(
+                padding: EdgeInsets.only(left: 10.w,right: 10.w,top: 30.h,bottom: 10.h),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade900,
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(10.0.r),
+                    bottomRight: Radius.circular(10.0.r),
                   ),
-                  SizedBox(width: 12.0.w),
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Smart POS",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18.0.sp,
-                          fontWeight: FontWeight.bold,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(8.0.w),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8.0.r),
+                            color: Colors.white,
+                          ),
+                          child: Image.asset(
+                            "assets/logos/pos.png",
+                            height: 32.0.h,
+                            width: 32.0.w,
+                            fit: BoxFit.fill,
+                          ),
                         ),
-                      ),
-                      Text(
-                        roleLabel,
-                        style: TextStyle(
-                          fontSize: 14.0.sp,
-                          color: Colors.white70,
+                        SizedBox(width: 12.0.w),
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Smart POS",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18.0.sp,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              roleLabel,
+                              style: TextStyle(
+                                fontSize: 14.0.sp,
+                                color: Colors.white70,
+                              ),
+                            ),
+                          ],
                         ),
+                      ],
+                    ),
+                    // Container(color:Colors.blue,
+                    //   height: 50,width: 100,
+                    // ),
+
+                    IconButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                      icon: Icon(
+                        Icons.close,
+                        color: Colors.white,
+                        size: 24.0.sp,
                       ),
-                    ],
-                  ),
-                ],
-              ),
-              IconButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                icon: Icon(
-                  Icons.close,
-                  color: Colors.white,
-                  size: 24.0.sp,
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+            SizedBox(height: 20.0.h),
+            // Drawer items
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.symmetric(horizontal: 8.0.w),
+                children: drawerItems,
+              ),
+            ),
+          ],
         ),
-        SizedBox(height: 20.0.h),
-        // Drawer items
-        Expanded(
-          child: ListView(
-            padding: EdgeInsets.symmetric(horizontal: 8.0.w),
-            children: drawerItems,
-          ),
-        ),
-      ],
+      ),
     ),
   );
 }

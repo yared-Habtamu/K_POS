@@ -138,7 +138,7 @@ class _SearchRowState extends State<_SearchRow> {
               // Navigate to scanner
               final result = await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const QRScannerPage()),
+                MaterialPageRoute(builder: (context) => const BarcodeScannerPage()),
               );
 
               // Handle result if it exists
@@ -787,7 +787,7 @@ class _SquareButton extends StatelessWidget {
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
-        child: Icon(icon, size: 20),
+        child: Icon(icon, size: 20,color: Colors.white,),
       ),
     );
   }

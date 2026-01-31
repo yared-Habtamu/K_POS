@@ -184,113 +184,116 @@ class _OwnerEmployeesPageState extends State<OwnerEmployeesPage> {
 
     final records = _mockAttendanceRecords();
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _TopTabs(
-            index: _tabIndex,
-            onChanged: (i) => setState(() => _tabIndex = i),
-          ),
-          const SizedBox(height: 12),
-          if (_tabIndex == 0) ...[
-            _Header(
-              title: 'Employees',
-              subtitle: 'Manage your team members',
-              buttonLabel: 'Add Employee',
-              onPressed: _openAddEmployeeDialog,
-              rightActions: null,
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _TopTabs(
+              index: _tabIndex,
+              onChanged: (i) => setState(() => _tabIndex = i),
             ),
-            const SizedBox(height: 14),
-            _SearchAndRoleRow(
-              controller: _searchController,
-              roles: roles,
-              selectedRole: _roleFilter,
-              onRoleChanged: (v) => setState(() => _roleFilter = v),
-              onQueryChanged: (v) => setState(() => _query = v),
-            ),
-            const SizedBox(height: 14),
-            _EmployeesTableCard(items: pageItems, totalCount: filtered.length),
-            const SizedBox(height: 14),
-            _PermissionsCard(
-              employees: all,
-              managerApplyDiscount: _managerApplyDiscount,
-              managerAddItemsWithPrice: _managerAddItemsWithPrice,
-              storeManageQty: _storeManageQty,
-              cashierApplyDiscount: _cashierApplyDiscount,
-              onToggleManagerDiscount: (id, v) =>
-                  setState(() => _managerApplyDiscount[id] = v),
-              onToggleManagerAddItemsWithPrice: (id, v) =>
-                  setState(() => _managerAddItemsWithPrice[id] = v),
-              onToggleStoreManageQty: (id, v) =>
-                  setState(() => _storeManageQty[id] = v),
-              onToggleCashierDiscount: (id, v) =>
-                  setState(() => _cashierApplyDiscount[id] = v),
-            ),
-          ] else ...[
-            _Header(
-              title: 'Attendance',
-              subtitle: 'Track and manage employee attendance',
-              buttonLabel: null,
-              onPressed: null,
-              rightActions: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _ActionButton(
-                    icon: Icons.download,
-                    label: 'Export CSV',
-                    onPressed: () => _toast('Export CSV (mock)'),
-                  ),
-                  const SizedBox(width: 10),
-                  _ActionButton(
-                    icon: Icons.picture_as_pdf_outlined,
-                    label: 'Export PDF',
-                    onPressed: () => _toast('Export PDF (mock)'),
-                  ),
-                ],
+            const SizedBox(height: 12),
+            if (_tabIndex == 0) ...[
+              _Header(
+                title: 'Employees',
+                subtitle: 'Manage your team members',
+                buttonLabel: 'Add Employee',
+                onPressed: _openAddEmployeeDialog,
+                rightActions: null,
               ),
-            ),
-            const SizedBox(height: 14),
-            _AttendanceFiltersCard(
-              employeeValue: _attendanceEmployeeFilter,
-              employeeItems: employeeOptions,
-              onEmployeeChanged: (v) =>
-                  setState(() => _attendanceEmployeeFilter = v),
-              dateRangeValue: _attendanceDateRange,
-              dateRangeItems: dateRanges,
-              onDateRangeChanged: (v) =>
-                  setState(() => _attendanceDateRange = v),
-            ),
-            const SizedBox(height: 14),
-            _AddAttendanceManuallyCard(
-              employees:
-                  employeeOptions.where((e) => e != 'All Employees').toList(),
-              selectedEmployee: _manualEmployee,
-              onEmployeeChanged: (v) => setState(() => _manualEmployee = v),
-              dateText: _formatYmd(_manualDate),
-              onPickDate: _pickManualDate,
-              clockInText: _manualClockIn == null
-                  ? '--:-- --'
-                  : _formatTime(_manualClockIn!),
-              clockOutText: _manualClockOut == null
-                  ? '--:-- --'
-                  : _formatTime(_manualClockOut!),
-              onPickClockIn: _pickClockIn,
-              onPickClockOut: _pickClockOut,
-              onSave: () => _toast('Save Attendance (mock)'),
-            ),
-            const SizedBox(height: 14),
-            _AttendanceRecordsCard(
-              recordsDate: _recordsDate,
-              onPrevDate: () => setState(() => _recordsDate =
-                  _recordsDate.subtract(const Duration(days: 1))),
-              onNextDate: () => setState(() =>
-                  _recordsDate = _recordsDate.add(const Duration(days: 1))),
-              records: records,
-            ),
+              const SizedBox(height: 14),
+              _SearchAndRoleRow(
+                controller: _searchController,
+                roles: roles,
+                selectedRole: _roleFilter,
+                onRoleChanged: (v) => setState(() => _roleFilter = v),
+                onQueryChanged: (v) => setState(() => _query = v),
+              ),
+              const SizedBox(height: 14),
+              _EmployeesTableCard(items: pageItems, totalCount: filtered.length),
+              const SizedBox(height: 14),
+              _PermissionsCard(
+                employees: all,
+                managerApplyDiscount: _managerApplyDiscount,
+                managerAddItemsWithPrice: _managerAddItemsWithPrice,
+                storeManageQty: _storeManageQty,
+                cashierApplyDiscount: _cashierApplyDiscount,
+                onToggleManagerDiscount: (id, v) =>
+                    setState(() => _managerApplyDiscount[id] = v),
+                onToggleManagerAddItemsWithPrice: (id, v) =>
+                    setState(() => _managerAddItemsWithPrice[id] = v),
+                onToggleStoreManageQty: (id, v) =>
+                    setState(() => _storeManageQty[id] = v),
+                onToggleCashierDiscount: (id, v) =>
+                    setState(() => _cashierApplyDiscount[id] = v),
+              ),
+            ] else ...[
+              _Header(
+                title: 'Attendance',
+                subtitle: 'Track and manage employee attendance',
+                buttonLabel: null,
+                onPressed: null,
+                rightActions: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _ActionButton(
+                      icon: Icons.download,
+                      label: 'Export CSV',
+                      onPressed: () => _toast('Export CSV (mock)'),
+                    ),
+                    const SizedBox(width: 10),
+                    _ActionButton(
+                      icon: Icons.picture_as_pdf_outlined,
+                      label: 'Export PDF',
+                      onPressed: () => _toast('Export PDF (mock)'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              _AttendanceFiltersCard(
+                employeeValue: _attendanceEmployeeFilter,
+                employeeItems: employeeOptions,
+                onEmployeeChanged: (v) =>
+                    setState(() => _attendanceEmployeeFilter = v),
+                dateRangeValue: _attendanceDateRange,
+                dateRangeItems: dateRanges,
+                onDateRangeChanged: (v) =>
+                    setState(() => _attendanceDateRange = v),
+              ),
+              const SizedBox(height: 14),
+              _AddAttendanceManuallyCard(
+                employees:
+                    employeeOptions.where((e) => e != 'All Employees').toList(),
+                selectedEmployee: _manualEmployee,
+                onEmployeeChanged: (v) => setState(() => _manualEmployee = v),
+                dateText: _formatYmd(_manualDate),
+                onPickDate: _pickManualDate,
+                clockInText: _manualClockIn == null
+                    ? '--:-- --'
+                    : _formatTime(_manualClockIn!),
+                clockOutText: _manualClockOut == null
+                    ? '--:-- --'
+                    : _formatTime(_manualClockOut!),
+                onPickClockIn: _pickClockIn,
+                onPickClockOut: _pickClockOut,
+                onSave: () => _toast('Save Attendance (mock)'),
+              ),
+              const SizedBox(height: 14),
+              _AttendanceRecordsCard(
+                recordsDate: _recordsDate,
+                onPrevDate: () => setState(() => _recordsDate =
+                    _recordsDate.subtract(const Duration(days: 1))),
+                onNextDate: () => setState(() =>
+                    _recordsDate = _recordsDate.add(const Duration(days: 1))),
+                records: records,
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -363,10 +366,7 @@ class _Header extends StatelessWidget {
         final titleWidget = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              this.title,
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
-            ),
+
             const SizedBox(height: 4),
             Text(
               subtitle,

@@ -32,28 +32,31 @@ class _OwnerInventoryPageState extends State<OwnerInventoryPage> {
     // Match screenshot footer: showing 1-7 of 8
     final pageItems = filtered.take(7).toList();
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Container(
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade300),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 12),
-            _SearchBar(
-              controller: _searchController,
-              onChanged: (v) => setState(() => _query = v),
-            ),
-            const SizedBox(height: 14),
-            _InventoryTable(items: pageItems),
-            const SizedBox(height: 12),
-            _FooterPager(showing: pageItems.length, total: filtered.length),
-          ],
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 12),
+              _SearchBar(
+                controller: _searchController,
+                onChanged: (v) => setState(() => _query = v),
+              ),
+              const SizedBox(height: 14),
+              _InventoryTable(items: pageItems),
+              const SizedBox(height: 12),
+              _FooterPager(showing: pageItems.length, total: filtered.length),
+            ],
+          ),
         ),
       ),
     );

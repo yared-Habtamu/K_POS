@@ -56,7 +56,7 @@ dependencies:
   intl:
   video_player:
   mobile_scanner:
-  fl_chart: ^1.1.1
+  fl_chart: 0.66.2
 
 dev_dependencies:
   flutter_test:

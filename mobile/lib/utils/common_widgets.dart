@@ -900,9 +900,11 @@ Widget DrowerWidget(IconData icons, String text, VoidCallback ontap) {
 
 LogoutShowDialogue(BuildContext context) {
   return showDialog(
+
       context: context,
       builder: (context) {
         return SimpleDialog(
+          backgroundColor: Colors.white,
           children: [
             Container(
               child: Column(
@@ -929,45 +931,49 @@ LogoutShowDialogue(BuildContext context) {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        GestureDetector(
-                          onTap: () async {
-                            // Perform app logout then navigate to sign-in screen.
-                            await UserProvider().logout();
-                            Navigator.of(context).pushNamedAndRemoveUntil(
-                                '/sign_in_page', (route) => false);
-                          },
-                          child: Container(
-                            height: 40,
-                            width: 100,
-                            decoration: BoxDecoration(
-                              color: ColorCollections.SecondaryColor,
-                              borderRadius: BorderRadius.circular(5),
-                            ),
-                            child: Center(
-                              child: ReusableText(
-                                TextString: 'Confirm',
-                                FontSize: 18,
-                                TextColor: Colors.red.shade900,
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () async {
+                              // Perform app logout then navigate to sign-in screen.
+                              await UserProvider().logout();
+                              Navigator.of(context).pushNamedAndRemoveUntil(
+                                  '/sign_in_page', (route) => false);
+                            },
+                            child: Container(
+                              height: 50,
+                              decoration: BoxDecoration(
+                                color: ColorCollections.SecondaryColor,
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Center(
+                                child: ReusableText(
+                                  TextString: 'Confirm',
+                                  FontSize: 18,
+                                  TextColor: Colors.red.shade900,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.of(context).pop();
-                          },
-                          child: Container(
-                            height: 40,
-                            width: 100,
-                            decoration: BoxDecoration(
-                              color: ColorCollections.TeritiaryColor,
-                              borderRadius: BorderRadius.circular(5),
-                            ),
-                            child: Center(
-                              child: ReusableText(
-                                TextString: 'Cancel',
-                                FontSize: 18,
-                                TextColor: ColorCollections.PrimaryColor,
+
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).pop();
+                            },
+                            child: Container(
+                              height: 50,
+                              margin: EdgeInsets.only(left: 10),
+                              decoration: BoxDecoration(
+                                color: ColorCollections.TeritiaryColor,
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Center(
+                                child: ReusableText(
+                                  TextString: 'Cancel',
+                                  FontSize: 18,
+                                  TextColor: ColorCollections.PrimaryColor,
+                                ),
                               ),
                             ),
                           ),

@@ -26,6 +26,8 @@ import 'package:pos_app/features/owners_page/presentation/pages/owner_reports_pa
 import 'package:pos_app/services/global.dart';
 import 'package:pos_app/utils/common_widgets.dart';
 
+import '../../../common_dashboard_pages/common_language_dropdown.dart';
+
 class RoleDashboardPage extends StatefulWidget {
   const RoleDashboardPage({super.key});
 
@@ -158,6 +160,7 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
                   'assets/icons/hamburger.png',
                   height: 25,
                   width: 25,
+            color: Colors.blue.shade900,
                 ),
         ),
         title: Text(
@@ -165,6 +168,7 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
         ),
         actions: [
+          LanguageDropdown(),
           IconButton(
             tooltip: 'Logout',
             onPressed: () {
