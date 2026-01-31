@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 
+import '../../../common_use_pages/reusable_qr_scanner_page.dart';
+
 class StoreKeeperBarcodeScannerPage extends StatefulWidget {
   const StoreKeeperBarcodeScannerPage({super.key});
 
   @override
-  State<StoreKeeperBarcodeScannerPage> createState() => _StoreKeeperBarcodeScannerPageState();
+  State<StoreKeeperBarcodeScannerPage> createState() =>
+      _StoreKeeperBarcodeScannerPageState();
 }
 
-class _StoreKeeperBarcodeScannerPageState extends State<StoreKeeperBarcodeScannerPage> {
+class _StoreKeeperBarcodeScannerPageState
+    extends State<StoreKeeperBarcodeScannerPage> {
   final TextEditingController _controller = TextEditingController();
 
   String _query = '';
@@ -61,13 +65,13 @@ class _StoreKeeperBarcodeScannerPageState extends State<StoreKeeperBarcodeScanne
                   crossAxisCount: crossAxisCount,
                   crossAxisSpacing: 16,
                   mainAxisSpacing: 16,
-                    childAspectRatio: width >= 1200
+                  childAspectRatio: width >= 1200
                       ? 0.78
                       : width >= 1000
-                        ? 0.82
-                        : width >= 650
-                          ? 0.88
-                          : 0.86,
+                          ? 0.82
+                          : width >= 650
+                              ? 0.88
+                              : 0.86,
                 ),
                 itemBuilder: (context, index) {
                   return _BarcodeProductCard(product: items[index]);
@@ -86,7 +90,8 @@ class _StoreKeeperBarcodeScannerPageState extends State<StoreKeeperBarcodeScanne
 
     return items
         .where(
-          (p) => p.name.toLowerCase().contains(q) ||
+          (p) =>
+              p.name.toLowerCase().contains(q) ||
               p.category.toLowerCase().contains(q) ||
               p.barcodes.any((b) => b.contains(q)),
         )
@@ -118,7 +123,8 @@ class _ScannerSearchCard extends StatelessWidget {
         builder: (context, constraints) {
           final isNarrow = constraints.maxWidth < 520;
 
-          final field = _SearchField(controller: controller, onChanged: onChanged);
+          final field =
+              _SearchField(controller: controller, onChanged: onChanged);
           final button = SizedBox(
             height: 54,
             child: ElevatedButton.icon(
@@ -129,7 +135,8 @@ class _ScannerSearchCard extends StatelessWidget {
                 backgroundColor: Colors.blue.shade900,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 22),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
               ),
             ),
           );
@@ -173,7 +180,27 @@ class _SearchField extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.qr_code_2, color: Colors.grey.shade700),
+          IconButton(
+            onPressed: () async {
+              // Navigate to scanner
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const BarcodeScannerPage()),
+              );
+
+              // Handle result if it exists
+              if (result != null) {
+                controller.text = result;
+                print("Scanned Code: $result");
+                // Do something with 'result'
+              }
+            },
+            icon: Icon(
+              Icons.qr_code_2,
+              color: Colors.grey.shade700,
+            ),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: TextField(
@@ -218,7 +245,8 @@ class _BarcodeProductCard extends StatelessWidget {
                   product.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -242,7 +270,8 @@ class _BarcodeProductCard extends StatelessWidget {
                         product.barcodes.join(', '),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade600),
                         textAlign: TextAlign.right,
                       ),
                     ),
@@ -270,14 +299,16 @@ class _CardImage extends StatelessWidget {
       color: Colors.grey.shade200,
       child: imageUrl == null || imageUrl!.trim().isEmpty
           ? Center(
-              child: Icon(Icons.inventory_2_outlined, size: 44, color: Colors.grey.shade600),
+              child: Icon(Icons.inventory_2_outlined,
+                  size: 44, color: Colors.grey.shade600),
             )
           : Image.network(
               imageUrl!,
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) {
                 return Center(
-                  child: Icon(Icons.inventory_2_outlined, size: 44, color: Colors.grey.shade600),
+                  child: Icon(Icons.inventory_2_outlined,
+                      size: 44, color: Colors.grey.shade600),
                 );
               },
             ),
@@ -308,14 +339,16 @@ List<_BarcodeProduct> _mockProducts() {
       category: 'Personal Care',
       priceEtb: 450,
       barcodes: ['767083286885'],
-      imageUrl: 'https://images.unsplash.com/photo-1521791136064-7986c2920216?w=1200&auto=format&fit=crop',
+      imageUrl:
+          'https://images.unsplash.com/photo-1521791136064-7986c2920216?w=1200&auto=format&fit=crop',
     ),
     _BarcodeProduct(
       name: 'Diva',
       category: 'Household',
       priceEtb: 75,
       barcodes: ['766905020772', '766905023088'],
-      imageUrl: 'https://images.unsplash.com/photo-1523413651479-597eb2da0ad6?w=1200&auto=format&fit=crop',
+      imageUrl:
+          'https://images.unsplash.com/photo-1523413651479-597eb2da0ad6?w=1200&auto=format&fit=crop',
     ),
     _BarcodeProduct(
       name: 'Fanta',

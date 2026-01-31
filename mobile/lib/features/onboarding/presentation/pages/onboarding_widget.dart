@@ -181,155 +181,160 @@ Widget onBoardingTwoPageReusableContainer({
 Widget onBoardingThirdPageReusableContainer({
   required BuildContext context,
 }) {
-  return SingleChildScrollView(
-    child: Container(
-      padding: EdgeInsets.symmetric(vertical: 20, horizontal: 10),
-      decoration: BoxDecoration(
-        color: Colors.green.shade50,
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              InkWell(
-                onTap: () {},
-                child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Text(
-                    "Skip",
-                    style: TextStyle(
-                      fontSize: 16,
+  return ListView(
+    children: [
+      Container(
+        padding: EdgeInsets.symmetric(vertical: 20, horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.green.shade50,
+        ),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                InkWell(
+                  onTap: () {},
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Text(
+                      "Skip",
+                      style: TextStyle(
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(100),
+                color: Colors.greenAccent.shade100.withOpacity(0.5),
+              ),
+              padding: EdgeInsets.all(40),
+              margin: EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: Colors.greenAccent.shade400,
+                    radius: 30,
+                    child: Center(child: Icon(Icons.emoji_events_outlined)),
+                  ),
+                  reusableHighlightContainer(
+                    icon: Icons.point_of_sale,
+                    title: "POS System",
+                  ),
+                  reusableHighlightContainer(
+                      icon: Icons.inventory, title: "Inventory"),
+                  reusableHighlightContainer(
+                      icon: Icons.groups, title: "Multi-Role"),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 50,
+            ),
+            Padding(
+              padding: const EdgeInsets.all(15),
+              child: Text(
+                "Fast checkout with barcode scanning,Real-time stock management,5 user roles with permissions,Sales and financial analytics",
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 18, color: Colors.grey.shade700),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(
+                  top: 15, left: 15, right: 15, bottom: 5),
+              child: InkWell(
+                onTap: () async {
+                  print("....on click get start - >  ");
+                  // Navigator.pushNamedAndRemoveUntil(
+                  //     context, NamedRoutes.SignupPage, (predicate) => false);
+                  // await Global.storageServices.setDeviceOpenedFirst(false);
+                },
+                child: Container(
+                  height: 60,
+                  width: double.maxFinite,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(15),
+                    color: Colors.greenAccent.shade700,
+                  ),
+                  child: Center(
+                    child: Text(
+                      "Get Started",
+                      style: TextStyle(
+                          fontSize: 20,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
               ),
-            ],
-          ),
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(100),
-              color: Colors.greenAccent.shade100.withOpacity(0.5),
             ),
-            padding: EdgeInsets.all(40),
-            margin: EdgeInsets.all(20),
-            child: Column(
-              children: [
-                CircleAvatar(
-                  backgroundColor: Colors.greenAccent.shade400,
-                  radius: 30,
-                  child: Center(child: Icon(Icons.emoji_events_outlined)),
-                ),
-                reusableHighlightContainer(
-                  icon: Icons.point_of_sale,
-                  title: "POS System",
-                ),
-                reusableHighlightContainer(
-                    icon: Icons.inventory, title: "Inventory"),
-                reusableHighlightContainer(
-                    icon: Icons.groups, title: "Multi-Role"),
-              ],
-            ),
-          ),
-          SizedBox(
-            height: 50,
-          ),
-          Padding(
-            padding: const EdgeInsets.all(15),
-            child: Text(
-              "Fast checkout with barcode scanning,Real-time stock management,5 user roles with permissions,Sales and financial analytics",
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18, color: Colors.grey.shade700),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: 15,left: 15,right: 15,bottom: 5),
-            child: InkWell(
-              onTap: () async {
-                print("....on click get start - >  ");
-                // Navigator.pushNamedAndRemoveUntil(
-                //     context, NamedRoutes.SignupPage, (predicate) => false);
-                // await Global.storageServices.setDeviceOpenedFirst(false);
-              },
-              child: Container(
-                height: 60,
-                width: double.maxFinite,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(15),
-                  color: Colors.greenAccent.shade700,
-                ),
-                child: Center(
-                  child: Text(
-                    "Get Started",
-                    style: TextStyle(
-                        fontSize: 20,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: 5,left: 15,right: 15,bottom: 5),
-            child: InkWell(
-              onTap: () async {
-                print("....on click register mart - >  ");
-                // Navigator.pushNamedAndRemoveUntil(
-                //     context, NamedRoutes.SignupPage, (predicate) => false);
-                // await Global.storageServices.setDeviceOpenedFirst(false);
-              },
-              child: Container(
-                height: 60,
-                width: double.maxFinite,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(15),
-                  // color: Colors.greenAccent.shade700,
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Center(
-                  child: Text(
-                    "Register Your Mart",
-                    style: TextStyle(
-                        fontSize: 20,
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: 5,left: 15,right: 15,bottom: 5),
-            child: InkWell(
-              onTap: () async {
-                print("....on click login - >  ");
-                Navigator.pushNamedAndRemoveUntil(
-                    context, NamedRoutes.SigninPage, (predicate) => false);
-                await Global.storageServices.setDeviceOpenedFirst(false);
-              },
-              child: Container(
-                height: 60,
-                width: double.maxFinite,
-                decoration: BoxDecoration(
+            Padding(
+              padding:
+                  const EdgeInsets.only(top: 5, left: 15, right: 15, bottom: 5),
+              child: InkWell(
+                onTap: () async {
+                  print("....on click register mart - >  ");
+                  // Navigator.pushNamedAndRemoveUntil(
+                  //     context, NamedRoutes.SignupPage, (predicate) => false);
+                  // await Global.storageServices.setDeviceOpenedFirst(false);
+                },
+                child: Container(
+                  height: 60,
+                  width: double.maxFinite,
+                  decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(15),
                     // color: Colors.greenAccent.shade700,
-                    border: Border.all(color: Colors.grey.shade300)),
-                child: Center(
-                  child: Text(
-                    "Login",
-                    style: TextStyle(
-                        fontSize: 20,
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Center(
+                    child: Text(
+                      "Register Your Mart",
+                      style: TextStyle(
+                          fontSize: 20,
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+            Padding(
+              padding:
+                  const EdgeInsets.only(top: 5, left: 15, right: 15, bottom: 5),
+              child: InkWell(
+                onTap: () async {
+                  print("....on click login - >  ");
+                  Navigator.pushNamedAndRemoveUntil(
+                      context, NamedRoutes.SigninPage, (predicate) => false);
+                  await Global.storageServices.setDeviceOpenedFirst(false);
+                },
+                child: Container(
+                  height: 60,
+                  width: double.maxFinite,
+                  decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(15),
+                      // color: Colors.greenAccent.shade700,
+                      border: Border.all(color: Colors.grey.shade300)),
+                  child: Center(
+                    child: Text(
+                      "Login",
+                      style: TextStyle(
+                          fontSize: 20,
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
+    ],
   );
 }
 

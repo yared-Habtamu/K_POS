@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:pos_app/features/common_dashboard_pages/mock_products.dart';
-import 'package:pos_app/features/common_dashboard_pages/cart_provider.dart';
-import 'package:pos_app/features/common_dashboard_pages/receipt_preview.dart';
+import 'package:pos_app/features/common_use_pages/mock_products.dart';
+import 'package:pos_app/features/common_use_pages/cart_provider.dart';
+import 'package:pos_app/features/common_use_pages/receipt_preview.dart';
 import 'package:provider/provider.dart';
 
 class OwnerPosPage extends StatefulWidget {
@@ -17,10 +17,12 @@ class _OwnerPosPageState extends State<OwnerPosPage> {
   _PaymentMethod _payment = _PaymentMethod.cash;
 
   String _discountType = 'Percentage';
-  final TextEditingController _discountValueController = TextEditingController();
+  final TextEditingController _discountValueController =
+      TextEditingController();
 
   String _extraChargeType = 'Service Charge';
-  final TextEditingController _extraChargeAmountController = TextEditingController();
+  final TextEditingController _extraChargeAmountController =
+      TextEditingController();
 
   @override
   void dispose() {
@@ -74,7 +76,9 @@ class _OwnerPosPageState extends State<OwnerPosPage> {
                     ? <POSProduct>[]
                     : all.where((p) {
                         final lo = p.name.toLowerCase();
-                        return lo.contains(q) || p.category.toLowerCase().contains(q) || p.barcodes.any((b) => b.contains(q));
+                        return lo.contains(q) ||
+                            p.category.toLowerCase().contains(q) ||
+                            p.barcodes.any((b) => b.contains(q));
                       }).toList();
 
                 if (results.isNotEmpty) {
@@ -82,7 +86,11 @@ class _OwnerPosPageState extends State<OwnerPosPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 6),
-                      Text('Search results', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.grey.shade800)),
+                      Text('Search results',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.grey.shade800)),
                       const SizedBox(height: 8),
                       GridView.builder(
                         shrinkWrap: true,
@@ -92,16 +100,21 @@ class _OwnerPosPageState extends State<OwnerPosPage> {
                           crossAxisCount: isWide ? 3 : (width < 360 ? 1 : 2),
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
-                          childAspectRatio: isWide ? 3.6 : (width < 360 ? 1.2 : 2.0),
+                          childAspectRatio:
+                              isWide ? 3.6 : (width < 360 ? 1.2 : 2.0),
                         ),
                         itemBuilder: (context, index) {
                           final p = results[index];
                           return InkWell(
                             borderRadius: BorderRadius.circular(10),
                             onTap: () {
-                              final cart = Provider.of<CartProvider>(context, listen: false);
+                              final cart = Provider.of<CartProvider>(context,
+                                  listen: false);
                               cart.addProduct(p);
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Added ${p.name} to cart')));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                      content:
+                                          Text('Added ${p.name} to cart')));
                             },
                             child: Container(
                               padding: const EdgeInsets.all(10),
@@ -116,11 +129,25 @@ class _OwnerPosPageState extends State<OwnerPosPage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Text(p.name, style: const TextStyle(fontWeight: FontWeight.w700), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                    Text(p.name,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w700),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis),
                                     const SizedBox(height: 6),
-                                    Text('${p.priceEtb} ETB', style: TextStyle(color: Colors.blue.shade900, fontWeight: FontWeight.w800), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    Text('${p.priceEtb} ETB',
+                                        style: TextStyle(
+                                            color: Colors.blue.shade900,
+                                            fontWeight: FontWeight.w800),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis),
                                     const SizedBox(height: 4),
-                                    Text(p.category, style: TextStyle(fontSize: 12, color: Colors.grey.shade600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    Text(p.category,
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey.shade600),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis),
                                   ],
                                 ),
                               ),
@@ -252,11 +279,15 @@ class _CartCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(Icons.shopping_cart_outlined, color: Colors.grey.shade800),
+                  Icon(Icons.shopping_cart_outlined,
+                      color: Colors.grey.shade800),
                   const SizedBox(width: 10),
-                  Text('Cart', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+                  Text('Cart',
+                      style:
+                          TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
                   const Spacer(),
-                  Text('${cart.items.length} items', style: TextStyle(color: Colors.grey.shade600)),
+                  Text('${cart.items.length} items',
+                      style: TextStyle(color: Colors.grey.shade600)),
                 ],
               ),
               const SizedBox(height: 12),
@@ -267,11 +298,18 @@ class _CartCard extends StatelessWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.shopping_cart_outlined, size: 56, color: Colors.grey.shade400),
+                        Icon(Icons.shopping_cart_outlined,
+                            size: 56, color: Colors.grey.shade400),
                         const SizedBox(height: 12),
-                        Text('Cart is empty', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.grey.shade800)),
+                        Text('Cart is empty',
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.grey.shade800)),
                         const SizedBox(height: 6),
-                        Text('Scan or search products to add', style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+                        Text('Scan or search products to add',
+                            style: TextStyle(
+                                fontSize: 13, color: Colors.grey.shade700)),
                       ],
                     ),
                   ),
@@ -286,12 +324,21 @@ class _CartCard extends StatelessWidget {
                     final it = cart.items[index];
                     return Row(
                       children: [
-                        Expanded(child: Text(it.product.name, style: TextStyle(fontWeight: FontWeight.w700))),
-                        IconButton(onPressed: () => cart.changeQty(it.product, it.qty - 1), icon: const Icon(Icons.remove_circle)),
+                        Expanded(
+                            child: Text(it.product.name,
+                                style: TextStyle(fontWeight: FontWeight.w700))),
+                        IconButton(
+                            onPressed: () =>
+                                cart.changeQty(it.product, it.qty - 1),
+                            icon: const Icon(Icons.remove_circle)),
                         Text('${it.qty}'),
-                        IconButton(onPressed: () => cart.changeQty(it.product, it.qty + 1), icon: const Icon(Icons.add_circle)),
+                        IconButton(
+                            onPressed: () =>
+                                cart.changeQty(it.product, it.qty + 1),
+                            icon: const Icon(Icons.add_circle)),
                         const SizedBox(width: 8),
-                        Text('${it.subtotal} ETB', style: TextStyle(fontWeight: FontWeight.w800)),
+                        Text('${it.subtotal} ETB',
+                            style: TextStyle(fontWeight: FontWeight.w800)),
                       ],
                     );
                   },
@@ -299,9 +346,15 @@ class _CartCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Text('Total', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                    Text('Total',
+                        style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w700)),
                     const Spacer(),
-                    Text('${cart.total} ETB', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.blue.shade900)),
+                    Text('${cart.total} ETB',
+                        style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.blue.shade900)),
                   ],
                 ),
               ],
@@ -326,10 +379,12 @@ class _PaymentCardState extends State<_PaymentCard> {
   _PaymentMethod _payment = _PaymentMethod.cash;
 
   String _discountType = 'Percentage';
-  final TextEditingController _discountValueController = TextEditingController();
+  final TextEditingController _discountValueController =
+      TextEditingController();
 
   String _extraChargeType = 'Service Charge';
-  final TextEditingController _extraChargeAmountController = TextEditingController();
+  final TextEditingController _extraChargeAmountController =
+      TextEditingController();
 
   @override
   void dispose() {
@@ -372,7 +427,11 @@ class _PaymentCardState extends State<_PaymentCard> {
             ],
           ),
           const SizedBox(height: 10),
-          Text('Payment Method', style: TextStyle(fontSize: 13, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+          Text('Payment Method',
+              style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade700,
+                  fontWeight: FontWeight.w600)),
           const SizedBox(height: 10),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -380,12 +439,20 @@ class _PaymentCardState extends State<_PaymentCard> {
               final cols = isNarrow ? 2 : 3;
 
               final methods = [
-                _PaymentMethodItem('Cash', Icons.payments_outlined, _PaymentMethod.cash),
-                _PaymentMethodItem('Card', Icons.credit_card, _PaymentMethod.card),
-                _PaymentMethodItem('Tele Birr', Icons.phone_iphone, _PaymentMethod.telebirr),
-                _PaymentMethodItem('CBE Bank', Icons.account_balance_outlined, _PaymentMethod.cbe),
-                _PaymentMethodItem('Wallet', Icons.account_balance_wallet_outlined, _PaymentMethod.wallet),
-                _PaymentMethodItem('other', Icons.receipt_long, _PaymentMethod.other),
+                _PaymentMethodItem(
+                    'Cash', Icons.payments_outlined, _PaymentMethod.cash),
+                _PaymentMethodItem(
+                    'Card', Icons.credit_card, _PaymentMethod.card),
+                _PaymentMethodItem(
+                    'Tele Birr', Icons.phone_iphone, _PaymentMethod.telebirr),
+                _PaymentMethodItem('CBE Bank', Icons.account_balance_outlined,
+                    _PaymentMethod.cbe),
+                _PaymentMethodItem(
+                    'Wallet',
+                    Icons.account_balance_wallet_outlined,
+                    _PaymentMethod.wallet),
+                _PaymentMethodItem(
+                    'other', Icons.receipt_long, _PaymentMethod.other),
               ];
 
               return GridView.builder(
@@ -413,7 +480,11 @@ class _PaymentCardState extends State<_PaymentCard> {
             },
           ),
           const SizedBox(height: 14),
-          Text('saved_accounts', style: TextStyle(fontSize: 13, color: Colors.grey.shade700, fontWeight: FontWeight.w700)),
+          Text('saved_accounts',
+              style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade700,
+                  fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(12),
@@ -428,18 +499,28 @@ class _PaymentCardState extends State<_PaymentCard> {
                 final left = Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('TELEBIRR', style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w700)),
+                    Text('TELEBIRR',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade700,
+                            fontWeight: FontWeight.w700)),
                     const SizedBox(height: 6),
-                    Text('0936092577', style: TextStyle(fontSize: 15, color: Colors.grey.shade900, fontWeight: FontWeight.w800)),
+                    Text('0936092577',
+                        style: TextStyle(
+                            fontSize: 15,
+                            color: Colors.grey.shade900,
+                            fontWeight: FontWeight.w800)),
                   ],
                 );
 
                 final copy = OutlinedButton(
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied (mock)')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Copied (mock)')));
                   },
                   style: OutlinedButton.styleFrom(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                   child: const Text('Copy'),
                 );
@@ -465,7 +546,11 @@ class _PaymentCardState extends State<_PaymentCard> {
             ),
           ),
           const SizedBox(height: 16),
-          Text('Discount', style: TextStyle(fontSize: 13, color: Colors.grey.shade700, fontWeight: FontWeight.w700)),
+          Text('Discount',
+              style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade700,
+                  fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -487,7 +572,8 @@ class _PaymentCardState extends State<_PaymentCard> {
               final add = _SquareButton(
                 icon: Icons.add,
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Discount added (mock)')));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Discount added (mock)')));
                 },
                 color: primary,
               );
@@ -495,7 +581,11 @@ class _PaymentCardState extends State<_PaymentCard> {
               if (isNarrow) {
                 return Column(
                   children: [
-                    Row(children: [Expanded(child: type), const SizedBox(width: 10), add]),
+                    Row(children: [
+                      Expanded(child: type),
+                      const SizedBox(width: 10),
+                      add
+                    ]),
                     const SizedBox(height: 10),
                     value,
                   ],
@@ -514,7 +604,11 @@ class _PaymentCardState extends State<_PaymentCard> {
             },
           ),
           const SizedBox(height: 16),
-          Text('Extra Charges', style: TextStyle(fontSize: 13, color: Colors.grey.shade700, fontWeight: FontWeight.w700)),
+          Text('Extra Charges',
+              style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade700,
+                  fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -536,7 +630,8 @@ class _PaymentCardState extends State<_PaymentCard> {
               final add = _SquareButton(
                 icon: Icons.add,
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Extra charge added (mock)')));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Extra charge added (mock)')));
                 },
                 color: primary,
               );
@@ -544,7 +639,11 @@ class _PaymentCardState extends State<_PaymentCard> {
               if (isNarrow) {
                 return Column(
                   children: [
-                    Row(children: [Expanded(child: type), const SizedBox(width: 10), add]),
+                    Row(children: [
+                      Expanded(child: type),
+                      const SizedBox(width: 10),
+                      add
+                    ]),
                     const SizedBox(height: 10),
                     amount,
                   ],
@@ -572,39 +671,57 @@ class _PaymentCardState extends State<_PaymentCard> {
                     width: double.infinity,
                     height: 54,
                     child: ElevatedButton.icon(
-                      onPressed: cart.isEmpty ? null : () async {
-                        try {
-                          debugPrint('Complete pressed — opening receipt preview directly');
-                          await showReceiptPreviewDialog(context, cart);
-                        } catch (e, st) {
-                          debugPrint('Failed to show receipt preview: $e\n$st');
-                          showDialog(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('Receipt'),
-                              content: SingleChildScrollView(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Total: $total ETB'),
-                                    const SizedBox(height: 8),
-                                    ...cart.items.map((it) => Text('${it.product.name} x${it.qty} - ${it.subtotal} ETB')),
-                                    const SizedBox(height: 8),
-                                    Text('Error showing full receipt: $e', style: const TextStyle(fontSize: 12, color: Colors.red)),
-                                  ],
-                                ),
-                              ),
-                              actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close'))],
-                            ),
-                          );
-                        }
-                      },
+                      onPressed: cart.isEmpty
+                          ? null
+                          : () async {
+                              try {
+                                debugPrint(
+                                    'Complete pressed — opening receipt preview directly');
+                                await showReceiptPreviewDialog(context, cart);
+                              } catch (e, st) {
+                                debugPrint(
+                                    'Failed to show receipt preview: $e\n$st');
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text('Receipt'),
+                                    content: SingleChildScrollView(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text('Total: $total ETB'),
+                                          const SizedBox(height: 8),
+                                          ...cart.items.map((it) => Text(
+                                              '${it.product.name} x${it.qty} - ${it.subtotal} ETB')),
+                                          const SizedBox(height: 8),
+                                          Text('Error showing full receipt: $e',
+                                              style: const TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.red)),
+                                        ],
+                                      ),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                          onPressed: () =>
+                                              Navigator.of(ctx).pop(),
+                                          child: const Text('Close'))
+                                    ],
+                                  ),
+                                );
+                              }
+                            },
                       icon: const Icon(Icons.payment),
-                      label: Text('Complete Sale - $total ETB', maxLines: 1, overflow: TextOverflow.ellipsis),
+                      label: Text('Complete Sale - $total ETB',
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: cart.isEmpty ? Colors.blueGrey.shade300 : Colors.blue.shade900,
+                        backgroundColor: cart.isEmpty
+                            ? Colors.blueGrey.shade300
+                            : Colors.blue.shade900,
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
                       ),
                     ),
                   ),
@@ -615,9 +732,15 @@ class _PaymentCardState extends State<_PaymentCard> {
                     child: OutlinedButton(
                       onPressed: cart.isEmpty ? null : () => cart.clear(),
                       style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
                       ),
-                      child: Text('Clear Cart', style: TextStyle(color: cart.isEmpty ? Colors.grey.shade400 : Colors.grey.shade700, fontWeight: FontWeight.w700)),
+                      child: Text('Clear Cart',
+                          style: TextStyle(
+                              color: cart.isEmpty
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade700,
+                              fontWeight: FontWeight.w700)),
                     ),
                   ),
                 ],
@@ -670,7 +793,9 @@ class _PaymentMethodButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 18, color: selected ? Colors.white : Colors.grey.shade700),
+            Icon(icon,
+                size: 18,
+                color: selected ? Colors.white : Colors.grey.shade700),
             const SizedBox(width: 8),
             Flexible(
               child: Text(
@@ -729,7 +854,10 @@ class _Dropdown extends StatelessWidget {
                         child: Text(
                           e,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade800, fontWeight: FontWeight.w700),
+                          style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade800,
+                              fontWeight: FontWeight.w700),
                         ),
                       ),
                     )
@@ -773,7 +901,8 @@ class _InputBox extends StatelessWidget {
           keyboardType: keyboardType,
           decoration: InputDecoration(
             hintText: hintText,
-            hintStyle: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w700),
+            hintStyle: TextStyle(
+                color: Colors.grey.shade500, fontWeight: FontWeight.w700),
             border: InputBorder.none,
           ),
         ),
@@ -804,7 +933,8 @@ class _SquareButton extends StatelessWidget {
           backgroundColor: color,
           foregroundColor: Colors.white,
           padding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
         child: Icon(icon, size: 20),
       ),

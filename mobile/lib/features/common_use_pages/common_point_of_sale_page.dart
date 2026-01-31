@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:pos_app/features/common_dashboard_pages/reusable_qr_scanner_page.dart';
+import 'package:pos_app/features/common_use_pages/reusable_qr_scanner_page.dart';
 import 'mock_products.dart';
 import 'cart_provider.dart';
 import 'receipt_preview.dart';
@@ -41,7 +41,7 @@ class _CommonPointOfSaleState extends State<CommonPointOfSale> {
         builder: (context, constraints) {
           final width = constraints.maxWidth;
           final isWide = width >= 1100;
-      
+
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -79,7 +79,9 @@ class _CommonPointOfSaleState extends State<CommonPointOfSale> {
                       ? <POSProduct>[]
                       : all.where((p) {
                           final lo = p.name.toLowerCase();
-                          return lo.contains(q) || p.category.toLowerCase().contains(q) || p.barcodes.any((b) => b.contains(q));
+                          return lo.contains(q) ||
+                              p.category.toLowerCase().contains(q) ||
+                              p.barcodes.any((b) => b.contains(q));
                         }).toList();
 
                   if (results.isEmpty) return const SizedBox.shrink();
@@ -88,7 +90,11 @@ class _CommonPointOfSaleState extends State<CommonPointOfSale> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 6),
-                      Text('Search results', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.grey.shade800)),
+                      Text('Search results',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.grey.shade800)),
                       const SizedBox(height: 8),
                       GridView.builder(
                         shrinkWrap: true,
@@ -98,16 +104,21 @@ class _CommonPointOfSaleState extends State<CommonPointOfSale> {
                           crossAxisCount: isWide ? 3 : (width < 360 ? 1 : 2),
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
-                          childAspectRatio: isWide ? 3.6 : (width < 360 ? 1.2 : 2.0),
+                          childAspectRatio:
+                              isWide ? 3.6 : (width < 360 ? 1.2 : 2.0),
                         ),
                         itemBuilder: (context, index) {
                           final p = results[index];
                           return InkWell(
                             borderRadius: BorderRadius.circular(10),
                             onTap: () {
-                              final cart = Provider.of<CartProvider>(context, listen: false);
+                              final cart = Provider.of<CartProvider>(context,
+                                  listen: false);
                               cart.addProduct(p);
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Added ${p.name} to cart')));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                      content:
+                                          Text('Added ${p.name} to cart')));
                             },
                             child: Container(
                               padding: const EdgeInsets.all(10),
@@ -122,11 +133,25 @@ class _CommonPointOfSaleState extends State<CommonPointOfSale> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Text(p.name, style: const TextStyle(fontWeight: FontWeight.w700), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                    Text(p.name,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w700),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis),
                                     const SizedBox(height: 6),
-                                    Text('${p.priceEtb} ETB', style: TextStyle(color: Colors.blue.shade900, fontWeight: FontWeight.w800), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    Text('${p.priceEtb} ETB',
+                                        style: TextStyle(
+                                            color: Colors.blue.shade900,
+                                            fontWeight: FontWeight.w800),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis),
                                     const SizedBox(height: 4),
-                                    Text(p.category, style: TextStyle(fontSize: 12, color: Colors.grey.shade600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    Text(p.category,
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey.shade600),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis),
                                   ],
                                 ),
                               ),
@@ -210,7 +235,8 @@ class _SearchRowState extends State<_SearchRow> {
               // Navigate to scanner
               final result = await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const BarcodeScannerPage()),
+                MaterialPageRoute(
+                    builder: (context) => const BarcodeScannerPage()),
               );
 
               // Handle result if it exists
@@ -289,17 +315,22 @@ class _CartCard extends StatelessWidget {
             constraints: BoxConstraints(
               minWidth: 150.0,
               minHeight: 200.0,
+              maxHeight: 300,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.shopping_cart_outlined, color: Colors.grey.shade800),
+                    Icon(Icons.shopping_cart_outlined,
+                        color: Colors.grey.shade800),
                     const SizedBox(width: 10),
-                    Text('Cart', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+                    Text('Cart',
+                        style: TextStyle(
+                            fontSize: 22, fontWeight: FontWeight.w800)),
                     const Spacer(),
-                    Text('${cart.items.length} items', style: TextStyle(color: Colors.grey.shade600)),
+                    Text('${cart.items.length} items',
+                        style: TextStyle(color: Colors.grey.shade600)),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -310,11 +341,18 @@ class _CartCard extends StatelessWidget {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.shopping_cart_outlined, size: 56, color: Colors.grey.shade400),
+                          Icon(Icons.shopping_cart_outlined,
+                              size: 56, color: Colors.grey.shade400),
                           const SizedBox(height: 12),
-                          Text('Cart is empty', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.grey.shade800)),
+                          Text('Cart is empty',
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.grey.shade800)),
                           const SizedBox(height: 6),
-                          Text('Scan or search products to add', style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+                          Text('Scan or search products to add',
+                              style: TextStyle(
+                                  fontSize: 13, color: Colors.grey.shade700)),
                         ],
                       ),
                     ),
@@ -329,12 +367,22 @@ class _CartCard extends StatelessWidget {
                         final it = cart.items[index];
                         return Row(
                           children: [
-                            Expanded(child: Text(it.product.name, style: TextStyle(fontWeight: FontWeight.w700))),
-                            IconButton(onPressed: () => cart.changeQty(it.product, it.qty - 1), icon: const Icon(Icons.remove_circle)),
+                            Expanded(
+                                child: Text(it.product.name,
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w700))),
+                            IconButton(
+                                onPressed: () =>
+                                    cart.changeQty(it.product, it.qty - 1),
+                                icon: const Icon(Icons.remove_circle)),
                             Text('${it.qty}'),
-                            IconButton(onPressed: () => cart.changeQty(it.product, it.qty + 1), icon: const Icon(Icons.add_circle)),
+                            IconButton(
+                                onPressed: () =>
+                                    cart.changeQty(it.product, it.qty + 1),
+                                icon: const Icon(Icons.add_circle)),
                             const SizedBox(width: 8),
-                            Text('${it.subtotal} ETB', style: TextStyle(fontWeight: FontWeight.w800)),
+                            Text('${it.subtotal} ETB',
+                                style: TextStyle(fontWeight: FontWeight.w800)),
                           ],
                         );
                       },
@@ -343,9 +391,15 @@ class _CartCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Text('Total', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                      Text('Total',
+                          style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w700)),
                       const Spacer(),
-                      Text('${cart.total} ETB', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.blue.shade900)),
+                      Text('${cart.total} ETB',
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.blue.shade900)),
                     ],
                   ),
                 ],
@@ -667,38 +721,53 @@ class _PaymentCardState extends State<_PaymentCard> {
                           ? null
                           : () async {
                               try {
-                                debugPrint('Complete pressed — opening receipt preview directly');
+                                debugPrint(
+                                    'Complete pressed — opening receipt preview directly');
                                 await showReceiptPreviewDialog(context, cart);
                               } catch (e, st) {
-                                debugPrint('Failed to show receipt preview: $e\n$st');
+                                debugPrint(
+                                    'Failed to show receipt preview: $e\n$st');
                                 showDialog(
                                   context: context,
                                   builder: (ctx) => AlertDialog(
                                     title: const Text('Receipt'),
                                     content: SingleChildScrollView(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text('Total: $total ETB'),
                                           const SizedBox(height: 8),
-                                          ...cart.items.map((it) => Text('${it.product.name} x${it.qty} - ${it.subtotal} ETB')),
+                                          ...cart.items.map((it) => Text(
+                                              '${it.product.name} x${it.qty} - ${it.subtotal} ETB')),
                                           const SizedBox(height: 8),
-                                          Text('Error showing full receipt: $e', style: const TextStyle(fontSize: 12, color: Colors.red)),
+                                          Text('Error showing full receipt: $e',
+                                              style: const TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.red)),
                                         ],
                                       ),
                                     ),
-                                    actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close'))],
+                                    actions: [
+                                      TextButton(
+                                          onPressed: () =>
+                                              Navigator.of(ctx).pop(),
+                                          child: const Text('Close'))
+                                    ],
                                   ),
                                 );
                               }
                             },
-
                       icon: const Icon(Icons.payment),
-                      label: Text('Complete Sale - $total ETB', maxLines: 1, overflow: TextOverflow.ellipsis),
+                      label: Text('Complete Sale - $total ETB',
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: cart.isEmpty ? Colors.blueGrey.shade300 : Colors.blue.shade900,
+                        backgroundColor: cart.isEmpty
+                            ? Colors.blueGrey.shade300
+                            : Colors.blue.shade900,
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
                       ),
                     ),
                   ),
@@ -709,9 +778,15 @@ class _PaymentCardState extends State<_PaymentCard> {
                     child: OutlinedButton(
                       onPressed: cart.isEmpty ? null : () => cart.clear(),
                       style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
                       ),
-                      child: Text('Clear Cart', style: TextStyle(color: cart.isEmpty ? Colors.grey.shade400 : Colors.grey.shade700, fontWeight: FontWeight.w700)),
+                      child: Text('Clear Cart',
+                          style: TextStyle(
+                              color: cart.isEmpty
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade700,
+                              fontWeight: FontWeight.w700)),
                     ),
                   ),
                 ],
@@ -907,7 +982,11 @@ class _SquareButton extends StatelessWidget {
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
-        child: Icon(icon, size: 20,color: Colors.white,),
+        child: Icon(
+          icon,
+          size: 20,
+          color: Colors.white,
+        ),
       ),
     );
   }
