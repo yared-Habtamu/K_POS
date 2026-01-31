@@ -14,6 +14,7 @@ import 'config/routes/pages.dart';
 import 'config/theme/theme_mode_provider.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'init_dependencies.dart';
+import 'languages.dart';
 
 void main() async {
   await Global.init();
@@ -69,11 +70,14 @@ class MyApp extends StatelessWidget {
             child: Consumer<ThemeManager>(
               builder: (context, themeManager, child) {
                 return GetMaterialApp(
-                  title: 'UniHub',
+                  title: 'Smart POS',
                   debugShowCheckedModeBanner: false,
                   themeMode: themeManager.themeMode,
                   theme: ThemeData.light(),
                   darkTheme: ThemeData.dark(),
+                  translations: Languages(),
+                  locale: const Locale('en', 'US'),
+                  fallbackLocale: const Locale('en', 'US'),
                   onGenerateRoute: NamedRouteSettings.GenerateRouteSettings,
                   initialRoute: NamedRoutes.SplashScreenPage,
                   // getPages: AppPages.routes,

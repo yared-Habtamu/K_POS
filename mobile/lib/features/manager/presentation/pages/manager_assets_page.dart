@@ -59,145 +59,148 @@ class _ManagerAssetsPageState extends State<ManagerAssetsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 6),
-                    Text('Register company assets quickly',
-                        style: TextStyle(
-                            fontSize: 14, color: Colors.grey.shade700)),
-                  ],
-                ),
-              ),
-              Row(
-                children: [
-                  ElevatedButton(
-                      onPressed: _exportCsv,
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue.shade900),
-                      child: const Text('Export CSV')),
-                  const SizedBox(width: 8),
-                  OutlinedButton(onPressed: _print, child: const Text('Print')),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: Column(
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 6),
+                      Text('Register company assets quickly',
+                          style: TextStyle(
+                              fontSize: 14, color: Colors.grey.shade700)),
+                    ],
+                  ),
+                ),
                 Row(
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _nameController,
-                        decoration: InputDecoration(
-                            hintText: 'Asset name',
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide:
-                                    BorderSide(color: Colors.grey.shade200))),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    SizedBox(
-                      width: 140,
-                      child: TextField(
-                        controller: _qtyController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                            hintText: 'Quantity',
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide:
-                                    BorderSide(color: Colors.grey.shade200))),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    SizedBox(
-                      height: 46,
-                      child: ElevatedButton(
-                          onPressed: _add,
-                          child: const Text('Add'),
-                          style: ElevatedButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10)))),
-                    ),
+                    ElevatedButton(
+                        onPressed: _exportCsv,
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue.shade900),
+                        child: const Text('Export CSV')),
+                    const SizedBox(width: 8),
+                    OutlinedButton(onPressed: _print, child: const Text('Print')),
                   ],
-                ),
-                const SizedBox(height: 12),
-                const SizedBox(height: 4),
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _items.length,
-                  itemBuilder: (context, idx) {
-                    final item = _items[idx];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(item.name,
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w700)),
-                                  const SizedBox(height: 4),
-                                  Text('Qty: ${item.qty}',
-                                      style: TextStyle(
-                                          color: Colors.grey.shade700)),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            SizedBox(
-                              height: 36,
-                              child: OutlinedButton(
-                                onPressed: () => _remove(idx),
-                                style: OutlinedButton.styleFrom(
-                                    side:
-                                        BorderSide(color: Colors.red.shade300),
-                                    foregroundColor: Colors.red.shade700,
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(8))),
-                                child: const Text('Remove'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
                 ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _nameController,
+                          decoration: InputDecoration(
+                              hintText: 'Asset name',
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide:
+                                      BorderSide(color: Colors.grey.shade200))),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      SizedBox(
+                        width: 140,
+                        child: TextField(
+                          controller: _qtyController,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                              hintText: 'Quantity',
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide:
+                                      BorderSide(color: Colors.grey.shade200))),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      SizedBox(
+                        height: 46,
+                        child: ElevatedButton(
+                            onPressed: _add,
+                            child: const Text('Add'),
+                            style: ElevatedButton.styleFrom(
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10)))),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const SizedBox(height: 4),
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _items.length,
+                    itemBuilder: (context, idx) {
+                      final item = _items[idx];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(item.name,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w700)),
+                                    const SizedBox(height: 4),
+                                    Text('Qty: ${item.qty}',
+                                        style: TextStyle(
+                                            color: Colors.grey.shade700)),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              SizedBox(
+                                height: 36,
+                                child: OutlinedButton(
+                                  onPressed: () => _remove(idx),
+                                  style: OutlinedButton.styleFrom(
+                                      side:
+                                          BorderSide(color: Colors.red.shade300),
+                                      foregroundColor: Colors.red.shade700,
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(8))),
+                                  child: const Text('Remove'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

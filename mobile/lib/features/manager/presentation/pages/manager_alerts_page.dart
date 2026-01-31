@@ -8,54 +8,57 @@ class ManagerAlertsPage extends StatelessWidget {
     final lowStock = _mockLowStock();
     final expiring = _mockExpiring();
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 6),
-          Text(
-            'alerts_summary',
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-          ),
-          const SizedBox(height: 16),
-
-          // Low Stock Card
-          _SummaryCard(
-            icon: Icons.warning_amber_outlined,
-            title: 'Low Stock',
-            count: lowStock.length,
-            children: lowStock
-                .map(
-                  (s) => _SummaryRow(
-                    title: s.title,
-                    subtitle: s.subtitle,
-                    trailingText: s.trailingText,
-                    trailingDanger: s.danger,
-                  ),
-                )
-                .toList(),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Expiring Soon Card
-          _SummaryCard(
-            icon: Icons.event_busy_outlined,
-            title: 'Expiring Soon',
-            count: expiring.length,
-            children: expiring
-                .map(
-                  (s) => _SummaryRow(
-                    title: s.title,
-                    subtitle: s.subtitle,
-                    trailingText: s.trailingText,
-                    trailingDanger: false,
-                  ),
-                )
-                .toList(),
-          ),
-        ],
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 6),
+            Text(
+              'alerts_summary',
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+            ),
+            const SizedBox(height: 16),
+      
+            // Low Stock Card
+            _SummaryCard(
+              icon: Icons.warning_amber_outlined,
+              title: 'Low Stock',
+              count: lowStock.length,
+              children: lowStock
+                  .map(
+                    (s) => _SummaryRow(
+                      title: s.title,
+                      subtitle: s.subtitle,
+                      trailingText: s.trailingText,
+                      trailingDanger: s.danger,
+                    ),
+                  )
+                  .toList(),
+            ),
+      
+            const SizedBox(height: 12),
+      
+            // Expiring Soon Card
+            _SummaryCard(
+              icon: Icons.event_busy_outlined,
+              title: 'Expiring Soon',
+              count: expiring.length,
+              children: expiring
+                  .map(
+                    (s) => _SummaryRow(
+                      title: s.title,
+                      subtitle: s.subtitle,
+                      trailingText: s.trailingText,
+                      trailingDanger: false,
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+        ),
       ),
     );
   }

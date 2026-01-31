@@ -2,19 +2,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-class QRScannerPage extends StatefulWidget {
-  const QRScannerPage({super.key});
+class BarcodeScannerPage extends StatefulWidget {
+  const BarcodeScannerPage({super.key});
 
   @override
-  State<QRScannerPage> createState() => _QRScannerPageState();
+  State<BarcodeScannerPage> createState() => _BarcodeScannerPageState();
 }
 
-class _QRScannerPageState extends State<QRScannerPage> with WidgetsBindingObserver {
+class _BarcodeScannerPageState extends State<BarcodeScannerPage> with WidgetsBindingObserver {
   // 1. Controller Setup
   final MobileScannerController controller = MobileScannerController(
     detectionSpeed: DetectionSpeed.noDuplicates,
     autoStart: false,
-    formats: [BarcodeFormat.qrCode],
+    formats: BarcodeFormat.values,
     returnImage: false,
   );
 
@@ -87,7 +87,7 @@ class _QRScannerPageState extends State<QRScannerPage> with WidgetsBindingObserv
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    _scanWindowSize = size.width * 0.70;
+    _scanWindowSize = size.width * 0.85;
 
     final scanWindowRect = Rect.fromCenter(
       center: Offset(size.width / 2, size.height / 2),

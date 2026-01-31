@@ -2,6 +2,8 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:get/get.dart';
+
 
 class OwnerDashboardPage extends StatefulWidget {
   const OwnerDashboardPage({super.key});
@@ -21,60 +23,62 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FD),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final isWide = width >= 1000;
-          final isDesktop = width >= 1100;
-          final isTablet = width >= 700 && width < 1100;
-
-          return SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: width > 600 ? 32.w : 16.w,
-              vertical: 24.h,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _ModernHeader(
-                  onInvite: () => _toast(context, 'Invite Owner'),
-                  onRegister: () => _toast(context, 'Register Mart'),
-                ),
-                SizedBox(height: 32.h),
-                _StatsGrid(stats: stats, isDesktop: isDesktop, isTablet: isTablet),
-                SizedBox(height: 32.h),
-                if (isWide)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: _SalesChartCard(
-                          period: _period,
-                          data: sales,
-                          onPeriodChanged: (p) => setState(() => _period = p),
-                        ),
-                      ),
-                      const SizedBox(width: 24),
-                      Expanded(
-                        flex: 1,
-                        child: _TopProductsCard(products: topProducts),
-                      ),
-                    ],
-                  )
-                else ...[
-                  _SalesChartCard(
-                    period: _period,
-                    data: sales,
-                    onPeriodChanged: (p) => setState(() => _period = p),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final isWide = width >= 1000;
+            final isDesktop = width >= 1100;
+            final isTablet = width >= 700 && width < 1100;
+        
+            return SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: width > 600 ? 32.w : 16.w,
+                vertical: 24.h,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _ModernHeader(
+                    onInvite: () => _toast(context, 'Invite Owner'),
+                    onRegister: () => _toast(context, 'Register Mart'),
                   ),
-                  const SizedBox(height: 24),
-                  _TopProductsCard(products: topProducts),
+                  SizedBox(height: 32.h),
+                  _StatsGrid(stats: stats, isDesktop: isDesktop, isTablet: isTablet),
+                  SizedBox(height: 32.h),
+                  if (isWide)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: _SalesChartCard(
+                            period: _period,
+                            data: sales,
+                            onPeriodChanged: (p) => setState(() => _period = p),
+                          ),
+                        ),
+                        const SizedBox(width: 24),
+                        Expanded(
+                          flex: 1,
+                          child: _TopProductsCard(products: topProducts),
+                        ),
+                      ],
+                    )
+                  else ...[
+                    _SalesChartCard(
+                      period: _period,
+                      data: sales,
+                      onPeriodChanged: (p) => setState(() => _period = p),
+                    ),
+                    const SizedBox(height: 24),
+                    _TopProductsCard(products: topProducts),
+                  ],
                 ],
-              ],
-            ),
-          );
-        },
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -98,17 +102,9 @@ class _ModernHeader extends StatelessWidget {
       final title = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Dashboard',
-            style: TextStyle(
-              fontSize: 28.0.sp,
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF1A1D1E),
-            ),
-          ),
           SizedBox(height: 6.0.h),
           Text(
-            "Welcome back! Here's what's happening with your store today.",
+            "welcome_text".tr,
             style: TextStyle(
               fontSize: 15.0.sp,
               color: Colors.grey.shade600,
@@ -121,14 +117,14 @@ class _ModernHeader extends StatelessWidget {
       final buttons = Row(
         children: [
           _ActionButton(
-            label: 'Invite',
+            label: 'invite'.tr,
             icon: Icons.person_add_alt_1_rounded,
             isPrimary: false,
             onTap: onInvite,
           ),
           const SizedBox(width: 12),
           _ActionButton(
-            label: 'New Mart',
+            label: 'new_mart'.tr,
             icon: Icons.store_rounded,
             isPrimary: true,
             onTap: onRegister,
@@ -230,7 +226,7 @@ class _StatsGrid extends StatelessWidget {
 
         final cards = [
           _StatData(
-            title: "Today's Sales",
+            title: "today_sales".tr,
             value: "${stats.todaySalesEtb.toInt()}",
             suffix: "ETB",
             trend: "+${stats.salesDeltaPct.toStringAsFixed(1)}%",
@@ -239,7 +235,7 @@ class _StatsGrid extends StatelessWidget {
             color: const Color(0xFF6366F1),
           ),
           _StatData(
-            title: "Transactions",
+            title: "transactions".tr,
             value: "${stats.transactions}",
             trend: "+${stats.transactionsDeltaPct.toStringAsFixed(1)}%",
             isTrendUp: true,
@@ -247,7 +243,7 @@ class _StatsGrid extends StatelessWidget {
             color: const Color(0xFF10B981),
           ),
           _StatData(
-            title: "Net Profit",
+            title: "net_profit".tr,
             value: "${stats.profitEtb.toInt()}",
             suffix: "ETB",
             trend: "+${stats.profitDeltaPct.toStringAsFixed(1)}%",
@@ -256,7 +252,7 @@ class _StatsGrid extends StatelessWidget {
             color: const Color(0xFFF59E0B),
           ),
           _StatData(
-            title: "Active Alerts",
+            title: "active_alerts".tr,
             value: "${stats.alerts}",
             trend: "Action needed",
             isTrendUp: false,
@@ -309,7 +305,7 @@ class _StatCard extends StatelessWidget {
     final deltaColor = data.isTrendUp ? const Color(0xFF10B981) : const Color(0xFFEF4444);
     
     return Container(
-      padding: EdgeInsets.all(20.0.w),
+      padding: EdgeInsets.all(14.w),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20.r),
@@ -338,11 +334,11 @@ class _StatCard extends StatelessWidget {
               _TrendBadge(text: data.trend, isUp: data.isTrendUp),
             ],
           ),
-          SizedBox(height: 24.h),
+          SizedBox(height: 10.h),
           Text(
             data.title,
             style: TextStyle(
-              fontSize: 14.sp,
+              fontSize: 12.sp,
               fontWeight: FontWeight.w600,
               color: Colors.grey.shade500,
             ),
@@ -354,8 +350,8 @@ class _StatCard extends StatelessWidget {
             children: [
               Text(
                 data.value,
-                style: const TextStyle(
-                  fontSize: 28,
+                style:  TextStyle(
+                  fontSize: 17.sp,
                   fontWeight: FontWeight.w800,
                   color: Color(0xFF1E293B),
                 ),
@@ -432,7 +428,7 @@ class _SalesChartCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 400.h,
-      padding: EdgeInsets.all(24.0.w),
+      padding: EdgeInsets.all(16.0.w),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24.r),
@@ -449,10 +445,10 @@ class _SalesChartCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Sales Analytics',
+               Text(
+                'sales_analytics'.tr,
                 style: TextStyle(
-                  fontSize: 18.sp,
+                  fontSize: 14.sp,
                   fontWeight: FontWeight.w700,
                   color: Color(0xFF1E293B),
                 ),
@@ -505,8 +501,8 @@ class _TopProductsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Top Performers',
+           Text(
+            'top_performers'.tr,
             style: TextStyle(
               fontSize: 18.sp,
               fontWeight: FontWeight.w700,
@@ -588,7 +584,7 @@ class _ModernTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(4.0.w),
+      padding: EdgeInsets.all(3.w),
       decoration: BoxDecoration(
         color: const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(10.r),
@@ -601,7 +597,7 @@ class _ModernTabs extends StatelessWidget {
             onTap: () => onChanged(p),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+              padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 8.h),
               decoration: BoxDecoration(
                 color: isSel ? Colors.white : Colors.transparent,
                 borderRadius: BorderRadius.circular(8.r),
@@ -616,7 +612,7 @@ class _ModernTabs extends StatelessWidget {
                     : null,
               ),
               child: Text(
-                p.name[0].toUpperCase() + p.name.substring(1),
+                p.name.tr,
                 style: TextStyle(
                   fontSize: 13.sp,
                   fontWeight: FontWeight.w600,

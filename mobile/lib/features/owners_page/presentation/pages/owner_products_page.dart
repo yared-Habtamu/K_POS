@@ -37,33 +37,36 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
     // Match screenshot footer (showing 1-7 of 8)
     final pageItems = filtered.take(7).toList();
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _Header(
-            onAddProduct: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const OwnerAddProductPage()),
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-          _SearchAndFilterRow(
-            controller: _searchController,
-            categories: categories,
-            selectedCategory: _category,
-            onCategoryChanged: (v) => setState(() => _category = v),
-            onQueryChanged: (v) => setState(() => _query = v),
-          ),
-          const SizedBox(height: 16),
-          _ProductsTableCard(
-            count: filtered.length,
-            products: pageItems,
-            totalCount: filtered.length,
-          ),
-        ],
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _Header(
+              onAddProduct: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const OwnerAddProductPage()),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            _SearchAndFilterRow(
+              controller: _searchController,
+              categories: categories,
+              selectedCategory: _category,
+              onCategoryChanged: (v) => setState(() => _category = v),
+              onQueryChanged: (v) => setState(() => _query = v),
+            ),
+            const SizedBox(height: 16),
+            _ProductsTableCard(
+              count: filtered.length,
+              products: pageItems,
+              totalCount: filtered.length,
+            ),
+          ],
+        ),
       ),
     );
   }
