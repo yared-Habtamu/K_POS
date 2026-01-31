@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:pos_app/features/common_dashboard_pages/reusable_qr_scanner_page.dart';
 
 class CommonPointOfSale extends StatefulWidget {
@@ -37,7 +38,7 @@ class _CommonPointOfSaleState extends State<CommonPointOfSale> {
         builder: (context, constraints) {
           final width = constraints.maxWidth;
           final isWide = width >= 1100;
-      
+
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -51,16 +52,20 @@ class _CommonPointOfSaleState extends State<CommonPointOfSale> {
                 Wrap(
                   spacing: 10,
                   runSpacing: 10,
-                  children: const [
+                  children: [
                     _InfoChip(
                       icon: Icons.warning_amber_rounded,
-                      text: '2 Low Stock',
+                      text: 'low_stock'.trParams({
+                        "lowStock": "2",
+                      }),
                       bg: Color(0xFFFFF3E0),
                       fg: Color(0xFFF57C00),
                     ),
                     _InfoChip(
                       icon: Icons.schedule,
-                      text: '1 Expiring Soon',
+                      text: 'expiring_soon'.trParams({
+                        "expiringProducts": "1",
+                      }),
                       bg: Color(0xFFFFEBEE),
                       fg: Color(0xFFD32F2F),
                     ),
@@ -124,8 +129,8 @@ class _SearchRowState extends State<_SearchRow> {
             child: TextField(
               controller: widget.controller,
               onChanged: widget.onChanged,
-              decoration: const InputDecoration(
-                hintText: 'Scan barcode or search product',
+              decoration: InputDecoration(
+                hintText: 'scan_barcode_or_search_products'.tr,
                 hintStyle: TextStyle(
                   fontSize: 13,
                 ),
@@ -138,7 +143,8 @@ class _SearchRowState extends State<_SearchRow> {
               // Navigate to scanner
               final result = await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const BarcodeScannerPage()),
+                MaterialPageRoute(
+                    builder: (context) => const BarcodeScannerPage()),
               );
 
               // Handle result if it exists
@@ -223,7 +229,7 @@ class _CartCard extends StatelessWidget {
               children: [
                 Icon(Icons.shopping_cart_outlined, color: Colors.grey.shade800),
                 const SizedBox(width: 10),
-                const Text('Cart',
+                Text('cart'.tr,
                     style:
                         TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
               ],
@@ -240,7 +246,7 @@ class _CartCard extends StatelessWidget {
                         size: 56, color: Colors.grey.shade400),
                     const SizedBox(height: 12),
                     Text(
-                      'Cart is empty',
+                      'cart_is_empty'.tr,
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
@@ -249,7 +255,7 @@ class _CartCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Scan or search products to add',
+                      'scan_or_search_products_to_add'.tr,
                       style:
                           TextStyle(fontSize: 13, color: Colors.grey.shade700),
                     ),
@@ -314,9 +320,9 @@ class _PaymentCardState extends State<_PaymentCard> {
             children: [
               Icon(Icons.inventory_2_outlined, color: Colors.grey.shade800),
               const SizedBox(width: 10),
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Payment Method',
+                  'payment_method'.tr,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
@@ -325,12 +331,6 @@ class _PaymentCardState extends State<_PaymentCard> {
             ],
           ),
           const SizedBox(height: 10),
-          Text('Payment Method',
-              style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey.shade700,
-                  fontWeight: FontWeight.w600)),
-          const SizedBox(height: 10),
           LayoutBuilder(
             builder: (context, constraints) {
               final isNarrow = constraints.maxWidth < 480;
@@ -338,19 +338,19 @@ class _PaymentCardState extends State<_PaymentCard> {
 
               final methods = [
                 _PaymentMethodItem(
-                    'Cash', Icons.payments_outlined, _PaymentMethod.cash),
+                    'cash'.tr, Icons.payments_outlined, _PaymentMethod.cash),
                 _PaymentMethodItem(
-                    'Card', Icons.credit_card, _PaymentMethod.card),
+                    'card'.tr, Icons.credit_card, _PaymentMethod.card),
                 _PaymentMethodItem(
-                    'Tele Birr', Icons.phone_iphone, _PaymentMethod.telebirr),
+                    'telebirr'.tr, Icons.phone_iphone, _PaymentMethod.telebirr),
                 _PaymentMethodItem('CBE Bank', Icons.account_balance_outlined,
                     _PaymentMethod.cbe),
                 _PaymentMethodItem(
-                    'Wallet',
+                    'wallet'.tr,
                     Icons.account_balance_wallet_outlined,
                     _PaymentMethod.wallet),
                 _PaymentMethodItem(
-                    'other', Icons.receipt_long, _PaymentMethod.other),
+                    'other'.tr, Icons.receipt_long, _PaymentMethod.other),
               ];
 
               return GridView.builder(
@@ -378,7 +378,7 @@ class _PaymentCardState extends State<_PaymentCard> {
             },
           ),
           const SizedBox(height: 14),
-          Text('saved_accounts',
+          Text('saved_accounts'.tr,
               style: TextStyle(
                   fontSize: 13,
                   color: Colors.grey.shade700,
@@ -397,7 +397,7 @@ class _PaymentCardState extends State<_PaymentCard> {
                 final left = Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('TELEBIRR',
+                    Text('telebirr'.tr,
                         style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey.shade700,
@@ -444,7 +444,7 @@ class _PaymentCardState extends State<_PaymentCard> {
             ),
           ),
           const SizedBox(height: 16),
-          Text('Discount',
+          Text('discount'.tr,
               style: TextStyle(
                   fontSize: 13,
                   color: Colors.grey.shade700,
@@ -502,7 +502,7 @@ class _PaymentCardState extends State<_PaymentCard> {
             },
           ),
           const SizedBox(height: 16),
-          Text('Extra Charges',
+          Text('extra_charge'.tr,
               style: TextStyle(
                   fontSize: 13,
                   color: Colors.grey.shade700,
@@ -566,8 +566,8 @@ class _PaymentCardState extends State<_PaymentCard> {
             child: ElevatedButton.icon(
               onPressed: null,
               icon: const Icon(Icons.payment),
-              label: const Text(
-                'Complete Sale - 0.00 ETB',
+              label: Text(
+                'complete_sale'.tr,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -586,16 +586,21 @@ class _PaymentCardState extends State<_PaymentCard> {
             child: OutlinedButton(
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Cart cleared (mock)')));
+                  const SnackBar(
+                    content: Text('Cart cleared (mock)'),
+                  ),
+                );
               },
               style: OutlinedButton.styleFrom(
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
-              child: Text('Clear Cart',
-                  style: TextStyle(
-                      color: Colors.grey.shade700,
-                      fontWeight: FontWeight.w700)),
+              child: Text(
+                'clear_cart'.tr,
+                style: TextStyle(
+                    color: Colors.grey.shade700, fontWeight: FontWeight.w700),
+              ),
             ),
           ),
         ],
@@ -787,7 +792,11 @@ class _SquareButton extends StatelessWidget {
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
-        child: Icon(icon, size: 20,color: Colors.white,),
+        child: Icon(
+          icon,
+          size: 20,
+          color: Colors.white,
+        ),
       ),
     );
   }
