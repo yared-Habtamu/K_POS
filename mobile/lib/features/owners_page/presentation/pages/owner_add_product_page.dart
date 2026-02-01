@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pos_app/features/common_use_pages/reusable_qr_scanner_page.dart';
 import 'package:pos_app/services/global.dart';
 import 'package:pos_app/utils/common_widgets.dart';
 
@@ -627,10 +628,31 @@ class _BarcodesSection extends StatelessWidget {
                 child: Center(
                   child: TextField(
                     controller: controller,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Enter barcode to add',
                       border: InputBorder.none,
                       isCollapsed: true,
+                      suffixIcon: IconButton(
+                        onPressed: () async {
+                          // Navigate to scanner
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) =>
+                                    const BarcodeScannerPage()),
+                          );
+
+                          // Handle result if it exists
+                          if (result != null) {
+                            controller.text = result;
+                            print("Scanned Code: $result");
+                            // Do something with 'result'
+                          }
+                        },
+                        icon: Icon(
+                          Icons.qr_code_scanner,
+                        ),
+                      ),
                     ),
                   ),
                 ),
