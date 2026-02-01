@@ -14,6 +14,7 @@ import 'config/routes/pages.dart';
 import 'config/theme/theme_mode_provider.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'features/common_use_pages/cart_provider.dart';
+import 'features/common_use_pages/employee_managment/presentation/bloc/employee_bloc.dart';
 import 'init_dependencies.dart';
 import 'languages.dart';
 
@@ -68,6 +69,7 @@ class MyApp extends StatelessWidget {
             providers: [
               BlocProvider(create: (create) => serviceLocator<AuthBloc>()),
               BlocProvider(create: (create) => serviceLocator<OwnerBloc>()),
+              BlocProvider(create: (create) => serviceLocator<EmployeeBloc>()),
             ],
             child: Consumer<ThemeManager>(
               builder: (context, themeManager, child) {

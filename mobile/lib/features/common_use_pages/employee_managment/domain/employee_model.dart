@@ -14,6 +14,28 @@ class Employee {
     required this.salaryText,
     required this.active,
   });
+
+  factory Employee.fromJson(Map<String, dynamic> json) {
+    return Employee(
+      id: json['id'] ?? '',
+      name: json['name'] ?? '',
+      phone: json['phone'] ?? '',
+      role: json['role'] ?? '',
+      salaryText: json['salaryText'] ?? '',
+      active: json['active'] ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'phone': phone,
+      'role': role,
+      'salaryText': salaryText,
+      'active': active,
+    };
+  }
 }
 
 class AttendanceRecord {
@@ -48,6 +70,14 @@ class AddEmployeeFormData {
     required this.salary,
     required this.password,
   });
+}
+
+enum AllowedEmployeeRole{
+  storeKeeper,
+  manager,
+  cashier,
+  owner,
+  systemAdmin,
 }
 
 // --- Mock Data Generators (Move to a Repository later) ---
