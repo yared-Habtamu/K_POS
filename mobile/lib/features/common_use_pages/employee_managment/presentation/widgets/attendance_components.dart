@@ -303,6 +303,8 @@ class AttendanceRecordsCard extends StatelessWidget {
   final VoidCallback onPrevDate;
   final VoidCallback onNextDate;
   final List<AttendanceRecord> records;
+  final void Function(AttendanceRecord) onEditRecord;
+  final void Function(AttendanceRecord) onDeleteRecord;
 
   const AttendanceRecordsCard({
     super.key,
@@ -310,6 +312,8 @@ class AttendanceRecordsCard extends StatelessWidget {
     required this.onPrevDate,
     required this.onNextDate,
     required this.records,
+    required this.onEditRecord,
+    required this.onDeleteRecord,
   });
 
   @override
@@ -419,12 +423,12 @@ class AttendanceRecordsCard extends StatelessWidget {
                             DataCell(
                                 Row(mainAxisSize: MainAxisSize.min, children: [
                               IconButton(
-                                  onPressed: () {},
+                                  onPressed: () => onEditRecord(r),
                                   icon:
                                       const Icon(Icons.edit_outlined, size: 18),
                                   color: Colors.grey.shade700),
                               IconButton(
-                                  onPressed: () {},
+                                  onPressed: () => onDeleteRecord(r),
                                   icon: const Icon(Icons.delete_outline,
                                       size: 18),
                                   color: Colors.red.shade400),

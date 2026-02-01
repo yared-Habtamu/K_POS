@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:pos_app/services/global.dart';
 import 'package:pos_app/utils/common_widgets.dart';
 
@@ -22,6 +23,9 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
   DateTime? _expiryDate;
 
   final List<String> _barcodes = [];
+
+  String? _selectedImageName;
+  String? _selectedImagePath;
 
   @override
   void dispose() {
@@ -75,6 +79,29 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
     final v = DateTime.now().millisecondsSinceEpoch.toString();
     if (_barcodes.contains(v)) return;
     setState(() => _barcodes.add(v));
+  }
+
+  Future<void> _saveProduct() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      _toast('Product name is required');
+      return;
+    }
+
+    final product = {
+      'id': DateTime.now().millisecondsSinceEpoch.toString(),
+      'name': name,
+      'category': _category == 'Select category' ? 'Uncategorized' : _category,
+      'purchasePriceEtb':
+          int.tryParse(_purchasePriceController.text.trim()) ?? 0,
+      'sellingPriceEtb': int.tryParse(_sellingPriceController.text.trim()) ?? 0,
+      'stockQty': int.tryParse(_quantityController.text.trim()) ?? 0,
+      'martQty': 0,
+      'imageUrl': _selectedImagePath ?? ''
+    };
+
+    _toast('Saved');
+    Navigator.of(context).pop(product);
   }
 
   @override
@@ -136,7 +163,21 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _ImagePickerCard(
-                      onChooseImage: () => _toast('Choose Image (mock)'),
+                      selectedFileName: _selectedImageName,
+                      onChooseImage: () async {
+                        final result = await FilePicker.platform.pickFiles(
+                          type: FileType.image,
+                          allowMultiple: false,
+                        );
+                        if (result != null && result.files.isNotEmpty) {
+                          final f = result.files.single;
+                          setState(() {
+                            _selectedImageName = f.name;
+                            _selectedImagePath = f.path;
+                          });
+                          _toast('Selected image: ${f.name}');
+                        }
+                      },
                       onTakePhoto: () => _toast('Take Photo (mock)'),
                     ),
                     const SizedBox(height: 16),
@@ -274,8 +315,7 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
                         const SizedBox(width: 10),
                         ElevatedButton(
                           onPressed: () {
-                            _toast('Saved (mock)');
-                            Navigator.of(context).maybePop();
+                            _saveProduct();
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blue.shade900,
@@ -322,10 +362,12 @@ class _Card extends StatelessWidget {
 class _ImagePickerCard extends StatelessWidget {
   final VoidCallback onChooseImage;
   final VoidCallback onTakePhoto;
+  final String? selectedFileName;
 
   const _ImagePickerCard({
     required this.onChooseImage,
     required this.onTakePhoto,
+    this.selectedFileName,
   });
 
   @override
@@ -395,6 +437,16 @@ class _ImagePickerCard extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 8),
+              // show selected file name if present
+              Builder(builder: (context) {
+                if (selectedFileName == null) {
+                  return const SizedBox.shrink();
+                }
+                return Text('Selected: $selectedFileName',
+                    style:
+                        TextStyle(fontSize: 12, color: Colors.grey.shade700));
+              }),
             ],
           );
 
