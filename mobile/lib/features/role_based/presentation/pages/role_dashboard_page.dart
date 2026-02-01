@@ -204,7 +204,7 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
         case _RolePage.dashboard:
           return const OwnerDashboardPage();
         case _RolePage.pos:
-          return const OwnerPosPage();
+          return const OwnerPointOfSalesPage();
         case _RolePage.products:
           return const OwnerProductsPage();
         case _RolePage.inventory:
@@ -293,7 +293,7 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
           return const CashierDashboardPage();
         case _RolePage.pos:
           // Cashiers use the same POS as owners
-          return const OwnerPosPage();
+          return const OwnerPointOfSalesPage();
         case _RolePage.dailyReport:
           return const CashierDailyReportPage();
         case _RolePage.customers:
