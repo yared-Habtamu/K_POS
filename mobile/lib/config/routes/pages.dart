@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:pos_app/common_modules/route_navigation.dart';
 import 'package:pos_app/config/routes/name.dart';
-import 'package:pos_app/features/owners_page/presentation/bloc/owner_bloc.dart';
-import 'package:pos_app/features/owners_page/presentation/pages/owner_dashboard.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
 import '../../features/auth/presentation/signin_page/signin_page.dart';
 import '../../features/onboarding/presentation/pages/onboarding_page.dart';

@@ -16,7 +16,7 @@ import 'package:pos_app/features/manager/presentation/pages/manager_approvals_pa
 import 'package:pos_app/features/manager/presentation/pages/manager_assets_page.dart';
 import 'package:pos_app/features/manager/presentation/pages/manager_employees_page.dart';
 import 'package:pos_app/features/owners_page/presentation/pages/owner_dashboard_page.dart';
-import 'package:pos_app/features/owners_page/presentation/pages/owner_pos_page.dart';
+import 'package:pos_app/features/owners_page/presentation/pages/owner_point_of_sale_page.dart';
 import 'package:pos_app/features/owners_page/presentation/pages/owner_products_page.dart';
 import 'package:pos_app/features/owners_page/presentation/pages/owner_inventory_page.dart';
 import 'package:pos_app/features/owners_page/presentation/pages/owner_employees_page.dart';
