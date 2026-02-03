@@ -194,9 +194,15 @@ class SearchAndRoleFilter extends StatelessWidget {
 class EmployeesTable extends StatelessWidget {
   final List<Employee> items;
   final int totalCount;
+  final void Function(Employee) onEdit;
+  final void Function(Employee) onDelete;
 
   const EmployeesTable(
-      {super.key, required this.items, required this.totalCount});
+      {super.key,
+      required this.items,
+      required this.totalCount,
+      required this.onEdit,
+      required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -275,12 +281,12 @@ class EmployeesTable extends StatelessWidget {
                             DataCell(
                                 Row(mainAxisSize: MainAxisSize.min, children: [
                               IconButton(
-                                  onPressed: () {},
+                                  onPressed: () => onEdit(e),
                                   icon:
                                       const Icon(Icons.edit_outlined, size: 18),
                                   color: Colors.grey.shade700),
                               IconButton(
-                                  onPressed: () {},
+                                  onPressed: () => onDelete(e),
                                   icon: const Icon(Icons.delete_outline,
                                       size: 18),
                                   color: Colors.red.shade400),

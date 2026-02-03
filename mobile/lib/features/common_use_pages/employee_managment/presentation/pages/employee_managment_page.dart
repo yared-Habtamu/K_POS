@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:pos_app/features/common_use_pages/employee_managment/presentation/widgets/attendance_components.dart';
 import 'package:pos_app/features/common_use_pages/employee_managment/presentation/bloc/employee_bloc.dart';
@@ -54,7 +57,301 @@ class _CommonEmployeeManagementPageState
   @override
   void initState() {
     super.initState();
-    _attendanceRecords = List.of(mockAttendanceRecords());
+    _loadInitialData();
+  }
+
+  // --- Employee edit/delete handlers ---
+  Future<void> _onEditEmployee(Employee emp) async {
+    final nameCtrl = TextEditingController(text: emp.name);
+    final phoneCtrl = TextEditingController(text: emp.phone);
+    String role = emp.role;
+    final salaryCtrl = TextEditingController(
+        text: emp.salaryText.replaceAll(' ETB', '').replaceAll(',', ''));
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return Dialog(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('Edit Employee',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 12),
+              TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Name')),
+              const SizedBox(height: 8),
+              TextField(
+                  controller: phoneCtrl,
+                  decoration: const InputDecoration(labelText: 'Phone')),
+              const SizedBox(height: 8),
+              DropdownButton<String>(
+                  value: role,
+                  items: const [
+                    DropdownMenuItem(value: 'Manager', child: Text('Manager')),
+                    DropdownMenuItem(value: 'Cashier', child: Text('Cashier')),
+                    DropdownMenuItem(
+                        value: 'Store Keeper', child: Text('Store Keeper'))
+                  ],
+                  onChanged: (v) {
+                    if (v != null) role = v;
+                  }),
+              const SizedBox(height: 8),
+              TextField(
+                  controller: salaryCtrl,
+                  decoration: const InputDecoration(labelText: 'Salary')),
+              const SizedBox(height: 12),
+              Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Cancel')),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text('Save'))
+              ])
+            ]),
+          ),
+        );
+      },
+    );
+
+    if (result == true) {
+      setState(() {
+        final idx = _employees.indexWhere((e) => e.id == emp.id);
+        if (idx >= 0) {
+          _employees[idx] = Employee(
+            id: emp.id,
+            name: nameCtrl.text.trim(),
+            phone: phoneCtrl.text.trim(),
+            role: role,
+            salaryText: '${salaryCtrl.text.trim()} ETB',
+            active: emp.active,
+          );
+        }
+      });
+      EmployeeUtils.toast(context, 'Employee updated');
+      await _saveEmployees();
+    }
+  }
+
+  Future<void> _onDeleteEmployee(Employee emp) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete employee?'),
+        content: Text(
+            'Are you sure you want to delete ${emp.name}? This cannot be undone.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() {
+        _employees.removeWhere((e) => e.id == emp.id);
+        _attendanceRecords.removeWhere((r) => r.employeeName == emp.name);
+      });
+      EmployeeUtils.toast(context, 'Employee deleted');
+      await _saveEmployees();
+    }
+  }
+
+  // --- Attendance edit/delete handlers ---
+  Future<void> _onEditAttendance(AttendanceRecord rec) async {
+    final dateCtrl = TextEditingController(text: rec.dateYmd);
+    final clockInCtrl = TextEditingController(text: rec.clockIn);
+    final clockOutCtrl = TextEditingController(text: rec.clockOut);
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('Edit Attendance',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 12),
+              TextField(
+                  controller: dateCtrl,
+                  decoration:
+                      const InputDecoration(labelText: 'Date (YYYY-MM-DD)')),
+              const SizedBox(height: 8),
+              TextField(
+                  controller: clockInCtrl,
+                  decoration: const InputDecoration(labelText: 'Clock In')),
+              const SizedBox(height: 8),
+              TextField(
+                  controller: clockOutCtrl,
+                  decoration: const InputDecoration(labelText: 'Clock Out')),
+              const SizedBox(height: 12),
+              Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Cancel')),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text('Save'))
+              ])
+            ]),
+          ),
+        );
+      },
+    );
+
+    if (result == true) {
+      setState(() {
+        final idx = _attendanceRecords.indexWhere((r) =>
+            identical(r, rec) ||
+            (r.employeeName == rec.employeeName &&
+                r.dateYmd == rec.dateYmd &&
+                r.clockIn == rec.clockIn &&
+                r.clockOut == rec.clockOut));
+        if (idx >= 0) {
+          final newDuration = '${clockInCtrl.text} - ${clockOutCtrl.text}';
+          _attendanceRecords[idx] = AttendanceRecord(
+            employeeName: rec.employeeName,
+            dateYmd: dateCtrl.text.trim(),
+            clockIn: clockInCtrl.text.trim(),
+            clockOut: clockOutCtrl.text.trim(),
+            duration: newDuration,
+          );
+        }
+      });
+      EmployeeUtils.toast(context, 'Attendance updated');
+      await _saveAttendance();
+    }
+  }
+
+  Future<void> _onDeleteAttendance(AttendanceRecord rec) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete attendance record?'),
+        content: Text(
+            'Delete the attendance record for ${rec.employeeName} on ${rec.dateYmd}?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _attendanceRecords.removeWhere((r) =>
+          (r.employeeName == rec.employeeName &&
+              r.dateYmd == rec.dateYmd &&
+              r.clockIn == rec.clockIn &&
+              r.clockOut == rec.clockOut)));
+      EmployeeUtils.toast(context, 'Attendance deleted');
+      await _saveAttendance();
+    }
+  }
+
+  // Return attendance records filtered by employee and date range
+  List<AttendanceRecord> _getFilteredAttendanceRecords() {
+    final empFilter = _attendanceEmployeeFilter;
+    final range = _attendanceDateRange;
+    final anchor = _recordsDate;
+
+    DateTime? parseDate(String ymd) {
+      try {
+        return DateTime.parse(ymd);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    DateTime startOfWeek(DateTime d) =>
+        d.subtract(Duration(days: d.weekday - 1));
+    DateTime endOfWeek(DateTime d) =>
+        startOfWeek(d).add(const Duration(days: 6));
+
+    return _attendanceRecords.where((r) {
+      if (empFilter != 'All Employees' && r.employeeName != empFilter) {
+        return false;
+      }
+      final recDate = parseDate(r.dateYmd);
+      if (recDate == null) return false;
+
+      if (range == 'Today') {
+        final a = DateTime(anchor.year, anchor.month, anchor.day);
+        final b = DateTime(recDate.year, recDate.month, recDate.day);
+        return a == b;
+      } else if (range == 'This Week') {
+        final start = DateTime(startOfWeek(anchor).year,
+            startOfWeek(anchor).month, startOfWeek(anchor).day);
+        final end = DateTime(endOfWeek(anchor).year, endOfWeek(anchor).month,
+            endOfWeek(anchor).day);
+        final d = DateTime(recDate.year, recDate.month, recDate.day);
+        return !d.isBefore(start) && !d.isAfter(end);
+      } else if (range == 'This Month') {
+        return recDate.year == anchor.year && recDate.month == anchor.month;
+      }
+      return true;
+    }).toList();
+  }
+
+  Future<void> _loadInitialData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final empStr = prefs.getString('owner_employees_v1');
+    final attStr = prefs.getString('owner_attendance_v1');
+    debugPrint(
+        '[employees] _loadInitialData empStr=${empStr == null ? '<null>' : '${empStr.length} chars'} attStr=${attStr == null ? '<null>' : '${attStr.length} chars'}');
+
+    if (empStr != null) {
+      try {
+        final List<dynamic> arr = jsonDecode(empStr);
+        _employees = arr
+            .map((e) => Employee.fromJson(e as Map<String, dynamic>))
+            .toList();
+        debugPrint('[employees] loaded ${_employees.length} employees');
+      } catch (err, st) {
+        debugPrint('[employees] load error: $err\n$st');
+        _employees = List.of(mockEmployees());
+      }
+    } else {
+      _employees = List.of(mockEmployees());
+      await prefs.setString('owner_employees_v1',
+          jsonEncode(_employees.map((e) => e.toJson()).toList()));
+      debugPrint('[employees] seeded default employees');
+    }
+
+    if (attStr != null) {
+      try {
+        final List<dynamic> arr = jsonDecode(attStr);
+        _attendanceRecords = arr
+            .map((e) => AttendanceRecord.fromJson(e as Map<String, dynamic>))
+            .toList();
+        debugPrint(
+            '[employees] loaded ${_attendanceRecords.length} attendance records');
+      } catch (err, st) {
+        debugPrint('[employees] attendance load error: $err\n$st');
+        _attendanceRecords = List.of(mockAttendanceRecords());
+      }
+    } else {
+      _attendanceRecords = List.of(mockAttendanceRecords());
+      await prefs.setString('owner_attendance_v1',
+          jsonEncode(_attendanceRecords.map((a) => a.toJson()).toList()));
+      debugPrint('[employees] seeded default attendance');
+    }
+
+    _seedPermissions(_employees);
+    setState(() {});
   }
 
   void _seedPermissions(List<Employee> list) {
@@ -70,6 +367,22 @@ class _CommonEmployeeManagementPageState
     }
   }
 
+  Future<void> _saveEmployees() async {
+    final prefs = await SharedPreferences.getInstance();
+    final s = jsonEncode(_employees.map((e) => e.toJson()).toList());
+    await prefs.setString('owner_employees_v1', s);
+    debugPrint(
+        '[employees] saved ${_employees.length} employees (${s.length} chars)');
+  }
+
+  Future<void> _saveAttendance() async {
+    final prefs = await SharedPreferences.getInstance();
+    final s = jsonEncode(_attendanceRecords.map((a) => a.toJson()).toList());
+    await prefs.setString('owner_attendance_v1', s);
+    debugPrint(
+        '[employees] saved ${_attendanceRecords.length} attendance records (${s.length} chars)');
+  }
+
   Future<void> _onAddEmployee() async {
     final result = await showDialog<AddEmployeeFormData>(
       context: context,
@@ -78,8 +391,6 @@ class _CommonEmployeeManagementPageState
     );
 
     if (result != null) {
-      // In real app, call Bloc add event here.
-      // For now we simulate local add.
       final newEmp = Employee(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         name: result.employeeName,
@@ -93,7 +404,8 @@ class _CommonEmployeeManagementPageState
         _employees.insert(0, newEmp);
         _seedPermissions([newEmp]);
       });
-      if (mounted) EmployeeUtils.toast(context, 'Employee Added');
+      EmployeeUtils.toast(context, 'Employee Added');
+      await _saveEmployees();
     }
   }
 
@@ -119,6 +431,33 @@ class _CommonEmployeeManagementPageState
         context: context,
         initialTime: _manualClockOut ?? const TimeOfDay(hour: 17, minute: 0));
     if (picked != null) setState(() => _manualClockOut = picked);
+  }
+
+  // Add a manual attendance record, persist it, and refresh the UI
+  Future<void> _addManualAttendance() async {
+    if (_manualEmployee == 'Select Employee') {
+      EmployeeUtils.toast(context, 'Please select an employee');
+      return;
+    }
+    if (_manualClockIn == null || _manualClockOut == null) {
+      EmployeeUtils.toast(context, 'Please set clock in and clock out times');
+      return;
+    }
+
+    final rec = AttendanceRecord(
+      employeeName: _manualEmployee,
+      dateYmd: EmployeeUtils.formatYmd(_manualDate),
+      clockIn: EmployeeUtils.formatTime(_manualClockIn!),
+      clockOut: EmployeeUtils.formatTime(_manualClockOut!),
+      duration:
+          '${EmployeeUtils.formatTime(_manualClockIn!)} - ${EmployeeUtils.formatTime(_manualClockOut!)}',
+    );
+
+    setState(() => _attendanceRecords.insert(0, rec));
+    debugPrint(
+        '[employees] added attendance for ${rec.employeeName} on ${rec.dateYmd}');
+    await _saveAttendance();
+    EmployeeUtils.toast(context, 'Attendance Saved');
   }
 
   List<Employee> _getFilteredEmployees() {
@@ -156,15 +495,10 @@ class _CommonEmployeeManagementPageState
                 _employees = state.employees;
                 _seedPermissions(_employees);
               });
-            }
-            // HERE IS THE FIX:
-            else if (state is FailureEmployeeState) {
-              // 1. Clear the list so the page shows empty state
+            } else if (state is FailureEmployeeState) {
               setState(() {
                 _employees = [];
               });
-
-              // 2. Show the User Friendly SnackBar
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Row(
@@ -173,7 +507,7 @@ class _CommonEmployeeManagementPageState
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(state.message ?? ""),
-                      ), // Friendly message
+                      ),
                     ],
                   ),
                   backgroundColor: Colors.red.shade700,
@@ -192,7 +526,6 @@ class _CommonEmployeeManagementPageState
             }
           },
           builder: (context, state) {
-            // Keep loading separate to avoid user interacting while fetching
             if (state is LoadingEmployeeState) {
               return EmployeeManagementShimmer();
             }
@@ -218,7 +551,6 @@ class _CommonEmployeeManagementPageState
                       onChanged: (i) => setState(() => _tabIndex = i)),
                   const SizedBox(height: 12),
                   if (_tabIndex == 0) ...[
-                    // --- Employees Tab ---
                     SectionHeader(
                       title: 'Employees',
                       subtitle: 'Manage your team members',
@@ -235,7 +567,6 @@ class _CommonEmployeeManagementPageState
                     ),
                     const SizedBox(height: 14),
 
-                    // Display Empty State if list is empty (Due to error or no data)
                     if (displayList.isEmpty)
                       Center(
                         child: Padding(
@@ -257,11 +588,12 @@ class _CommonEmployeeManagementPageState
                       EmployeesTable(
                         items: displayList,
                         totalCount: displayList.length,
+                        onEdit: _onEditEmployee,
+                        onDelete: _onDeleteEmployee,
                       ),
 
                     const SizedBox(height: 14),
 
-                    // Hide permissions section if no employees
                     if (displayList.isNotEmpty)
                       PermissionsSection(
                         employees: displayList,
@@ -279,12 +611,10 @@ class _CommonEmployeeManagementPageState
                             setState(() => _cashierApplyDiscount[id] = v),
                       ),
                   ] else ...[
-                    // --- Attendance Tab (Same as before) ---
                     SectionHeader(
                       title: 'Attendance',
                       subtitle: 'Track and manage employee attendance',
-                      rightActions:
-                          Row(mainAxisSize: MainAxisSize.min, children: [
+                      rightActions: Row(mainAxisSize: MainAxisSize.min, children: [
                         OutlinedButton.icon(
                             onPressed: () =>
                                 EmployeeUtils.toast(context, 'CSV'),
@@ -299,7 +629,6 @@ class _CommonEmployeeManagementPageState
                       ]),
                     ),
                     const SizedBox(height: 14),
-
                     AttendanceFiltersCard(
                       employeeValue: _attendanceEmployeeFilter,
                       employeeItems: employeeNames.toList(),
@@ -315,7 +644,6 @@ class _CommonEmployeeManagementPageState
                           setState(() => _attendanceDateRange = v),
                     ),
                     const SizedBox(height: 14),
-
                     AddAttendanceManuallyCard(
                       employees: employeeNamesManual,
                       selectedEmployee: _manualEmployee,
@@ -331,18 +659,18 @@ class _CommonEmployeeManagementPageState
                           : EmployeeUtils.formatTime(_manualClockOut!),
                       onPickClockIn: _pickClockIn,
                       onPickClockOut: _pickClockOut,
-                      onSave: () =>
-                          EmployeeUtils.toast(context, 'Attendance Saved'),
+                      onSave: _addManualAttendance,
                     ),
                     const SizedBox(height: 14),
-
                     AttendanceRecordsCard(
                       recordsDate: _recordsDate,
                       onPrevDate: () => setState(() => _recordsDate =
                           _recordsDate.subtract(const Duration(days: 1))),
-                      onNextDate: () => setState(() => _recordsDate =
-                          _recordsDate.add(const Duration(days: 1))),
-                      records: _attendanceRecords,
+                      onNextDate: () => setState(() =>
+                          _recordsDate = _recordsDate.add(const Duration(days: 1))),
+                      records: _getFilteredAttendanceRecords(),
+                      onEditRecord: _onEditAttendance,
+                      onDeleteRecord: _onDeleteAttendance,
                     ),
                   ],
                 ],

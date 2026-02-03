@@ -47,6 +47,7 @@ dependencies:
   awesome_notifications_core:
   flutter_feature_tour:
   google_fonts:
+  file_picker: ^5.2.4
   linear_progress_bar:
   circular_bottom_navigation:
   progress_indicator:
