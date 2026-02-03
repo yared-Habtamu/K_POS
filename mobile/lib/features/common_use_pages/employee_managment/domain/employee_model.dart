@@ -15,14 +15,15 @@ class Employee {
     required this.active,
   });
 
-  factory Employee.fromJson(Map<String, dynamic> j) => Employee(
-        id: j['id'] as String,
-        name: j['name'] as String? ?? '',
-        phone: j['phone'] as String? ?? '',
-        role: j['role'] as String? ?? '',
-        salaryText: j['salaryText'] as String? ?? '',
-        active:
-            j['active'] is bool ? j['active'] as bool : (j['active'] == 'true'),
+    factory Employee.fromJson(Map<String, dynamic> json) => Employee(
+        id: json['id'] as String? ?? '',
+        name: json['name'] as String? ?? '',
+        phone: json['phone'] as String? ?? '',
+        role: json['role'] as String? ?? '',
+        salaryText: json['salaryText'] as String? ?? '',
+        active: json['active'] is bool
+            ? json['active'] as bool
+            : (json['active'] == 'true'),
       );
 
   Map<String, dynamic> toJson() => {
@@ -83,6 +84,14 @@ class AddEmployeeFormData {
     required this.salary,
     required this.password,
   });
+}
+
+enum AllowedEmployeeRole{
+  storeKeeper,
+  manager,
+  cashier,
+  owner,
+  systemAdmin,
 }
 
 // --- Mock Data Generators (Move to a Repository later) ---

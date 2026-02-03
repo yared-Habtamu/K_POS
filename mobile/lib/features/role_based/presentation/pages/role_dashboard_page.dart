@@ -16,7 +16,7 @@ import 'package:pos_app/features/manager/presentation/pages/manager_approvals_pa
 import 'package:pos_app/features/manager/presentation/pages/manager_assets_page.dart';
 import 'package:pos_app/features/manager/presentation/pages/manager_employees_page.dart';
 import 'package:pos_app/features/owners_page/presentation/pages/owner_dashboard_page.dart';
-import 'package:pos_app/features/owners_page/presentation/pages/owner_pos_page.dart';
+import 'package:pos_app/features/owners_page/presentation/pages/owner_point_of_sale_page.dart';
 import 'package:pos_app/features/owners_page/presentation/pages/owner_products_page.dart';
 import 'package:pos_app/features/owners_page/presentation/pages/owner_inventory_page.dart';
 import 'package:pos_app/features/owners_page/presentation/pages/owner_employees_page.dart';
@@ -204,7 +204,7 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
         case _RolePage.dashboard:
           return const OwnerDashboardPage();
         case _RolePage.pos:
-          return const OwnerPosPage();
+          return const OwnerPointOfSalesPage();
         case _RolePage.products:
           return const OwnerProductsPage();
         case _RolePage.inventory:
@@ -293,7 +293,7 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
           return const CashierDashboardPage();
         case _RolePage.pos:
           // Cashiers use the same POS as owners
-          return const OwnerPosPage();
+          return const OwnerPointOfSalesPage();
         case _RolePage.dailyReport:
           return const CashierDailyReportPage();
         case _RolePage.customers:

@@ -58,6 +58,8 @@ dependencies:
   video_player:
   mobile_scanner:
   fl_chart: 0.66.2
+  http:
+  shimmer:
 
 dev_dependencies:
   flutter_test:

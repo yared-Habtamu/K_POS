@@ -17,7 +17,10 @@ class EmployeeUtils {
 
   static void toast(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 }
@@ -34,7 +37,11 @@ class RoleChip extends StatelessWidget {
     final isOwner = normalized == 'Owner';
     final isManager = normalized == 'Manager';
 
-    final bg = isOwner ? Colors.grey.shade100 : isManager ? Colors.blue.shade900 : Colors.grey.shade100;
+    final bg = isOwner
+        ? Colors.grey.shade100
+        : isManager
+            ? Colors.blue.shade900
+            : Colors.grey.shade100;
     final fg = isManager ? Colors.white : Colors.grey.shade800;
 
     return Container(
@@ -67,7 +74,10 @@ class StatusChip extends StatelessWidget {
       ),
       child: Text(
         active ? 'active' : 'inactive',
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.grey.shade800),
+        style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: Colors.grey.shade800),
       ),
     );
   }
@@ -79,7 +89,8 @@ class NameCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase();
+    final initial =
+        name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase();
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -91,10 +102,15 @@ class NameCell extends StatelessWidget {
             color: Colors.grey.shade200,
             shape: BoxShape.circle,
           ),
-          child: Text(initial, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.grey.shade800)),
+          child: Text(initial,
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey.shade800)),
         ),
         const SizedBox(width: 10),
-        Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+        Text(name,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
       ],
     );
   }
