@@ -168,6 +168,20 @@ class _SignInPageState extends State<SignInPage> {
                     ),
                     const SizedBox(height: 30),
 
+                    // Register your mart button (directly under Sign In)
+                    Align(
+                      alignment: Alignment.center,
+                      child: TextButton(
+                        onPressed: () {
+                          Navigator.pushNamed(
+                              context, NamedRoutes.RegisterMartPage);
+                        },
+                        child: const Text('Register your mart',
+                            style: TextStyle(
+                                fontSize: 14, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+
                     // --- Biometric Icon ---
                     BouncingButton(
                       onTap: () {},

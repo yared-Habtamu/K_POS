@@ -4,6 +4,8 @@ import 'package:pos_app/common_modules/route_navigation.dart';
 import 'package:pos_app/config/routes/name.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
 import '../../features/auth/presentation/signin_page/signin_page.dart';
+import '../../features/auth/presentation/register_page/register_page.dart';
+import '../../features/auth/presentation/register_page/registration_status_page.dart';
 import '../../features/onboarding/presentation/pages/onboarding_page.dart';
 import '../../features/role_based/presentation/pages/role_dashboard_page.dart';
 import '../../features/splash_page/splash_page.dart';
@@ -31,6 +33,14 @@ class NamedRouteSettings {
         route: NamedRoutes.SigninPage,
         page: const SignInPage(),
         bloc: BlocProvider(create: (_) => AuthBloc()),
+      ),
+      pageEntity(
+        route: NamedRoutes.RegisterMartPage,
+        page: const RegisterMartPage(),
+      ),
+      pageEntity(
+        route: NamedRoutes.RegistrationStatusPage,
+        page: const RegistrationStatusPage(),
       ),
       pageEntity(
         route: NamedRoutes.RoleDashboardPage,
