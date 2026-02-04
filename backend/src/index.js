@@ -10,6 +10,10 @@ app.use(cors());
 app.use(express.json());
 app.use(morgan("dev"));
 
+// Serve local uploaded images (development fallback)
+const path = require("path");
+app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
+
 // Models and routes
 const martsRouter = require("./routes/marts");
 const authRouter = require("./routes/auth");
@@ -18,25 +22,24 @@ const assetsRouter = require("./routes/assets");
 const salesRouter = require("./routes/sales");
 const reportsRouter = require("./routes/reports");
 const dailyReportsRouter = require("./routes/dailyReports");
-const productsRouter = require('./routes/products');
-const productEditRequestsRouter = require('./routes/productEditRequests');
-const productAddRequestsRouter = require('./routes/productAddRequests');
-const stockTransferRequestsRouter = require('./routes/stockTransferRequests');
-const customersRouter = require('./routes/customers');
-
+const productsRouter = require("./routes/products");
+const productEditRequestsRouter = require("./routes/productEditRequests");
+const productAddRequestsRouter = require("./routes/productAddRequests");
+const stockTransferRequestsRouter = require("./routes/stockTransferRequests");
+const customersRouter = require("./routes/customers");
 
 app.use("/api/expenses", expensesRouter);
 app.use("/api/assets", assetsRouter);
 app.use("/api/sales", salesRouter);
 app.use("/api/reports", reportsRouter);
 app.use("/api/daily-reports", dailyReportsRouter);
-app.use('/api/marts', martsRouter);
-app.use('/api/auth', authRouter);
-app.use('/api/products', productsRouter);
-app.use('/api/product-edit-requests', productEditRequestsRouter);
-app.use('/api/product-add-requests', productAddRequestsRouter);
-app.use('/api/stock-transfer-requests', stockTransferRequestsRouter);
-app.use('/api/customers', customersRouter);
+app.use("/api/marts", martsRouter);
+app.use("/api/auth", authRouter);
+app.use("/api/products", productsRouter);
+app.use("/api/product-edit-requests", productEditRequestsRouter);
+app.use("/api/product-add-requests", productAddRequestsRouter);
+app.use("/api/stock-transfer-requests", stockTransferRequestsRouter);
+app.use("/api/customers", customersRouter);
 
 const PORT = process.env.PORT || 4000;
 

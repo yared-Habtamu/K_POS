@@ -13,3 +13,7 @@ class SigninClickedEvent extends AuthEvent {
     required this.password,
   });
 }
+
+class AuthCheckRequested extends AuthEvent {}
+
+class LogoutRequested extends AuthEvent {}

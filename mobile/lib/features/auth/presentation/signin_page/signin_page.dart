@@ -195,6 +195,18 @@ class _SignInPageState extends State<SignInPage> {
                             size: 32, color: _primaryGreen),
                       ),
                     ),
+
+                    // Logout shortcut (useful during testing)
+                    Align(
+                      alignment: Alignment.center,
+                      child: TextButton(
+                        onPressed: () {
+                          context.read<AuthBloc>().add(LogoutRequested());
+                        },
+                        child: const Text('Logout',
+                            style: TextStyle(fontSize: 12)),
+                      ),
+                    ),
                     const SizedBox(height: 30),
                     const SizedBox(height: 30),
                     const Divider(color: Colors.grey),

@@ -42,6 +42,11 @@ class StorageServices {
     await _prefs.setString(AppConstants.UserId, value);
   }
 
+  Future<void> clearUserAuth() async {
+    await _prefs.remove(AppConstants.UserId);
+    await _prefs.remove(AppConstants.UserRole);
+  }
+
   String getUserId() {
     return _prefs.getString(AppConstants.UserId) ?? "";
   }

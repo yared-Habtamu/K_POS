@@ -57,12 +57,28 @@ export default function ProductManagement() {
     // fetch from backend on mount
     (async () => {
       try {
-        await (useProductStore.getState().fetchProducts?.() as Promise<void>);
+        // initial page load (server-side pagination)
+        await (useProductStore
+          .getState()
+          .fetchProducts?.(1, ITEMS_PER_PAGE) as Promise<void>);
       } catch (e) {
         // ignore
       }
     })();
   }, []);
+
+  // Fetch page when currentPage changes
+  useEffect(() => {
+    (async () => {
+      try {
+        await (useProductStore
+          .getState()
+          .fetchProducts?.(currentPage, ITEMS_PER_PAGE) as Promise<void>);
+      } catch (e) {
+        // ignore
+      }
+    })();
+  }, [currentPage]);
 
   // Fetch sales to compute sold counts per product (so we can show remaining = quantity - sold)
   useEffect(() => {
@@ -83,7 +99,11 @@ export default function ProductManagement() {
         for (const s of sales || []) {
           for (const it of s.items || []) {
             const pid = (
-              it.productId || it.product?._id || it.product?.id || it.id || ""
+              it.productId ||
+              it.product?._id ||
+              it.product?.id ||
+              it.id ||
+              ""
             ).toString();
             map[pid] = (map[pid] || 0) + Number(it.quantity || 0);
           }
@@ -123,7 +143,7 @@ export default function ProductManagement() {
     barcodeInput: "",
   });
 
-  // Filter products based on search and category
+  // Filter products based on search and category (applies to current page only)
   const filteredProducts = products.filter((p) => {
     const matchSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -133,13 +153,15 @@ export default function ProductManagement() {
     return matchSearch && matchCategory;
   });
 
-  // Pagination logic
-  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedProducts = filteredProducts.slice(
-    startIndex,
-    startIndex + ITEMS_PER_PAGE
+  // Pagination logic - rely on server total when available
+  const totalPages = Math.max(
+    1,
+    Math.ceil(
+      (useProductStore.getState().totalProducts || filteredProducts.length) /
+        ITEMS_PER_PAGE,
+    ),
   );
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
 
   const resetForm = () => {
     setForm({
@@ -155,12 +177,17 @@ export default function ProductManagement() {
       barcodeInput: "",
     });
     setEditingProduct(null);
-  }; 
+  };
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
     // product.quantity is authoritative remaining value after sales
-    const remaining = Number(product.quantity ?? product.supermarketQuantity ?? product.storeQuantity ?? 0);
+    const remaining = Number(
+      product.quantity ??
+        product.supermarketQuantity ??
+        product.storeQuantity ??
+        0,
+    );
 
     setForm({
       name: product.name,
@@ -174,7 +201,11 @@ export default function ProductManagement() {
       expiryDate: product.expiryDate
         ? new Date(product.expiryDate).toISOString().split("T")[0]
         : "",
-      barcodes: Array.isArray(product.barcodes) ? product.barcodes.slice() : (product.barcode ? [product.barcode] : []),
+      barcodes: Array.isArray(product.barcodes)
+        ? product.barcodes.slice()
+        : product.barcode
+          ? [product.barcode]
+          : [],
       barcodeInput: "",
     });
     setIsDialogOpen(true);
@@ -207,7 +238,9 @@ export default function ProductManagement() {
       supermarketQuantity: parseInt(form.quantity),
       lowStockThreshold: parseInt(form.lowStockThreshold),
       expiryDate: form.expiryDate ? new Date(form.expiryDate) : undefined,
-      barcodes: Array.isArray(form.barcodes) ? form.barcodes.filter(Boolean) : [],
+      barcodes: Array.isArray(form.barcodes)
+        ? form.barcodes.filter(Boolean)
+        : [],
       shopId: "shop-001",
     };
 
@@ -240,8 +273,8 @@ export default function ProductManagement() {
   const generateBarcode = () => {
     const b = `${Date.now()}`.slice(-12);
     const existing = Array.isArray(form.barcodes) ? form.barcodes.slice() : [];
-    setForm({ ...form, barcodes: [...existing, b], barcodeInput: '' });
-  }; 
+    setForm({ ...form, barcodes: [...existing, b], barcodeInput: "" });
+  };
 
   // Pagination handlers
   const goToPage = (page: number) => {
@@ -357,7 +390,9 @@ export default function ProductManagement() {
                     />
                     {editingProduct && (
                       <div className="text-xs text-muted-foreground">
-                        Showing remaining quantity (total - sold). If you change this value it will be submitted as the new remaining quantity and may require approval.
+                        Showing remaining quantity (total - sold). If you change
+                        this value it will be submitted as the new remaining
+                        quantity and may require approval.
                       </div>
                     )}
                   </div>
@@ -419,17 +454,25 @@ export default function ProductManagement() {
                       <Input
                         id="barcodeInput"
                         value={form.barcodeInput}
-                        onChange={(e) => setForm({ ...form, barcodeInput: e.target.value })}
+                        onChange={(e) =>
+                          setForm({ ...form, barcodeInput: e.target.value })
+                        }
                         placeholder="Enter barcode to add"
                       />
                       <Button
                         type="button"
                         variant="outline"
                         onClick={() => {
-                          const val = (form.barcodeInput || '').trim();
+                          const val = (form.barcodeInput || "").trim();
                           if (!val) return;
-                          const existing = Array.isArray(form.barcodes) ? form.barcodes.slice() : [];
-                          setForm({ ...form, barcodes: [...existing, val], barcodeInput: '' });
+                          const existing = Array.isArray(form.barcodes)
+                            ? form.barcodes.slice()
+                            : [];
+                          setForm({
+                            ...form,
+                            barcodes: [...existing, val],
+                            barcodeInput: "",
+                          });
                         }}
                       >
                         Add
@@ -445,23 +488,34 @@ export default function ProductManagement() {
                     </div>
 
                     <div className="flex flex-wrap gap-2 mt-2">
-                      {(Array.isArray(form.barcodes) ? form.barcodes : []).map((b, idx) => (
-                        <div key={b + '-' + idx} className="inline-flex items-center gap-2 px-2 py-1 rounded border">
-                          <span className="font-mono text-sm">{b}</span>
-                          <Button type="button" variant="ghost" className="text-destructive p-1" onClick={() => {
-                            const arr = (form.barcodes || []).slice();
-                            arr.splice(idx, 1);
-                            setForm({ ...form, barcodes: arr });
-                          }}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
+                      {(Array.isArray(form.barcodes) ? form.barcodes : []).map(
+                        (b, idx) => (
+                          <div
+                            key={b + "-" + idx}
+                            className="inline-flex items-center gap-2 px-2 py-1 rounded border"
+                          >
+                            <span className="font-mono text-sm">{b}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="text-destructive p-1"
+                              onClick={() => {
+                                const arr = (form.barcodes || []).slice();
+                                arr.splice(idx, 1);
+                                setForm({ ...form, barcodes: arr });
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ),
+                      )}
                     </div>
 
                     {editingProduct && (
                       <div className="text-xs text-muted-foreground">
-                        Previously registered barcodes are shown above. Add or generate new ones.
+                        Previously registered barcodes are shown above. Add or
+                        generate new ones.
                       </div>
                     )}
                   </div>
@@ -552,8 +606,8 @@ export default function ProductManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedProducts.length > 0 ? (
-                    paginatedProducts.map((product) => (
+                  {filteredProducts.length > 0 ? (
+                    filteredProducts.map((product) => (
                       <TableRow key={product.id}>
                         <TableCell>
                           {product.pictureUrl ? (
@@ -593,9 +647,18 @@ export default function ProductManagement() {
                         <TableCell className="text-right">
                           {(() => {
                             // product.quantity is the authoritative sellable quantity (mart/front)
-                            const martQty = Number(product.quantity ?? product.supermarketQuantity ?? 0);
-                            const lowThreshold = Number(product.lowStockThreshold || 0);
-                            const variant = martQty <= lowThreshold ? "destructive" : "secondary";
+                            const martQty = Number(
+                              product.quantity ??
+                                product.supermarketQuantity ??
+                                0,
+                            );
+                            const lowThreshold = Number(
+                              product.lowStockThreshold || 0,
+                            );
+                            const variant =
+                              martQty <= lowThreshold
+                                ? "destructive"
+                                : "secondary";
                             return (
                               <Badge variant={variant}>
                                 {martQty} {product.unit}
@@ -645,15 +708,13 @@ export default function ProductManagement() {
               <div className="text-xs text-muted-foreground mb-2 sm:mb-0">
                 Showing <span className="font-medium">{startIndex + 1}</span>–
                 <span className="font-medium">
-                  {Math.min(
-                    startIndex + ITEMS_PER_PAGE,
-                    filteredProducts.length
-                  )}
+                  {startIndex + filteredProducts.length}
                 </span>{" "}
                 of
                 <span className="font-medium">
                   {" "}
-                  {filteredProducts.length}
+                  {useProductStore.getState().totalProducts ||
+                    filteredProducts.length}
                 </span>{" "}
                 products
               </div>
@@ -679,7 +740,7 @@ export default function ProductManagement() {
                     >
                       {page}
                     </Button>
-                  )
+                  ),
                 )}
 
                 <Button

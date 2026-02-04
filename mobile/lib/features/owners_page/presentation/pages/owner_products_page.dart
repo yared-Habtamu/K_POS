@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:pos_app/features/products/domain/product_repository.dart';
 
 import 'owner_add_product_page.dart';
 
@@ -34,31 +35,56 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
     super.dispose();
   }
 
+  void _toast(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
   static const String _kProductsKey = 'owner_products_v1';
 
   Future<void> _loadProducts() async {
-    final prefs = await SharedPreferences.getInstance();
-    final s = prefs.getString(_kProductsKey);
-    debugPrint(
-        '[products] _loadProducts reading key=$_kProductsKey value=${s == null ? '<null>' : '${s.length} chars'}');
-    if (s != null) {
-      try {
-        final List<dynamic> arr = jsonDecode(s);
-        final loaded = arr
-            .map((e) => _OwnerProductRow.fromJson(e as Map<String, dynamic>))
-            .toList();
-        debugPrint('[products] loaded ${loaded.length} items from storage');
-        setState(() => _products = loaded);
-      } catch (err, st) {
-        debugPrint('[products] load error: $err\n$st');
+    // Try to fetch from backend first; fall back to local cached data
+    try {
+      final repo = ProductRepository();
+      final list = await repo.listProducts();
+      final rows = list
+          .map((p) => _OwnerProductRow(
+                id: p.id,
+                name: p.name,
+                category: p.category,
+                purchasePriceEtb: p.purchasePrice.toInt(),
+                sellingPriceEtb: p.sellingPrice.toInt(),
+                stockQty: p.quantity,
+                martQty: p.storeQuantity,
+                imageUrl: p.imageUrl,
+              ))
+          .toList();
+      setState(() => _products = rows);
+      // persist a lightweight cache
+      final prefs = await SharedPreferences.getInstance();
+      final s = jsonEncode(_products.map((p) => p.toJson()).toList());
+      await prefs.setString(_kProductsKey, s);
+    } catch (e, st) {
+      debugPrint('[products] fetch failed: $e\n$st');
+      // fallback to cached or mocks
+      final prefs = await SharedPreferences.getInstance();
+      final s = prefs.getString(_kProductsKey);
+      if (s != null) {
+        try {
+          final List<dynamic> arr = jsonDecode(s);
+          final loaded = arr
+              .map((e) => _OwnerProductRow.fromJson(e as Map<String, dynamic>))
+              .toList();
+          setState(() => _products = loaded);
+        } catch (_) {
+          setState(
+              () => _products = List<_OwnerProductRow>.from(_mockProducts()));
+        }
+      } else {
         setState(
             () => _products = List<_OwnerProductRow>.from(_mockProducts()));
-        await _saveProducts();
       }
-    } else {
-      debugPrint('[products] no stored products, seeding from mocks');
-      setState(() => _products = List<_OwnerProductRow>.from(_mockProducts()));
-      await _saveProducts();
     }
   }
 
@@ -124,12 +150,18 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                       );
                       if (res != null && res.files.isNotEmpty) {
                         final f = res.files.single;
+                        // prefer bytes (web) and fall back to path on non-web
                         if (f.bytes != null) {
                           final b64 = base64.encode(f.bytes!);
                           setStateDialog(() => newImageUrl =
                               'data:image/${f.extension ?? 'png'};base64,$b64');
-                        } else if (f.path != null) {
-                          setStateDialog(() => newImageUrl = f.path);
+                        } else {
+                          try {
+                            final p = f.path;
+                            setStateDialog(() => newImageUrl = p);
+                          } catch (_) {
+                            // path not available on web; ignore
+                          }
                         }
                       }
                     },
@@ -187,31 +219,75 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
       final newCat = catCtrl.text.trim();
       print('Saving edits for ${p.id}: name="$newName", cat="$newCat"');
       try {
-        setState(() {
-          final idx = _products.indexWhere((x) => x.id == p.id);
-          if (idx >= 0) {
-            _products[idx] = _OwnerProductRow(
-              id: p.id,
-              name: newName,
-              category: newCat,
-              purchasePriceEtb:
-                  int.tryParse(purchaseCtrl.text.trim()) ?? p.purchasePriceEtb,
-              sellingPriceEtb:
-                  int.tryParse(sellingCtrl.text.trim()) ?? p.sellingPriceEtb,
-              stockQty: int.tryParse(stockCtrl.text.trim()) ?? p.stockQty,
-              martQty: int.tryParse(martCtrl.text.trim()) ?? p.martQty,
-              imageUrl: newImageUrl,
-            );
-          } else {
-            print('Warning: edited product id ${p.id} not found in _products');
-          }
-        });
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Product updated: $newName')));
+        final repo = ProductRepository();
+        final fields = <String, String>{
+          if (newName.isNotEmpty) 'name': newName,
+          if (newCat.isNotEmpty) 'category': newCat,
+          'purchasePrice': purchaseCtrl.text.trim(),
+          'sellingPrice': sellingCtrl.text.trim(),
+          'storeQuantity': martCtrl.text.trim(),
+          'quantity': stockCtrl.text.trim(),
+        };
+
+        // image handling: if newImageUrl is a data URI, we decode it; otherwise update via URL
+        List<int>? bytes;
+        String? filename;
+        if (newImageUrl?.startsWith('data:image/') == true) {
+          final parts = newImageUrl!.split(',');
+          final b64 = parts.length > 1 ? parts[1] : '';
+          bytes = base64.decode(b64);
+          filename = 'image.png';
+        }
+
+        final res = await repo.updateProduct(p.id, fields,
+            imageBytes: bytes, filename: filename);
+
+        print('[products] update response: $res');
+        if (res.containsKey('product')) {
+          final prod = res['product'];
+          setState(() {
+            final idx = _products.indexWhere((x) => x.id == p.id);
+            if (idx >= 0) {
+              _products[idx] = _OwnerProductRow(
+                id: prod.id,
+                name: prod.name,
+                category: prod.category,
+                purchasePriceEtb: prod.purchasePrice.toInt(),
+                sellingPriceEtb: prod.sellingPrice.toInt(),
+                stockQty: prod.quantity,
+                martQty: prod.storeQuantity,
+                imageUrl: prod.imageUrl,
+              );
+            }
+          });
+          _toast('Product updated: $newName');
+        } else if (res.containsKey('requestId')) {
+          // Owner updates are submitted for approval (202). Apply changes locally
+          // so the owner sees immediate feedback, and persist to cache.
+          setState(() {
+            final idx = _products.indexWhere((x) => x.id == p.id);
+            if (idx >= 0) {
+              _products[idx] = _OwnerProductRow(
+                id: p.id,
+                name: newName.isNotEmpty ? newName : p.name,
+                category: newCat.isNotEmpty ? newCat : p.category,
+                purchasePriceEtb: int.tryParse(purchaseCtrl.text.trim()) ??
+                    p.purchasePriceEtb,
+                sellingPriceEtb:
+                    int.tryParse(sellingCtrl.text.trim()) ?? p.sellingPriceEtb,
+                stockQty: int.tryParse(stockCtrl.text.trim()) ?? p.stockQty,
+                martQty: int.tryParse(martCtrl.text.trim()) ?? p.martQty,
+                imageUrl: newImageUrl ?? p.imageUrl,
+              );
+            }
+          });
+          await _saveProducts();
+          _toast(
+              'Update submitted for approval — applied locally (requestId=${res['requestId']})');
+        }
       } catch (e, st) {
         print('Error updating product: $e\n$st');
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Failed to update product')));
+        _toast('Failed to update product');
       }
     }
   }
@@ -234,8 +310,9 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
     );
 
     if (confirm == true) {
-      print('Deleting product ${p.id}');
       try {
+        final repo = ProductRepository();
+        await repo.deleteProduct(p.id);
         setState(() {
           _products.removeWhere((x) => x.id == p.id);
         });
@@ -931,6 +1008,5 @@ List<_OwnerProductRow> _mockProducts() {
   ];
 }
 
-void _toast(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-}
+// removed top-level helper `_toast` to avoid conflicts with the
+// instance-level `_toast` defined on the State class.

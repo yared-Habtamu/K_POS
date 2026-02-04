@@ -8,9 +8,8 @@ import 'package:pos_app/core/error/exceptions.dart';
 import 'package:pos_app/features/common_use_pages/employee_managment/domain/employee_model.dart';
 import 'package:pos_app/services/app_constants.dart';
 
-
 class EmployeeRemoteDataSource {
-  static const String baseUrl = AppConstants.baseUrl;
+  static final String baseUrl = AppConstants.baseUrl;
 
   /// Fetch employees with error handling
   static Future<List<Employee>> fetchEmployees({
@@ -28,10 +27,10 @@ class EmployeeRemoteDataSource {
 
       // 2. Handle HTTP Status Codes
       return _processResponse(response);
-
     } on SocketException {
       // 3. specific error for no internet
-      throw NoInternetException('No Internet connection. Please check your settings.');
+      throw NoInternetException(
+          'No Internet connection. Please check your settings.');
     } on TimeoutException {
       // 4. Specific error for slow connection
       throw FetchDataException('Connection timed out. Please try again.');
@@ -49,14 +48,16 @@ class EmployeeRemoteDataSource {
   static List<Employee> _processResponse(http.Response response) {
     switch (response.statusCode) {
       case 200:
-      // Parse the body (result.body, not result.data)
+        // Parse the body (result.body, not result.data)
         final List<dynamic> body = jsonDecode(response.body);
         return body.map((e) => Employee.fromJson(e)).toList();
       case 400:
-        throw BadRequestException(jsonDecode(response.body)['message'] ?? "Invalid Request");
+        throw BadRequestException(
+            jsonDecode(response.body)['message'] ?? "Invalid Request");
       case 401:
       case 403:
-        throw UnauthorisedException(jsonDecode(response.body)['message'] ?? "Access Denied");
+        throw UnauthorisedException(
+            jsonDecode(response.body)['message'] ?? "Access Denied");
       case 404:
         throw FetchDataException("Employee data not found.");
       case 500:

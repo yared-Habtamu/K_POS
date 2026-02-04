@@ -5,7 +5,7 @@ abstract class AuthState {}
 
 final class AuthInitial extends AuthState {}
 
-class AuthLoadingState extends AuthState{}
+class AuthLoadingState extends AuthState {}
 
 class AuthSuccessState extends AuthState {
   final String role;
@@ -13,7 +13,15 @@ class AuthSuccessState extends AuthState {
   AuthSuccessState({required this.role});
 }
 
-class AuthFailureState extends AuthState{
+class AuthFailureState extends AuthState {
   String errMsg;
   AuthFailureState({required this.errMsg});
+}
+
+class AuthLoggedOutState extends AuthState {}
+
+class AuthAuthenticatedState extends AuthState {
+  final String role;
+
+  AuthAuthenticatedState({required this.role});
 }

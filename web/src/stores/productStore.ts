@@ -176,11 +176,12 @@ interface ProductState {
   products: Product[];
   categories: Category[];
   isLoading: boolean;
+  totalProducts: number;
 
   // Actions
-  fetchProducts: () => Promise<void>;
+  fetchProducts: (page?: number, limit?: number) => Promise<void>;
   addProduct: (
-    product: Omit<Product, "id" | "createdAt" | "updatedAt">
+    product: Omit<Product, "id" | "createdAt" | "updatedAt">,
   ) => Promise<Product>;
   updateProduct: (id: string, updates: Partial<Product>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
@@ -196,50 +197,78 @@ export const useProductStore = create<ProductState>((set, get) => ({
   isLoading: false,
   fetchError: null,
 
-  fetchProducts: async () => {
+  totalProducts: 0,
+
+  fetchProducts: async (page = 1, limit = 1000) => {
     set({ isLoading: true });
     const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
     const token = useAuthStore.getState().user?.token;
     const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
     const martId = useAuthStore.getState().user?.martId;
     try {
-      const res = await fetch(`${API_BASE}/api/products`, {
-        headers: authHeader,
-      });
+      const res = await fetch(
+        `${API_BASE}/api/products?page=${page}&limit=${limit}${martId ? `&martId=${martId}` : ""}`,
+        {
+          headers: authHeader,
+        },
+      );
       if (!res.ok) throw new Error("Failed to fetch products");
       const data = await res.json();
+      // support paginated response { data, total } or legacy array response
+      const items = Array.isArray(data)
+        ? data
+        : Array.isArray(data.data)
+          ? data.data
+          : [];
+      const total = typeof data.total === "number" ? data.total : items.length;
 
       // normalize products
-      const normalized = Array.isArray(data)
-        ? data.map((p: any) => ({
-            ...p,
-            id: p.id || p._id,
-            pictureUrl:
-              p.pictureUrl || p.imageUrl || p.secure_url || p.url || "",
-            // normalize quantities so UI components use same fields
-            quantity: Number(p.quantity ?? p.supermarketQuantity ?? p.storeQuantity ?? 0),
-            supermarketQuantity: Number(p.supermarketQuantity ?? p.quantity ?? p.storeQuantity ?? 0),
-            storeQuantity: Number(p.storeQuantity ?? p.quantity ?? p.supermarketQuantity ?? 0),
-            // barcodes: prefer array from backend; fallback to single barcode
-            barcodes: Array.isArray(p.barcodes) ? p.barcodes.map(String) : p.barcode ? [String(p.barcode)] : [],
-            barcode: Array.isArray(p.barcodes) ? (p.barcodes[0] || '') : (p.barcode || ''),
-            _sold: 0,
-          }))
-        : [];
+      const normalized = items.map((p: any) => ({
+        ...p,
+        id: p.id || p._id,
+        pictureUrl: p.pictureUrl || p.imageUrl || p.secure_url || p.url || "",
+        quantity: Number(
+          p.quantity ?? p.supermarketQuantity ?? p.storeQuantity ?? 0,
+        ),
+        supermarketQuantity: Number(
+          p.supermarketQuantity ?? p.quantity ?? p.storeQuantity ?? 0,
+        ),
+        storeQuantity: Number(
+          p.storeQuantity ?? p.quantity ?? p.supermarketQuantity ?? 0,
+        ),
+        barcodes: Array.isArray(p.barcodes)
+          ? p.barcodes.map(String)
+          : p.barcode
+            ? [String(p.barcode)]
+            : [],
+        barcode: Array.isArray(p.barcodes)
+          ? p.barcodes[0] || ""
+          : p.barcode || "",
+        _sold: 0,
+      }));
+
+      set({ totalProducts: total });
 
       // fetch sales for mart to compute sold counts (so remaining = quantity - sold can be derived)
       let soldMap: Record<string, number> = {};
       try {
         if (martId) {
-          const salesRes = await fetch(`${API_BASE}/api/sales?martId=${martId}`, {
-            headers: authHeader,
-          });
+          const salesRes = await fetch(
+            `${API_BASE}/api/sales?martId=${martId}`,
+            {
+              headers: authHeader,
+            },
+          );
           if (salesRes.ok) {
             const sales = await salesRes.json();
             for (const s of sales || []) {
               for (const it of s.items || []) {
                 const pid = (
-                  it.productId || it.product?._id || it.product?.id || it.id || ""
+                  it.productId ||
+                  it.product?._id ||
+                  it.product?.id ||
+                  it.id ||
+                  ""
                 ).toString();
                 soldMap[pid] = (soldMap[pid] || 0) + Number(it.quantity || 0);
               }
@@ -330,15 +359,11 @@ export const useProductStore = create<ProductState>((set, get) => ({
         ...data,
         id: data.id || data._id,
         pictureUrl:
-          data.pictureUrl ||
-          data.imageUrl ||
-          data.secure_url ||
-          data.url ||
-          "",
+          data.pictureUrl || data.imageUrl || data.secure_url || data.url || "",
       };
       set((state) => ({
         products: state.products.map((p) =>
-          p.id === id ? { ...p, ...norm, updatedAt: new Date() } : p
+          p.id === id ? { ...p, ...norm, updatedAt: new Date() } : p,
         ),
       }));
       return { status: res.status, data: norm };
@@ -346,7 +371,9 @@ export const useProductStore = create<ProductState>((set, get) => ({
       // fallback to local update
       set((state) => ({
         products: state.products.map((p) =>
-          p.id === id ? { ...p, ...(updates as any), updatedAt: new Date() } : p
+          p.id === id
+            ? { ...p, ...(updates as any), updatedAt: new Date() }
+            : p,
         ),
       }));
       console.warn("updateProduct fallback:", err);
@@ -379,18 +406,22 @@ export const useProductStore = create<ProductState>((set, get) => ({
         p.name.toLowerCase().includes(q) ||
         p.nameAm?.toLowerCase().includes(q) ||
         p.barcode?.includes(q) ||
-        p.category.toLowerCase().includes(q)
+        p.category.toLowerCase().includes(q),
     );
   },
 
   getProductByBarcode: (barcode) => {
-    return get().products.find((p) => (p.barcodes || []).includes(barcode) || p.barcode === barcode);
+    return get().products.find(
+      (p) => (p.barcodes || []).includes(barcode) || p.barcode === barcode,
+    );
   },
 
   getLowStockProducts: () => {
     return get().products.filter((p) => {
       // product.quantity is authoritative (backend decrements on sale)
-      const remaining = Number(p.quantity ?? p.supermarketQuantity ?? p.storeQuantity ?? 0);
+      const remaining = Number(
+        p.quantity ?? p.supermarketQuantity ?? p.storeQuantity ?? 0,
+      );
       return remaining <= Number(p.lowStockThreshold || 0);
     });
   },
@@ -400,13 +431,13 @@ export const useProductStore = create<ProductState>((set, get) => ({
     const low = get().getLowStockProducts();
     const exp = get().getExpiringProducts(expiringWithinDays);
     const byId = new Map<string, any>();
-    for (const p of low) byId.set(p.id || p._id, { ...p, reason: 'low_stock' });
+    for (const p of low) byId.set(p.id || p._id, { ...p, reason: "low_stock" });
     for (const p of exp) {
       const key = p.id || p._id;
       if (byId.has(key)) {
-        byId.set(key, { ...byId.get(key), reason: 'low_stock_and_expiring' });
+        byId.set(key, { ...byId.get(key), reason: "low_stock_and_expiring" });
       } else {
-        byId.set(key, { ...p, reason: 'expiring' });
+        byId.set(key, { ...p, reason: "expiring" });
       }
     }
     return Array.from(byId.values());
@@ -416,7 +447,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
     const threshold = new Date();
     threshold.setDate(threshold.getDate() + days);
     return get().products.filter(
-      (p) => p.expiryDate && new Date(p.expiryDate) <= threshold
+      (p) => p.expiryDate && new Date(p.expiryDate) <= threshold,
     );
   },
 }));

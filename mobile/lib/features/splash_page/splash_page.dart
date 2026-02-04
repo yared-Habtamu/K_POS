@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../config/routes/name.dart';
-import '../../services/get_current_user.dart';
 import '../../services/global.dart';
+import '../auth/presentation/bloc/auth_bloc.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -21,24 +22,17 @@ class _SplashPageState extends State<SplashPage> {
 
   OnLoadingFun() async {
     bool isUserNew = Global.storageServices.GetDeviceFirstOpen();
-    String? isUserLogin = await UserProvider().getUuid();
-    String? role = await UserProvider().getRole();
     await Future.delayed(Duration(seconds: 2)).then((_) {
       print("....on splash screen...");
       if (isUserNew) {
         Navigator.pushNamedAndRemoveUntil(
             context, NamedRoutes.OnboardingPage, (predicate) => false);
         return;
-      } else if (isUserLogin != null) {
-        if (role?.isEmpty ?? true) {
-          role = 'cashier';
-        }
-        Navigator.pushNamedAndRemoveUntil(
-            context, NamedRoutes.RoleDashboardPage, (predicate) => false);
-      } else {
-        Navigator.pushNamedAndRemoveUntil(
-            context, NamedRoutes.SigninPage, (predicate) => false);
       }
+
+      // trigger secure-storage auth check and navigate based on result
+      context.read<AuthBloc>().add(AuthCheckRequested());
+
       return;
     });
   }
@@ -47,20 +41,32 @@ class _SplashPageState extends State<SplashPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            CircleAvatar(
-              backgroundColor: Colors.white,
-              radius: 80,
-              child: Image.asset(
-                "assets/logos/pos.png",
-                fit: BoxFit.fill,
+      body: BlocListener<AuthBloc, AuthState>(
+        listener: (context, state) {
+          if (state is AuthAuthenticatedState || state is AuthSuccessState) {
+            Navigator.pushNamedAndRemoveUntil(
+                context, NamedRoutes.RoleDashboardPage, (predicate) => false);
+          }
+          if (state is AuthLoggedOutState) {
+            Navigator.pushNamedAndRemoveUntil(
+                context, NamedRoutes.SigninPage, (predicate) => false);
+          }
+        },
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              CircleAvatar(
+                backgroundColor: Colors.white,
+                radius: 80,
+                child: Image.asset(
+                  "assets/logos/pos.png",
+                  fit: BoxFit.fill,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

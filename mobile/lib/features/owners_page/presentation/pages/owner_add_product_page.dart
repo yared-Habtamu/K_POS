@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
+import 'package:pos_app/features/products/domain/product_repository.dart';
 import 'package:pos_app/features/common_use_pages/reusable_qr_scanner_page.dart';
 import 'package:pos_app/services/global.dart';
 import 'package:pos_app/utils/common_widgets.dart';
@@ -27,6 +29,7 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
 
   String? _selectedImageName;
   String? _selectedImagePath;
+  Uint8List? _selectedImageBytes;
 
   @override
   void dispose() {
@@ -88,21 +91,51 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
       _toast('Product name is required');
       return;
     }
+    try {
+      final repo = ProductRepository();
 
-    final product = {
-      'id': DateTime.now().millisecondsSinceEpoch.toString(),
-      'name': name,
-      'category': _category == 'Select category' ? 'Uncategorized' : _category,
-      'purchasePriceEtb':
-          int.tryParse(_purchasePriceController.text.trim()) ?? 0,
-      'sellingPriceEtb': int.tryParse(_sellingPriceController.text.trim()) ?? 0,
-      'stockQty': int.tryParse(_quantityController.text.trim()) ?? 0,
-      'martQty': 0,
-      'imageUrl': _selectedImagePath ?? ''
-    };
+      final fields = <String, String>{
+        'name': name,
+        'category':
+            _category == 'Select category' ? 'Uncategorized' : _category,
+        'purchasePrice': _purchasePriceController.text.trim(),
+        'sellingPrice': _sellingPriceController.text.trim(),
+        'quantity': _quantityController.text.trim(),
+        'lowStockThreshold': _lowStockController.text.trim(),
+      };
 
-    _toast('Saved');
-    Navigator.of(context).pop(product);
+      if (_barcodes.isNotEmpty) fields['barcode'] = _barcodes.first;
+
+      final filename = _selectedImageName;
+      final bytes = _selectedImageBytes;
+
+      final res = await repo.createProduct(fields,
+          imageBytes: bytes, filename: filename);
+
+      if (res.containsKey('product')) {
+        final created = res['product'];
+        _toast('Saved');
+        Navigator.of(context).pop({
+          'id': created.id,
+          'name': created.name,
+          'category': created.category,
+          'purchasePriceEtb': created.purchasePrice.toInt(),
+          'sellingPriceEtb': created.sellingPrice.toInt(),
+          'stockQty': created.quantity,
+          'martQty': created.storeQuantity,
+          'imageUrl': created.imageUrl ?? ''
+        });
+      } else if (res.containsKey('requestId')) {
+        _toast('Product submitted for approval');
+        Navigator.of(context).pop({'requestId': res['requestId']});
+      } else {
+        _toast('Unexpected response from server');
+      }
+    } catch (e, st) {
+      print('Error creating product: $e\n$st');
+      final msg = e is Exception ? e.toString() : 'Failed to create product';
+      _toast(msg);
+    }
   }
 
   @override
@@ -169,12 +202,28 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
                         final result = await FilePicker.platform.pickFiles(
                           type: FileType.image,
                           allowMultiple: false,
+                          withData: true,
                         );
                         if (result != null && result.files.isNotEmpty) {
                           final f = result.files.single;
                           setState(() {
                             _selectedImageName = f.name;
-                            _selectedImagePath = f.path;
+                            // On web `path` is not available; prefer `bytes` when present
+                            if (f.bytes != null) {
+                              _selectedImageBytes = f.bytes;
+                              _selectedImagePath = null;
+                            } else {
+                              try {
+                                if (f.path != null) {
+                                  _selectedImagePath = f.path;
+                                  _selectedImageBytes = null;
+                                }
+                              } catch (_) {
+                                // path not available on some platforms (web)
+                                _selectedImagePath = null;
+                                _selectedImageBytes = null;
+                              }
+                            }
                           });
                           _toast('Selected image: ${f.name}');
                         }
