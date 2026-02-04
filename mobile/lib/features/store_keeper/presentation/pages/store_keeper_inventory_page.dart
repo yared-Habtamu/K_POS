@@ -1,17 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:pos_app/features/store_keeper/presentation/pages/store_keeper_barcode_scanner_page.dart';
+import 'package:pos_app/features/products/domain/product_repository.dart';
+import 'package:pos_app/services/api/api_config.dart';
+import 'package:pos_app/services/api/api_client.dart';
+import 'package:pos_app/services/api/auth_storage.dart';
 
 class StoreKeeperInventoryPage extends StatefulWidget {
   const StoreKeeperInventoryPage({super.key});
 
   @override
-  State<StoreKeeperInventoryPage> createState() => _StoreKeeperInventoryPageState();
+  State<StoreKeeperInventoryPage> createState() =>
+      _StoreKeeperInventoryPageState();
 }
 
 class _StoreKeeperInventoryPageState extends State<StoreKeeperInventoryPage> {
   final TextEditingController _searchController = TextEditingController();
 
   String _query = '';
+  bool _isLoading = false;
+  String? _fetchError;
+  List<_InventoryItem> _items = [];
 
   @override
   void dispose() {
@@ -20,9 +28,91 @@ class _StoreKeeperInventoryPageState extends State<StoreKeeperInventoryPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _loadInventory();
+  }
+
+  Future<void> _loadInventory() async {
+    setState(() {
+      _isLoading = true;
+      _fetchError = null;
+    });
+
+    try {
+      // Fetch products for the current user's mart
+      final repo = ProductRepository();
+      final products = await repo.listProducts();
+
+      // Fetch sales to compute sold counts
+      final auth = AuthStorage();
+      final user = await auth.readUser();
+      final martId = user?['martId'];
+
+      final client = ApiClient(baseUrl: ApiConfig.baseUrl, authStorage: auth);
+      List<dynamic> sales = [];
+      try {
+        final res = await client.getJson(
+            '${ApiConfig.apiPrefix}/sales${martId != null ? '?martId=$martId' : ''}');
+        sales = res['data'] ?? res;
+      } catch (e) {
+        // ignore sales fetch errors but continue with products
+        print('[inventory] failed to fetch sales: $e');
+      }
+
+      final Map<String, int> soldMap = {};
+      for (final s in (sales as List<dynamic>? ?? [])) {
+        for (final it in (s['items'] as List<dynamic>? ?? [])) {
+          final pid = (it['productId'] ??
+                  it['product']?['_id'] ??
+                  it['product']?['id'] ??
+                  it['id'] ??
+                  '')
+              .toString();
+          if (pid.isEmpty) continue;
+          soldMap[pid] = (soldMap[pid] ?? 0) +
+              (int.tryParse('${it['quantity'] ?? 0}') ?? 0);
+        }
+      }
+
+      final items = products.map((p) {
+        final id = p.id;
+        final sold = soldMap[id] ?? 0;
+        final available =
+            (p.quantity + p.supermarketQuantity + p.storeQuantity) > 0
+                ? (p.quantity > 0
+                    ? p.quantity
+                    : (p.supermarketQuantity > 0
+                        ? p.supermarketQuantity
+                        : p.storeQuantity))
+                : 0;
+        final remaining = available - sold;
+        return _InventoryItem(
+          name: p.name ?? '',
+          category: p.category ?? '',
+          sold: sold,
+          remaining: remaining < 0 ? 0 : remaining,
+          imageUrl: p.imageUrl ?? '',
+        );
+      }).toList();
+
+      setState(() {
+        _items = items;
+        _isLoading = false;
+      });
+    } catch (e, st) {
+      print('[inventory] load failed: $e\n$st');
+      setState(() {
+        _fetchError = e?.toString() ?? 'Failed to load inventory';
+        _items = _mockItems();
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final allItems = _mockItems();
-    final items = _applySearch(allItems, _query);
+    final items = _applySearch(_isLoading ? _mockItems() : _items, _query);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -51,6 +141,17 @@ class _StoreKeeperInventoryPageState extends State<StoreKeeperInventoryPage> {
               _SearchBar(
                 controller: _searchController,
                 onChanged: (value) => setState(() => _query = value),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  IconButton(
+                    onPressed: _loadInventory,
+                    icon: const Icon(Icons.refresh),
+                    tooltip: 'Refresh',
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
               _SectionCard(
@@ -82,16 +183,25 @@ class _StoreKeeperInventoryPageState extends State<StoreKeeperInventoryPage> {
                       onEditBarcodes: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => const StoreKeeperBarcodeScannerPage(),
+                            builder: (_) =>
+                                const StoreKeeperBarcodeScannerPage(),
                           ),
                         );
                       },
-                      onAddImage: () => _toast('Add Image (mock): ${item.name}'),
+                      onAddImage: () =>
+                          _toast('Add Image (mock): ${item.name}'),
                       onAddStock: () => showAddStockDialog(context, item),
                     );
                   },
                 ),
               ),
+              if (_isLoading) const SizedBox(height: 12),
+              if (_fetchError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12.0),
+                  child: Text('Failed to load inventory: $_fetchError',
+                      style: TextStyle(color: Colors.red.shade700)),
+                ),
             ],
           ),
         );
@@ -104,7 +214,9 @@ class _StoreKeeperInventoryPageState extends State<StoreKeeperInventoryPage> {
     if (q.isEmpty) return items;
     return items
         .where(
-          (i) => i.name.toLowerCase().contains(q) || i.category.toLowerCase().contains(q),
+          (i) =>
+              i.name.toLowerCase().contains(q) ||
+              i.category.toLowerCase().contains(q),
         )
         .toList();
   }
@@ -188,16 +300,19 @@ class _SectionCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.grey.shade300),
                 ),
-                child: Icon(Icons.inventory_2_outlined, color: Colors.grey.shade800),
+                child: Icon(Icons.inventory_2_outlined,
+                    color: Colors.grey.shade800),
               ),
               const SizedBox(width: 10),
               Text(
                 title,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                style:
+                    const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
               ),
               const SizedBox(width: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(999),
@@ -205,7 +320,8 @@ class _SectionCard extends StatelessWidget {
                 ),
                 child: Text(
                   '$count',
-                  style: TextStyle(fontWeight: FontWeight.w700, color: Colors.grey.shade800),
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, color: Colors.grey.shade800),
                 ),
               ),
             ],
@@ -279,12 +395,14 @@ class _InventoryCard extends StatelessWidget {
                           item.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                          style: const TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           item.category,
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                          style: TextStyle(
+                              fontSize: 13, color: Colors.grey.shade700),
                         ),
                       ],
                     ),
@@ -303,7 +421,8 @@ class _InventoryCard extends StatelessWidget {
                       ),
                       Text(
                         '${item.sold}',
-                        style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+                        style: TextStyle(
+                            fontSize: 14, color: Colors.grey.shade700),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -316,7 +435,8 @@ class _InventoryCard extends StatelessWidget {
                       ),
                       Text(
                         '${item.remaining}',
-                        style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+                        style: TextStyle(
+                            fontSize: 14, color: Colors.grey.shade700),
                       ),
                     ],
                   ),
@@ -407,8 +527,10 @@ class _ImageArea extends StatelessWidget {
   }
 }
 
-Future<void> showAddStockDialog(BuildContext context, _InventoryItem item) async {
-  final warehouseStock = item.sold + item.remaining; // total available in warehouse
+Future<void> showAddStockDialog(
+    BuildContext context, _InventoryItem item) async {
+  final warehouseStock =
+      item.sold + item.remaining; // total available in warehouse
   final supermarketStock = item.remaining;
   final controller = TextEditingController();
 
@@ -418,7 +540,8 @@ Future<void> showAddStockDialog(BuildContext context, _InventoryItem item) async
       return Dialog(
         insetPadding: const EdgeInsets.all(16),
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: 520, maxHeight: MediaQuery.of(ctx).size.height * 0.9),
+          constraints: BoxConstraints(
+              maxWidth: 520, maxHeight: MediaQuery.of(ctx).size.height * 0.9),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -427,8 +550,13 @@ Future<void> showAddStockDialog(BuildContext context, _InventoryItem item) async
                 padding: const EdgeInsets.all(16.0),
                 child: Row(
                   children: [
-                    const Expanded(child: Text('Add Stock', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700))),
-                    IconButton(onPressed: () => Navigator.of(ctx).pop(), icon: const Icon(Icons.close)),
+                    const Expanded(
+                        child: Text('Add Stock',
+                            style: TextStyle(
+                                fontSize: 20, fontWeight: FontWeight.w700))),
+                    IconButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        icon: const Icon(Icons.close)),
                   ],
                 ),
               ),
@@ -436,27 +564,57 @@ Future<void> showAddStockDialog(BuildContext context, _InventoryItem item) async
 
               Flexible(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Product preview
                       Container(
                         padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12)),
+                        decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12)),
                         child: Row(
                           children: [
-                            ClipRRect(borderRadius: BorderRadius.circular(8), child: Container(height: 56, width: 56, color: Colors.grey.shade200, child: item.imageUrl != null && item.imageUrl!.isNotEmpty ? Image.network(item.imageUrl!, fit: BoxFit.cover) : const Icon(Icons.inventory_2_outlined, size: 30, color: Colors.grey))),
+                            ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                    height: 56,
+                                    width: 56,
+                                    color: Colors.grey.shade200,
+                                    child: item.imageUrl != null &&
+                                            item.imageUrl!.isNotEmpty
+                                        ? Image.network(item.imageUrl!,
+                                            fit: BoxFit.cover)
+                                        : const Icon(Icons.inventory_2_outlined,
+                                            size: 30, color: Colors.grey))),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text(item.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                                const SizedBox(height: 4),
-                                Text(item.category, style: TextStyle(color: Colors.grey.shade700)),
-                                const SizedBox(height: 6),
-                                // mock barcode display
-                                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)), child: const Text('||||'))
-                              ]),
+                              child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(item.name,
+                                        style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700)),
+                                    const SizedBox(height: 4),
+                                    Text(item.category,
+                                        style: TextStyle(
+                                            color: Colors.grey.shade700)),
+                                    const SizedBox(height: 6),
+                                    // mock barcode display
+                                    Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                            border: Border.all(
+                                                color: Colors.grey.shade300)),
+                                        child: const Text('||||'))
+                                  ]),
                             ),
                           ],
                         ),
@@ -470,32 +628,63 @@ Future<void> showAddStockDialog(BuildContext context, _InventoryItem item) async
                           Expanded(
                             child: Container(
                               padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.shade100)),
-                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Row(children: [
-                                  Icon(Icons.warehouse, color: Colors.orange.shade700),
-                                  const SizedBox(width: 8),
-                                  Expanded(child: Text('Warehouse Stock', style: TextStyle(color: Colors.orange.shade700), overflow: TextOverflow.ellipsis))
-                                ]),
-                                const SizedBox(height: 8),
-                                Text('$warehouseStock', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Colors.orange.shade700)),
-                              ]),
+                              decoration: BoxDecoration(
+                                  color: Colors.orange.shade50,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                      color: Colors.orange.shade100)),
+                              child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(children: [
+                                      Icon(Icons.warehouse,
+                                          color: Colors.orange.shade700),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                          child: Text('Warehouse Stock',
+                                              style: TextStyle(
+                                                  color:
+                                                      Colors.orange.shade700),
+                                              overflow: TextOverflow.ellipsis))
+                                    ]),
+                                    const SizedBox(height: 8),
+                                    Text('$warehouseStock',
+                                        style: TextStyle(
+                                            fontSize: 28,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.orange.shade700)),
+                                  ]),
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Container(
                               padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.green.shade100)),
-                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Row(children: [
-                                  Icon(Icons.store, color: Colors.green.shade700),
-                                  const SizedBox(width: 8),
-                                  Expanded(child: Text('Supermarket Stock', style: TextStyle(color: Colors.green.shade700), overflow: TextOverflow.ellipsis))
-                                ]),
-                                const SizedBox(height: 8),
-                                Text('$supermarketStock', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Colors.green.shade700)),
-                              ]),
+                              decoration: BoxDecoration(
+                                  color: Colors.green.shade50,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border:
+                                      Border.all(color: Colors.green.shade100)),
+                              child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(children: [
+                                      Icon(Icons.store,
+                                          color: Colors.green.shade700),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                          child: Text('Supermarket Stock',
+                                              style: TextStyle(
+                                                  color: Colors.green.shade700),
+                                              overflow: TextOverflow.ellipsis))
+                                    ]),
+                                    const SizedBox(height: 8),
+                                    Text('$supermarketStock',
+                                        style: TextStyle(
+                                            fontSize: 28,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.green.shade700)),
+                                  ]),
                             ),
                           ),
                         ],
@@ -504,25 +693,34 @@ Future<void> showAddStockDialog(BuildContext context, _InventoryItem item) async
                       const SizedBox(height: 14),
 
                       // Quantity input
-                      const Text('Quantity to Transfer (Warehouse → Supermarket)', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const Text(
+                          'Quantity to Transfer (Warehouse → Supermarket)',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
                       const SizedBox(height: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         height: 54,
-                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.blue.shade200), color: Colors.white),
+                        decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.blue.shade200),
+                            color: Colors.white),
                         child: Row(children: [
                           Expanded(
                             child: TextField(
                               controller: controller,
                               keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(border: InputBorder.none, hintText: 'Enter quantity'),
+                              decoration: const InputDecoration(
+                                  border: InputBorder.none,
+                                  hintText: 'Enter quantity'),
                             ),
                           ),
-                          Icon(Icons.arrow_drop_up_outlined, color: Colors.grey.shade600),
+                          Icon(Icons.arrow_drop_up_outlined,
+                              color: Colors.grey.shade600),
                         ]),
                       ),
                       const SizedBox(height: 6),
-                      Text('Max available: $warehouseStock units', style: TextStyle(color: Colors.grey.shade600)),
+                      Text('Max available: $warehouseStock units',
+                          style: TextStyle(color: Colors.grey.shade600)),
                     ],
                   ),
                 ),
@@ -540,23 +738,35 @@ Future<void> showAddStockDialog(BuildContext context, _InventoryItem item) async
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          OutlinedButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+                          OutlinedButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              child: const Text('Cancel')),
                           const SizedBox(height: 8),
                           SizedBox(
                             height: 44,
                             child: ElevatedButton.icon(
                               onPressed: () {
-                                final val = int.tryParse(controller.text.trim()) ?? 0;
+                                final val =
+                                    int.tryParse(controller.text.trim()) ?? 0;
                                 if (val <= 0) {
-                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid quantity')));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content:
+                                              Text('Enter a valid quantity')));
                                   return;
                                 }
                                 if (val > warehouseStock) {
-                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Quantity exceeds warehouse stock')));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              'Quantity exceeds warehouse stock')));
                                   return;
                                 }
                                 Navigator.of(ctx).pop();
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Transferred $val units')));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                        content:
+                                            Text('Transferred $val units')));
                               },
                               icon: const Icon(Icons.add),
                               label: const Text('Transfer Stock'),
@@ -572,24 +782,36 @@ Future<void> showAddStockDialog(BuildContext context, _InventoryItem item) async
 
                     return Row(
                       children: [
-                        Expanded(child: OutlinedButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel'))),
+                        Expanded(
+                            child: OutlinedButton(
+                                onPressed: () => Navigator.of(ctx).pop(),
+                                child: const Text('Cancel'))),
                         const SizedBox(width: 12),
                         SizedBox(
                           height: 44,
                           child: ElevatedButton.icon(
                             onPressed: () {
-                          final val = int.tryParse(controller.text.trim()) ?? 0;
-                          if (val <= 0) {
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid quantity')));
-                            return;
-                          }
-                          if (val > warehouseStock) {
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Quantity exceeds warehouse stock')));
-                            return;
-                          }
-                          // perform transfer (mock)
-                          Navigator.of(ctx).pop();
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Transferred $val units')));
+                              final val =
+                                  int.tryParse(controller.text.trim()) ?? 0;
+                              if (val <= 0) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content:
+                                            Text('Enter a valid quantity')));
+                                return;
+                              }
+                              if (val > warehouseStock) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text(
+                                            'Quantity exceeds warehouse stock')));
+                                return;
+                              }
+                              // perform transfer (mock)
+                              Navigator.of(ctx).pop();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                      content: Text('Transferred $val units')));
                             },
                             icon: const Icon(Icons.add),
                             label: const Text('Transfer Stock'),
@@ -635,14 +857,16 @@ List<_InventoryItem> _mockItems() {
       category: 'Personal Care',
       sold: 10,
       remaining: 160,
-      imageUrl: 'https://images.unsplash.com/photo-1521791136064-7986c2920216?w=1200&auto=format&fit=crop',
+      imageUrl:
+          'https://images.unsplash.com/photo-1521791136064-7986c2920216?w=1200&auto=format&fit=crop',
     ),
     _InventoryItem(
       name: 'Diva',
       category: 'Household',
       sold: 0,
       remaining: 0,
-      imageUrl: 'https://images.unsplash.com/photo-1523413651479-597eb2da0ad6?w=1200&auto=format&fit=crop',
+      imageUrl:
+          'https://images.unsplash.com/photo-1523413651479-597eb2da0ad6?w=1200&auto=format&fit=crop',
     ),
     _InventoryItem(
       name: 'Fanta',

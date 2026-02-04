@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:pos_app/features/products/domain/product_repository.dart';
+import 'package:pos_app/services/api/api_client.dart';
+import 'package:pos_app/services/api/api_config.dart';
+import 'package:pos_app/services/api/auth_storage.dart';
 
 class OwnerInventoryPage extends StatefulWidget {
   const OwnerInventoryPage({super.key});
@@ -10,6 +14,9 @@ class OwnerInventoryPage extends StatefulWidget {
 class _OwnerInventoryPageState extends State<OwnerInventoryPage> {
   final _searchController = TextEditingController();
   String _query = '';
+  bool _isLoading = false;
+  String? _fetchError;
+  List<_InventoryRow> _items = [];
 
   @override
   void dispose() {
@@ -18,19 +25,99 @@ class _OwnerInventoryPageState extends State<OwnerInventoryPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _loadInventory();
+  }
+
+  Future<void> _loadInventory() async {
+    setState(() {
+      _isLoading = true;
+      _fetchError = null;
+    });
+
+    try {
+      final repo = ProductRepository();
+      final products = await repo.listProducts();
+
+      final auth = AuthStorage();
+      final user = await auth.readUser();
+      final martId = user?['martId'];
+
+      final client = ApiClient(baseUrl: ApiConfig.baseUrl, authStorage: auth);
+      List<dynamic> sales = [];
+      try {
+        final res = await client.getJson(
+            '${ApiConfig.apiPrefix}/sales${martId != null ? '?martId=$martId' : ''}');
+        sales = res['data'] ?? res;
+      } catch (e) {
+        print('[owner-inventory] failed to fetch sales: $e');
+      }
+
+      final Map<String, int> soldMap = {};
+      for (final s in (sales as List<dynamic>? ?? [])) {
+        for (final it in (s['items'] as List<dynamic>? ?? [])) {
+          final pid = (it['productId'] ??
+                  it['product']?['_id'] ??
+                  it['product']?['id'] ??
+                  it['id'] ??
+                  '')
+              .toString();
+          if (pid.isEmpty) continue;
+          soldMap[pid] = (soldMap[pid] ?? 0) +
+              (int.tryParse('${it['quantity'] ?? 0}') ?? 0);
+        }
+      }
+
+      final items = products.map((p) {
+        final id = p.id;
+        final sold = soldMap[id] ?? 0;
+        final available =
+            (p.quantity + p.supermarketQuantity + p.storeQuantity) > 0
+                ? (p.quantity > 0
+                    ? p.quantity
+                    : (p.supermarketQuantity > 0
+                        ? p.supermarketQuantity
+                        : p.storeQuantity))
+                : 0;
+        final remaining = available - sold;
+        final barcode = (p.barcodes.isNotEmpty) ? p.barcodes[0].toString() : '';
+        return _InventoryRow(
+          name: p.name ?? '',
+          category: p.category ?? '',
+          sold: sold,
+          remain: remaining < 0 ? 0 : remaining,
+          barcode: barcode,
+        );
+      }).toList();
+
+      setState(() {
+        _items = items;
+        _isLoading = false;
+      });
+    } catch (e, st) {
+      print('[owner-inventory] load failed: $e\n$st');
+      setState(() {
+        _fetchError = e?.toString() ?? 'Failed to load inventory';
+        _items = _mockInventory();
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final all = _mockInventory();
+    final source = _isLoading ? _mockInventory() : _items;
     final q = _query.trim().toLowerCase();
 
-    final filtered = all.where((p) {
+    final filtered = source.where((p) {
       if (q.isEmpty) return true;
       return p.name.toLowerCase().contains(q) ||
           p.category.toLowerCase().contains(q) ||
           p.barcode.toLowerCase().contains(q);
     }).toList();
-
-    // Match screenshot footer: showing 1-7 of 8
-    final pageItems = filtered.take(7).toList();
+    // Show full filtered list on mobile (no server-side paging here)
+    final pageItems = filtered.toList();
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -46,15 +133,43 @@ class _OwnerInventoryPageState extends State<OwnerInventoryPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 12),
-              _SearchBar(
-                controller: _searchController,
-                onChanged: (v) => setState(() => _query = v),
+              Row(
+                children: [
+                  Expanded(
+                    child: _SearchBar(
+                      controller: _searchController,
+                      onChanged: (v) => setState(() => _query = v),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  IconButton(
+                    onPressed: _loadInventory,
+                    icon: const Icon(Icons.refresh),
+                    tooltip: 'Refresh',
+                  ),
+                ],
               ),
               const SizedBox(height: 14),
+              if (_isLoading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
               _InventoryTable(items: pageItems),
               const SizedBox(height: 12),
-              _FooterPager(showing: pageItems.length, total: filtered.length),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Text(
+                    'Showing 1-${pageItems.length} of ${filtered.length} products',
+                    style:
+                        TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              ),
+              if (_fetchError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Text('Failed to load from server: $_fetchError',
+                      style: TextStyle(color: Colors.red.shade700)),
+                ),
             ],
           ),
         ),
@@ -109,7 +224,8 @@ class _InventoryTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final headerStyle = TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.grey.shade700);
+    final headerStyle = TextStyle(
+        fontSize: 12, fontWeight: FontWeight.w700, color: Colors.grey.shade700);
 
     final columns = <DataColumn>[
       DataColumn(label: Text('Img', style: headerStyle)),
@@ -124,10 +240,18 @@ class _InventoryTable extends StatelessWidget {
           (p) => DataRow(
             cells: [
               DataCell(_Thumb(imageAsset: p.imageAsset)),
-              DataCell(Text(p.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-              DataCell(Text(p.category, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-              DataCell(Text('${p.sold}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-              DataCell(Text('${p.remain}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+              DataCell(Text(p.name,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600))),
+              DataCell(Text(p.category,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600))),
+              DataCell(Text('${p.sold}',
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600))),
+              DataCell(Text('${p.remain}',
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600))),
             ],
           ),
         )
@@ -190,133 +314,7 @@ class _Thumb extends StatelessWidget {
   }
 }
 
-class _FooterPager extends StatelessWidget {
-  final int showing;
-  final int total;
-
-  const _FooterPager({required this.showing, required this.total});
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 650;
-
-        final left = Text(
-          'Showing 1-$showing of $total products',
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-        );
-
-        final pager = Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _PagerButton(
-              label: 'Prev',
-              enabled: false,
-              onPressed: () {},
-            ),
-            const SizedBox(width: 6),
-            _PagePill(
-              label: '1',
-              selected: true,
-              onTap: () {},
-            ),
-            const SizedBox(width: 6),
-            _PagePill(
-              label: '2',
-              selected: false,
-              onTap: () {},
-            ),
-            const SizedBox(width: 6),
-            _PagerButton(
-              label: 'Next',
-              enabled: true,
-              onPressed: () {},
-            ),
-          ],
-        );
-
-        if (isNarrow) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              left,
-              const SizedBox(height: 10),
-              pager,
-            ],
-          );
-        }
-
-        return Row(
-          children: [
-            Expanded(child: left),
-            pager,
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _PagerButton extends StatelessWidget {
-  final String label;
-  final bool enabled;
-  final VoidCallback onPressed;
-
-  const _PagerButton({
-    required this.label,
-    required this.enabled,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton(
-      onPressed: enabled ? onPressed : null,
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        side: BorderSide(color: Colors.grey.shade300),
-        foregroundColor: Colors.grey.shade800,
-      ),
-      child: Text(label),
-    );
-  }
-}
-
-class _PagePill extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _PagePill({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final fg = selected ? Colors.white : Colors.grey.shade800;
-    final bg = selected ? Colors.blue.shade900 : Colors.white;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        width: 34,
-        height: 34,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.grey.shade300),
-        ),
-        child: Text(label, style: TextStyle(color: fg, fontWeight: FontWeight.w800)),
-      ),
-    );
-  }
-}
+// Footer pager removed for mobile inventory — list shows full results and a simple count
 
 class _InventoryRow {
   final String name;
