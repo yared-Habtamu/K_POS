@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'dart:math';
 import 'package:pos_app/features/common_use_pages/reusable_qr_scanner_page.dart';
-import 'mock_products.dart';
 import 'cart_provider.dart';
 import 'receipt_preview.dart';
 import 'package:provider/provider.dart';
+
+import 'package:pos_app/features/products/domain/product_model.dart';
+import 'package:pos_app/features/products/domain/product_repository.dart';
+import 'package:pos_app/features/sales/domain/sale_repository.dart';
+import 'package:pos_app/services/api/api_client.dart';
 
 class CommonPointOfSale extends StatefulWidget {
   const CommonPointOfSale({super.key});
@@ -15,22 +20,67 @@ class CommonPointOfSale extends StatefulWidget {
 class _CommonPointOfSaleState extends State<CommonPointOfSale> {
   final TextEditingController _searchController = TextEditingController();
 
-  _PaymentMethod _payment = _PaymentMethod.cash;
+  final ProductRepository _productRepository = ProductRepository();
 
-  String _discountType = 'Percentage';
-  final TextEditingController _discountValueController =
-      TextEditingController();
-
-  String _extraChargeType = 'Service Charge';
-  final TextEditingController _extraChargeAmountController =
-      TextEditingController();
+  List<Product> _products = const [];
+  bool _isLoadingProducts = true;
+  String? _productsError;
 
   @override
   void dispose() {
     _searchController.dispose();
-    _discountValueController.dispose();
-    _extraChargeAmountController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+  }
+
+  Future<void> _loadProducts() async {
+    setState(() {
+      _isLoadingProducts = true;
+      _productsError = null;
+    });
+
+    try {
+      final list = await _productRepository.listProducts();
+      if (!mounted) return;
+      setState(() {
+        _products = list;
+        _isLoadingProducts = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _productsError = e is ApiException ? e.message : 'Failed to load products';
+        _isLoadingProducts = false;
+      });
+    }
+  }
+
+  Future<void> _handleScannedCode(String code) async {
+    final cleaned = code.trim();
+    if (cleaned.isEmpty) return;
+
+    // Try backend barcode lookup first.
+    final found = await _productRepository.findByBarcode(cleaned);
+    if (found != null) {
+      if (!mounted) return;
+      Provider.of<CartProvider>(context, listen: false).addProduct(found);
+      setState(() => _searchController.clear());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Added ${found.name} to cart')),
+      );
+      return;
+    }
+
+    // Fallback: populate the search box so user can pick a product.
+    if (!mounted) return;
+    setState(() {
+      _searchController.text = cleaned;
+    });
   }
 
   @override
@@ -50,6 +100,7 @@ class _CommonPointOfSaleState extends State<CommonPointOfSale> {
                 _SearchRow(
                   controller: _searchController,
                   onChanged: (_) => setState(() {}),
+                  onScan: _handleScannedCode,
                 ),
                 const SizedBox(height: 10),
                 Wrap(
@@ -73,11 +124,52 @@ class _CommonPointOfSaleState extends State<CommonPointOfSale> {
                 const SizedBox(height: 14),
                 // Search results (mock) — show when user types something
                 Builder(builder: (context) {
-                  final all = mockProducts();
                   final q = _searchController.text.trim().toLowerCase();
+
+                  if (_isLoadingProducts) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Row(
+                        children: const [
+                          SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          SizedBox(width: 10),
+                          Text('Loading products...'),
+                        ],
+                      ),
+                    );
+                  }
+
+                  if (_productsError != null) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _productsError!,
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          OutlinedButton(
+                            onPressed: _loadProducts,
+                            child: const Text('Retry'),
+                          )
+                        ],
+                      ),
+                    );
+                  }
+
                   final results = q.isEmpty
-                      ? <POSProduct>[]
-                      : all.where((p) {
+                      ? <Product>[]
+                      : _products.where((p) {
                           final lo = p.name.toLowerCase();
                           return lo.contains(q) ||
                               p.category.toLowerCase().contains(q) ||
@@ -139,7 +231,7 @@ class _CommonPointOfSaleState extends State<CommonPointOfSale> {
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis),
                                     const SizedBox(height: 6),
-                                    Text('${p.priceEtb} ETB',
+                                    Text('${p.sellingPrice.toStringAsFixed(2)} ETB',
                                         style: TextStyle(
                                             color: Colors.blue.shade900,
                                             fontWeight: FontWeight.w800),
@@ -192,10 +284,12 @@ class _CommonPointOfSaleState extends State<CommonPointOfSale> {
 class _SearchRow extends StatefulWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
+  final Future<void> Function(String code) onScan;
 
   const _SearchRow({
     required this.controller,
     required this.onChanged,
+    required this.onScan,
   });
 
   @override
@@ -241,11 +335,7 @@ class _SearchRowState extends State<_SearchRow> {
 
               // Handle result if it exists
               if (result != null) {
-                setState(() {
-                  widget.controller.text = result;
-                });
-                print("Scanned Code: $result");
-                // Do something with 'result'
+                await widget.onScan(result.toString());
               }
             },
             child: Icon(
@@ -381,7 +471,7 @@ class _CartCard extends StatelessWidget {
                                     cart.changeQty(it.product, it.qty + 1),
                                 icon: const Icon(Icons.add_circle)),
                             const SizedBox(width: 8),
-                            Text('${it.subtotal} ETB',
+                            Text('${it.subtotal.toStringAsFixed(2)} ETB',
                                 style: TextStyle(fontWeight: FontWeight.w800)),
                           ],
                         );
@@ -395,7 +485,7 @@ class _CartCard extends StatelessWidget {
                           style: TextStyle(
                               fontSize: 13, fontWeight: FontWeight.w700)),
                       const Spacer(),
-                      Text('${cart.total} ETB',
+                      Text('${cart.total.toStringAsFixed(2)} ETB',
                           style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
@@ -412,6 +502,74 @@ class _CartCard extends StatelessWidget {
   }
 }
 
+enum _PaymentMethod {
+  cash,
+  card,
+  telebirr,
+  cbe,
+  wallet,
+  other,
+}
+
+class _PaymentMethodItem {
+  final String label;
+  final IconData icon;
+  final _PaymentMethod value;
+
+  const _PaymentMethodItem(this.label, this.icon, this.value);
+}
+
+class _PaymentMethodButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final Color primary;
+  final VoidCallback onTap;
+
+  const _PaymentMethodButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.primary,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: selected ? primary : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: selected ? primary : Colors.grey.shade300),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon,
+                size: 18,
+                color: selected ? Colors.white : Colors.grey.shade700),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: selected ? Colors.white : Colors.grey.shade800,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _PaymentCard extends StatefulWidget {
   final ValueChanged<_PaymentMethod>? onPaymentChanged;
 
@@ -423,6 +581,8 @@ class _PaymentCard extends StatefulWidget {
 
 class _PaymentCardState extends State<_PaymentCard> {
   _PaymentMethod _payment = _PaymentMethod.cash;
+
+  bool _isSubmitting = false;
 
   String _discountType = 'Percentage';
   final TextEditingController _discountValueController =
@@ -442,6 +602,99 @@ class _PaymentCardState extends State<_PaymentCard> {
   void _setPayment(_PaymentMethod method) {
     setState(() => _payment = method);
     widget.onPaymentChanged?.call(method);
+  }
+
+  String _randomString(int length) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final r = Random();
+    return List.generate(length, (index) => chars[r.nextInt(chars.length)])
+        .join();
+  }
+
+  String _paymentMethodString(_PaymentMethod m) {
+    switch (m) {
+      case _PaymentMethod.cash:
+        return 'cash';
+      case _PaymentMethod.card:
+        return 'card';
+      case _PaymentMethod.telebirr:
+        return 'telebirr';
+      case _PaymentMethod.cbe:
+        return 'cbe';
+      case _PaymentMethod.wallet:
+        return 'wallet';
+      case _PaymentMethod.other:
+        return 'other';
+    }
+  }
+
+  Future<void> _completeSale(BuildContext context, CartProvider cart) async {
+    if (_isSubmitting) return;
+    if (cart.isEmpty) return;
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final items = cart.items
+          .map((it) => {
+                'productId': it.product.id,
+                'name': it.product.name,
+                'price': it.product.sellingPrice,
+                'quantity': it.qty,
+                'total': (it.product.sellingPrice * it.qty),
+              })
+          .toList();
+
+      final subtotal = items.fold<double>(
+          0.0, (s, it) => s + ((it['total'] as num?)?.toDouble() ?? 0.0));
+
+      // Discount (optional). Backend will enforce permissions when amount > 0.
+      final discountValue = double.tryParse(_discountValueController.text) ?? 0;
+      Map<String, dynamic>? discount;
+      if (discountValue > 0 && subtotal > 0) {
+        final amount = _discountType == 'Percentage'
+            ? (subtotal * (discountValue / 100.0))
+            : discountValue;
+        if (amount > 0) {
+          discount = {
+            'type': _discountType.toLowerCase(),
+            'value': discountValue,
+            'amount': amount,
+          };
+        }
+      }
+
+      // Extra charges (optional)
+      final extraAmount =
+          double.tryParse(_extraChargeAmountController.text) ?? 0;
+      final extraCharges = <Map<String, dynamic>>[];
+      if (extraAmount > 0) {
+        extraCharges.add({'type': _extraChargeType, 'amount': extraAmount});
+      }
+
+      final receiptId = 'RCP-${_randomString(8)}';
+
+      final sale = await SaleRepository().createSale(
+        items: items,
+        subtotal: subtotal,
+        discount: discount,
+        extraCharges: extraCharges.isEmpty ? null : extraCharges,
+        receiptId: receiptId,
+        paymentMethod: _paymentMethodString(_payment),
+      );
+
+      cart.clear();
+      if (!context.mounted) return;
+      await showReceiptPreviewDialog(context, sale: sale);
+    } catch (e) {
+      final msg = e is ApiException ? e.message : 'Failed to complete sale';
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(msg)));
+    } finally {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+    }
   }
 
   @override
@@ -619,7 +872,7 @@ class _PaymentCardState extends State<_PaymentCard> {
                 icon: Icons.add,
                 onTap: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Discount added (mock)')));
+                      const SnackBar(content: Text('Discount will apply on checkout')));
                 },
                 color: primary,
               );
@@ -677,7 +930,7 @@ class _PaymentCardState extends State<_PaymentCard> {
                 icon: Icons.add,
                 onTap: () {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text('Extra charge added (mock)')));
+                      content: Text('Extra charge will apply on checkout')));
                 },
                 color: primary,
               );
@@ -694,6 +947,7 @@ class _PaymentCardState extends State<_PaymentCard> {
                     amount,
                   ],
                 );
+
               }
 
               return Row(
@@ -717,57 +971,34 @@ class _PaymentCardState extends State<_PaymentCard> {
                     width: double.infinity,
                     height: 54,
                     child: ElevatedButton.icon(
-                      onPressed: cart.isEmpty
+                      onPressed: (cart.isEmpty || _isSubmitting)
                           ? null
-                          : () async {
-                              try {
-                                debugPrint(
-                                    'Complete pressed — opening receipt preview directly');
-                                await showReceiptPreviewDialog(context, cart);
-                              } catch (e, st) {
-                                debugPrint(
-                                    'Failed to show receipt preview: $e\n$st');
-                                showDialog(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    title: const Text('Receipt'),
-                                    content: SingleChildScrollView(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text('Total: $total ETB'),
-                                          const SizedBox(height: 8),
-                                          ...cart.items.map((it) => Text(
-                                              '${it.product.name} x${it.qty} - ${it.subtotal} ETB')),
-                                          const SizedBox(height: 8),
-                                          Text('Error showing full receipt: $e',
-                                              style: const TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.red)),
-                                        ],
-                                      ),
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                          onPressed: () =>
-                                              Navigator.of(ctx).pop(),
-                                          child: const Text('Close'))
-                                    ],
-                                  ),
-                                );
-                              }
-                            },
-                      icon: const Icon(Icons.payment),
-                      label: Text('Complete Sale - $total ETB',
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                          : () => _completeSale(context, cart),
+                      icon: _isSubmitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.payment),
+                      label: Text(
+                        _isSubmitting
+                            ? 'Processing...'
+                            : 'Complete Sale - ${total.toStringAsFixed(2)} ETB',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: cart.isEmpty
                             ? Colors.blueGrey.shade300
                             : Colors.blue.shade900,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
                     ),
                   ),
@@ -779,14 +1010,18 @@ class _PaymentCardState extends State<_PaymentCard> {
                       onPressed: cart.isEmpty ? null : () => cart.clear(),
                       style: OutlinedButton.styleFrom(
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
-                      child: Text('Clear Cart',
-                          style: TextStyle(
-                              color: cart.isEmpty
-                                  ? Colors.grey.shade400
-                                  : Colors.grey.shade700,
-                              fontWeight: FontWeight.w700)),
+                      child: Text(
+                        'Clear Cart',
+                        style: TextStyle(
+                          color: cart.isEmpty
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade700,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -794,68 +1029,6 @@ class _PaymentCardState extends State<_PaymentCard> {
             },
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _PaymentMethodItem {
-  final String label;
-  final IconData icon;
-  final _PaymentMethod value;
-
-  _PaymentMethodItem(this.label, this.icon, this.value);
-}
-
-enum _PaymentMethod { cash, card, telebirr, cbe, wallet, other }
-
-class _PaymentMethodButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final Color primary;
-  final VoidCallback onTap;
-
-  const _PaymentMethodButton({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.primary,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected ? primary : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: selected ? primary : Colors.grey.shade300),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon,
-                size: 18,
-                color: selected ? Colors.white : Colors.grey.shade700),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  color: selected ? Colors.white : Colors.grey.shade800,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

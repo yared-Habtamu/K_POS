@@ -24,4 +24,6 @@ class ProductRepository {
           imageBytes: imageBytes, filename: filename);
 
   Future<void> deleteProduct(String id) => _remote.deleteProduct(id);
+
+    Future<Product?> findByBarcode(String code) => _remote.findByBarcode(code);
 }
