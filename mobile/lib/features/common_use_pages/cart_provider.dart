@@ -1,13 +1,14 @@
 import 'package:flutter/foundation.dart';
-import 'mock_products.dart';
+
+import '../products/domain/product_model.dart';
 
 class CartItem {
-  final POSProduct product;
+  final Product product;
   int qty;
 
   CartItem({required this.product, this.qty = 1});
 
-  int get subtotal => product.priceEtb * qty;
+  double get subtotal => product.sellingPrice * qty;
 }
 
 class CartProvider extends ChangeNotifier {
@@ -15,8 +16,8 @@ class CartProvider extends ChangeNotifier {
 
   List<CartItem> get items => List.unmodifiable(_items);
 
-  void addProduct(POSProduct p) {
-    final index = _items.indexWhere((it) => it.product.name == p.name);
+  void addProduct(Product p) {
+    final index = _items.indexWhere((it) => it.product.id == p.id);
     if (index >= 0) {
       _items[index].qty += 1;
     } else {
@@ -25,13 +26,13 @@ class CartProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void removeProduct(POSProduct p) {
-    _items.removeWhere((it) => it.product.name == p.name);
+  void removeProduct(Product p) {
+    _items.removeWhere((it) => it.product.id == p.id);
     notifyListeners();
   }
 
-  void changeQty(POSProduct p, int qty) {
-    final index = _items.indexWhere((it) => it.product.name == p.name);
+  void changeQty(Product p, int qty) {
+    final index = _items.indexWhere((it) => it.product.id == p.id);
     if (index >= 0) {
       if (qty <= 0) {
         _items.removeAt(index);
@@ -47,7 +48,7 @@ class CartProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  int get total => _items.fold(0, (s, it) => s + it.subtotal);
+  double get total => _items.fold(0.0, (s, it) => s + it.subtotal);
 
   bool get isEmpty => _items.isEmpty;
 }
