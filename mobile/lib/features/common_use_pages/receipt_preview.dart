@@ -1,10 +1,10 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../sales/domain/sale_model.dart';
+import 'package:pos_app/features/sales/domain/sale_model.dart';
 import '../../services/global.dart';
 
-Future<void> showReceiptPreviewDialog(
+Future<bool> showReceiptPreviewDialog(
   BuildContext context, {
   required Sale sale,
 }) async {
@@ -23,9 +23,20 @@ Future<void> showReceiptPreviewDialog(
   final vat = sale.tax;
   final total = sale.total;
 
+  final discountAmount = (() {
+    final d = sale.discount;
+    if (d == null) return 0.0;
+    final raw = d['amount'];
+    if (raw is num) return raw.toDouble();
+    return double.tryParse(raw?.toString() ?? '') ?? 0.0;
+  })();
+
+  final extraCharges = sale.extraCharges;
+  final hasExtraCharges = extraCharges.isNotEmpty;
+
   final qrUrl = Uri.encodeFull('https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=$receiptId');
 
-  await showDialog<void>(
+  final result = await showDialog<bool>(
     context: context,
     builder: (ctx) {
       final maxHeight = MediaQuery.of(ctx).size.height * 0.85;
@@ -46,7 +57,7 @@ Future<void> showReceiptPreviewDialog(
                       const Expanded(
                         child: Text('Receipt Preview', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
                       ),
-                      IconButton(onPressed: () => Navigator.of(ctx).pop(), icon: const Icon(Icons.close)),
+                      IconButton(onPressed: () => Navigator.of(ctx).pop(false), icon: const Icon(Icons.close)),
                     ],
                   ),
                 ),
@@ -117,6 +128,38 @@ Future<void> showReceiptPreviewDialog(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [Text('Subtotal:', style: TextStyle(fontWeight: FontWeight.w600)), Text('${subtotal.toStringAsFixed(2)} ETB', style: const TextStyle(fontWeight: FontWeight.w600))],
                         ),
+                        if (discountAmount > 0) ...[
+                          const SizedBox(height: 6),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Discount:', style: TextStyle(fontWeight: FontWeight.w600)),
+                              Text('-${discountAmount.toStringAsFixed(2)} ETB', style: const TextStyle(fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ],
+                        if (hasExtraCharges) ...[
+                          const SizedBox(height: 6),
+                          ...extraCharges.map((e) {
+                            final label = (e['type']?.toString().trim().isNotEmpty ?? false)
+                                ? e['type'].toString()
+                                : 'extra_charge';
+                            final amount = (e['amount'] as num?)?.toDouble() ??
+                                double.tryParse(e['amount']?.toString() ?? '') ??
+                                0.0;
+                            if (amount <= 0) return const SizedBox.shrink();
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text('${label.toLowerCase().replaceAll(' ', '_')}:', style: TextStyle(fontWeight: FontWeight.w600)),
+                                  Text('+${amount.toStringAsFixed(2)} ETB', style: const TextStyle(fontWeight: FontWeight.w600)),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ],
                         const SizedBox(height: 6),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -182,8 +225,7 @@ Future<void> showReceiptPreviewDialog(
                         height: 44,
                         child: ElevatedButton(
                           onPressed: () {
-                            Navigator.of(ctx).pop();
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sale completed: ${total.toStringAsFixed(2)} ETB')));
+                            Navigator.of(ctx).pop(true);
                           },
                           child: const Text('done'),
                           style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade900),
@@ -199,6 +241,8 @@ Future<void> showReceiptPreviewDialog(
       );
     },
   );
+
+  return result ?? false;
 }
 
 String _randomString(int length) {
