@@ -8,7 +8,9 @@ import 'package:provider/provider.dart';
 import 'package:pos_app/features/products/domain/product_model.dart';
 import 'package:pos_app/features/products/domain/product_repository.dart';
 import 'package:pos_app/features/sales/domain/sale_repository.dart';
+import 'package:pos_app/features/marts/domain/mart_repository.dart';
 import 'package:pos_app/services/api/api_client.dart';
+import 'package:pos_app/services/api/auth_storage.dart';
 
 class CommonPointOfSale extends StatefulWidget {
   const CommonPointOfSale({super.key});
@@ -580,9 +582,9 @@ class _CartCard extends StatelessWidget {
 
 enum _PaymentMethod {
   cash,
-  card,
   telebirr,
-  cbe,
+  cbeBank,
+  card,
   wallet,
   other,
 }
@@ -659,6 +661,11 @@ class _PaymentCard extends StatefulWidget {
 class _PaymentCardState extends State<_PaymentCard> {
   _PaymentMethod _payment = _PaymentMethod.cash;
 
+  final MartRepository _martRepository = MartRepository();
+  final AuthStorage _authStorage = AuthStorage();
+  bool _isLoadingSavedAccounts = true;
+  List<MapEntry<String, String>> _savedAccounts = const [];
+
   bool _isSubmitting = false;
 
   String _discountType = 'Percentage';
@@ -718,12 +725,12 @@ class _PaymentCardState extends State<_PaymentCard> {
     switch (m) {
       case _PaymentMethod.cash:
         return 'cash';
-      case _PaymentMethod.card:
-        return 'card';
       case _PaymentMethod.telebirr:
         return 'telebirr';
-      case _PaymentMethod.cbe:
-        return 'cbe';
+      case _PaymentMethod.cbeBank:
+        return 'cbe_bank';
+      case _PaymentMethod.card:
+        return 'card';
       case _PaymentMethod.wallet:
         return 'wallet';
       case _PaymentMethod.other:
@@ -799,6 +806,76 @@ class _PaymentCardState extends State<_PaymentCard> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _loadSavedAccounts();
+  }
+
+  String _normalizePaymentKey(String raw) {
+    return raw
+        .toLowerCase()
+        .trim()
+        .replaceAll(RegExp(r'\s+'), '_')
+        .replaceAll(RegExp(r'[^a-z0-9_]+'), '');
+  }
+
+  _PaymentMethod _methodFromKey(String key) {
+    final k = _normalizePaymentKey(key);
+    if (k == 'cash') return _PaymentMethod.cash;
+    if (k.contains('tele')) return _PaymentMethod.telebirr;
+    if (k == 'cbe' || k.contains('cbe')) return _PaymentMethod.cbeBank;
+    if (k == 'card') return _PaymentMethod.card;
+    if (k == 'wallet') return _PaymentMethod.wallet;
+    return _PaymentMethod.other;
+  }
+
+  Future<void> _loadSavedAccounts() async {
+    setState(() => _isLoadingSavedAccounts = true);
+    try {
+      final user = await _authStorage.readUser();
+      final martId = user?['martId']?.toString();
+      if (martId == null || martId.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _savedAccounts = const [];
+          _isLoadingSavedAccounts = false;
+        });
+        return;
+      }
+
+      final mart = await _martRepository.getMart(martId);
+
+      final accounts = <MapEntry<String, String>>[];
+      final cpf = mart['customPaymentFields'];
+      if (cpf is List) {
+        for (final e in cpf) {
+          if (e is Map) {
+            final k = e['key']?.toString() ?? '';
+            final v = e['value']?.toString() ?? '';
+            if (k.trim().isEmpty || v.trim().isEmpty) continue;
+            accounts.add(MapEntry(_normalizePaymentKey(k), v.trim()));
+          }
+        }
+      }
+
+      final rawPaymentSystem = mart['paymentSystem']?.toString();
+      final defaultKey =
+          rawPaymentSystem == null ? '' : _normalizePaymentKey(rawPaymentSystem);
+
+      if (!mounted) return;
+      setState(() {
+        _savedAccounts = accounts;
+        _isLoadingSavedAccounts = false;
+        if (defaultKey.isNotEmpty) {
+          _payment = _methodFromKey(defaultKey);
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoadingSavedAccounts = false);
+    }
+  }
+
   Widget build(BuildContext context) {
     final primary = Colors.blue.shade900;
 
@@ -840,17 +917,16 @@ class _PaymentCardState extends State<_PaymentCard> {
 
               final methods = [
                 _PaymentMethodItem(
-                    'Cash', Icons.payments_outlined, _PaymentMethod.cash),
-                _PaymentMethodItem(
-                    'Card', Icons.credit_card, _PaymentMethod.card),
+                  'Cash', Icons.payments_outlined, _PaymentMethod.cash),
                 _PaymentMethodItem(
                     'Tele Birr', Icons.phone_iphone, _PaymentMethod.telebirr),
                 _PaymentMethodItem('CBE Bank', Icons.account_balance_outlined,
-                    _PaymentMethod.cbe),
+                  _PaymentMethod.cbeBank),
                 _PaymentMethodItem(
-                    'Wallet',
-                    Icons.account_balance_wallet_outlined,
-                    _PaymentMethod.wallet),
+                  'Card', Icons.credit_card, _PaymentMethod.card),
+                _PaymentMethodItem(
+                  'Wallet', Icons.account_balance_wallet_outlined,
+                  _PaymentMethod.wallet),
                 _PaymentMethodItem(
                     'other', Icons.receipt_long, _PaymentMethod.other),
               ];
@@ -893,57 +969,46 @@ class _PaymentCardState extends State<_PaymentCard> {
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: Colors.grey.shade300),
             ),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final isNarrow = constraints.maxWidth < 420;
-                final left = Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('TELEBIRR',
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade700,
-                            fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 6),
-                    Text('0936092577',
-                        style: TextStyle(
-                            fontSize: 15,
-                            color: Colors.grey.shade900,
-                            fontWeight: FontWeight.w800)),
-                  ],
-                );
-
-                final copy = OutlinedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Copied (mock)')));
-                  },
-                  style: OutlinedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text('Copy'),
-                );
-
-                if (isNarrow) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      left,
-                      const SizedBox(height: 10),
-                      SizedBox(width: double.infinity, child: copy),
-                    ],
-                  );
-                }
-
-                return Row(
-                  children: [
-                    Expanded(child: left),
-                    copy,
-                  ],
-                );
-              },
-            ),
+            child: _isLoadingSavedAccounts
+                ? const Text('Loading...')
+                : (_savedAccounts.isEmpty
+                    ? Text('No saved accounts',
+                        style: TextStyle(color: Colors.grey.shade700))
+                    : Column(
+                        children: _savedAccounts
+                            .map((e) => Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 6),
+                                  child: InkWell(
+                                    onTap: () {
+                                      _setPayment(_methodFromKey(e.key));
+                                    },
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            e.key,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.grey.shade800,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                        Text(
+                                          e.value,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.grey.shade800,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ))
+                            .toList(),
+                      )),
           ),
           const SizedBox(height: 16),
           Text('Discount',
