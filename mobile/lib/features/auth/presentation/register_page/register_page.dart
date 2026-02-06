@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../config/routes/name.dart';
+import '../../../../services/api/api_client.dart';
+import '../../../../services/api/api_config.dart';
+import '../../../../services/api/auth_storage.dart';
 
 class RegisterMartPage extends StatefulWidget {
   const RegisterMartPage({super.key});
@@ -21,6 +24,7 @@ class _RegisterMartPageState extends State<RegisterMartPage> {
   final _usernameCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
+  bool _loading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -72,16 +76,73 @@ class _RegisterMartPageState extends State<RegisterMartPage> {
                       obscure: true),
                   const SizedBox(height: 20),
                   ElevatedButton(
-                    onPressed: () {
-                      if (_formKey.currentState?.validate() ?? false) {
-                        // In real app, send registration request to backend
-                        Navigator.pushNamed(
-                            context, NamedRoutes.RegistrationStatusPage);
-                      }
-                    },
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 14.0),
-                      child: Text('Send Registration'),
+                    onPressed: _loading
+                        ? null
+                        : () async {
+                            if (!(_formKey.currentState?.validate() ?? false)) {
+                              return;
+                            }
+                            setState(() => _loading = true);
+                            try {
+                              final client = ApiClient(
+                                  baseUrl: ApiConfig.baseUrl,
+                                  authStorage: AuthStorage());
+                              final body = {
+                                'martName': _martNameCtrl.text.trim(),
+                                'email': _emailCtrl.text.trim(),
+                                'country': _countryCtrl.text.trim(),
+                                'region': _regionCtrl.text.trim(),
+                                'city': _cityCtrl.text.trim(),
+                                'address': _addressCtrl.text.trim(),
+                                'ownerName': _ownerNameCtrl.text.trim(),
+                                'ownerPhone': _phoneCtrl.text.trim(),
+                                'ownerUsername': _usernameCtrl.text.trim(),
+                                'ownerPassword': _passwordCtrl.text,
+                                'ownerConfirmPassword': _confirmCtrl.text,
+                              };
+
+                              final res = await client.postJson(
+                                  '${ApiConfig.apiPrefix}/marts/register',
+                                  authed: false,
+                                  body: body);
+
+                              final assigned =
+                                  (res['assignedUsername'] as String?) ??
+                                      (res['owner']?['username'] as String?);
+
+                              if (assigned != null && assigned.isNotEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                    content: Text(
+                                        'Registration submitted. Your account username: $assigned')));
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content:
+                                            Text('Registration submitted')));
+                              }
+
+                              Navigator.pushNamed(
+                                  context, NamedRoutes.RegistrationStatusPage,
+                                  arguments: {'username': assigned});
+                            } on ApiException catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(e.message)));
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text('Registration failed')));
+                            } finally {
+                              setState(() => _loading = false);
+                            }
+                          },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 14.0),
+                      child: _loading
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Text('Send Registration'),
                     ),
                   )
                 ],
@@ -107,8 +168,9 @@ class _RegisterMartPageState extends State<RegisterMartPage> {
           hintText: hint,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
       validator: (v) {
-        if (!readOnly && (v == null || v.trim().isEmpty))
+        if (!readOnly && (v == null || v.trim().isEmpty)) {
           return 'This field is required';
+        }
         return null;
       },
     );
@@ -130,7 +192,7 @@ class _RegisterMartPageState extends State<RegisterMartPage> {
       'Harari'
     ];
     return DropdownButtonFormField<String>(
-      value: regions[0],
+      initialValue: regions[0],
       items: regions
           .map((e) => DropdownMenuItem(value: e, child: Text(e)))
           .toList(),

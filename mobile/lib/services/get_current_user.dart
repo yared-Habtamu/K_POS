@@ -32,7 +32,7 @@ class UserProvider extends ChangeNotifier {
     try {
       final prefs = Global.storageServices;
       // 2. Get UUID from Local Storage
-      final String? uuid = prefs.getUserId();
+      final String uuid = prefs.getUserId();
 
       print("......getting current user data user id is: $uuid....");
       if (uuid == null || uuid.isEmpty) {

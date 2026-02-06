@@ -4,7 +4,8 @@ import '../../domain/employee_model.dart';
 // Adjust the import path based on your actual folder structure
 
 class AddEmployeeDialog extends StatefulWidget {
-  const AddEmployeeDialog({super.key});
+  final List<String>? allowedRoles;
+  const AddEmployeeDialog({super.key, this.allowedRoles});
 
   @override
   State<AddEmployeeDialog> createState() => _AddEmployeeDialogState();
@@ -18,7 +19,26 @@ class _AddEmployeeDialogState extends State<AddEmployeeDialog> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  String _role = 'Manager';
+  String _role = '';
+
+  String _normalizeDisplayRole(String r) {
+    final s = r.trim().toLowerCase();
+    if (s.contains('manager')) return 'Manager';
+    if (s.contains('cashier')) return 'Cashier';
+    if (s.contains('store') && s.contains('keeper')) return 'Store Keeper';
+    // fallback to title case
+    return r.isEmpty ? '' : '${r[0].toUpperCase()}${r.substring(1)}';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Set initial role to first allowed role (normalized) to avoid Dropdown mismatch
+    final provided =
+        widget.allowedRoles ?? const ['Manager', 'Cashier', 'Store Keeper'];
+    final first = provided.isNotEmpty ? provided.first : 'Manager';
+    _role = _normalizeDisplayRole(first);
+  }
 
   @override
   void dispose() {
@@ -81,7 +101,9 @@ class _AddEmployeeDialogState extends State<AddEmployeeDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final roles = const ['Manager', 'Cashier', 'Store Keeper'];
+    final provided =
+        widget.allowedRoles ?? const ['Manager', 'Cashier', 'Store Keeper'];
+    final roles = provided.map((r) => _normalizeDisplayRole(r)).toList();
 
     // --- Helper Widgets matching your UI ---
 

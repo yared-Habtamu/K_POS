@@ -5,7 +5,7 @@ import '../../../../config/routes/name.dart';
 import '../../../../services/global.dart';
 
 Widget OverlayContainerToScreen({required BuildContext context}) {
-  return Container(
+  return SizedBox(
     height: MediaQuery.of(context).size.height,
     width: MediaQuery.of(context).size.width,
     child: Stack(
@@ -128,7 +128,7 @@ Widget onBoardingTwoPageReusableContainer({
                 text: TextSpan(
                   children: [
                     TextSpan(
-                      text: "${title1}\n",
+                      text: "$title1\n",
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 30,
@@ -371,7 +371,7 @@ Widget reusableHighlightContainer({
                 )),
               ),
               Text(
-                "$title",
+                title,
                 style: TextStyle(color: Colors.white),
               ),
             ],

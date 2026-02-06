@@ -60,6 +60,19 @@ class ApiClient {
     return _decode(res);
   }
 
+  Future<Map<String, dynamic>> putJson(
+    String path, {
+    Map<String, dynamic>? body,
+    bool authed = true,
+  }) async {
+    final res = await _http.put(
+      _uri(path),
+      headers: await _headers(authed: authed),
+      body: jsonEncode(body ?? {}),
+    );
+    return _decode(res);
+  }
+
   /// Send a multipart/form-data POST request. Useful for file uploads
   /// (e.g., product image upload). `fileField` is the form field name
   /// expected by the backend (default: 'image').

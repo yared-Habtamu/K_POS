@@ -98,8 +98,9 @@ class _OwnerInventoryPageState extends State<OwnerInventoryPage> {
     } catch (e, st) {
       print('[owner-inventory] load failed: $e\n$st');
       setState(() {
-        _fetchError = e?.toString() ?? 'Failed to load inventory';
-        _items = _mockInventory();
+        _fetchError = e.toString() ?? 'Failed to load inventory';
+        // No mock fallbacks: clear items and surface error to the user
+        _items = [];
         _isLoading = false;
       });
     }
@@ -107,7 +108,8 @@ class _OwnerInventoryPageState extends State<OwnerInventoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    final source = _isLoading ? _mockInventory() : _items;
+    // When loading, show an empty state (no mock data). Use server data only.
+    final source = _isLoading ? <_InventoryRow>[] : _items;
     final q = _query.trim().toLowerCase();
 
     final filtered = source.where((p) {
@@ -332,65 +334,4 @@ class _InventoryRow {
     required this.barcode,
     this.imageAsset,
   });
-}
-
-List<_InventoryRow> _mockInventory() {
-  return const [
-    _InventoryRow(
-      name: 'Blue Magic',
-      category: 'Personal Care',
-      sold: 7,
-      remain: 160,
-      barcode: '0001',
-    ),
-    _InventoryRow(
-      name: 'Diva',
-      category: 'Household',
-      sold: 0,
-      remain: 0,
-      barcode: '0002',
-    ),
-    _InventoryRow(
-      name: 'Fanta',
-      category: 'Beverages',
-      sold: 10,
-      remain: 11,
-      barcode: '0003',
-    ),
-    _InventoryRow(
-      name: 'Fanta 2L',
-      category: 'Beverages',
-      sold: 4,
-      remain: 16,
-      barcode: '0004',
-    ),
-    _InventoryRow(
-      name: 'Holand',
-      category: 'Dairy',
-      sold: 3,
-      remain: 40,
-      barcode: '0005',
-    ),
-    _InventoryRow(
-      name: 'coca',
-      category: 'Beverages',
-      sold: 23,
-      remain: 78,
-      barcode: '0006',
-    ),
-    _InventoryRow(
-      name: 'tab',
-      category: 'Household',
-      sold: 0,
-      remain: 9,
-      barcode: '0007',
-    ),
-    _InventoryRow(
-      name: 'Sunlight',
-      category: 'Household',
-      sold: 2,
-      remain: 12,
-      barcode: '0008',
-    ),
-  ];
 }

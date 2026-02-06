@@ -20,6 +20,15 @@ class CommonPointOfSale extends StatefulWidget {
 class _CommonPointOfSaleState extends State<CommonPointOfSale> {
   final TextEditingController _searchController = TextEditingController();
 
+  final _PaymentMethod _payment = _PaymentMethod.cash;
+
+  final String _discountType = 'Percentage';
+  final TextEditingController _discountValueController =
+      TextEditingController();
+
+  final String _extraChargeType = 'Service Charge';
+  final TextEditingController _extraChargeAmountController =
+      TextEditingController();
   final ProductRepository _productRepository = ProductRepository();
 
   List<Product> _products = const [];

@@ -127,7 +127,18 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
         });
       } else if (res.containsKey('requestId')) {
         _toast('Product submitted for approval');
-        Navigator.of(context).pop({'requestId': res['requestId']});
+        // return pending payload so UI can show a placeholder
+        final payload = {
+          'name': fields['name'] ?? '',
+          'category': fields['category'] ?? '',
+          'purchasePriceEtb': int.tryParse(fields['purchasePrice'] ?? '0') ?? 0,
+          'sellingPriceEtb': int.tryParse(fields['sellingPrice'] ?? '0') ?? 0,
+          'stockQty': int.tryParse(fields['quantity'] ?? '0') ?? 0,
+          'martQty': int.tryParse(fields['storeQuantity'] ?? '0') ?? 0,
+          'imageUrl': filename ?? ''
+        };
+        Navigator.of(context)
+            .pop({'requestId': res['requestId'], 'pending': payload});
       } else {
         _toast('Unexpected response from server');
       }

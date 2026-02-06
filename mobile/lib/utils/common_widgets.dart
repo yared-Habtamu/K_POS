@@ -511,7 +511,7 @@ AppBar ReusableAppBar(VoidCallback ontap, BuildContext context) {
         children: [
           GestureDetector(
             onTap: ontap,
-            child: Container(
+            child: SizedBox(
               height: 35.h,
               width: 35.w,
               child: Image.asset(

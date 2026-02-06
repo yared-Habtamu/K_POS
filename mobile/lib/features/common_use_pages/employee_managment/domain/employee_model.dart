@@ -1,5 +1,6 @@
 class Employee {
   final String id;
+  final String? username;
   final String name;
   final String phone;
   final String role;
@@ -8,6 +9,7 @@ class Employee {
 
   const Employee({
     required this.id,
+    this.username,
     required this.name,
     required this.phone,
     required this.role,
@@ -15,21 +17,26 @@ class Employee {
     required this.active,
   });
 
-    factory Employee.fromJson(Map<String, dynamic> json) => Employee(
-        id: json['id'] as String? ?? '',
+  factory Employee.fromJson(Map<String, dynamic> json) => Employee(
+        id: (json['id'] ?? json['_id']) as String? ?? '',
+        username: json['username'] as String?,
         name: json['name'] as String? ?? '',
         phone: json['phone'] as String? ?? '',
         role: json['role'] as String? ?? '',
-        salaryText: json['salaryText'] as String? ?? '',
-        active: json['active'] is bool
-            ? json['active'] as bool
-            : (json['active'] == 'true'),
+        salaryText: (json['salaryText'] ??
+                    (json['salary'] != null ? '${json['salary']} ETB' : ''))
+                as String? ??
+            '',
+        active: json.containsKey('active')
+            ? (json['active'] is bool
+                ? json['active'] as bool
+                : (json['active'] == 'true'))
+            : true,
       );
 
   Map<String, dynamic> toJson() => {
         'id': id,
-        'name': name,
-        'phone': phone,
+        if (username != null) 'username': username,
         'role': role,
         'salaryText': salaryText,
         'active': active,
@@ -37,34 +44,48 @@ class Employee {
 }
 
 class AttendanceRecord {
+  final String? id;
+  final String? employeeId;
   final String employeeName;
   final String dateYmd;
   final String clockIn;
   final String clockOut;
   final String duration;
+  final String? employeeRole; // optional role determined from employee list
 
   const AttendanceRecord({
+    this.id,
+    this.employeeId,
     required this.employeeName,
     required this.dateYmd,
     required this.clockIn,
     required this.clockOut,
     required this.duration,
+    this.employeeRole,
   });
 
   factory AttendanceRecord.fromJson(Map<String, dynamic> j) => AttendanceRecord(
+        id: (j['_id'] ?? j['id']) as String?,
+        employeeId:
+            (j['employeeId'] as String?) ?? (j['employee_id'] as String?),
         employeeName: j['employeeName'] as String? ?? '',
         dateYmd: j['dateYmd'] as String? ?? '',
         clockIn: j['clockIn'] as String? ?? '',
         clockOut: j['clockOut'] as String? ?? '',
-        duration: j['duration'] as String? ?? '',
+        duration: j['duration'] as String? ??
+            (j['durationMinutes'] != null ? '${j['durationMinutes']} min' : ''),
+        employeeRole: j['employeeRole'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
+        if (id != null) '_id': id,
+        if (employeeId != null) 'employeeId': employeeId,
         'employeeName': employeeName,
         'dateYmd': dateYmd,
         'clockIn': clockIn,
         'clockOut': clockOut,
         'duration': duration,
+        if (employeeRole != null) 'employeeRole': employeeRole,
       };
 }
 
@@ -86,7 +107,7 @@ class AddEmployeeFormData {
   });
 }
 
-enum AllowedEmployeeRole{
+enum AllowedEmployeeRole {
   storeKeeper,
   manager,
   cashier,

@@ -10,6 +10,7 @@ const UserSchema = new mongoose.Schema(
     role: { type: String, enum: ['systemAdmin', 'owner', 'manager', 'cashier', 'storeKeeper', 'other'], default: 'other', index: true },
     salary: { type: Number },
     permissions: { type: [String], default: [] },
+    active: { type: Boolean, default: true },
   },
   { timestamps: true },
 );

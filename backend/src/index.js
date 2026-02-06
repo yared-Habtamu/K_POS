@@ -27,6 +27,8 @@ const productEditRequestsRouter = require("./routes/productEditRequests");
 const productAddRequestsRouter = require("./routes/productAddRequests");
 const stockTransferRequestsRouter = require("./routes/stockTransferRequests");
 const customersRouter = require("./routes/customers");
+const employeesRouter = require("./routes/employees");
+const attendanceRouter = require("./routes/attendance");
 
 app.use("/api/expenses", expensesRouter);
 app.use("/api/assets", assetsRouter);
@@ -36,6 +38,8 @@ app.use("/api/daily-reports", dailyReportsRouter);
 app.use("/api/marts", martsRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/products", productsRouter);
+app.use("/api/employees", employeesRouter);
+app.use("/api/attendance", attendanceRouter);
 app.use("/api/product-edit-requests", productEditRequestsRouter);
 app.use("/api/product-add-requests", productAddRequestsRouter);
 app.use("/api/stock-transfer-requests", stockTransferRequestsRouter);
@@ -72,6 +76,10 @@ async function start() {
     } else {
       console.log("System admin user exists:", adminUsername);
     }
+
+    // No development seeding: data must come from the actual database.
+    // If temporary seeding is ever required, gate it behind an environment flag such as SEED_TEST_DATA=true.
+
   } catch (err) {
     console.error("Failed to connect to MongoDB", err);
     process.exit(1);

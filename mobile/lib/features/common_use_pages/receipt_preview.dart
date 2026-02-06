@@ -185,8 +185,8 @@ Future<void> showReceiptPreviewDialog(
                             Navigator.of(ctx).pop();
                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sale completed: ${total.toStringAsFixed(2)} ETB')));
                           },
-                          child: const Text('done'),
                           style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade900),
+                          child: const Text('done'),
                         ),
                       ),
                     ],

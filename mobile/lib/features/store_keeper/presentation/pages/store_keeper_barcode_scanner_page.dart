@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../common_use_pages/reusable_qr_scanner_page.dart';
+import 'package:pos_app/features/products/domain/product_repository.dart';
 
 class StoreKeeperBarcodeScannerPage extends StatefulWidget {
   const StoreKeeperBarcodeScannerPage({super.key});
@@ -22,9 +24,39 @@ class _StoreKeeperBarcodeScannerPageState
     super.dispose();
   }
 
+  List<_BarcodeProduct> _products = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+  }
+
+  Future<void> _loadProducts() async {
+    try {
+      final repo = ProductRepository();
+      final products = await repo.listProducts();
+      setState(() {
+        _products = products
+            .map((p) => _BarcodeProduct(
+                  name: p.name ?? '',
+                  category: p.category ?? '',
+                  priceEtb: (p.sellingPrice ?? 0).toInt(),
+                  barcodes:
+                      (p.barcodes ?? []).map((b) => b.toString()).toList(),
+                  imageUrl: p.imageUrl ?? '',
+                ))
+            .toList();
+      });
+    } catch (e) {
+      debugPrint('[barcode] failed to load products: $e');
+      setState(() => _products = []);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final allItems = _mockProducts();
+    final allItems = _products;
     final items = _filter(allItems, _query);
 
     return LayoutBuilder(
@@ -51,9 +83,6 @@ class _StoreKeeperBarcodeScannerPageState
                 onChanged: (value) => setState(() => _query = value),
                 onSearch: () {
                   setState(() => _query = _controller.text);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Search (mock)')),
-                  );
                 },
               ),
               const SizedBox(height: 16),
@@ -192,7 +221,7 @@ class _SearchField extends StatelessWidget {
               // Handle result if it exists
               if (result != null) {
                 controller.text = result;
-                print("Scanned Code: $result");
+                debugPrint('Scanned Code: $result');
                 // Do something with 'result'
               }
             },
@@ -330,32 +359,4 @@ class _BarcodeProduct {
     required this.barcodes,
     this.imageUrl,
   });
-}
-
-List<_BarcodeProduct> _mockProducts() {
-  return const [
-    _BarcodeProduct(
-      name: 'Blue Magic',
-      category: 'Personal Care',
-      priceEtb: 450,
-      barcodes: ['767083286885'],
-      imageUrl:
-          'https://images.unsplash.com/photo-1521791136064-7986c2920216?w=1200&auto=format&fit=crop',
-    ),
-    _BarcodeProduct(
-      name: 'Diva',
-      category: 'Household',
-      priceEtb: 75,
-      barcodes: ['766905020772', '766905023088'],
-      imageUrl:
-          'https://images.unsplash.com/photo-1523413651479-597eb2da0ad6?w=1200&auto=format&fit=crop',
-    ),
-    _BarcodeProduct(
-      name: 'Fanta',
-      category: 'Beverages',
-      priceEtb: 35,
-      barcodes: ['766005603970'],
-      imageUrl: '',
-    ),
-  ];
 }
