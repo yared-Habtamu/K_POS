@@ -29,7 +29,7 @@ class _SignInPageState extends State<SignInPage> {
         listener: (context, state) {
           if (state is AuthFailureState) {
             commonSnackBar(
-                context, "${state.errMsg}", Colors.white, Colors.red.shade200);
+                context, state.errMsg, Colors.white, Colors.red.shade200);
           }
           if (state is AuthSuccessState) {
             Navigator.pushNamedAndRemoveUntil(

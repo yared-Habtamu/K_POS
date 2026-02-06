@@ -5,7 +5,7 @@ import 'cart_provider.dart';
 import '../../services/global.dart';
 
 Future<void> showReceiptPreviewDialog(BuildContext context, CartProvider cart) async {
-  final receiptId = 'RCP-' + _randomString(8);
+  final receiptId = 'RCP-${_randomString(8)}';
   final now = DateTime.now();
   final date = DateFormat('MMM d, yyyy').format(now);
   final time = DateFormat('HH:mm:ss').format(now);
@@ -100,7 +100,7 @@ Future<void> showReceiptPreviewDialog(BuildContext context, CartProvider cart) a
                               children: [
                                 Expanded(child: Text(it.product.name)),
                                 SizedBox(width: 60, child: Text('${it.qty}', textAlign: TextAlign.center)),
-                                SizedBox(width: 80, child: Text('${(it.product.priceEtb).toStringAsFixed(2)}', textAlign: TextAlign.right)),
+                                SizedBox(width: 80, child: Text((it.product.priceEtb).toStringAsFixed(2), textAlign: TextAlign.right)),
                               ],
                             ),
                           );
@@ -182,8 +182,8 @@ Future<void> showReceiptPreviewDialog(BuildContext context, CartProvider cart) a
                             Navigator.of(ctx).pop();
                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sale completed: ${total.toStringAsFixed(2)} ETB')));
                           },
-                          child: const Text('done'),
                           style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade900),
+                          child: const Text('done'),
                         ),
                       ),
                     ],

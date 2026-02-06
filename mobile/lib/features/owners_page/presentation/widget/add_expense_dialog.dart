@@ -86,7 +86,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
 
               /// CATEGORY
               DropdownButtonFormField<String>(
-                value: category,
+                initialValue: category,
                 borderRadius: BorderRadius.circular(12.r),
                 items: categories
                     .map((c) => DropdownMenuItem(value: c, child: Text(c)))

@@ -6,6 +6,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:pos_app/features/common_use_pages/employee_managment/presentation/widgets/attendance_components.dart';
 import 'package:pos_app/features/common_use_pages/employee_managment/presentation/bloc/employee_bloc.dart';
 import 'package:pos_app/features/common_use_pages/employee_managment/domain/employee_model.dart';
+import 'package:pos_app/features/common_use_pages/employee_managment/data/employee_remote_datastore.dart';
+import 'package:pos_app/core/error/exceptions.dart';
 import '../../employee_utils.dart';
 import '../widgets/add_employee_dialog.dart';
 import '../widgets/employee_components.dart';
@@ -34,10 +36,10 @@ class _CommonEmployeeManagementPageState
 
   // Data State
   List<Employee> _employees = [];
-  Map<String, bool> _managerApplyDiscount = {};
-  Map<String, bool> _managerAddItemsWithPrice = {};
-  Map<String, bool> _storeManageQty = {};
-  Map<String, bool> _cashierApplyDiscount = {};
+  final Map<String, bool> _managerApplyDiscount = {};
+  final Map<String, bool> _managerAddItemsWithPrice = {};
+  final Map<String, bool> _storeManageQty = {};
+  final Map<String, bool> _cashierApplyDiscount = {};
   List<AttendanceRecord> _attendanceRecords = [];
 
   // UI State
@@ -64,7 +66,26 @@ class _CommonEmployeeManagementPageState
   Future<void> _onEditEmployee(Employee emp) async {
     final nameCtrl = TextEditingController(text: emp.name);
     final phoneCtrl = TextEditingController(text: emp.phone);
-    String role = emp.role;
+    String role = (() {
+      final s = emp.role.trim().toLowerCase();
+      if (s.contains('manager')) return 'Manager';
+      if (s.contains('cashier')) return 'Cashier';
+      if (s.contains('store') && s.contains('keeper')) return 'Store Keeper';
+      return emp.role;
+    })();
+
+    // Determine allowed role options for editing based on page context
+    final allowedRoleOptions =
+        widget.allowedRoles ?? const ['Manager', 'Cashier', 'Store Keeper'];
+    // Normalize displayed labels
+    final allowedItems = allowedRoleOptions.map((r) {
+      final s = r.trim().toLowerCase();
+      if (s.contains('manager')) return 'Manager';
+      if (s.contains('cashier')) return 'Cashier';
+      if (s.contains('store') && s.contains('keeper')) return 'Store Keeper';
+      return r;
+    }).toList();
+    if (!allowedItems.contains(role)) role = allowedItems.first;
     final salaryCtrl = TextEditingController(
         text: emp.salaryText.replaceAll(' ETB', '').replaceAll(',', ''));
 
@@ -89,12 +110,9 @@ class _CommonEmployeeManagementPageState
               const SizedBox(height: 8),
               DropdownButton<String>(
                   value: role,
-                  items: const [
-                    DropdownMenuItem(value: 'Manager', child: Text('Manager')),
-                    DropdownMenuItem(value: 'Cashier', child: Text('Cashier')),
-                    DropdownMenuItem(
-                        value: 'Store Keeper', child: Text('Store Keeper'))
-                  ],
+                  items: allowedItems
+                      .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                      .toList(),
                   onChanged: (v) {
                     if (v != null) role = v;
                   }),
@@ -119,21 +137,44 @@ class _CommonEmployeeManagementPageState
     );
 
     if (result == true) {
-      setState(() {
-        final idx = _employees.indexWhere((e) => e.id == emp.id);
+      try {
+        final updated = await EmployeeRemoteDataSource.updateEmployee(
+          id: emp.id,
+          name: nameCtrl.text.trim(),
+          phone: phoneCtrl.text.trim(),
+          role: role,
+          salary: salaryCtrl.text.trim(),
+        );
+        if (!mounted) return;
+        EmployeeUtils.toast(context, 'Employee updated');
+        // Update local list optimistically
+        final idx = _employees.indexWhere((e) => e.id == updated.id);
         if (idx >= 0) {
-          _employees[idx] = Employee(
-            id: emp.id,
-            name: nameCtrl.text.trim(),
-            phone: phoneCtrl.text.trim(),
-            role: role,
-            salaryText: '${salaryCtrl.text.trim()} ETB',
-            active: emp.active,
-          );
+          setState(() {
+            _employees[idx] = updated;
+            _seedPermissions([updated]);
+          });
+        } else {
+          // if not found, refresh from server
+          try {
+            final fresh = await EmployeeRemoteDataSource.fetchEmployees(
+                allowedRolesToFetch: []);
+            if (!mounted) return;
+            setState(() {
+              _employees = fresh;
+              _seedPermissions(_employees);
+            });
+          } catch (e) {
+            debugPrint('[employees] failed to refresh after update: $e');
+          }
         }
-      });
-      EmployeeUtils.toast(context, 'Employee updated');
-      await _saveEmployees();
+      } on AppException catch (e) {
+        if (!mounted) return;
+        EmployeeUtils.toast(context, e.message);
+      } catch (e) {
+        if (!mounted) return;
+        EmployeeUtils.toast(context, 'Failed to update employee');
+      }
     }
   }
 
@@ -156,17 +197,50 @@ class _CommonEmployeeManagementPageState
     );
 
     if (confirm == true) {
-      setState(() {
-        _employees.removeWhere((e) => e.id == emp.id);
-        _attendanceRecords.removeWhere((r) => r.employeeName == emp.name);
-      });
-      EmployeeUtils.toast(context, 'Employee deleted');
-      await _saveEmployees();
+      try {
+        await EmployeeRemoteDataSource.deleteEmployee(emp.id);
+        if (!mounted) return;
+        EmployeeUtils.toast(context, 'Employee deleted');
+        // Remove from local list and refresh attendance
+        setState(() {
+          _employees.removeWhere((e) => e.id == emp.id);
+        });
+        try {
+          _attendanceRecords = await EmployeeRemoteDataSource.fetchAttendance();
+          _annotateAttendanceRoles();
+        } catch (e) {
+          debugPrint('[attendance] failed to refresh after delete: $e');
+        }
+        if (!mounted) return;
+        setState(() {});
+      } on AppException catch (e) {
+        if (!mounted) return;
+        EmployeeUtils.toast(context, e.message);
+      } catch (e) {
+        if (!mounted) return;
+        EmployeeUtils.toast(context, 'Failed to delete employee');
+      }
     }
   }
 
   // --- Attendance edit/delete handlers ---
   Future<void> _onEditAttendance(AttendanceRecord rec) async {
+    // Disallow editing future attendance on client too
+    try {
+      final rd = DateTime.parse(rec.dateYmd);
+      final today = DateTime.now();
+      final rdDate = DateTime(rd.year, rd.month, rd.day);
+      final tDate = DateTime(today.year, today.month, today.day);
+      if (rdDate.isAfter(tDate)) {
+        if (!mounted) return;
+        EmployeeUtils.toast(
+            context, 'Future attendance records cannot be edited');
+        return;
+      }
+    } catch (e) {
+      // ignore parse error, allow edit UI which will be validated by server
+    }
+
     final dateCtrl = TextEditingController(text: rec.dateYmd);
     final clockInCtrl = TextEditingController(text: rec.clockIn);
     final clockOutCtrl = TextEditingController(text: rec.clockOut);
@@ -210,30 +284,66 @@ class _CommonEmployeeManagementPageState
     );
 
     if (result == true) {
-      setState(() {
-        final idx = _attendanceRecords.indexWhere((r) =>
-            identical(r, rec) ||
-            (r.employeeName == rec.employeeName &&
-                r.dateYmd == rec.dateYmd &&
-                r.clockIn == rec.clockIn &&
-                r.clockOut == rec.clockOut));
-        if (idx >= 0) {
-          final newDuration = '${clockInCtrl.text} - ${clockOutCtrl.text}';
-          _attendanceRecords[idx] = AttendanceRecord(
-            employeeName: rec.employeeName,
-            dateYmd: dateCtrl.text.trim(),
-            clockIn: clockInCtrl.text.trim(),
-            clockOut: clockOutCtrl.text.trim(),
-            duration: newDuration,
-          );
+      final newClockIn = clockInCtrl.text.trim();
+      final newClockOut = clockOutCtrl.text.trim();
+      final newDate = dateCtrl.text.trim();
+
+      // Validate basic date format before calling server
+      if (!RegExp(r"^\d{4}-\d{2}-\d{2}").hasMatch(newDate)) {
+        if (!mounted) return;
+        EmployeeUtils.toast(context, 'Invalid date format. Use YYYY-MM-DD');
+        return;
+      }
+
+      try {
+        if (rec.id != null && rec.id!.isNotEmpty) {
+          await EmployeeRemoteDataSource.updateAttendance(
+              id: rec.id!,
+              clockIn: newClockIn,
+              clockOut: newClockOut,
+              notes: null);
+        } else {
+          // create new if no id
+          await EmployeeRemoteDataSource.createAttendance(
+              employeeId: '',
+              employeeName: rec.employeeName,
+              dateYmd: newDate,
+              clockIn: newClockIn,
+              clockOut: newClockOut);
         }
-      });
-      EmployeeUtils.toast(context, 'Attendance updated');
-      await _saveAttendance();
+        if (!mounted) return;
+        EmployeeUtils.toast(context, 'Attendance updated');
+        _attendanceRecords = await EmployeeRemoteDataSource.fetchAttendance();
+        _annotateAttendanceRoles();
+        if (!mounted) return;
+        setState(() {});
+      } on AppException catch (e) {
+        if (!mounted) return;
+        EmployeeUtils.toast(context, e.message);
+      } catch (e) {
+        if (!mounted) return;
+        EmployeeUtils.toast(context, 'Failed to update attendance');
+      }
     }
   }
 
   Future<void> _onDeleteAttendance(AttendanceRecord rec) async {
+    // Disallow deleting future attendance on client side
+    try {
+      final rd = DateTime.parse(rec.dateYmd);
+      final today = DateTime.now();
+      final rdDate = DateTime(rd.year, rd.month, rd.day);
+      final tDate = DateTime(today.year, today.month, today.day);
+      if (rdDate.isAfter(tDate)) {
+        if (!mounted) return;
+        EmployeeUtils.toast(
+            context, 'Future attendance records cannot be deleted');
+        return;
+      }
+    } catch (e) {
+      // ignore parse error
+    }
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -252,13 +362,27 @@ class _CommonEmployeeManagementPageState
     );
 
     if (confirm == true) {
-      setState(() => _attendanceRecords.removeWhere((r) =>
-          (r.employeeName == rec.employeeName &&
-              r.dateYmd == rec.dateYmd &&
-              r.clockIn == rec.clockIn &&
-              r.clockOut == rec.clockOut)));
-      EmployeeUtils.toast(context, 'Attendance deleted');
-      await _saveAttendance();
+      try {
+        if (rec.id != null && rec.id!.isNotEmpty) {
+          await EmployeeRemoteDataSource.deleteAttendance(rec.id!);
+          _attendanceRecords = await EmployeeRemoteDataSource.fetchAttendance();
+        } else {
+          _attendanceRecords.removeWhere((r) =>
+              (r.employeeName == rec.employeeName &&
+                  r.dateYmd == rec.dateYmd &&
+                  r.clockIn == rec.clockIn &&
+                  r.clockOut == rec.clockOut));
+        }
+        if (!mounted) return;
+        EmployeeUtils.toast(context, 'Attendance deleted');
+        setState(() {});
+      } on AppException catch (e) {
+        if (!mounted) return;
+        EmployeeUtils.toast(context, e.message);
+      } catch (e) {
+        if (!mounted) return;
+        EmployeeUtils.toast(context, 'Failed to delete attendance');
+      }
     }
   }
 
@@ -281,7 +405,18 @@ class _CommonEmployeeManagementPageState
     DateTime endOfWeek(DateTime d) =>
         startOfWeek(d).add(const Duration(days: 6));
 
+    // If this page was constructed for managers (allowedRoles provided and does NOT include 'Manager')
+    final isManagerPage = widget.allowedRoles != null &&
+        widget.allowedRoles!.isNotEmpty &&
+        !widget.allowedRoles!.map((r) => r.toLowerCase()).contains('manager');
+
     return _attendanceRecords.where((r) {
+      // Exclude manager/owner roles for manager page
+      if (isManagerPage) {
+        final role = (r.employeeRole ?? '').toLowerCase();
+        if (role == 'manager' || role == 'owner') return false;
+      }
+
       if (empFilter != 'All Employees' && r.employeeName != empFilter) {
         return false;
       }
@@ -306,49 +441,45 @@ class _CommonEmployeeManagementPageState
     }).toList();
   }
 
+  // Populate AttendanceRecord.employeeRole by looking up _employees list
+  void _annotateAttendanceRoles() {
+    if (_attendanceRecords.isEmpty || _employees.isEmpty) return;
+    final byId = {for (var e in _employees) e.id: e.role};
+    final byName = {for (var e in _employees) e.name: e.role};
+    _attendanceRecords = _attendanceRecords.map((r) {
+      final role = (r.employeeId != null && byId.containsKey(r.employeeId))
+          ? byId[r.employeeId]
+          : (byName.containsKey(r.employeeName)
+              ? byName[r.employeeName]
+              : null);
+      return AttendanceRecord(
+        id: r.id,
+        employeeId: r.employeeId,
+        employeeName: r.employeeName,
+        dateYmd: r.dateYmd,
+        clockIn: r.clockIn,
+        clockOut: r.clockOut,
+        duration: r.duration,
+        employeeRole: role,
+      );
+    }).toList();
+  }
+
   Future<void> _loadInitialData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final empStr = prefs.getString('owner_employees_v1');
-    final attStr = prefs.getString('owner_attendance_v1');
-    debugPrint(
-        '[employees] _loadInitialData empStr=${empStr == null ? '<null>' : '${empStr.length} chars'} attStr=${attStr == null ? '<null>' : '${attStr.length} chars'}');
-
-    if (empStr != null) {
-      try {
-        final List<dynamic> arr = jsonDecode(empStr);
-        _employees = arr
-            .map((e) => Employee.fromJson(e as Map<String, dynamic>))
-            .toList();
-        debugPrint('[employees] loaded ${_employees.length} employees');
-      } catch (err, st) {
-        debugPrint('[employees] load error: $err\n$st');
-        _employees = List.of(mockEmployees());
-      }
-    } else {
-      _employees = List.of(mockEmployees());
-      await prefs.setString('owner_employees_v1',
-          jsonEncode(_employees.map((e) => e.toJson()).toList()));
-      debugPrint('[employees] seeded default employees');
+    // Move away from local mock storage; rely on backend data.
+    // Fetch attendance records from the server and let EmployeeBloc
+    // take care of fetching employees.
+    try {
+      _attendanceRecords = await EmployeeRemoteDataSource.fetchAttendance();
+      debugPrint(
+          '[employees] loaded ${_attendanceRecords.length} attendance records from server');
+    } catch (e) {
+      debugPrint('[employees] failed to load attendance from server: $e');
+      _attendanceRecords = [];
     }
 
-    if (attStr != null) {
-      try {
-        final List<dynamic> arr = jsonDecode(attStr);
-        _attendanceRecords = arr
-            .map((e) => AttendanceRecord.fromJson(e as Map<String, dynamic>))
-            .toList();
-        debugPrint(
-            '[employees] loaded ${_attendanceRecords.length} attendance records');
-      } catch (err, st) {
-        debugPrint('[employees] attendance load error: $err\n$st');
-        _attendanceRecords = List.of(mockAttendanceRecords());
-      }
-    } else {
-      _attendanceRecords = List.of(mockAttendanceRecords());
-      await prefs.setString('owner_attendance_v1',
-          jsonEncode(_attendanceRecords.map((a) => a.toJson()).toList()));
-      debugPrint('[employees] seeded default attendance');
-    }
+    // If we already have employee list, annotate records with roles
+    _annotateAttendanceRoles();
 
     _seedPermissions(_employees);
     setState(() {});
@@ -356,12 +487,13 @@ class _CommonEmployeeManagementPageState
 
   void _seedPermissions(List<Employee> list) {
     for (final e in list) {
-      if (e.role == 'Manager') {
+      final role = e.role.toLowerCase();
+      if (role.contains('manager')) {
         _managerApplyDiscount.putIfAbsent(e.id, () => true);
         _managerAddItemsWithPrice.putIfAbsent(e.id, () => false);
-      } else if (e.role == 'Store Keeper') {
+      } else if (role.contains('store') && role.contains('keeper')) {
         _storeManageQty.putIfAbsent(e.id, () => false);
-      } else if (e.role == 'Cashier') {
+      } else if (role.contains('cashier')) {
         _cashierApplyDiscount.putIfAbsent(e.id, () => false);
       }
     }
@@ -387,25 +519,138 @@ class _CommonEmployeeManagementPageState
     final result = await showDialog<AddEmployeeFormData>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const AddEmployeeDialog(),
+      builder: (context) =>
+          AddEmployeeDialog(allowedRoles: widget.allowedRoles),
     );
 
     if (result != null) {
-      final newEmp = Employee(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: result.employeeName,
-        phone: result.phone,
-        role: result.role,
-        salaryText: '${result.salary} ETB',
-        active: true,
-      );
+      try {
+        final u = await EmployeeRemoteDataSource.createEmployee(
+          name: result.employeeName,
+          username: result.username.isEmpty ? null : result.username,
+          password: result.password,
+          role: result.role,
+          phone: result.phone,
+          salary: result.salary,
+        );
+        final uname = u.username ?? u.id;
+        if (!mounted) return;
+        EmployeeUtils.toast(context, 'Employee Added (username: $uname)');
+        // Optimistically insert the created employee into local list so it appears immediately
+        setState(() {
+          _employees.insert(0, u);
+          _seedPermissions([u]);
+        });
+        // Try to refresh server-side list and attendance; if fetch fails, keep optimistic entry
+        try {
+          final fresh = await EmployeeRemoteDataSource.fetchEmployees(
+              allowedRolesToFetch: []);
+          if (!mounted) return;
+          setState(() {
+            _employees = fresh;
+            _seedPermissions(_employees);
+          });
+        } catch (e) {
+          // keep optimistic state, but log
+          debugPrint('[employees] failed to refresh after add: $e');
+        }
 
-      setState(() {
-        _employees.insert(0, newEmp);
-        _seedPermissions([newEmp]);
-      });
-      EmployeeUtils.toast(context, 'Employee Added');
-      await _saveEmployees();
+        try {
+          _attendanceRecords = await EmployeeRemoteDataSource.fetchAttendance();
+          _annotateAttendanceRoles();
+        } catch (e) {
+          debugPrint('[attendance] failed to refresh after add: $e');
+        }
+
+        if (!mounted) return;
+        setState(() {});
+      } on AppException catch (e) {
+        // Helpful handling for username conflicts
+        final msg = e.message;
+        if (msg.toLowerCase().contains('username') &&
+            msg.toLowerCase().contains('exists')) {
+          if (!mounted) return;
+          final dialogCtx = context;
+          final choice = await showDialog<String>(
+            context: dialogCtx,
+            builder: (c) => AlertDialog(
+              title: const Text('Username already exists'),
+              content: const Text(
+                  'The username is already taken. Would you like the system to auto-generate a username for this employee?'),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.of(c).pop('pick'),
+                    child: const Text('Pick another')),
+                ElevatedButton(
+                    onPressed: () => Navigator.of(c).pop('auto'),
+                    child: const Text('Auto-generate')),
+              ],
+            ),
+          );
+
+          if (choice == 'auto') {
+            try {
+              final u2 = await EmployeeRemoteDataSource.createEmployee(
+                name: result.employeeName,
+                username: null,
+                password: result.password,
+                role: result.role,
+                phone: result.phone,
+                salary: result.salary,
+              );
+              final uname2 = u2.username ?? u2.id;
+              if (!mounted) return;
+              EmployeeUtils.toast(
+                  context, 'Employee Added (username: $uname2)');
+              // Insert optimistic and try to refresh full list
+              setState(() {
+                _employees.insert(0, u2);
+                _seedPermissions([u2]);
+              });
+
+              try {
+                final fresh = await EmployeeRemoteDataSource.fetchEmployees(
+                    allowedRolesToFetch: []);
+                if (!mounted) return;
+                setState(() {
+                  _employees = fresh;
+                  _seedPermissions(_employees);
+                });
+              } catch (e) {
+                debugPrint(
+                    '[employees] failed to refresh after auto-gen add: $e');
+              }
+
+              try {
+                _attendanceRecords =
+                    await EmployeeRemoteDataSource.fetchAttendance();
+                _annotateAttendanceRoles();
+              } catch (e) {
+                debugPrint(
+                    '[attendance] failed to refresh after auto-gen add: $e');
+              }
+
+              if (!mounted) return;
+              setState(() {});
+            } on AppException catch (e2) {
+              if (!mounted) return;
+              EmployeeUtils.toast(context, e2.message);
+            } catch (e2) {
+              if (!mounted) return;
+              EmployeeUtils.toast(context, 'Failed to add employee');
+            }
+          } else {
+            if (!mounted) return;
+            EmployeeUtils.toast(context, 'Please choose a different username');
+          }
+        } else {
+          if (!mounted) return;
+          EmployeeUtils.toast(context, e.message);
+        }
+      } catch (e) {
+        if (!mounted) return;
+        EmployeeUtils.toast(context, 'Failed to add employee');
+      }
     }
   }
 
@@ -416,21 +661,30 @@ class _CommonEmployeeManagementPageState
         initialDate: _manualDate,
         firstDate: DateTime(2020),
         lastDate: DateTime(2035));
-    if (picked != null) setState(() => _manualDate = picked);
+    if (picked != null) {
+      if (!mounted) return;
+      setState(() => _manualDate = picked);
+    }
   }
 
   Future<void> _pickClockIn() async {
     final picked = await showTimePicker(
         context: context,
         initialTime: _manualClockIn ?? const TimeOfDay(hour: 9, minute: 0));
-    if (picked != null) setState(() => _manualClockIn = picked);
+    if (picked != null) {
+      if (!mounted) return;
+      setState(() => _manualClockIn = picked);
+    }
   }
 
   Future<void> _pickClockOut() async {
     final picked = await showTimePicker(
         context: context,
         initialTime: _manualClockOut ?? const TimeOfDay(hour: 17, minute: 0));
-    if (picked != null) setState(() => _manualClockOut = picked);
+    if (picked != null) {
+      if (!mounted) return;
+      setState(() => _manualClockOut = picked);
+    }
   }
 
   // Add a manual attendance record, persist it, and refresh the UI
@@ -444,29 +698,68 @@ class _CommonEmployeeManagementPageState
       return;
     }
 
-    final rec = AttendanceRecord(
-      employeeName: _manualEmployee,
-      dateYmd: EmployeeUtils.formatYmd(_manualDate),
-      clockIn: EmployeeUtils.formatTime(_manualClockIn!),
-      clockOut: EmployeeUtils.formatTime(_manualClockOut!),
-      duration:
-          '${EmployeeUtils.formatTime(_manualClockIn!)} - ${EmployeeUtils.formatTime(_manualClockOut!)}',
-    );
+    final dateYmd = EmployeeUtils.formatYmd(_manualDate);
+    final clockIn = EmployeeUtils.formatTime(_manualClockIn!);
+    final clockOut = EmployeeUtils.formatTime(_manualClockOut!);
 
-    setState(() => _attendanceRecords.insert(0, rec));
-    debugPrint(
-        '[employees] added attendance for ${rec.employeeName} on ${rec.dateYmd}');
-    await _saveAttendance();
-    EmployeeUtils.toast(context, 'Attendance Saved');
+    try {
+      // find the selected employee id by name (we expect unique names in a mart)
+      final emp = _employees.firstWhere((e) => e.name == _manualEmployee,
+          orElse: () => Employee(
+              id: '',
+              name: '',
+              phone: '',
+              role: '',
+              salaryText: '',
+              active: true));
+      final empId = emp.id.isEmpty ? '' : emp.id;
+      await EmployeeRemoteDataSource.createAttendance(
+        employeeId: empId,
+        employeeName: _manualEmployee,
+        dateYmd: dateYmd,
+        clockIn: clockIn,
+        clockOut: clockOut,
+      );
+
+      if (!mounted) return;
+      EmployeeUtils.toast(context, 'Attendance Saved');
+      // refresh local attendance list
+      _attendanceRecords = await EmployeeRemoteDataSource.fetchAttendance();
+      _annotateAttendanceRoles();
+      if (!mounted) return;
+      setState(() {});
+    } on AppException catch (e) {
+      if (!mounted) return;
+      EmployeeUtils.toast(context, e.message);
+    } catch (e) {
+      if (!mounted) return;
+      EmployeeUtils.toast(context, 'Failed to save attendance');
+    }
   }
 
   List<Employee> _getFilteredEmployees() {
     var list = List<Employee>.from(_employees);
 
+    // Use allowedRoles (when provided) as creator-roles, not as list filter.
+    // Filter visibility rules:
+    // - If page allows 'Manager' role (owner page), exclude 'Owner' from list
+    // - Else if allowedRoles exists but doesn't include 'Manager' (manager page), exclude all 'Manager' roles
     if (widget.allowedRoles != null && widget.allowedRoles!.isNotEmpty) {
-      list = list.where((e) => widget.allowedRoles!.contains(e.role)).toList();
+      final roles = widget.allowedRoles!.map((r) => r.toLowerCase()).toList();
+      if (roles.contains('manager')) {
+        // Owner page: hide owner entries from list (owner shouldn't manage other owners)
+        list = list.where((e) => e.role.toLowerCase() != 'owner').toList();
+      } else {
+        // Manager page: hide both owner and manager roles from list
+        list = list
+            .where((e) =>
+                e.role.toLowerCase() != 'manager' &&
+                e.role.toLowerCase() != 'owner')
+            .toList();
+      }
     }
 
+    // If requested, hide other managers but keep current manager entry (legacy behavior)
     if (widget.hideOtherManagers && widget.currentUserId != null) {
       list = list
           .where((e) => !(e.role == 'Manager' && e.id != widget.currentUserId))
@@ -495,6 +788,8 @@ class _CommonEmployeeManagementPageState
                 _employees = state.employees;
                 _seedPermissions(_employees);
               });
+              // Now that we have employees, annotate attendance records with roles
+              _annotateAttendanceRoles();
             } else if (state is FailureEmployeeState) {
               setState(() {
                 _employees = [];
@@ -533,13 +828,13 @@ class _CommonEmployeeManagementPageState
             final displayList = _getFilteredEmployees();
             final roleOptions = [
               'All Roles',
-              ..._employees.map((e) => e.role).toSet()
+              ...displayList.map((e) => e.role).toSet()
             ];
             final employeeNames = [
               'All Employees',
-              ..._employees.map((e) => e.name)
+              ...displayList.map((e) => e.name)
             ];
-            final employeeNamesManual = _employees.map((e) => e.name).toList();
+            final employeeNamesManual = displayList.map((e) => e.name).toList();
 
             return SingleChildScrollView(
               padding: const EdgeInsets.all(16),
@@ -566,7 +861,6 @@ class _CommonEmployeeManagementPageState
                       onQueryChanged: (v) => setState(() => _query = v),
                     ),
                     const SizedBox(height: 14),
-
                     if (displayList.isEmpty)
                       Center(
                         child: Padding(
@@ -591,9 +885,7 @@ class _CommonEmployeeManagementPageState
                         onEdit: _onEditEmployee,
                         onDelete: _onDeleteEmployee,
                       ),
-
                     const SizedBox(height: 14),
-
                     if (displayList.isNotEmpty)
                       PermissionsSection(
                         employees: displayList,
@@ -614,7 +906,8 @@ class _CommonEmployeeManagementPageState
                     SectionHeader(
                       title: 'Attendance',
                       subtitle: 'Track and manage employee attendance',
-                      rightActions: Row(mainAxisSize: MainAxisSize.min, children: [
+                      rightActions:
+                          Row(mainAxisSize: MainAxisSize.min, children: [
                         OutlinedButton.icon(
                             onPressed: () =>
                                 EmployeeUtils.toast(context, 'CSV'),
@@ -666,8 +959,8 @@ class _CommonEmployeeManagementPageState
                       recordsDate: _recordsDate,
                       onPrevDate: () => setState(() => _recordsDate =
                           _recordsDate.subtract(const Duration(days: 1))),
-                      onNextDate: () => setState(() =>
-                          _recordsDate = _recordsDate.add(const Duration(days: 1))),
+                      onNextDate: () => setState(() => _recordsDate =
+                          _recordsDate.add(const Duration(days: 1))),
                       records: _getFilteredAttendanceRecords(),
                       onEditRecord: _onEditAttendance,
                       onDeleteRecord: _onDeleteAttendance,

@@ -57,7 +57,7 @@ class _StoreKeeperInventoryPageState extends State<StoreKeeperInventoryPage> {
         sales = res['data'] ?? res;
       } catch (e) {
         // ignore sales fetch errors but continue with products
-        print('[inventory] failed to fetch sales: $e');
+        debugPrint('[inventory] failed to fetch sales: $e');
       }
 
       final Map<String, int> soldMap = {};
@@ -88,6 +88,7 @@ class _StoreKeeperInventoryPageState extends State<StoreKeeperInventoryPage> {
                 : 0;
         final remaining = available - sold;
         return _InventoryItem(
+          id: id ?? '',
           name: p.name ?? '',
           category: p.category ?? '',
           sold: sold,
@@ -101,10 +102,11 @@ class _StoreKeeperInventoryPageState extends State<StoreKeeperInventoryPage> {
         _isLoading = false;
       });
     } catch (e, st) {
-      print('[inventory] load failed: $e\n$st');
+      debugPrint('[inventory] load failed: $e\n$st');
       setState(() {
-        _fetchError = e?.toString() ?? 'Failed to load inventory';
-        _items = _mockItems();
+        _fetchError = e.toString() ?? 'Failed to load inventory';
+        // No mock fallbacks — clear items and show the error to the user
+        _items = [];
         _isLoading = false;
       });
     }
@@ -112,7 +114,8 @@ class _StoreKeeperInventoryPageState extends State<StoreKeeperInventoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    final items = _applySearch(_isLoading ? _mockItems() : _items, _query);
+    final items =
+        _applySearch(_isLoading ? <_InventoryItem>[] : _items, _query);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -188,8 +191,7 @@ class _StoreKeeperInventoryPageState extends State<StoreKeeperInventoryPage> {
                           ),
                         );
                       },
-                      onAddImage: () =>
-                          _toast('Add Image (mock): ${item.name}'),
+                      onAddImage: () => _toast('Add Image: ${item.name}'),
                       onAddStock: () => showAddStockDialog(context, item),
                     );
                   },
@@ -745,7 +747,7 @@ Future<void> showAddStockDialog(
                           SizedBox(
                             height: 44,
                             child: ElevatedButton.icon(
-                              onPressed: () {
+                              onPressed: () async {
                                 final val =
                                     int.tryParse(controller.text.trim()) ?? 0;
                                 if (val <= 0) {
@@ -762,11 +764,32 @@ Future<void> showAddStockDialog(
                                               'Quantity exceeds warehouse stock')));
                                   return;
                                 }
-                                Navigator.of(ctx).pop();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                        content:
-                                            Text('Transferred $val units')));
+
+                                try {
+                                  final auth = AuthStorage();
+                                  final client = ApiClient(
+                                      baseUrl: ApiConfig.baseUrl,
+                                      authStorage: auth);
+                                  final res = await client.postJson(
+                                      '${ApiConfig.apiPrefix}/stock-transfer-requests',
+                                      body: {
+                                        'productId': item.id,
+                                        'quantity': val
+                                      });
+                                  Navigator.of(ctx).pop();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                          content: Text(res['message'] ??
+                                              'Transfer request submitted for approval')));
+                                } catch (e) {
+                                  final msg = e is ApiException
+                                      ? e.message
+                                      : e.toString();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                          content: Text(
+                                              'Failed to submit transfer: $msg')));
+                                }
                               },
                               icon: const Icon(Icons.add),
                               label: const Text('Transfer Stock'),
@@ -790,7 +813,7 @@ Future<void> showAddStockDialog(
                         SizedBox(
                           height: 44,
                           child: ElevatedButton.icon(
-                            onPressed: () {
+                            onPressed: () async {
                               final val =
                                   int.tryParse(controller.text.trim()) ?? 0;
                               if (val <= 0) {
@@ -807,11 +830,31 @@ Future<void> showAddStockDialog(
                                             'Quantity exceeds warehouse stock')));
                                 return;
                               }
-                              // perform transfer (mock)
-                              Navigator.of(ctx).pop();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                      content: Text('Transferred $val units')));
+
+                              try {
+                                final auth = AuthStorage();
+                                final client = ApiClient(
+                                    baseUrl: ApiConfig.baseUrl,
+                                    authStorage: auth);
+                                final res = await client.postJson(
+                                    '${ApiConfig.apiPrefix}/stock-transfer-requests',
+                                    body: {
+                                      'productId': item.id,
+                                      'quantity': val
+                                    });
+                                Navigator.of(ctx).pop();
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                    content: Text(res['message'] ??
+                                        'Transfer request submitted for approval')));
+                              } catch (e) {
+                                final msg = e is ApiException
+                                    ? e.message
+                                    : e.toString();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                        content: Text(
+                                            'Failed to submit transfer: $msg')));
+                              }
                             },
                             icon: const Icon(Icons.add),
                             label: const Text('Transfer Stock'),
@@ -835,6 +878,7 @@ Future<void> showAddStockDialog(
 }
 
 class _InventoryItem {
+  final String id;
   final String name;
   final String category;
   final int sold;
@@ -842,6 +886,7 @@ class _InventoryItem {
   final String? imageUrl;
 
   const _InventoryItem({
+    required this.id,
     required this.name,
     required this.category,
     required this.sold,
@@ -853,6 +898,7 @@ class _InventoryItem {
 List<_InventoryItem> _mockItems() {
   return const [
     _InventoryItem(
+      id: 'mock-1',
       name: 'Blue Magic',
       category: 'Personal Care',
       sold: 10,
@@ -861,6 +907,7 @@ List<_InventoryItem> _mockItems() {
           'https://images.unsplash.com/photo-1521791136064-7986c2920216?w=1200&auto=format&fit=crop',
     ),
     _InventoryItem(
+      id: 'mock-2',
       name: 'Diva',
       category: 'Household',
       sold: 0,
@@ -869,6 +916,7 @@ List<_InventoryItem> _mockItems() {
           'https://images.unsplash.com/photo-1523413651479-597eb2da0ad6?w=1200&auto=format&fit=crop',
     ),
     _InventoryItem(
+      id: 'mock-3',
       name: 'Fanta',
       category: 'Beverages',
       sold: 10,
@@ -876,6 +924,7 @@ List<_InventoryItem> _mockItems() {
       imageUrl: '',
     ),
     _InventoryItem(
+      id: 'mock-4',
       name: 'Coca Cola',
       category: 'Beverages',
       sold: 23,
@@ -883,6 +932,7 @@ List<_InventoryItem> _mockItems() {
       imageUrl: '',
     ),
     _InventoryItem(
+      id: 'mock-5',
       name: 'Tissue Roll',
       category: 'Household',
       sold: 7,
@@ -890,6 +940,7 @@ List<_InventoryItem> _mockItems() {
       imageUrl: '',
     ),
     _InventoryItem(
+      id: 'mock-6',
       name: 'Rice (5kg)',
       category: 'Groceries',
       sold: 4,
@@ -897,6 +948,7 @@ List<_InventoryItem> _mockItems() {
       imageUrl: '',
     ),
     _InventoryItem(
+      id: 'mock-7',
       name: 'Cooking Oil',
       category: 'Groceries',
       sold: 12,
@@ -904,6 +956,7 @@ List<_InventoryItem> _mockItems() {
       imageUrl: '',
     ),
     _InventoryItem(
+      id: 'mock-8',
       name: 'Soap',
       category: 'Personal Care',
       sold: 18,

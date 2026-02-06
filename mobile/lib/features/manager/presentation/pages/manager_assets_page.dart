@@ -134,10 +134,10 @@ class _ManagerAssetsPageState extends State<ManagerAssetsPage> {
                         height: 46,
                         child: ElevatedButton(
                             onPressed: _add,
-                            child: const Text('Add'),
                             style: ElevatedButton.styleFrom(
                                 shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10)))),
+                                    borderRadius: BorderRadius.circular(10))),
+                            child: const Text('Add')),
                       ),
                     ],
                   ),

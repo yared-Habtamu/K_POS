@@ -33,8 +33,11 @@ class CartProvider extends ChangeNotifier {
   void changeQty(POSProduct p, int qty) {
     final index = _items.indexWhere((it) => it.product.name == p.name);
     if (index >= 0) {
-      if (qty <= 0) _items.removeAt(index);
-      else _items[index].qty = qty;
+      if (qty <= 0) {
+        _items.removeAt(index);
+      } else {
+        _items[index].qty = qty;
+      }
       notifyListeners();
     }
   }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -32,6 +33,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _pendingPollTimer?.cancel();
     super.dispose();
   }
 
@@ -42,6 +44,8 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
   }
 
   static const String _kProductsKey = 'owner_products_v1';
+
+  Timer? _pendingPollTimer;
 
   Future<void> _loadProducts() async {
     // Try to fetch from backend first; fall back to local cached data
@@ -65,6 +69,12 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
       final prefs = await SharedPreferences.getInstance();
       final s = jsonEncode(_products.map((p) => p.toJson()).toList());
       await prefs.setString(_kProductsKey, s);
+
+      // Stop polling if no pending items remain
+      if (!_products.any((p) => p.pending) && _pendingPollTimer != null) {
+        _pendingPollTimer?.cancel();
+        _pendingPollTimer = null;
+      }
     } catch (e, st) {
       debugPrint('[products] fetch failed: $e\n$st');
       // fallback to cached or mocks
@@ -78,12 +88,10 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
               .toList();
           setState(() => _products = loaded);
         } catch (_) {
-          setState(
-              () => _products = List<_OwnerProductRow>.from(_mockProducts()));
+          setState(() => _products = []);
         }
       } else {
-        setState(
-            () => _products = List<_OwnerProductRow>.from(_mockProducts()));
+        setState(() => _products = []);
       }
     }
   }
@@ -94,6 +102,11 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
     await prefs.setString(_kProductsKey, s);
     debugPrint(
         '[products] saved ${_products.length} items (${s.length} chars) to key=$_kProductsKey');
+
+    // Start polling if any pending items exist
+    if (_products.any((p) => p.pending)) {
+      _startPendingPollIfNeeded();
+    }
   }
 
   Future<void> _onEditProduct(_OwnerProductRow p) async {
@@ -217,7 +230,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
       // debug: ensure we handle update and surface what changed
       final newName = nameCtrl.text.trim();
       final newCat = catCtrl.text.trim();
-      print('Saving edits for ${p.id}: name="$newName", cat="$newCat"');
+      debugPrint('Saving edits for ${p.id}: name="$newName", cat="$newCat"');
       try {
         final repo = ProductRepository();
         final fields = <String, String>{
@@ -242,7 +255,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
         final res = await repo.updateProduct(p.id, fields,
             imageBytes: bytes, filename: filename);
 
-        print('[products] update response: $res');
+        debugPrint('[products] update response: $res');
         if (res.containsKey('product')) {
           final prod = res['product'];
           setState(() {
@@ -257,13 +270,14 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                 stockQty: prod.quantity,
                 martQty: prod.storeQuantity,
                 imageUrl: prod.imageUrl,
+                pending: false,
+                requestId: null,
               );
             }
           });
           _toast('Product updated: $newName');
         } else if (res.containsKey('requestId')) {
-          // Owner updates are submitted for approval (202). Apply changes locally
-          // so the owner sees immediate feedback, and persist to cache.
+          // Owner updates are submitted for approval (202). Mark as pending
           setState(() {
             final idx = _products.indexWhere((x) => x.id == p.id);
             if (idx >= 0) {
@@ -278,15 +292,20 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                 stockQty: int.tryParse(stockCtrl.text.trim()) ?? p.stockQty,
                 martQty: int.tryParse(martCtrl.text.trim()) ?? p.martQty,
                 imageUrl: newImageUrl ?? p.imageUrl,
+                pending: true,
+                requestId: res['requestId']?.toString(),
               );
             }
           });
           await _saveProducts();
           _toast(
-              'Update submitted for approval — applied locally (requestId=${res['requestId']})');
+              'Update submitted for approval — pending (requestId=${res['requestId']})');
+
+          // start polling backend for approval updates while pending exists
+          _startPendingPollIfNeeded();
         }
       } catch (e, st) {
-        print('Error updating product: $e\n$st');
+        debugPrint('Error updating product: $e\n$st');
         _toast('Failed to update product');
       }
     }
@@ -319,11 +338,24 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Product deleted: ${p.name}')));
       } catch (e, st) {
-        print('Error deleting product: $e\n$st');
+        debugPrint('Error deleting product: $e\n$st');
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Failed to delete product')));
       }
     }
+  }
+
+  void _startPendingPollIfNeeded() {
+    if (_pendingPollTimer != null) return;
+    // Poll every 30 seconds while there are pending requests
+    _pendingPollTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
+      debugPrint('[products] polling for pending approvals...');
+      await _loadProducts();
+      if (!_products.any((p) => p.pending)) {
+        _pendingPollTimer?.cancel();
+        _pendingPollTimer = null;
+      }
+    });
   }
 
   @override
@@ -360,11 +392,46 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                       builder: (_) => const OwnerAddProductPage()),
                 );
                 if (result != null && result is Map<String, dynamic>) {
-                  final newP = _OwnerProductRow.fromJson(result);
-                  setState(() => _products.insert(0, newP));
-                  await _saveProducts();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Product added')));
+                  // Owner flow: backend may return { requestId } (pending approval)
+                  if (result.containsKey('requestId')) {
+                    final pending = result['pending'] as Map<String, dynamic>?;
+                    if (pending != null) {
+                      final placeholder = _OwnerProductRow.fromJson({
+                        'requestId': result['requestId'].toString(),
+                        'name': pending['name'] ?? '',
+                        'category': pending['category'] ?? '',
+                        'purchasePriceEtb': pending['purchasePriceEtb'] ?? 0,
+                        'sellingPriceEtb': pending['sellingPriceEtb'] ?? 0,
+                        'stockQty': pending['stockQty'] ?? 0,
+                        'martQty': pending['martQty'] ?? 0,
+                        'imageUrl': pending['imageUrl'] ?? '',
+                        'pending': true,
+                      });
+                      setState(() => _products.insert(0, placeholder));
+                      await _saveProducts();
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content:
+                              Text('Product submitted for manager approval')));
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content:
+                              Text('Product submitted for manager approval')));
+                    }
+                  } else {
+                    // Expect a product map - be defensive
+                    try {
+                      final newP = _OwnerProductRow.fromJson(result);
+                      setState(() => _products.insert(0, newP));
+                      await _saveProducts();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Product added')));
+                    } catch (e, st) {
+                      print('Failed to parse created product: $e\n$st');
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text(
+                              'Product created but response was unexpected')));
+                    }
+                  }
                 }
               },
             ),
@@ -644,7 +711,28 @@ class _ProductsTableCard extends StatelessWidget {
                       key: ValueKey(p.id),
                       cells: [
                         DataCell(_AvatarOrImage(imageUrl: p.imageUrl)),
-                        DataCell(Text(p.name, overflow: TextOverflow.ellipsis)),
+                        DataCell(Row(children: [
+                          Expanded(
+                              child: Text(p.name,
+                                  overflow: TextOverflow.ellipsis)),
+                          if (p.pending)
+                            Container(
+                              margin: const EdgeInsets.only(left: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade100,
+                                borderRadius: BorderRadius.circular(999),
+                                border:
+                                    Border.all(color: Colors.orange.shade300),
+                              ),
+                              child: Text('Pending',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.orange.shade800)),
+                            )
+                        ])),
                         DataCell(_Pill(text: p.category)),
                         DataCell(Text('${p.purchasePriceEtb} ETB')),
                         DataCell(Text('${p.sellingPriceEtb} ETB')),
@@ -657,15 +745,21 @@ class _ProductsTableCard extends StatelessWidget {
                             children: [
                               IconButton(
                                 tooltip: 'Edit',
-                                onPressed: () => onEdit(p),
+                                onPressed: p.pending ? null : () => onEdit(p),
                                 icon: Icon(Icons.edit_outlined,
-                                    size: 18, color: Colors.grey.shade700),
+                                    size: 18,
+                                    color: p.pending
+                                        ? Colors.grey.shade400
+                                        : Colors.grey.shade700),
                               ),
                               IconButton(
                                 tooltip: 'Delete',
-                                onPressed: () => onDelete(p),
+                                onPressed: p.pending ? null : () => onDelete(p),
                                 icon: Icon(Icons.delete_outline,
-                                    size: 18, color: Colors.red.shade400),
+                                    size: 18,
+                                    color: p.pending
+                                        ? Colors.grey.shade400
+                                        : Colors.red.shade400),
                               ),
                             ],
                           ),
@@ -795,7 +889,7 @@ class _QtyPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        '${value} pcs',
+        '$value pcs',
         style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: fg),
       ),
     );
@@ -878,6 +972,8 @@ class _OwnerProductRow {
   final int stockQty;
   final int martQty;
   final String? imageUrl;
+  final bool pending;
+  final String? requestId;
 
   const _OwnerProductRow({
     required this.id,
@@ -888,26 +984,61 @@ class _OwnerProductRow {
     required this.stockQty,
     required this.martQty,
     this.imageUrl,
+    this.pending = false,
+    this.requestId,
   });
 
-  factory _OwnerProductRow.fromJson(Map<String, dynamic> j) => _OwnerProductRow(
-        id: j['id'] as String,
-        name: j['name'] as String? ?? '',
-        category: j['category'] as String? ?? '',
-        purchasePriceEtb: j['purchasePriceEtb'] is int
-            ? j['purchasePriceEtb'] as int
-            : int.tryParse('${j['purchasePriceEtb'] ?? 0}') ?? 0,
-        sellingPriceEtb: j['sellingPriceEtb'] is int
-            ? j['sellingPriceEtb'] as int
-            : int.tryParse('${j['sellingPriceEtb'] ?? 0}') ?? 0,
-        stockQty: j['stockQty'] is int
-            ? j['stockQty'] as int
-            : int.tryParse('${j['stockQty'] ?? 0}') ?? 0,
-        martQty: j['martQty'] is int
-            ? j['martQty'] as int
-            : int.tryParse('${j['martQty'] ?? 0}') ?? 0,
-        imageUrl: j['imageUrl'] as String?,
-      );
+  factory _OwnerProductRow.fromJson(Map<String, dynamic> j) {
+    final requestId =
+        (j['requestId'] as String?) ?? (j['request_id'] as String?);
+    final isPending =
+        requestId != null || j['pending'] == true || j['pending'] is Map;
+    final rawId = j['id'] ??
+        j['_id'] ??
+        j['productId'] ??
+        (isPending ? 'pending:${requestId ?? ''}' : null);
+    final idStr = rawId != null ? rawId.toString() : '';
+
+    String? _pendingString(String key) {
+      if (j[key] is String) return j[key] as String;
+      if (j['pending'] is Map && j['pending'][key] != null)
+        return j['pending'][key].toString();
+      return null;
+    }
+
+    int _parseInt(dynamic v, [int fallback = 0]) {
+      if (v is int) return v;
+      if (v is String) return int.tryParse(v) ?? fallback;
+      return fallback;
+    }
+
+    return _OwnerProductRow(
+      id: idStr,
+      name: (j['name'] as String?) ?? _pendingString('name') ?? '',
+      category: (j['category'] as String?) ?? _pendingString('category') ?? '',
+      purchasePriceEtb: _parseInt(
+          j['purchasePriceEtb'] ??
+              (j['pending'] is Map ? j['pending']['purchasePriceEtb'] : null),
+          0),
+      sellingPriceEtb: _parseInt(
+          j['sellingPriceEtb'] ??
+              (j['pending'] is Map ? j['pending']['sellingPriceEtb'] : null),
+          0),
+      stockQty: _parseInt(
+          j['stockQty'] ??
+              (j['pending'] is Map ? j['pending']['stockQty'] : null),
+          0),
+      martQty: _parseInt(
+          j['martQty'] ??
+              (j['pending'] is Map ? j['pending']['martQty'] : null),
+          0),
+      imageUrl: (j['imageUrl'] as String?) ??
+          (j['pending'] is Map ? j['pending']['imageUrl'] as String? : null),
+      pending: isPending,
+      requestId: requestId ??
+          (j['pending'] is Map ? (j['pending']['requestId'] as String?) : null),
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -917,95 +1048,10 @@ class _OwnerProductRow {
         'sellingPriceEtb': sellingPriceEtb,
         'stockQty': stockQty,
         'martQty': martQty,
-        'imageUrl': imageUrl ?? ''
+        'imageUrl': imageUrl ?? '',
+        'pending': pending,
+        'requestId': requestId,
       };
-}
-
-List<_OwnerProductRow> _mockProducts() {
-  return const [
-    _OwnerProductRow(
-      id: 'p1',
-      name: 'Blue Magic',
-      category: 'Personal Care',
-      purchasePriceEtb: 350,
-      sellingPriceEtb: 450,
-      stockQty: 170,
-      martQty: 160,
-      imageUrl:
-          'https://images.unsplash.com/photo-1521791136064-7986c2920216?w=400&auto=format&fit=crop',
-    ),
-    _OwnerProductRow(
-      id: 'p2',
-      name: 'Diva',
-      category: 'Household',
-      purchasePriceEtb: 65,
-      sellingPriceEtb: 75,
-      stockQty: 0,
-      martQty: 0,
-      imageUrl:
-          'https://images.unsplash.com/photo-1523413651479-597eb2da0ad6?w=400&auto=format&fit=crop',
-    ),
-    _OwnerProductRow(
-      id: 'p3',
-      name: 'Fanta',
-      category: 'Beverages',
-      purchasePriceEtb: 30,
-      sellingPriceEtb: 35,
-      stockQty: 10,
-      martQty: 11,
-      imageUrl: '',
-    ),
-    _OwnerProductRow(
-      id: 'p4',
-      name: 'Fanta 2L',
-      category: 'Beverages',
-      purchasePriceEtb: 30,
-      sellingPriceEtb: 35,
-      stockQty: 0,
-      martQty: 16,
-      imageUrl: '',
-    ),
-    _OwnerProductRow(
-      id: 'p5',
-      name: 'Holand',
-      category: 'Dairy',
-      purchasePriceEtb: 25,
-      sellingPriceEtb: 30,
-      stockQty: 25,
-      martQty: 40,
-      imageUrl: '',
-    ),
-    _OwnerProductRow(
-      id: 'p6',
-      name: 'coca',
-      category: 'Beverages',
-      purchasePriceEtb: 50,
-      sellingPriceEtb: 60,
-      stockQty: 0,
-      martQty: 78,
-      imageUrl: '',
-    ),
-    _OwnerProductRow(
-      id: 'p7',
-      name: 'tab',
-      category: 'Household',
-      purchasePriceEtb: 50,
-      sellingPriceEtb: 100,
-      stockQty: 30,
-      martQty: 9,
-      imageUrl: '',
-    ),
-    _OwnerProductRow(
-      id: 'p8',
-      name: 'Sugar',
-      category: 'Groceries',
-      purchasePriceEtb: 45,
-      sellingPriceEtb: 55,
-      stockQty: 12,
-      martQty: 22,
-      imageUrl: '',
-    ),
-  ];
 }
 
 // removed top-level helper `_toast` to avoid conflicts with the

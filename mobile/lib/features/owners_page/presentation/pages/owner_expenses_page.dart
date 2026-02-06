@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../domain/expense_model.dart';
 import '../widget/add_expense_dialog.dart';
-import '../widget/expense_pie_chart.dart';
 import '../widget/expense_pie_chart.dart';
 
 import '../widget/expense_stat_card.dart';
