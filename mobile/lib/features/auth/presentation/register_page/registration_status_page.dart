@@ -6,6 +6,10 @@ class RegistrationStatusPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final username = args != null ? (args['username'] as String?) : null;
+
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       body: Center(
@@ -24,9 +28,18 @@ class RegistrationStatusPage extends StatelessWidget {
                     style:
                         TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
-                const Text(
+                Text(
                     'Thank you — your registration is under review by the system administrator. This page will update automatically.'),
                 const SizedBox(height: 12),
+                if (username != null && username.isNotEmpty) ...[
+                  const Text('Your account username is:',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  Text(username,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                ],
                 const Text(
                     'We will contact you at the phone number you provided when the request is processed. If you need help, contact:'),
                 const SizedBox(height: 12),

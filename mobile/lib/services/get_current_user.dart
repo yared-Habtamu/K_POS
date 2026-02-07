@@ -24,10 +24,6 @@ class UserProvider extends ChangeNotifier {
 
   bool get isLoading => _isLoading;
 
-  // --------------------------------------------------
-  // 🔥 AUTO LOAD (ONLY WHEN NEEDED)
-  // --------------------------------------------------
-
   Future<AuthUser?> ensureUserLoaded() async {
     /// Already loaded → return immediately
     if (_user != null) return _user;

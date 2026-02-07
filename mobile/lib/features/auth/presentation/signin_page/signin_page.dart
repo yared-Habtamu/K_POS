@@ -1,4 +1,3 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:pos_app/services/api/auth_storage.dart';
@@ -32,7 +31,7 @@ class _SignInPageState extends State<SignInPage> {
         listener: (context, state) async {
           if (state is AuthFailureState) {
             commonSnackBar(
-                context, "${state.errMsg}", Colors.white, Colors.red.shade200);
+                context, state.errMsg, Colors.white, Colors.red.shade200);
           }
           if (state is AuthSuccessState) {
             await context.read<UserProvider>().ensureUserLoaded();

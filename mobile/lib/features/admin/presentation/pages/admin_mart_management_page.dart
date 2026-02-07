@@ -1,23 +1,28 @@
 import 'package:flutter/material.dart';
 
-import '../../data/mock_admin_data.dart';
 import '../../domain/admin_shop.dart';
+import '../../../../services/api/api_client.dart';
+import '../../../../services/api/api_config.dart';
+import '../../../../services/api/auth_storage.dart';
 
 class AdminMartManagementPage extends StatefulWidget {
   const AdminMartManagementPage({super.key});
 
   @override
-  State<AdminMartManagementPage> createState() => _AdminMartManagementPageState();
+  State<AdminMartManagementPage> createState() =>
+      _AdminMartManagementPageState();
 }
 
 class _AdminMartManagementPageState extends State<AdminMartManagementPage> {
-  late List<AdminShop> _shops;
+  List<AdminShop> _shops = [];
   AdminShopStatus? _filter;
+  bool _loading = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _shops = MockAdminData.shops();
+    _loadPending();
   }
 
   List<AdminShop> get _filtered {
@@ -27,12 +32,114 @@ class _AdminMartManagementPageState extends State<AdminMartManagementPage> {
 
   void _updateStatus(String id, AdminShopStatus status, String message) {
     setState(() {
-      _shops = _shops.map((s) => s.id == id ? s.copyWith(status: status) : s).toList();
+      _shops = _shops
+          .map((s) => s.id == id ? s.copyWith(status: status) : s)
+          .toList();
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
+  }
+
+  Future<void> _loadPending() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final client =
+          ApiClient(baseUrl: ApiConfig.baseUrl, authStorage: AuthStorage());
+      final dynamic res =
+          await client.getJson('${ApiConfig.apiPrefix}/marts/pending');
+      List dataList;
+      if (res is List) {
+        dataList = res;
+      } else if (res is Map && res['data'] is List) {
+        dataList = res['data'];
+      } else if (res is Map && res['message'] != null) {
+        throw ApiException(
+            message: res['message']?.toString() ?? 'Request failed');
+      } else {
+        throw ApiException(message: 'Unexpected response from server');
+      }
+
+      final list = dataList.map((m) {
+        final owner = m['ownerId'];
+        AdminShopStatus status;
+        switch ((m['status'] ?? '').toString()) {
+          case 'approved':
+            status = AdminShopStatus.active;
+            break;
+          case 'disabled':
+          case 'rejected':
+            status = AdminShopStatus.rejected;
+            break;
+          case 'pending':
+          default:
+            status = AdminShopStatus.pending;
+        }
+
+        return AdminShop(
+          id: m['_id']?.toString() ?? m['id']?.toString() ?? '',
+          name: m['martName'] ?? '',
+          owner: owner != null ? (owner['name'] ?? owner['phone'] ?? '') : '',
+          status: status,
+          users: 0,
+          sales: 0,
+          city: m['city'] ?? '',
+          region: m['region'] ?? '',
+          country: m['country'] ?? '',
+        );
+      }).toList();
+
+      setState(() {
+        _shops = list;
+      });
+    } on ApiException catch (e) {
+      setState(() {
+        _error = e.message;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to load pending marts';
+      });
+    } finally {
+      setState(() {
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _approve(String id) async {
+    try {
+      final client =
+          ApiClient(baseUrl: ApiConfig.baseUrl, authStorage: AuthStorage());
+      await client.putJson('${ApiConfig.apiPrefix}/marts/$id/approve');
+      _updateStatus(id, AdminShopStatus.active, 'Shop approved');
+    } on ApiException catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Approve failed')));
+    }
+  }
+
+  Future<void> _reject(String id) async {
+    try {
+      final client =
+          ApiClient(baseUrl: ApiConfig.baseUrl, authStorage: AuthStorage());
+      await client.putJson('${ApiConfig.apiPrefix}/marts/$id/reject');
+      _updateStatus(id, AdminShopStatus.rejected, 'Shop rejected');
+    } on ApiException catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Reject failed')));
+    }
   }
 
   void _deleteShop(String id) {
@@ -54,13 +161,21 @@ class _AdminMartManagementPageState extends State<AdminMartManagementPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    if (_loading && _shops.isEmpty) {
+      return Center(child: CircularProgressIndicator());
+    }
+
     final shops = _filtered;
 
     final total = _shops.length;
-    final active = _shops.where((s) => s.status == AdminShopStatus.active).length;
-    final pending = _shops.where((s) => s.status == AdminShopStatus.pending).length;
-    final suspended = _shops.where((s) => s.status == AdminShopStatus.suspended).length;
-    final rejected = _shops.where((s) => s.status == AdminShopStatus.rejected).length;
+    final active =
+        _shops.where((s) => s.status == AdminShopStatus.active).length;
+    final pending =
+        _shops.where((s) => s.status == AdminShopStatus.pending).length;
+    final suspended =
+        _shops.where((s) => s.status == AdminShopStatus.suspended).length;
+    final rejected =
+        _shops.where((s) => s.status == AdminShopStatus.rejected).length;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -82,6 +197,28 @@ class _AdminMartManagementPageState extends State<AdminMartManagementPage> {
           onSelect: (value) => setState(() => _filter = value),
         ),
         const SizedBox(height: 14),
+        if (_error != null)
+          Card(
+            color: Theme.of(context).colorScheme.errorContainer,
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Row(
+                children: [
+                  Expanded(
+                      child: Text(_error!,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onErrorContainer))),
+                  TextButton(
+                      onPressed: _loadPending, child: const Text('Retry')),
+                ],
+              ),
+            ),
+          ),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -91,9 +228,12 @@ class _AdminMartManagementPageState extends State<AdminMartManagementPage> {
                 Row(
                   children: [
                     Expanded(
-                      child: Text('Registered Supermarkets', style: theme.textTheme.titleLarge),
+                      child: Text('Registered Supermarkets',
+                          style: theme.textTheme.titleLarge),
                     ),
-                    Chip(label: Text(shops.length.toString()), visualDensity: VisualDensity.compact),
+                    Chip(
+                        label: Text(shops.length.toString()),
+                        visualDensity: VisualDensity.compact),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -131,10 +271,16 @@ class _AdminMartManagementPageState extends State<AdminMartManagementPage> {
                                 DataCell(
                                   _RowActions(
                                     shop: s,
-                                    onApprove: () => _updateStatus(s.id, AdminShopStatus.active, 'Shop approved'),
-                                    onReject: () => _updateStatus(s.id, AdminShopStatus.rejected, 'Shop rejected'),
-                                    onSuspend: () => _updateStatus(s.id, AdminShopStatus.suspended, 'Shop suspended'),
-                                    onUnsuspend: () => _updateStatus(s.id, AdminShopStatus.active, 'Shop unsuspended'),
+                                    onApprove: () => _approve(s.id),
+                                    onReject: () => _reject(s.id),
+                                    onSuspend: () => _updateStatus(
+                                        s.id,
+                                        AdminShopStatus.suspended,
+                                        'Shop suspended'),
+                                    onUnsuspend: () => _updateStatus(
+                                        s.id,
+                                        AdminShopStatus.active,
+                                        'Shop unsuspended'),
                                     onEdit: () => _editShop(s),
                                     onDelete: () => _deleteShop(s.id),
                                   ),
@@ -240,7 +386,8 @@ class _StatusTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bg = selected ? theme.colorScheme.primary : theme.colorScheme.surface;
-    final fg = selected ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface;
+    final fg =
+        selected ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface;
     final border = selected ? Colors.transparent : theme.dividerColor;
 
     return Padding(
@@ -258,11 +405,13 @@ class _StatusTab extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(label, style: theme.textTheme.labelLarge?.copyWith(color: fg)),
+              Text(label,
+                  style: theme.textTheme.labelLarge?.copyWith(color: fg)),
               const SizedBox(width: 10),
               Text(
                 count.toString(),
-                style: theme.textTheme.labelLarge?.copyWith(color: fg.withAlpha(200)),
+                style: theme.textTheme.labelLarge
+                    ?.copyWith(color: fg.withAlpha(200)),
               ),
             ],
           ),
@@ -280,7 +429,9 @@ class _ShopCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final first = shop.name.trim().isNotEmpty ? shop.name.trim().characters.first.toUpperCase() : 'S';
+    final first = shop.name.trim().isNotEmpty
+        ? shop.name.trim().characters.first.toUpperCase()
+        : 'S';
     return Row(
       children: [
         CircleAvatar(child: Text(first)),
@@ -291,7 +442,10 @@ class _ShopCell extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(shop.name, style: theme.textTheme.titleSmall, overflow: TextOverflow.ellipsis, maxLines: 2),
+              Text(shop.name,
+                  style: theme.textTheme.titleSmall,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2),
               const SizedBox(height: 2),
               Text('owner', style: theme.textTheme.bodySmall),
             ],
@@ -453,7 +607,8 @@ class _RowActions extends StatelessWidget {
               backgroundColor: theme.colorScheme.error,
               foregroundColor: theme.colorScheme.onError,
               padding: EdgeInsets.zero,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: onDelete,
             child: const Icon(Icons.delete_outline),

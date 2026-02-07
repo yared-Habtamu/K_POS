@@ -12,10 +12,37 @@ const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ message: 'Username and password required' });
-  const user = await User.findOne({ username });
-  if (!user) return res.status(401).json({ message: 'Invalid username or password' });
+
+  // Allow users to sign in using either their username or phone number
+  const user = await User.findOne({ $or: [{ username }, { phone: username }] });
+  if (!user) {
+    console.warn(`Login failed: user not found for '${username}'`);
+    return res.status(401).json({ message: 'Invalid username or password' });
+  }
+
   const valid = await bcrypt.compare(password, user.passwordHash || '');
-  if (!valid) return res.status(401).json({ message: 'Invalid username or password' });
+  if (!valid) {
+    console.warn(`Login failed: wrong password for user '${username}' (id=${user._id})`);
+    return res.status(401).json({ message: 'Invalid username or password' });
+  }
+
+  // Owners may only login once their mart is approved
+  if (user.role === 'owner') {
+    if (!user.martId) {
+      console.warn(`Owner login blocked: no martId for user id=${user._id}`);
+      return res.status(403).json({ message: 'Owner account has no mart assigned. Create a mart first or contact an administrator.' });
+    }
+    const mart = await Mart.findById(user.martId).select('status');
+    if (!mart) {
+      console.warn(`Owner login blocked: mart not found for martId=${user.martId}`);
+      return res.status(403).json({ message: "Owner's mart not found. Contact an administrator." });
+    }
+    if (mart.status !== 'approved') {
+      console.info(`Owner login blocked: mart status=${mart.status} for martId=${user.martId}`);
+      return res.status(403).json({ message: 'Your mart registration is pending approval.' });
+    }
+  }
+
   const token = jwt.sign({ id: user._id, username: user.username, role: user.role, martId: user.martId, permissions: user.permissions || [] }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, user: { id: user._id, username: user.username, name: user.name, role: user.role, martId: user.martId, permissions: user.permissions || [] } });
 });

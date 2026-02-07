@@ -367,4 +367,3 @@ If you have questions about contributing:
 ---
 
 Thank you for contributing to Smart POS System! 🎉
-

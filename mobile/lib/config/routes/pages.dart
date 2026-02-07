@@ -67,7 +67,7 @@ class NamedRouteSettings {
         print("...inner : ${element.route}...");
         return element.route == settings.name;
       });
-      print("...selected Page :  ${route}...");
+      print("...selected Page :  $route...");
       if (route.isNotEmpty) {
         //check whether or not user is login or not
         return SlideRoute(page: route.first.page, settings: settings);

@@ -128,6 +128,54 @@ class _ManagerAssetsPageState extends State<ManagerAssetsPage> {
                                 hintText: 'Asset name',
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
+                                  borderSide:
+                                      BorderSide(color: Colors.grey.shade200))),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      SizedBox(
+                        height: 46,
+                        child: ElevatedButton(
+                            onPressed: _add,
+                            style: ElevatedButton.styleFrom(
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10))),
+                            child: const Text('Add')),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const SizedBox(height: 4),
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _items.length,
+                    itemBuilder: (context, idx) {
+                      final item = _items[idx];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(item.name,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w700)),
+                                    const SizedBox(height: 4),
+                                    Text('Qty: ${item.qty}',
+                                        style: TextStyle(
+                                            color: Colors.grey.shade700)),
+                                  ],
                                 ),
                               ),
                             ),

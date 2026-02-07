@@ -84,13 +84,28 @@ router.post('/', authenticate, async (req, res) => {
 
     await reqDoc.save();
 
-    await Notification.create({
-      martId: product.martId,
-      type: 'stock_transfer_request',
-      title: 'Stock transfer requested',
-      message: `${reqDoc.requesterName || 'User'} requested to move ${qty} units`,
-      data: { requestId: reqDoc._id, productId },
-    });
+    // notify managers specifically
+    const User = require('../models/user.model');
+    const managers = await User.find({ martId: product.martId, role: 'manager' }).select('_id username name').lean();
+    if (managers && managers.length > 0) {
+      const notes = managers.map(m => ({
+        martId: product.martId,
+        userId: m._id,
+        type: 'stock_transfer_request',
+        title: 'Stock transfer requested',
+        message: `${reqDoc.requesterName || 'User'} requested to move ${qty} units`,
+        data: { requestId: reqDoc._id, productId },
+      }));
+      await Notification.create(notes);
+    } else {
+      await Notification.create({
+        martId: product.martId,
+        type: 'stock_transfer_request',
+        title: 'Stock transfer requested',
+        message: `${reqDoc.requesterName || 'User'} requested to move ${qty} units`,
+        data: { requestId: reqDoc._id, productId },
+      });
+    }
 
     res.status(202).json({ message: 'Transfer request submitted for approval', requestId: reqDoc._id });
   } catch (err) {

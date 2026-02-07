@@ -177,8 +177,9 @@ class SearchAndRoleFilter extends StatelessWidget {
             ),
           ),
         );
-        if (isNarrow)
+        if (isNarrow) {
           return Column(children: [search, const SizedBox(height: 12), role]);
+        }
         return Row(children: [
           Expanded(child: search),
           const SizedBox(width: 12),
@@ -359,7 +360,7 @@ class PermissionsSection extends StatelessWidget {
               'Manager Permissions',
               'Assign manager-level permissions',
               employees
-                  .where((e) => e.role == 'Manager')
+                  .where((e) => e.role.toLowerCase().contains('manager'))
                   .map((e) => _PermissionRow(
                       name: e.name,
                       label1: 'Apply Discounts',
@@ -374,7 +375,7 @@ class PermissionsSection extends StatelessWidget {
               'Store Keeper Permissions',
               'Assign warehouse permissions',
               employees
-                  .where((e) => e.role == 'Store Keeper')
+                  .where((e) => e.role.toLowerCase().contains('store') && e.role.toLowerCase().contains('keeper'))
                   .map((e) => _PermissionRow(
                       name: e.name,
                       label1: 'Manage Quantity',
@@ -386,7 +387,7 @@ class PermissionsSection extends StatelessWidget {
               'Cashier Permissions',
               'Assign front-desk permissions',
               employees
-                  .where((e) => e.role == 'Cashier')
+                  .where((e) => e.role.toLowerCase().contains('cashier'))
                   .map((e) => _PermissionRow(
                       name: e.name,
                       label1: 'Apply Discounts',
@@ -481,7 +482,7 @@ class _PermissionRow extends StatelessWidget {
                   Switch(
                     value: val,
                     onChanged: cb,
-                    activeColor: Colors.white,
+                    activeThumbColor: Colors.white,
                     activeTrackColor: Colors.blue.shade900,
                     inactiveThumbColor: Colors.white,
                     inactiveTrackColor: Colors.grey.shade300,

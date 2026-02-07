@@ -2,14 +2,17 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
-import '../../services/get_current_user.dart';
-import 'cart_provider.dart';
+import '../sales/domain/sale_model.dart';
 import '../../services/global.dart';
 
 Future<void> showReceiptPreviewDialog(
-    BuildContext context, CartProvider cart) async {
-  final receiptId = 'RCP-' + _randomString(8);
-  final now = DateTime.now();
+  BuildContext context, {
+  required Sale sale,
+}) async {
+  final receiptId = (sale.receiptId.isNotEmpty)
+      ? sale.receiptId
+      : 'RCP-' + _randomString(8);
+  final now = sale.date ?? DateTime.now();
   final date = DateFormat('MMM d, yyyy').format(now);
   final time = DateFormat('HH:mm:ss').format(now);
   final userProvider = context.read<UserProvider>();
@@ -17,10 +20,10 @@ Future<void> showReceiptPreviewDialog(
       ?  userProvider.user!.username
       : 'Cashier';
 
-  final subtotal = cart.total;
-  final vatPct = 0.15; // 15% VAT
-  final vat = (subtotal * vatPct).round();
-  final total = subtotal + vat;
+  final subtotal = sale.subtotal;
+  final vatPct = (sale.taxRate > 0) ? (sale.taxRate / 100.0) : 0.0;
+  final vat = sale.tax;
+  final total = sale.total;
 
   final qrUrl = Uri.encodeFull(
       'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=$receiptId');
@@ -138,21 +141,14 @@ Future<void> showReceiptPreviewDialog(
                           ),
                         ),
                         const SizedBox(height: 6),
-                        ...cart.items.map((it) {
+                        ...sale.items.map((it) {
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 6.0),
                             child: Row(
                               children: [
-                                Expanded(child: Text(it.product.name)),
-                                SizedBox(
-                                    width: 60,
-                                    child: Text('${it.qty}',
-                                        textAlign: TextAlign.center)),
-                                SizedBox(
-                                    width: 80,
-                                    child: Text(
-                                        '${(it.product.priceEtb).toStringAsFixed(2)}',
-                                        textAlign: TextAlign.right)),
+                                Expanded(child: Text(it.name)),
+                                SizedBox(width: 60, child: Text('${it.quantity}', textAlign: TextAlign.center)),
+                                SizedBox(width: 80, child: Text('${it.price.toStringAsFixed(2)}', textAlign: TextAlign.right)),
                               ],
                             ),
                           );
@@ -162,24 +158,12 @@ Future<void> showReceiptPreviewDialog(
                         const SizedBox(height: 6),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('Subtotal:',
-                                style: TextStyle(fontWeight: FontWeight.w600)),
-                            Text('$subtotal.00 ETB',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w600))
-                          ],
+                          children: [Text('Subtotal:', style: TextStyle(fontWeight: FontWeight.w600)), Text('${subtotal.toStringAsFixed(2)} ETB', style: const TextStyle(fontWeight: FontWeight.w600))],
                         ),
                         const SizedBox(height: 6),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('VAT (15.00%):',
-                                style: TextStyle(fontWeight: FontWeight.w600)),
-                            Text('${vat.toStringAsFixed(2)} ETB',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w600))
-                          ],
+                          children: [Text('VAT (${(vatPct * 100).toStringAsFixed(2)}%):', style: TextStyle(fontWeight: FontWeight.w600)), Text('${vat.toStringAsFixed(2)} ETB', style: const TextStyle(fontWeight: FontWeight.w600))],
                         ),
                         const SizedBox(height: 12),
                         Row(
@@ -258,16 +242,13 @@ Future<void> showReceiptPreviewDialog(
                         height: 44,
                         child: ElevatedButton(
                           onPressed: () {
-                            // finalize: clear cart and close
-                            cart.clear();
                             Navigator.of(ctx).pop();
                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                                 content: Text(
                                     'Sale completed: ${total.toStringAsFixed(2)} ETB')));
                           },
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade900),
                           child: const Text('done'),
-                          style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue.shade900),
                         ),
                       ),
                     ],

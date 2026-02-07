@@ -67,8 +67,13 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
     // Determine martId: systemAdmin may supply martId, otherwise use requester's mart
     const finalMartId =
       user.role === "systemAdmin" ? martId || user.martId : user.martId;
-    if (!finalMartId)
+    if (!finalMartId) {
+      // Provide a clearer error for owners who do not have an assigned mart
+      if (user.role === 'owner') {
+        return res.status(400).json({ message: 'Owner account has no mart assigned. Create a mart first or contact an administrator.' });
+      }
       return res.status(400).json({ message: "martId is required" });
+    }
 
     const requestedQty = Number(quantity || 0);
     const storeQty =
@@ -105,9 +110,9 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
       createdBy: user.id,
     };
 
-    // Owners require manager approval before product is created
-    if (user.role === "owner" && user.role !== "systemAdmin") {
-      const reqDoc = new ProductAddRequest({
+    // Owners require manager approval before product is created (case-insensitive check)
+    if (String(user.role || '').toLowerCase() === 'owner' && String(user.role || '').toLowerCase() !== 'systemadmin') {
+        const reqDoc = new ProductAddRequest({
         martId: finalMartId,
         requesterId: user.id,
         requesterName: user.username || user.name,
@@ -116,19 +121,45 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
 
       await reqDoc.save();
 
-      await Notification.create({
-        martId: finalMartId,
-        type: "product_add_request",
-        title: "Product creation requested",
-        message: `${reqDoc.requesterName || "Owner"} requested to add product ${name}`,
-        data: { requestId: reqDoc._id, name },
-      });
+      // Notify managers specifically (if any), otherwise broadcast to mart
+      const User = require('../models/user.model');
+      // Find managers case-insensitively (some DB entries may have different casing)
+      const managers = await User.find({ martId: finalMartId, role: { $regex: /^manager$/i } }).select('_id username name').lean();
+      if (managers && managers.length > 0) {
+        const notes = managers.map(m => ({
+          martId: finalMartId,
+          userId: m._id,
+          type: 'product_add_request',
+          title: 'Product creation requested',
+          message: `${reqDoc.requesterName || 'Owner'} requested to add product ${name}`,
+          data: { requestId: reqDoc._id, name },
+        }));
+        await Notification.create(notes);
+      } else {
+        await Notification.create({
+          martId: finalMartId,
+          type: 'product_add_request',
+          title: 'Product creation requested',
+          message: `${reqDoc.requesterName || 'Owner'} requested to add product ${name}`,
+          data: { requestId: reqDoc._id, name },
+        });
+      }
 
+      // Return pending payload so callers (mobile) can render a placeholder reliably
       return res
         .status(202)
         .json({
-          message: "Product submitted for manager approval",
+          message: 'Product submitted for manager approval',
           requestId: reqDoc._id,
+          pending: {
+            name: productPayload.name,
+            category: productPayload.category,
+            purchasePriceEtb: Number(productPayload.purchasePrice || 0),
+            sellingPriceEtb: Number(productPayload.sellingPrice || 0),
+            stockQty: Number(productPayload.quantity || 0),
+            martQty: Number(productPayload.storeQuantity || 0),
+            imageUrl: productPayload.imageUrl || '',
+          },
         });
     }
 
@@ -211,6 +242,7 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
   try {
     const user = req.user;
     const { id } = req.params;
+    console.log('[products:update] entered update handler for user', { id: user.id, role: user.role });
     const update = {};
     const allowed = [
       "name",
@@ -245,6 +277,19 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
       }
     }
 
+    // Prevent store keepers from directly adjusting stock quantities via product update.
+    // Store keepers should create a stock transfer request instead, which managers will approve.
+    const roleLc = String(user.role || '').toLowerCase();
+    const isStoreKeeper = roleLc === 'storekeeper' || roleLc === 'store_keeper' || (roleLc.includes('store') && roleLc.includes('keeper'));
+    const forbiddenFields = ['storeQuantity', 'supermarketQuantity', 'quantity'];
+    // Check both the normalized `update` object and raw `req.body` to be robust against multipart/form-data
+    const hasForbidden = forbiddenFields.some(f => (update[f] !== undefined) || (req.body && req.body[f] !== undefined));
+    console.log('[products:update] user.role=', user.role, 'roleLc=', roleLc, 'isStoreKeeper=', isStoreKeeper, 'updateKeys=', Object.keys(update), 'rawBodyKeys=', req.body ? Object.keys(req.body) : []);
+    if (isStoreKeeper && hasForbidden) {
+      console.log('[products:update] blocked store keeper update attempt', { user: user.id, role: user.role, attempted: forbiddenFields.reduce((acc,f) => (acc[f] = (update[f] !== undefined ? update[f] : req.body && req.body[f] !== undefined ? req.body[f] : undefined) , acc), {}) });
+      return res.status(403).json({ message: 'Store keepers cannot directly change stock quantities. Submit a stock transfer request via /api/stock-transfer-requests' });
+    }
+
     const product = await Product.findById(id);
     if (!product) return res.status(404).json({ message: "Product not found" });
 
@@ -257,8 +302,8 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
         .json({ message: "Access denied for this product" });
     }
 
-    // Owners require manager/systemAdmin approval for any update
-    if (user.role === "owner" && user.role !== "systemAdmin") {
+    // Owners require manager/systemAdmin approval for any update (case-insensitive check)
+    if (String(user.role || '').toLowerCase() === 'owner' && String(user.role || '').toLowerCase() !== 'systemadmin') {
       const changes = { ...update };
       if (Object.keys(changes).length === 0) {
         return res.status(400).json({ message: "No changes supplied" });
@@ -287,22 +332,33 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
       });
       await reqDoc.save();
 
-      await Notification.create({
-        martId: product.martId,
-        type: "product_edit_request",
-        title: "Product edit requested",
-        message: `${reqDoc.requesterName} requested updates for product ${product.name}`,
-        data: {
-          requestId: reqDoc._id,
-          productId: product._id,
-          requestedChanges: reqDoc.changes,
-        },
-      });
+      // notify managers specifically
+      const User = require('../models/user.model');
+      const managers = await User.find({ martId: product.martId, role: 'manager' }).select('_id username name').lean();
+      if (managers && managers.length > 0) {
+        const notes = managers.map(m => ({
+          martId: product.martId,
+          userId: m._id,
+          type: 'product_edit_request',
+          title: 'Product edit requested',
+          message: `${reqDoc.requesterName} requested updates for product ${product.name}`,
+          data: { requestId: reqDoc._id, productId: product._id, requestedChanges: reqDoc.changes },
+        }));
+        await Notification.create(notes);
+      } else {
+        await Notification.create({
+          martId: product.martId,
+          type: 'product_edit_request',
+          title: 'Product edit requested',
+          message: `${reqDoc.requesterName} requested updates for product ${product.name}`,
+          data: { requestId: reqDoc._id, productId: product._id, requestedChanges: reqDoc.changes },
+        });
+      }
 
       return res
         .status(202)
         .json({
-          message: "Update submitted for manager approval",
+          message: 'Update submitted for manager approval',
           requestId: reqDoc._id,
         });
     }
