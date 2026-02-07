@@ -18,11 +18,12 @@ class _AdminMartManagementPageState extends State<AdminMartManagementPage> {
   AdminShopStatus? _filter;
   bool _loading = false;
   String? _error;
+  final Set<String> _processing = {};
 
   @override
   void initState() {
     super.initState();
-    _loadPending();
+    _loadMarts();
   }
 
   List<AdminShop> get _filtered {
@@ -42,7 +43,7 @@ class _AdminMartManagementPageState extends State<AdminMartManagementPage> {
     );
   }
 
-  Future<void> _loadPending() async {
+  Future<void> _loadMarts() async {
     setState(() {
       _loading = true;
       _error = null;
@@ -51,8 +52,8 @@ class _AdminMartManagementPageState extends State<AdminMartManagementPage> {
     try {
       final client =
           ApiClient(baseUrl: ApiConfig.baseUrl, authStorage: AuthStorage());
-      final dynamic res =
-          await client.getJson('${ApiConfig.apiPrefix}/marts/pending');
+      // Fetch all marts (optionally filtered by status using query parameters)
+      final dynamic res = await client.getJson('${ApiConfig.apiPrefix}/marts');
       List dataList;
       if (res is List) {
         dataList = res;
@@ -65,34 +66,7 @@ class _AdminMartManagementPageState extends State<AdminMartManagementPage> {
         throw ApiException(message: 'Unexpected response from server');
       }
 
-      final list = dataList.map((m) {
-        final owner = m['ownerId'];
-        AdminShopStatus status;
-        switch ((m['status'] ?? '').toString()) {
-          case 'approved':
-            status = AdminShopStatus.active;
-            break;
-          case 'disabled':
-          case 'rejected':
-            status = AdminShopStatus.rejected;
-            break;
-          case 'pending':
-          default:
-            status = AdminShopStatus.pending;
-        }
-
-        return AdminShop(
-          id: m['_id']?.toString() ?? m['id']?.toString() ?? '',
-          name: m['martName'] ?? '',
-          owner: owner != null ? (owner['name'] ?? owner['phone'] ?? '') : '',
-          status: status,
-          users: 0,
-          sales: 0,
-          city: m['city'] ?? '',
-          region: m['region'] ?? '',
-          country: m['country'] ?? '',
-        );
-      }).toList();
+      final list = dataList.map((m) => _adminShopFromJson(m)).toList();
 
       setState(() {
         _shops = list;
@@ -103,7 +77,7 @@ class _AdminMartManagementPageState extends State<AdminMartManagementPage> {
       });
     } catch (e) {
       setState(() {
-        _error = 'Failed to load pending marts';
+        _error = 'Failed to load marts';
       });
     } finally {
       setState(() {
@@ -112,33 +86,94 @@ class _AdminMartManagementPageState extends State<AdminMartManagementPage> {
     }
   }
 
+  AdminShop _adminShopFromJson(dynamic m) {
+    final owner = m['ownerId'];
+    final statusStr = (m['status'] ?? '').toString();
+    AdminShopStatus status;
+    switch (statusStr) {
+      case 'approved':
+        status = AdminShopStatus.active;
+        break;
+      case 'disabled':
+        status = AdminShopStatus.suspended;
+        break;
+      case 'rejected':
+        status = AdminShopStatus.rejected;
+        break;
+      case 'pending':
+      default:
+        status = AdminShopStatus.pending;
+    }
+
+    return AdminShop(
+      id: m['_id']?.toString() ?? m['id']?.toString() ?? '',
+      name: m['martName'] ?? '',
+      owner: owner != null ? (owner['name'] ?? owner['phone'] ?? '') : '',
+      status: status,
+      users: (m['users'] is int) ? m['users'] as int : 0,
+      sales: (m['sales'] is int) ? m['sales'] as int : 0,
+      city: m['city'] ?? '',
+      region: m['region'] ?? '',
+      country: m['country'] ?? '',
+    );
+  }
+
   Future<void> _approve(String id) async {
+    if (_processing.contains(id)) return;
+    setState(() => _processing.add(id));
     try {
       final client =
           ApiClient(baseUrl: ApiConfig.baseUrl, authStorage: AuthStorage());
-      await client.putJson('${ApiConfig.apiPrefix}/marts/$id/approve');
-      _updateStatus(id, AdminShopStatus.active, 'Shop approved');
+      final res =
+          await client.putJson('${ApiConfig.apiPrefix}/marts/$id/approve');
+      // Update the shop from server response if provided
+      try {
+        final updated = _adminShopFromJson(res);
+        setState(() {
+          _shops = _shops.map((s) => s.id == id ? updated : s).toList();
+        });
+      } catch (_) {
+        _updateStatus(id, AdminShopStatus.active, 'Shop approved');
+      }
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Shop approved')));
     } on ApiException catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(e.message)));
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Approve failed')));
+    } finally {
+      setState(() => _processing.remove(id));
     }
   }
 
   Future<void> _reject(String id) async {
+    if (_processing.contains(id)) return;
+    setState(() => _processing.add(id));
     try {
       final client =
           ApiClient(baseUrl: ApiConfig.baseUrl, authStorage: AuthStorage());
-      await client.putJson('${ApiConfig.apiPrefix}/marts/$id/reject');
-      _updateStatus(id, AdminShopStatus.rejected, 'Shop rejected');
+      final res =
+          await client.putJson('${ApiConfig.apiPrefix}/marts/$id/reject');
+      try {
+        final updated = _adminShopFromJson(res);
+        setState(() {
+          _shops = _shops.map((s) => s.id == id ? updated : s).toList();
+        });
+      } catch (_) {
+        _updateStatus(id, AdminShopStatus.rejected, 'Shop rejected');
+      }
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Shop rejected')));
     } on ApiException catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(e.message)));
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Reject failed')));
+    } finally {
+      setState(() => _processing.remove(id));
     }
   }
 
@@ -213,8 +248,7 @@ class _AdminMartManagementPageState extends State<AdminMartManagementPage> {
                                   color: Theme.of(context)
                                       .colorScheme
                                       .onErrorContainer))),
-                  TextButton(
-                      onPressed: _loadPending, child: const Text('Retry')),
+                  TextButton(onPressed: _loadMarts, child: const Text('Retry')),
                 ],
               ),
             ),
@@ -271,6 +305,7 @@ class _AdminMartManagementPageState extends State<AdminMartManagementPage> {
                                 DataCell(
                                   _RowActions(
                                     shop: s,
+                                    processing: _processing.contains(s.id),
                                     onApprove: () => _approve(s.id),
                                     onReject: () => _reject(s.id),
                                     onSuspend: () => _updateStatus(
@@ -523,6 +558,7 @@ class _StatusBadge extends StatelessWidget {
 
 class _RowActions extends StatelessWidget {
   final AdminShop shop;
+  final bool processing;
   final VoidCallback onApprove;
   final VoidCallback onReject;
   final VoidCallback onSuspend;
@@ -532,6 +568,7 @@ class _RowActions extends StatelessWidget {
 
   const _RowActions({
     required this.shop,
+    required this.processing,
     required this.onApprove,
     required this.onReject,
     required this.onSuspend,
@@ -567,21 +604,34 @@ class _RowActions extends StatelessWidget {
         );
         break;
       case AdminShopStatus.pending:
-        statusAction = Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              tooltip: 'Approve',
-              onPressed: onApprove,
-              icon: Icon(Icons.check_circle, color: theme.colorScheme.tertiary),
-            ),
-            IconButton(
-              tooltip: 'Reject',
-              onPressed: onReject,
-              icon: Icon(Icons.cancel, color: theme.colorScheme.error),
-            ),
-          ],
-        );
+        statusAction = processing
+            ? SizedBox(
+                width: 48,
+                height: 36,
+                child: Center(
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              )
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: 'Approve',
+                    onPressed: onApprove,
+                    icon: Icon(Icons.check_circle,
+                        color: theme.colorScheme.tertiary),
+                  ),
+                  IconButton(
+                    tooltip: 'Reject',
+                    onPressed: onReject,
+                    icon: Icon(Icons.cancel, color: theme.colorScheme.error),
+                  ),
+                ],
+              );
         break;
       case AdminShopStatus.rejected:
         statusAction = const SizedBox(width: 0, height: 0);
@@ -595,7 +645,7 @@ class _RowActions extends StatelessWidget {
         const SizedBox(width: 10),
         IconButton(
           tooltip: 'Edit',
-          onPressed: onEdit,
+          onPressed: processing ? null : onEdit,
           icon: const Icon(Icons.edit_outlined),
         ),
         const SizedBox(width: 6),
@@ -610,8 +660,13 @@ class _RowActions extends StatelessWidget {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10)),
             ),
-            onPressed: onDelete,
-            child: const Icon(Icons.delete_outline),
+            onPressed: processing ? null : onDelete,
+            child: processing
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.delete_outline),
           ),
         ),
       ],

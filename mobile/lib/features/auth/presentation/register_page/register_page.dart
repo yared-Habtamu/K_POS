@@ -82,6 +82,14 @@ class _RegisterMartPageState extends State<RegisterMartPage> {
                             if (!(_formKey.currentState?.validate() ?? false)) {
                               return;
                             }
+
+                            // Client-side guard: ensure passwords match before sending
+                            if (_passwordCtrl.text != _confirmCtrl.text) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text('Passwords do not match')));
+                              return;
+                            }
                             setState(() => _loading = true);
                             try {
                               final client = ApiClient(
@@ -90,6 +98,8 @@ class _RegisterMartPageState extends State<RegisterMartPage> {
                               final body = {
                                 'martName': _martNameCtrl.text.trim(),
                                 'email': _emailCtrl.text.trim(),
+                                // include mart phone (web client includes this)
+                                'phone': _phoneCtrl.text.trim(),
                                 'country': _countryCtrl.text.trim(),
                                 'region': _regionCtrl.text.trim(),
                                 'city': _cityCtrl.text.trim(),
@@ -100,6 +110,10 @@ class _RegisterMartPageState extends State<RegisterMartPage> {
                                 'ownerPassword': _passwordCtrl.text,
                                 'ownerConfirmPassword': _confirmCtrl.text,
                               };
+                              // Debug: log payload to help diagnose server issues
+                              // (visible in browser console when running Flutter web)
+                              // ignore: avoid_print
+                              print('RegisterMart payload: $body');
 
                               final res = await client.postJson(
                                   '${ApiConfig.apiPrefix}/marts/register',
@@ -124,10 +138,17 @@ class _RegisterMartPageState extends State<RegisterMartPage> {
                               Navigator.pushNamed(
                                   context, NamedRoutes.RegistrationStatusPage,
                                   arguments: {'username': assigned});
-                            } on ApiException catch (e) {
+                            } on ApiException catch (e, st) {
+                              // Print error details to console for debugging
+                              // ignore: avoid_print
+                              print('RegisterMart ApiException: ${e.message}');
+                              // ignore: avoid_print
+                              print(st);
                               ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(content: Text(e.message)));
                             } catch (e) {
+                              // ignore: avoid_print
+                              print('RegisterMart unknown error: $e');
                               ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                       content: Text('Registration failed')));
