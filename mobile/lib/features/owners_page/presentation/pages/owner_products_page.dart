@@ -999,14 +999,15 @@ class _OwnerProductRow {
         (isPending ? 'pending:${requestId ?? ''}' : null);
     final idStr = rawId != null ? rawId.toString() : '';
 
-    String? _pendingString(String key) {
+    String? pendingString(String key) {
       if (j[key] is String) return j[key] as String;
-      if (j['pending'] is Map && j['pending'][key] != null)
+      if (j['pending'] is Map && j['pending'][key] != null) {
         return j['pending'][key].toString();
+      }
       return null;
     }
 
-    int _parseInt(dynamic v, [int fallback = 0]) {
+    int parseInt(dynamic v, [int fallback = 0]) {
       if (v is int) return v;
       if (v is String) return int.tryParse(v) ?? fallback;
       return fallback;
@@ -1014,21 +1015,21 @@ class _OwnerProductRow {
 
     return _OwnerProductRow(
       id: idStr,
-      name: (j['name'] as String?) ?? _pendingString('name') ?? '',
-      category: (j['category'] as String?) ?? _pendingString('category') ?? '',
-      purchasePriceEtb: _parseInt(
+      name: (j['name'] as String?) ?? pendingString('name') ?? '',
+      category: (j['category'] as String?) ?? pendingString('category') ?? '',
+      purchasePriceEtb: parseInt(
           j['purchasePriceEtb'] ??
               (j['pending'] is Map ? j['pending']['purchasePriceEtb'] : null),
           0),
-      sellingPriceEtb: _parseInt(
+      sellingPriceEtb: parseInt(
           j['sellingPriceEtb'] ??
               (j['pending'] is Map ? j['pending']['sellingPriceEtb'] : null),
           0),
-      stockQty: _parseInt(
+      stockQty: parseInt(
           j['stockQty'] ??
               (j['pending'] is Map ? j['pending']['stockQty'] : null),
           0),
-      martQty: _parseInt(
+      martQty: parseInt(
           j['martQty'] ??
               (j['pending'] is Map ? j['pending']['martQty'] : null),
           0),
