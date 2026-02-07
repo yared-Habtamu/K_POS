@@ -1,7 +1,7 @@
 import '../../../services/api/api_client.dart';
 import '../../../services/api/api_config.dart';
 import '../../../services/api/auth_storage.dart';
-import '../domain/sale_model.dart';
+import 'package:pos_app/features/sales/domain/sale_model.dart';
 
 class SaleRemoteDataSource {
   final ApiClient _client;

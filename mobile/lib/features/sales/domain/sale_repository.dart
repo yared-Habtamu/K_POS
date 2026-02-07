@@ -1,5 +1,5 @@
-import '../data/sale_remote_data_source.dart';
-import 'sale_model.dart';
+import 'package:pos_app/features/sales/data/sale_remote_data_source.dart';
+import 'package:pos_app/features/sales/domain/sale_model.dart';
 
 class SaleRepository {
   final SaleRemoteDataSource _remote;
