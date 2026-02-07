@@ -1,20 +1,25 @@
 part of 'owner_bloc.dart';
 
-@immutable
-sealed class OwnerState {}
+class OwnerState {
+  final List<Expense> expenses;
+  final bool loading;
+  final String? error;
 
-final class OwnerInitial extends OwnerState {}
-
-final class OwnerSuccessState extends OwnerState {
-  OwnerSuccessState();
-}
-
-final class OwnerFailureState extends OwnerState {
-  String? msgFailure;
-
-  OwnerFailureState({
-    required this.msgFailure,
+  OwnerState({
+    required this.expenses,
+    this.loading = false,
+    this.error,
   });
-}
 
-final class OwnerLoadingState extends OwnerState {}
+  OwnerState copyWith({
+    List<Expense>? expenses,
+    bool? loading,
+    String? error,
+  }) {
+    return OwnerState(
+      expenses: expenses ?? this.expenses,
+      loading: loading ?? this.loading,
+      error: error,
+    );
+  }
+}

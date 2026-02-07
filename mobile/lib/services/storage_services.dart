@@ -1,77 +1,103 @@
-import 'package:shared_preferences/shared_preferences.dart';
-
-import 'app_constants.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class StorageServices {
-  late SharedPreferences _prefs;
+  /// Single secure storage instance
+  final FlutterSecureStorage _storage;
 
-  Future<StorageServices> init() async {
-    _prefs = await SharedPreferences.getInstance();
-    return this;
+  StorageServices(this._storage);
+
+  /// Keys
+  static const _isUserNewKey = "is_user_new";
+  static const _notificationTimerKey = "is_timer_created";
+  static const _notificationAllowedKey = "notification_allowed";
+  static const _userIdKey = "user_id";
+  static const _userRoleKey = "user_role";
+  static const _userNameKey = "user_name";
+
+  // --------------------------------------------------
+  // Device First Open
+  // --------------------------------------------------
+
+  Future<void> setDeviceOpenedFirst(bool value) async {
+    await _storage.write(
+      key: _isUserNewKey,
+      value: value.toString(),
+    );
   }
 
-  Future<bool> setDeviceOpenedFirst(bool value) async {
-    return await _prefs.setBool(AppConstants.IsUserNew, value);
+  Future<bool> getDeviceFirstOpen() async {
+    final value = await _storage.read(key: _isUserNewKey);
+    return value == null ? true : value == "true";
   }
 
-  bool GetDeviceFirstOpen() {
-    return _prefs.getBool(AppConstants.IsUserNew) ?? true;
+  // --------------------------------------------------
+  // Notification Timer
+  // --------------------------------------------------
+
+  Future<void> setNotificationSchedule(bool value) async {
+    await _storage.write(
+      key: _notificationTimerKey,
+      value: value.toString(),
+    );
   }
 
-  Future<bool> setNotificationSchedule(String key, bool value) async {
-    return await _prefs.setBool(key, value);
+  Future<bool> getNotificationSchedule() async {
+    final value = await _storage.read(key: _notificationTimerKey);
+    return value == "true";
   }
 
-  bool getNotificationSchedule() {
-    return _prefs.getBool("isTimerCreated") ?? false;
+  // --------------------------------------------------
+  // Notification Settings
+  // --------------------------------------------------
+
+  Future<void> setNotificationSettings(bool value) async {
+    await _storage.write(
+      key: _notificationAllowedKey,
+      value: value.toString(),
+    );
   }
 
-  Future<bool> setNotificationSettings(String key, bool value) async {
-    return await _prefs.setBool(key, value);
+  Future<bool> getNotificationSettings() async {
+    final value = await _storage.read(key: _notificationAllowedKey);
+    return value == null ? true : value == "true";
   }
 
-  bool getNotificationSettings() {
-    return _prefs.getBool("notificationAllowed") ?? true;
-  }
-
-  Future<void> saveUserData(String key, String value) async {
-    await _prefs.setString(key, value);
-  }
+  // --------------------------------------------------
+  // User Auth
+  // --------------------------------------------------
 
   Future<void> saveUserId(String value) async {
-    await _prefs.setString(AppConstants.UserId, value);
+    await _storage.write(key: _userIdKey, value: value);
   }
 
-  Future<void> clearUserAuth() async {
-    await _prefs.remove(AppConstants.UserId);
-    await _prefs.remove(AppConstants.UserRole);
-  }
-
-  String getUserId() {
-    return _prefs.getString(AppConstants.UserId) ?? "";
+  Future<String?> getUserId() async {
+    return await _storage.read(key: _userIdKey);
   }
 
   Future<void> saveUserRole(String value) async {
-    await _prefs.setString(AppConstants.UserRole, value);
+    await _storage.write(key: _userRoleKey, value: value);
   }
 
-  String getUserRole() {
-    return _prefs.getString(AppConstants.UserRole) ?? "";
+  Future<String?> getUserRole() async {
+    return await _storage.read(key: _userRoleKey);
   }
 
-  String getUserName() {
-    return _prefs.getString(AppConstants.USER_NAME) ?? "";
+  Future<void> saveUserName(String value) async {
+    await _storage.write(key: _userNameKey, value: value);
   }
 
-// Future<void> saveUserData(String key, UserData value) async {
-//   await _prefs.setString(key, jsonEncode(value.toJson()));
-// }
+  Future<String?> getUserName() async {
+    return await _storage.read(key: _userNameKey);
+  }
 
-// UserData? getUserData(String key) {
-//   String? jsonString = _prefs.getString(key);
-//   if (jsonString != null) {
-//     return UserData.fromJson(jsonDecode(jsonString));
-//   }
-//   return null;
-// }
+  Future<void> clearUserAuth() async {
+    await _storage.delete(key: _userIdKey);
+    await _storage.delete(key: _userRoleKey);
+    await _storage.delete(key: _userNameKey);
+  }
+
+  /// Nuclear option (logout + wipe everything)
+  Future<void> clearAll() async {
+    await _storage.deleteAll();
+  }
 }

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:pos_app/utils/common_snackbar.dart';
 
 import '../../domain/expense_model.dart';
+import '../bloc/owner_bloc.dart';
 import '../widget/add_expense_dialog.dart';
 import '../widget/expense_pie_chart.dart';
 
@@ -30,6 +34,12 @@ class _OwnerExpensesPageState extends State<OwnerExpensesPage> {
   }
 
   @override
+  void initState() {
+    context.read<OwnerBloc>().add(OwnerExpenseFetchEvent());
+    super.initState();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xffF5F7FB),
@@ -40,88 +50,107 @@ class _OwnerExpensesPageState extends State<OwnerExpensesPage> {
             builder: (_) => const AddExpenseDialog(),
           );
 
-          if (result != null) addExpense(result);
+          if (result != null) {
+            context.read<OwnerBloc>().add(OwnerExpenseAddEvent(result));
+          }
         },
         child: const Icon(Icons.add),
       ),
-      body: Padding(
-        padding: EdgeInsets.all(16.w),
-        child: ListView(
-          children: [
-            /// HEADER
-            Text(
-              "Expenses Dashboard",
-              style: TextStyle(
-                fontSize: 26.sp,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+      body: BlocConsumer<OwnerBloc, OwnerState>(
+        listener: (context, state) {
+          if (state.error != null) {
+            commonSnackBar(
+              context,
+              "${state.error}",
+              Colors.white,
+              Colors.redAccent,
+            );
+            return;
+          }
+        },
+        builder: (context, state) {
+          if (state.loading) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-            SizedBox(height: 20.h),
+          final expenses = state.expenses;
+          final total = expenses.fold<double>(0, (sum, e) => sum + e.amount);
 
-            /// STATS
-            Row(
+          return Padding(
+            padding: EdgeInsets.all(16.w),
+            child: ListView(
               children: [
-                Expanded(
-                  child: StatCard(
-                    title: "Total Expenses",
-                    value: "$total ETB",
+                Text(
+                  "Expenses Dashboard",
+                  style: TextStyle(
+                    fontSize: 26.sp,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                SizedBox(width: 12.w),
-                const Expanded(
-                  child: StatCard(
-                    title: "Revenue",
-                    value: "43,000 ETB",
+                SizedBox(height: 20.h),
+                Row(
+                  children: [
+                    Expanded(
+                      child: StatCard(
+                        title: "Total Expenses",
+                        value: "$total ETB",
+                      ),
+                    ),
+                    SizedBox(width: 12.w),
+
+                  ],
+                ),
+                SizedBox(height: 25.h),
+                ...expenses.map(
+                  (e) => ExpenseTile(
+                    expense: e,
+                    onDelete: () {
+                      context
+                          .read<OwnerBloc>()
+                          .add(OwnerExpenseDeleteEvent(e.id!));
+                    },
                   ),
                 ),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth > 700) {
+                      return Row(
+                        children: [
+                          Expanded(child: ExpensePieChart(expenses: expenses)),
+                          SizedBox(width: 20.w),
+                          Expanded(
+                            child: RecentExpenses(
+                              expenses: expenses,
+                              onDelete: (i) {
+                                context.read<OwnerBloc>().add(
+                                    OwnerExpenseDeleteEvent(expenses[i].id!));
+                              },
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+
+                    return Column(
+                      children: [
+                        ExpensePieChart(expenses: expenses),
+                        SizedBox(height: 20.h),
+                        RecentExpenses(
+                          expenses: expenses,
+                          onDelete: (i) {
+                            context
+                                .read<OwnerBloc>()
+                                .add(OwnerExpenseDeleteEvent(expenses[i].id!));
+                          },
+                        ),
+                      ],
+                    );
+                  },
+                )
               ],
             ),
-
-            SizedBox(height: 25.h),
-
-            /// LIST
-            ...List.generate(
-              expenses.length,
-              (i) => ExpenseTile(
-                expense: expenses[i],
-                onDelete: () => deleteExpense(i),
-              ),
-            ),
-            LayoutBuilder(
-              builder: (context, constraints) {
-
-                if (constraints.maxWidth > 700) {
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: ExpensePieChart(expenses: expenses)),
-                      SizedBox(width: 20.w),
-                      Expanded(
-                        child: RecentExpenses(
-                          expenses: expenses,
-                          onDelete: deleteExpense,
-                        ),
-                      ),
-                    ],
-                  );
-                }
-
-                return Column(
-                  children: [
-                    ExpensePieChart(expenses: expenses),
-                    SizedBox(height: 20.h),
-                    RecentExpenses(
-                      expenses: expenses,
-                      onDelete: deleteExpense,
-                    ),
-                  ],
-                );
-              },
-            )
-
-          ],
-        ),
+          );
+        },
       ),
     );
   }

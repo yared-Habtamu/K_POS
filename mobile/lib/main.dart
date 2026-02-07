@@ -4,7 +4,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:get/get_navigation/src/root/get_material_app.dart';
+import 'package:pos_app/features/manager/presentation/bloc/manager_bloc.dart';
 import 'package:pos_app/features/owners_page/presentation/bloc/owner_bloc.dart';
+import 'package:pos_app/services/api/auth_storage.dart';
 import 'package:pos_app/services/get_current_user.dart';
 import 'package:pos_app/services/global.dart';
 import 'package:provider/provider.dart';
@@ -62,13 +64,18 @@ class MyApp extends StatelessWidget {
         return MultiProvider(
           providers: [
             ChangeNotifierProvider(create: (_) => ThemeManager()),
-            ChangeNotifierProvider(create: (_) => UserProvider()),
-            ChangeNotifierProvider(create: (_) => CartProvider()),          ],
+            ChangeNotifierProvider(
+              create: (_) =>
+                  UserProvider(storage: serviceLocator<AuthStorage>()),
+            ),
+            ChangeNotifierProvider(create: (_) => CartProvider()),
+          ],
           child: MultiBlocProvider(
             providers: [
               BlocProvider(create: (create) => serviceLocator<AuthBloc>()),
               BlocProvider(create: (create) => serviceLocator<OwnerBloc>()),
               BlocProvider(create: (create) => serviceLocator<EmployeeBloc>()),
+              BlocProvider(create: (create) => serviceLocator<ManagerBloc>()),
             ],
             child: Consumer<ThemeManager>(
               builder: (context, themeManager, child) {

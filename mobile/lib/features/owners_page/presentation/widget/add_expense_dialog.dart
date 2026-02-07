@@ -13,19 +13,19 @@ class AddExpenseDialog extends StatefulWidget {
 class _AddExpenseDialogState extends State<AddExpenseDialog> {
   final _formKey = GlobalKey<FormState>();
 
-  String category = 'Miscellaneous';
+  String category = 'miscellaneous';
   final descriptionController = TextEditingController();
   final amountController = TextEditingController();
 
   DateTime selectedDate = DateTime.now();
 
   final List<String> categories = [
-    'Rent',
-    'Electricity',
-    'Salary',
-    'Water',
-    'Cleaning',
-    'Miscellaneous'
+    "salary",
+    "rent",
+    "electricity",
+    "water",
+    "cleaning",
+    "miscellaneous",
   ];
 
   @override

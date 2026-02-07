@@ -29,8 +29,11 @@ import 'package:pos_app/features/reports/data/daily_report_repository.dart';
 import 'package:pos_app/features/customers/data/customers_repository.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:pos_app/utils/common_widgets.dart';
+import 'package:provider/provider.dart';
 
+import '../../../../services/get_current_user.dart';
 import '../../../common_use_pages/common_language_dropdown.dart';
+import '../../../manager/presentation/pages/manager_report_page.dart';
 
 class RoleDashboardPage extends StatefulWidget {
   const RoleDashboardPage({super.key});
@@ -42,19 +45,36 @@ class RoleDashboardPage extends StatefulWidget {
 class _RoleDashboardPageState extends State<RoleDashboardPage> {
   final GlobalKey<ScaffoldState> _drawerKey = GlobalKey<ScaffoldState>();
 
-  String _role = 'cashier';
+  String _role = '';
   _RolePage _selected = _RolePage.dashboard;
 
   @override
   void initState() {
     super.initState();
-    // Load persisted role (saved during sign-in / auth check). Default is
-    // 'cashier' but we should use the stored value when present so the
-    // correct dashboard is displayed (e.g., manager, owner, etc.).
-    final savedRole = Global.storageServices.getUserRole();
-    if (savedRole.isNotEmpty) {
-      setState(() => _role = savedRole);
-    }
+    _loadRole();
+  }
+
+  void _loadRole() async {
+    final userProvider = await context.read<UserProvider>();
+    setState(() {
+      final roleStr = userProvider.role ?? '';
+      print(".......point break 5(user actual role value)  - > ${roleStr}");
+      _role = _normalizeRole(roleStr);
+      // Default selection: store keeper -> inventory, cashier variants -> dashboard, else dashboard
+      if (_role.startsWith('cashier')) {
+        _selected = _RolePage.dashboard;
+      } else {
+        _selected =
+            _role == 'store_keeper' ? _RolePage.inventory : _RolePage.dashboard;
+      }
+    });
+  }
+
+  String _normalizeRole(String role) {
+    final r = role.trim().toLowerCase();
+    if (r == 'superagent') return 'system_admin';
+    if (r == 'storekeeper') return 'store_keeper';
+    return r;
   }
 
   List<_MenuItem> _menuForRole(String role) {
@@ -98,12 +118,16 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
           _MenuItem(_RolePage.alerts, Icons.notifications, 'Alerts'),
         ];
       case 'cashier':
-      default:
         return const [
           _MenuItem(_RolePage.dashboard, Icons.dashboard, 'Dashboard'),
           _MenuItem(_RolePage.pos, Icons.point_of_sale, 'Point Of Sale'),
           _MenuItem(_RolePage.dailyReport, Icons.library_books, 'Daily Report'),
           _MenuItem(_RolePage.customers, Icons.groups, 'Customers'),
+        ];
+      default:
+        // Unknown/empty role: show minimal dashboard entry so UI doesn't assume cashier
+        return const [
+          _MenuItem(_RolePage.dashboard, Icons.dashboard, 'Dashboard'),
         ];
     }
   }
@@ -241,6 +265,8 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
           return const ManagerApprovalsPage();
         case _RolePage.assets:
           return const ManagerAssetsPage();
+        case _RolePage.reports:
+          return const ManagerReportPage();
         default:
           return _RolePlaceholderPage(
             title: _titleForPage(_selected),
@@ -943,8 +969,8 @@ class _CashierDailyReportPageState extends State<CashierDailyReportPage> {
 
   @override
   Widget build(BuildContext context) {
-    final cashierName = Global.storageServices.getUserName();
-    final roleStr = Global.storageServices.getUserRole();
+    final userProvider = context.watch<UserProvider>();
+    final cashierName = userProvider.user?.username;
     final now = DateTime.now();
     final weekdayNames = [
       'Monday',
@@ -1012,7 +1038,7 @@ class _CashierDailyReportPageState extends State<CashierDailyReportPage> {
                                 style: TextStyle(
                                     fontSize: 12.sp, color: Colors.grey[700])),
                             SizedBox(height: 6.h),
-                            Text(cashierName,
+                            Text(cashierName ?? 'Loading',
                                 style: TextStyle(
                                     fontSize: 14.sp,
                                     fontWeight: FontWeight.bold)),
