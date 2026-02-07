@@ -84,15 +84,8 @@ final lightColorScheme = ColorScheme(
   onError:ColorCollections.PrimaryColor,
   errorContainer: Colors.red.shade200,
   onErrorContainer: Colors.red.shade900,
-
-  // Background/surface colors
-  background: ColorCollections.PrimaryColor,
-  onBackground: ColorCollections.PrimaryColor,
   surface: Colors.grey.shade500,
   onSurface: ColorCollections.PrimaryColor,
-
-  // Surface variants
-  surfaceVariant: ColorCollections.SecondaryColor,
   onSurfaceVariant: Colors.black87,
   outline: Colors.grey.shade400,
   outlineVariant: Colors.grey.shade200,
@@ -159,15 +152,8 @@ final darkColorScheme = ColorScheme(
   onError: ColorCollections.PrimaryColor,
   errorContainer: Colors.red.shade800,
   onErrorContainer: Colors.red.shade100,
-
-  // Background/surface colors
-  background: ColorCollections.TeritiaryColor,
-  onBackground: ColorCollections.TeritiaryColor,
   surface:Colors.white70,
   onSurface: ColorCollections.PrimaryColor,
-
-  // Surface variants
-  surfaceVariant: Colors.grey.shade800,
   onSurfaceVariant: Colors.white.withOpacity(0.8),
   outline: Colors.grey.shade600,
   outlineVariant: Colors.grey.shade700,

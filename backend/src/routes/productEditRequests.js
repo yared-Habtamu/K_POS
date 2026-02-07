@@ -78,6 +78,7 @@ router.put('/:id/approve', authenticate, async (req, res) => {
       await reqDoc.save({ session });
 
       // notify requester
+      // notify requester
       await Notification.create([
         {
           martId: reqDoc.martId,

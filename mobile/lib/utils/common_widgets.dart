@@ -4,7 +4,6 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:pos_app/services/get_current_user.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:numberpicker/numberpicker.dart';
@@ -511,7 +510,7 @@ AppBar ReusableAppBar(VoidCallback ontap, BuildContext context) {
         children: [
           GestureDetector(
             onTap: ontap,
-            child: Container(
+            child: SizedBox(
               height: 35.h,
               width: 35.w,
               child: Image.asset(
@@ -934,8 +933,9 @@ LogoutShowDialogue(BuildContext context) {
                         Expanded(
                           child: GestureDetector(
                             onTap: () async {
+                              final userProvider = context.read<UserProvider>();
                               // Perform app logout then navigate to sign-in screen.
-                              await UserProvider().logout();
+                              await userProvider.logout();
                               Navigator.of(context).pushNamedAndRemoveUntil(
                                   '/sign_in_page', (route) => false);
                             },

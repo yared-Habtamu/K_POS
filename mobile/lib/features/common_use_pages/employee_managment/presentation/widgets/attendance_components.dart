@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/employee_model.dart';
 import '../../employee_utils.dart';
-import 'employee_components.dart'; // Reuse SectionHeader from here
+// Reuse SectionHeader from here
 
 class AttendanceFiltersCard extends StatelessWidget {
   final String employeeValue;
@@ -82,9 +82,10 @@ class AttendanceFiltersCard extends StatelessWidget {
           dropdown(dateRangeValue, dateRangeItems, onDateRangeChanged),
         ]);
 
-        if (isNarrow)
+        if (isNarrow) {
           return Column(
               children: [empWidget, const SizedBox(height: 12), rangeWidget]);
+        }
         return Row(children: [
           Expanded(child: empWidget),
           const SizedBox(width: 16),
@@ -322,6 +323,7 @@ class AttendanceRecordsCard extends StatelessWidget {
         fontSize: 12, fontWeight: FontWeight.w700, color: Colors.grey.shade700);
     final columns = [
       DataColumn(label: Text('Employee', style: headerStyle)),
+      DataColumn(label: Text('Role', style: headerStyle)),
       DataColumn(label: Text('Date', style: headerStyle)),
       DataColumn(label: Text('Clock In', style: headerStyle)),
       DataColumn(label: Text('Clock Out', style: headerStyle)),
@@ -374,10 +376,11 @@ class AttendanceRecordsCard extends StatelessWidget {
                   color: Colors.grey.shade700),
             ]);
 
-            if (isNarrow)
+            if (isNarrow) {
               return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [title, const SizedBox(height: 8), nav]);
+            }
             return Row(children: [
               Expanded(child: title),
               const SizedBox(width: 10),
@@ -404,6 +407,30 @@ class AttendanceRecordsCard extends StatelessWidget {
                   rows: records
                       .map((r) => DataRow(cells: [
                             DataCell(NameCell(name: r.employeeName)),
+                            // Role cell: render badge if role exists and is not 'manager'/'owner'
+                            DataCell(
+                              r.employeeRole == null ||
+                                      r.employeeRole!.toLowerCase() ==
+                                          'manager' ||
+                                      r.employeeRole!.toLowerCase() == 'owner'
+                                  ? const SizedBox()
+                                  : Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                            color: Colors.grey.shade200),
+                                      ),
+                                      child: Text(
+                                        r.employeeRole ?? '',
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700),
+                                      ),
+                                    ),
+                            ),
                             DataCell(Text(r.dateYmd,
                                 style: const TextStyle(
                                     fontSize: 13,
@@ -422,16 +449,42 @@ class AttendanceRecordsCard extends StatelessWidget {
                                     fontWeight: FontWeight.w600))),
                             DataCell(
                                 Row(mainAxisSize: MainAxisSize.min, children: [
-                              IconButton(
-                                  onPressed: () => onEditRecord(r),
-                                  icon:
-                                      const Icon(Icons.edit_outlined, size: 18),
-                                  color: Colors.grey.shade700),
-                              IconButton(
-                                  onPressed: () => onDeleteRecord(r),
-                                  icon: const Icon(Icons.delete_outline,
-                                      size: 18),
-                                  color: Colors.red.shade400),
+                              // Enable edit/delete only for records for today or earlier
+                              Builder(builder: (c) {
+                                bool editable = true;
+                                try {
+                                  final rd = DateTime.parse(r.dateYmd);
+                                  final today = DateTime.now();
+                                  final rdDate =
+                                      DateTime(rd.year, rd.month, rd.day);
+                                  final tDate = DateTime(
+                                      today.year, today.month, today.day);
+                                  editable = !rdDate.isAfter(tDate);
+                                } catch (e) {
+                                  editable = true;
+                                }
+
+                                return Row(children: [
+                                  IconButton(
+                                      onPressed: editable
+                                          ? () => onEditRecord(r)
+                                          : null,
+                                      icon: const Icon(Icons.edit_outlined,
+                                          size: 18),
+                                      color: editable
+                                          ? Colors.grey.shade700
+                                          : Colors.grey.shade400),
+                                  IconButton(
+                                      onPressed: editable
+                                          ? () => onDeleteRecord(r)
+                                          : null,
+                                      icon: const Icon(Icons.delete_outline,
+                                          size: 18),
+                                      color: editable
+                                          ? Colors.red.shade400
+                                          : Colors.grey.shade400),
+                                ]);
+                              })
                             ])),
                           ]))
                       .toList(),

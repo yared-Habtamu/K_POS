@@ -372,7 +372,9 @@ class _OwnerSettingsPageState extends State<OwnerSettingsPage> {
                             child: ElevatedButton(
                               onPressed: () {
                                 if (_brandingFormKey.currentState?.validate() !=
-                                    true) return;
+                                    true) {
+                                  return;
+                                }
                                 _showSaved('Branding saved (mock)');
                               },
                               style: ElevatedButton.styleFrom(
@@ -401,7 +403,7 @@ class _OwnerSettingsPageState extends State<OwnerSettingsPage> {
                           const _FieldLabel('Currency'),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            value: _currency,
+                            initialValue: _currency,
                             items: const [
                               DropdownMenuItem(
                                   value: 'USD', child: Text('USD')),
@@ -417,7 +419,7 @@ class _OwnerSettingsPageState extends State<OwnerSettingsPage> {
                           const _FieldLabel('Payment System'),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            value: _paymentSystem,
+                            initialValue: _paymentSystem,
                             items: const [
                               DropdownMenuItem(
                                 value: 'Cash', child: Text('Cash')),
@@ -592,8 +594,9 @@ class _OwnerSettingsPageState extends State<OwnerSettingsPage> {
                               if (raw.isEmpty) return 'Required';
                               final parsed = num.tryParse(raw);
                               if (parsed == null) return 'Invalid number';
-                              if (parsed < 0 || parsed > 100)
+                              if (parsed < 0 || parsed > 100) {
                                 return 'Must be 0 - 100';
+                              }
                               return null;
                             },
                           ),

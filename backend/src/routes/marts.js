@@ -58,14 +58,27 @@ router.post("/register", async (req, res) => {
 
     let username = "";
     if (ownerUsername) {
-      // owner provided a username — sanitize and ensure uniqueness
+      // owner provided a username — sanitize and try to ensure uniqueness
       const proposed = sanitize(ownerUsername);
       if (!proposed)
         return res.status(400).json({ message: "Invalid owner username" });
-      const existing = await User.findOne({ username: proposed });
-      if (existing)
-        return res.status(409).json({ message: "Username already exists" });
-      username = proposed;
+
+      // If proposed username exists, generate a unique alternative instead of failing
+      let finalUsername = proposed;
+      if (await User.findOne({ username: finalUsername })) {
+        let suffix = 1;
+        while (await User.findOne({ username: `${proposed}${suffix}` })) {
+          suffix += 1;
+          if (suffix > 1000) {
+            finalUsername = `${proposed}${Date.now() % 100000}`;
+            break;
+          }
+        }
+        if (suffix <= 1000) finalUsername = `${proposed}${suffix}`;
+      }
+
+      username = finalUsername;
+      // if username differs from proposed we will include it in the response so the client can inform the user
     } else {
       // fallback to generating username from owner's name, ensure uniqueness
       let baseUsername = sanitize(ownerName) || `owner${Date.now() % 10000}`;
@@ -116,7 +129,8 @@ router.post("/register", async (req, res) => {
     owner.martId = mart._id;
     await owner.save();
 
-    return res.status(201).json({ mart, owner });
+    // Return assigned username explicitly so clients can show it (useful if sanitized/altered)
+    return res.status(201).json({ mart, owner, assignedUsername: username });
   } catch (err) {
     console.error(err);
     // Better error responses for validation and duplicate key errors
@@ -140,9 +154,10 @@ router.post("/register", async (req, res) => {
 });
 
 // List pending marts (for admin)
-router.get("/pending", async (req, res) => {
+router.get("/pending", authenticate, async (req, res) => {
   try {
-    const list = await Mart.find({ status: "pending" }).populate(
+    if (req.user.role !== 'systemAdmin') return res.status(403).json({ message: 'Insufficient permissions' });
+    const list = await Mart.find({ status: "pending" }).sort({ createdAt: -1 }).populate(
       "ownerId",
       "name phone"
     );
@@ -154,8 +169,10 @@ router.get("/pending", async (req, res) => {
 });
 
 // Approve a mart
-router.put("/:id/approve", async (req, res) => {
+router.put("/:id/approve", authenticate, async (req, res) => {
   try {
+    if (req.user.role !== 'systemAdmin') return res.status(403).json({ message: 'Insufficient permissions' });
+
     const { id } = req.params;
     const mart = await Mart.findByIdAndUpdate(
       id,
@@ -163,6 +180,21 @@ router.put("/:id/approve", async (req, res) => {
       { new: true }
     );
     if (!mart) return res.status(404).json({ message: "Mart not found" });
+
+    // Ensure owner has martId set (in case owner existed before registration)
+    try {
+      if (mart.ownerId) {
+        const owner = await User.findById(mart.ownerId);
+        if (owner && (!owner.martId || String(owner.martId) !== String(mart._id))) {
+          owner.martId = mart._id;
+          await owner.save();
+          console.log('Assigned mart to owner after approval', owner.username);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to assign mart to owner after approval', e);
+    }
+
     res.json(mart);
   } catch (err) {
     console.error(err);
@@ -171,8 +203,9 @@ router.put("/:id/approve", async (req, res) => {
 });
 
 // Disable a mart
-router.put("/:id/disable", async (req, res) => {
+router.put("/:id/disable", authenticate, async (req, res) => {
   try {
+    if (req.user.role !== 'systemAdmin') return res.status(403).json({ message: 'Insufficient permissions' });
     const { id } = req.params;
     const mart = await Mart.findByIdAndUpdate(
       id,
@@ -256,8 +289,10 @@ router.get("/", async (req, res) => {
 });
 
 // Reject a mart
-router.put("/:id/reject", async (req, res) => {
+router.put("/:id/reject", authenticate, async (req, res) => {
   try {
+    if (req.user.role !== 'systemAdmin') return res.status(403).json({ message: 'Insufficient permissions' });
+
     const { id } = req.params;
     const mart = await Mart.findByIdAndUpdate(
       id,

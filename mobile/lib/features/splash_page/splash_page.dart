@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../config/routes/name.dart';
+import '../../services/get_current_user.dart';
 import '../../services/global.dart';
 import '../auth/presentation/bloc/auth_bloc.dart';
 
@@ -21,8 +22,8 @@ class _SplashPageState extends State<SplashPage> {
   }
 
   OnLoadingFun() async {
-    bool isUserNew = Global.storageServices.GetDeviceFirstOpen();
-    await Future.delayed(Duration(seconds: 2)).then((_) {
+    bool isUserNew = await Global.storageServices.getDeviceFirstOpen();
+    await Future.delayed(Duration(seconds: 2)).then((_) async {
       print("....on splash screen...");
       if (isUserNew) {
         Navigator.pushNamedAndRemoveUntil(
@@ -31,8 +32,14 @@ class _SplashPageState extends State<SplashPage> {
       }
 
       // trigger secure-storage auth check and navigate based on result
-      context.read<AuthBloc>().add(AuthCheckRequested());
-
+     final userData = await context.read<UserProvider>().ensureUserLoaded();
+      if (userData!=null) {
+        Navigator.pushNamedAndRemoveUntil(
+            context, NamedRoutes.RoleDashboardPage, (predicate) => false);
+        return;
+      }
+      Navigator.pushNamedAndRemoveUntil(
+          context, NamedRoutes.OnboardingPage, (predicate) => false);
       return;
     });
   }

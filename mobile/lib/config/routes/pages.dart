@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:pos_app/common_modules/route_navigation.dart';
 import 'package:pos_app/config/routes/name.dart';
+import 'package:pos_app/init_dependencies.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
 import '../../features/auth/presentation/signin_page/signin_page.dart';
 import '../../features/auth/presentation/register_page/register_page.dart';
@@ -32,7 +33,9 @@ class NamedRouteSettings {
       pageEntity(
         route: NamedRoutes.SigninPage,
         page: const SignInPage(),
-        bloc: BlocProvider(create: (_) => AuthBloc()),
+        bloc: BlocProvider(
+          create: (_) => serviceLocator<AuthBloc>(),
+        ),
       ),
       pageEntity(
         route: NamedRoutes.RegisterMartPage,
@@ -64,7 +67,7 @@ class NamedRouteSettings {
         print("...inner : ${element.route}...");
         return element.route == settings.name;
       });
-      print("...selected Page :  ${route}...");
+      print("...selected Page :  $route...");
       if (route.isNotEmpty) {
         //check whether or not user is login or not
         return SlideRoute(page: route.first.page, settings: settings);

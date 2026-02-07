@@ -8,7 +8,8 @@ const Notification = require('../models/notification.model');
 const router = express.Router();
 
 function isManager(user) {
-  return user.role === 'manager' || user.role === 'systemAdmin';
+  const r = String(user.role || '').toLowerCase();
+  return r === 'manager' || r === 'systemadmin' || r === 'systemadmin';
 }
 
 // List requests for a mart
