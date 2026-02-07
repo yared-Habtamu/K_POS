@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:pos_app/common_modules/route_navigation.dart';
 import 'package:pos_app/config/routes/name.dart';
+import 'package:pos_app/init_dependencies.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
 import '../../features/auth/presentation/signin_page/signin_page.dart';
 import '../../features/auth/presentation/register_page/register_page.dart';
@@ -32,7 +33,9 @@ class NamedRouteSettings {
       pageEntity(
         route: NamedRoutes.SigninPage,
         page: const SignInPage(),
-        bloc: BlocProvider(create: (_) => AuthBloc()),
+        bloc: BlocProvider(
+          create: (_) => serviceLocator<AuthBloc>(),
+        ),
       ),
       pageEntity(
         route: NamedRoutes.RegisterMartPage,

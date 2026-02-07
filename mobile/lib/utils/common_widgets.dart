@@ -934,8 +934,9 @@ LogoutShowDialogue(BuildContext context) {
                         Expanded(
                           child: GestureDetector(
                             onTap: () async {
+                              final userProvider = context.read<UserProvider>();
                               // Perform app logout then navigate to sign-in screen.
-                              await UserProvider().logout();
+                              await userProvider.logout();
                               Navigator.of(context).pushNamedAndRemoveUntil(
                                   '/sign_in_page', (route) => false);
                             },

@@ -16,8 +16,8 @@ String baseUrl = AppConstants.baseUrl;
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository _authRepository;
 
-  AuthBloc({AuthRepository? authRepository})
-      : _authRepository = authRepository ?? AuthRepository(),
+  AuthBloc({required AuthRepository authRepository})
+      : _authRepository = authRepository,
         super(AuthInitial()) {
     on<AuthCheckRequested>(_authCheckRequested);
     on<SigninClickedEvent>(_signinClickedEvent);
@@ -35,7 +35,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       'storeKeeper': 'store_keeper',
       'store_keeper': 'store_keeper',
     };
-    return roleMap[r] ?? (r.isEmpty ? 'owner' : r);
+    // Do NOT map empty role to a default. Return empty string for missing role.
+    if (r.isEmpty) return '';
+    return roleMap[r] ?? r.toLowerCase();
   }
 
   FutureOr<void> _authCheckRequested(
@@ -49,10 +51,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         return;
       }
 
-      await Global.storageServices.saveUserId(saved.id ?? saved.username);
-      await Global.storageServices.saveUserRole(_normalizeRole(saved.role));
-
-      emit(AuthAuthenticatedState(role: _normalizeRole(saved.role)));
+      final normalized = _normalizeRole(saved.role);
+      if (normalized.isEmpty) {
+        // Saved user has no valid role — clear stored auth and treat as logged out
+        await _authRepository.logout();
+        emit(AuthLoggedOutState());
+        return;
+      }
+      emit(AuthAuthenticatedState(role: normalized));
     } catch (_) {
       emit(AuthLoggedOutState());
     }
@@ -68,13 +74,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       return;
     }
     try {
+      print(".........point break 1......");
       final user = await _authRepository.login(
           username: event.username, password: event.password);
+      print("......MartID :  - >  ${user.martId}.....");
+      final normalized = _normalizeRole(user.role);
+      if (normalized.isEmpty) {
+        // Server returned no role — clear any saved auth and inform UI
+        await _authRepository.logout();
+        emit(AuthFailureState(
+            errMsg:
+                'Login succeeded but user role is missing. Please try again later.'));
+        return;
+      }
 
-      await Global.storageServices.saveUserId(user.id ?? user.username);
-      await Global.storageServices.saveUserRole(_normalizeRole(user.role));
-
-      emit(AuthSuccessState(role: _normalizeRole(user.role)));
+      emit(AuthSuccessState(role: normalized));
     } catch (e) {
       if (e is ApiException) {
         emit(AuthFailureState(errMsg: e.message));

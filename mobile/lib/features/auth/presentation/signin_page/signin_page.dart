@@ -1,9 +1,12 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:pos_app/services/api/auth_storage.dart';
 
 import '../../../../config/routes/name.dart';
+import '../../../../services/get_current_user.dart';
 import '../../../../utils/common_snackbar.dart';
+import '../../domain/auth_user.dart';
 import '../bloc/auth_bloc.dart';
 import '../common_auth_widget.dart';
 
@@ -26,12 +29,13 @@ class _SignInPageState extends State<SignInPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: BlocConsumer<AuthBloc, AuthState>(
-        listener: (context, state) {
+        listener: (context, state) async {
           if (state is AuthFailureState) {
             commonSnackBar(
                 context, "${state.errMsg}", Colors.white, Colors.red.shade200);
           }
           if (state is AuthSuccessState) {
+            await context.read<UserProvider>().ensureUserLoaded();
             Navigator.pushNamedAndRemoveUntil(
                 context, NamedRoutes.RoleDashboardPage, (predicate) => false);
           }
@@ -130,7 +134,7 @@ class _SignInPageState extends State<SignInPage> {
                     // --- Sign In Button ---
                     BouncingButton(
                       onTap: () {
-                        if (_passwordController.text.isEmpty ||
+                        if (_usernameController.text.isEmpty ||
                             _passwordController.text.isEmpty) {
                           print("....on login ui page....");
                           commonSnackBar(context, "Required input are empty.",

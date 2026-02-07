@@ -52,6 +52,7 @@ class ApiClient {
     Map<String, dynamic>? body,
     bool authed = true,
   }) async {
+    print(".........point break 3(the api path - > ${_uri(path)}......");
     final res = await _http.post(
       _uri(path),
       headers: await _headers(authed: authed),
@@ -124,10 +125,12 @@ class ApiClient {
     String path, {
     bool authed = true,
   }) async {
+    print("...point break 2 ....");
     final res = await _http.get(
       _uri(path),
       headers: await _headers(authed: authed),
     );
+    print("...point break 3(after success....");
     return _decode(res);
   }
 

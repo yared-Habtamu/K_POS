@@ -71,4 +71,6 @@ class Product {
         'imageUrl': imageUrl,
         'createdBy': createdBy,
       };
+
+  isExpiringSoon({required int days}) {}
 }

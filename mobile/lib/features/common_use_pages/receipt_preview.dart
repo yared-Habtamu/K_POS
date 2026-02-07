@@ -1,16 +1,20 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import '../../services/get_current_user.dart';
 import 'cart_provider.dart';
 import '../../services/global.dart';
 
-Future<void> showReceiptPreviewDialog(BuildContext context, CartProvider cart) async {
+Future<void> showReceiptPreviewDialog(
+    BuildContext context, CartProvider cart) async {
   final receiptId = 'RCP-' + _randomString(8);
   final now = DateTime.now();
   final date = DateFormat('MMM d, yyyy').format(now);
   final time = DateFormat('HH:mm:ss').format(now);
-  final cashier = Global.storageServices.getUserName().isNotEmpty
-      ? Global.storageServices.getUserName()
+  final userProvider = context.read<UserProvider>();
+  final cashier = userProvider.user!.username.isNotEmpty
+      ?  userProvider.user!.username
       : 'Cashier';
 
   final subtotal = cart.total;
@@ -18,7 +22,8 @@ Future<void> showReceiptPreviewDialog(BuildContext context, CartProvider cart) a
   final vat = (subtotal * vatPct).round();
   final total = subtotal + vat;
 
-  final qrUrl = Uri.encodeFull('https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=$receiptId');
+  final qrUrl = Uri.encodeFull(
+      'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=$receiptId');
 
   await showDialog<void>(
     context: context,
@@ -39,9 +44,13 @@ Future<void> showReceiptPreviewDialog(BuildContext context, CartProvider cart) a
                   child: Row(
                     children: [
                       const Expanded(
-                        child: Text('Receipt Preview', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                        child: Text('Receipt Preview',
+                            style: TextStyle(
+                                fontSize: 20, fontWeight: FontWeight.w700)),
                       ),
-                      IconButton(onPressed: () => Navigator.of(ctx).pop(), icon: const Icon(Icons.close)),
+                      IconButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          icon: const Icon(Icons.close)),
                     ],
                   ),
                 ),
@@ -49,20 +58,32 @@ Future<void> showReceiptPreviewDialog(BuildContext context, CartProvider cart) a
                 // Content — flexible scrollable area
                 Flexible(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Center(
                           child: Column(
                             children: [
-                              Text('Kiya Supermarket', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.grey.shade900)),
+                              Text('Kiya Supermarket',
+                                  style: TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey.shade900)),
                               const SizedBox(height: 6),
-                              Text('Addis Ababa, Ethiopia', style: TextStyle(color: Colors.grey.shade700)),
+                              Text('Addis Ababa, Ethiopia',
+                                  style:
+                                      TextStyle(color: Colors.grey.shade700)),
                               const SizedBox(height: 6),
-                              Text('+251 911 234 567', style: TextStyle(color: Colors.grey.shade700)),
+                              Text('+251 911 234 567',
+                                  style:
+                                      TextStyle(color: Colors.grey.shade700)),
                               const SizedBox(height: 8),
-                              Text('Thank you for shopping with us!', style: TextStyle(color: Colors.grey.shade700, fontStyle: FontStyle.italic)),
+                              Text('Thank you for shopping with us!',
+                                  style: TextStyle(
+                                      color: Colors.grey.shade700,
+                                      fontStyle: FontStyle.italic)),
                             ],
                           ),
                         ),
@@ -72,12 +93,23 @@ Future<void> showReceiptPreviewDialog(BuildContext context, CartProvider cart) a
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Expanded(child: Text('Receipt: $receiptId', style: const TextStyle(fontWeight: FontWeight.w500))),
-                            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(date), Text(time, style: TextStyle(color: Colors.grey.shade600))]),
+                            Expanded(
+                                child: Text('Receipt: $receiptId',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w500))),
+                            Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(date),
+                                  Text(time,
+                                      style: TextStyle(
+                                          color: Colors.grey.shade600))
+                                ]),
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Text('Cashier: $cashier', style: TextStyle(color: Colors.grey.shade800)),
+                        Text('Cashier: $cashier',
+                            style: TextStyle(color: Colors.grey.shade800)),
                         const SizedBox(height: 12),
                         const Divider(),
 
@@ -86,9 +118,22 @@ Future<void> showReceiptPreviewDialog(BuildContext context, CartProvider cart) a
                           padding: const EdgeInsets.symmetric(vertical: 8.0),
                           child: Row(
                             children: const [
-                              Expanded(child: Text('Item', style: TextStyle(fontWeight: FontWeight.w700))),
-                              SizedBox(width: 60, child: Text('Qty', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w700))),
-                              SizedBox(width: 80, child: Text('Price', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w700))),
+                              Expanded(
+                                  child: Text('Item',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w700))),
+                              SizedBox(
+                                  width: 60,
+                                  child: Text('Qty',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w700))),
+                              SizedBox(
+                                  width: 80,
+                                  child: Text('Price',
+                                      textAlign: TextAlign.right,
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w700))),
                             ],
                           ),
                         ),
@@ -99,8 +144,15 @@ Future<void> showReceiptPreviewDialog(BuildContext context, CartProvider cart) a
                             child: Row(
                               children: [
                                 Expanded(child: Text(it.product.name)),
-                                SizedBox(width: 60, child: Text('${it.qty}', textAlign: TextAlign.center)),
-                                SizedBox(width: 80, child: Text('${(it.product.priceEtb).toStringAsFixed(2)}', textAlign: TextAlign.right)),
+                                SizedBox(
+                                    width: 60,
+                                    child: Text('${it.qty}',
+                                        textAlign: TextAlign.center)),
+                                SizedBox(
+                                    width: 80,
+                                    child: Text(
+                                        '${(it.product.priceEtb).toStringAsFixed(2)}',
+                                        textAlign: TextAlign.right)),
                               ],
                             ),
                           );
@@ -110,17 +162,36 @@ Future<void> showReceiptPreviewDialog(BuildContext context, CartProvider cart) a
                         const SizedBox(height: 6),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [Text('Subtotal:', style: TextStyle(fontWeight: FontWeight.w600)), Text('$subtotal.00 ETB', style: const TextStyle(fontWeight: FontWeight.w600))],
+                          children: [
+                            Text('Subtotal:',
+                                style: TextStyle(fontWeight: FontWeight.w600)),
+                            Text('$subtotal.00 ETB',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600))
+                          ],
                         ),
                         const SizedBox(height: 6),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [Text('VAT (15.00%):', style: TextStyle(fontWeight: FontWeight.w600)), Text('${vat.toStringAsFixed(2)} ETB', style: const TextStyle(fontWeight: FontWeight.w600))],
+                          children: [
+                            Text('VAT (15.00%):',
+                                style: TextStyle(fontWeight: FontWeight.w600)),
+                            Text('${vat.toStringAsFixed(2)} ETB',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600))
+                          ],
                         ),
                         const SizedBox(height: 12),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [Text('TOTAL:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)), Text('${total.toStringAsFixed(2)} ETB', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800))],
+                          children: [
+                            Text('TOTAL:',
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.w800)),
+                            Text('${total.toStringAsFixed(2)} ETB',
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.w800))
+                          ],
                         ),
                         const SizedBox(height: 18),
 
@@ -129,7 +200,9 @@ Future<void> showReceiptPreviewDialog(BuildContext context, CartProvider cart) a
                             children: [
                               Image.network(qrUrl, width: 140, height: 140),
                               const SizedBox(height: 8),
-                              Text('Receipt ID: $receiptId', style: TextStyle(color: Colors.grey.shade700)),
+                              Text('Receipt ID: $receiptId',
+                                  style:
+                                      TextStyle(color: Colors.grey.shade700)),
                             ],
                           ),
                         ),
@@ -146,25 +219,33 @@ Future<void> showReceiptPreviewDialog(BuildContext context, CartProvider cart) a
                     children: [
                       Expanded(
                         child: Builder(builder: (actionCtx) {
-                          final isMobileLayout = MediaQuery.of(actionCtx).size.width < 600;
+                          final isMobileLayout =
+                              MediaQuery.of(actionCtx).size.width < 600;
                           return Wrap(
                             spacing: 8,
                             runSpacing: 8,
                             children: [
                               if (!isMobileLayout)
                                 ElevatedButton.icon(
-                                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Print (mock)'))),
+                                  onPressed: () => ScaffoldMessenger.of(context)
+                                      .showSnackBar(const SnackBar(
+                                          content: Text('Print (mock)'))),
                                   icon: const Icon(Icons.print),
                                   label: const Text('Print'),
-                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade900),
+                                  style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blue.shade900),
                                 ),
                               OutlinedButton.icon(
-                                onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDF exported (mock)'))),
+                                onPressed: () => ScaffoldMessenger.of(context)
+                                    .showSnackBar(const SnackBar(
+                                        content: Text('PDF exported (mock)'))),
                                 icon: const Icon(Icons.file_download),
                                 label: const Text('PDF'),
                               ),
                               OutlinedButton.icon(
-                                onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('SMS sent (mock)'))),
+                                onPressed: () => ScaffoldMessenger.of(context)
+                                    .showSnackBar(const SnackBar(
+                                        content: Text('SMS sent (mock)'))),
                                 icon: const Icon(Icons.sms),
                                 label: const Text('SMS'),
                               ),
@@ -180,10 +261,13 @@ Future<void> showReceiptPreviewDialog(BuildContext context, CartProvider cart) a
                             // finalize: clear cart and close
                             cart.clear();
                             Navigator.of(ctx).pop();
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sale completed: ${total.toStringAsFixed(2)} ETB')));
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                content: Text(
+                                    'Sale completed: ${total.toStringAsFixed(2)} ETB')));
                           },
                           child: const Text('done'),
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade900),
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue.shade900),
                         ),
                       ),
                     ],
@@ -201,5 +285,6 @@ Future<void> showReceiptPreviewDialog(BuildContext context, CartProvider cart) a
 String _randomString(int length) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   final r = Random();
-  return List.generate(length, (index) => chars[r.nextInt(chars.length)]).join();
+  return List.generate(length, (index) => chars[r.nextInt(chars.length)])
+      .join();
 }

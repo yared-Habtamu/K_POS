@@ -1,3 +1,6 @@
+import 'package:pos_app/services/api/api_client.dart';
+import 'package:pos_app/services/global.dart';
+
 import '../../../services/api/api_client.dart';
 import '../../../services/api/api_config.dart';
 import '../../../services/api/auth_storage.dart';
@@ -7,18 +10,19 @@ class AuthRepository {
   final ApiClient _client;
   final AuthStorage _storage;
 
-  AuthRepository({ApiClient? client, AuthStorage? storage})
-      : _storage = storage ?? AuthStorage(),
-        _client = client ??
-            ApiClient(
-              baseUrl: ApiConfig.baseUrl,
-              authStorage: storage ?? AuthStorage(),
-            );
+  AuthRepository({
+    required ApiClient client,
+    required AuthStorage storage,
+  })  : _storage = storage,
+        _client = client;
 
-  Future<AuthUser> login(
-      {required String username, required String password}) async {
+  Future<AuthUser> login({
+    required String username,
+    required String password,
+  }) async {
+    print(".........point break 2......");
     final data = await _client.postJson(
-      '${ApiConfig.apiPrefix}/auth/login',
+      '/auth/login',
       authed: false,
       body: {
         'username': username,
@@ -40,7 +44,8 @@ class AuthRepository {
 
     await _storage.saveToken(token);
     await _storage.saveUser(authUser.toJson());
-
+    await Global.storageServices.setDeviceOpenedFirst(false);
+    print(".........point break 4(user data)  - > ${authUser.role} .........");
     return authUser;
   }
 

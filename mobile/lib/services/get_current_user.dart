@@ -1,111 +1,81 @@
-import 'package:flutter/cupertino.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import '../features/auth/domain/user_model.dart';
-import 'app_constants.dart';
-import 'global.dart'; // Ensure this points to your Firebase UserM
+import 'package:flutter/material.dart';
+import '../features/auth/domain/auth_user.dart';
+import '../services/api/auth_storage.dart';
 
 class UserProvider extends ChangeNotifier {
-  static final UserProvider _instance = UserProvider._internal();
+  final AuthStorage _storage;
 
-  factory UserProvider() => _instance;
+  UserProvider({
+    required AuthStorage storage,
+  }) : _storage = storage;
 
-  UserProvider._internal();
-
-  UserM? _user;
+  AuthUser? _user;
   bool _isLoading = false;
-  String _selectedAvatarPath = "assets/avatars/male_avatar2.png";
 
-  UserM? get user => _user;
+  AuthUser? get user => _user;
+
+  bool get isLoggedIn => _user != null;
+
+  String? get token => _user?.token;
+
+  String? get martId => _user?.martId;
+
+  String? get role => _user?.role;
 
   bool get isLoading => _isLoading;
 
-  String get avatarPath => _selectedAvatarPath;
+  // --------------------------------------------------
+  // 🔥 AUTO LOAD (ONLY WHEN NEEDED)
+  // --------------------------------------------------
 
-  /// ----------------------------------------------------------------
-  /// INITIALIZATION
-  /// ----------------------------------------------------------------
+  Future<AuthUser?> ensureUserLoaded() async {
+    /// Already loaded → return immediately
+    if (_user != null) return _user;
 
-  Future<bool> initUser() async {
-    _setLoading(true);
+    /// Prevent parallel loads
+    if (_isLoading) return null;
+
+    _isLoading = true;
 
     try {
-      final prefs = Global.storageServices;
-      // 2. Get UUID from Local Storage
-      final String? uuid = prefs.getUserId();
+      final savedUserJson = await _storage.readUser();
 
-      print("......getting current user data user id is: $uuid....");
-      if (uuid == null || uuid.isEmpty) {
-        _setLoading(false);
-        return false;
-      }
-
-      // 3. Fetch User Data from datastore using UUID
-      print("......getting current user data user data is:....");
-      final user = "";
-      if (user.isNotEmpty) {
-        print("......getting current user data  is: ${_user?.username}....");
+      if (savedUserJson != null) {
+        _user = AuthUser.fromJson(savedUserJson);
         notifyListeners();
-        _setLoading(false);
-        return true;
-      } else {
-        // User document not found in Firestore
-        await logout();
-        _setLoading(false);
-        return false;
       }
+
+      return _user;
     } catch (e) {
-      debugPrint("UserProvider Error: $e");
-      _setLoading(false);
-      return false;
+      debugPrint("User load error: $e");
+      return null;
+    } finally {
+      _isLoading = false;
     }
   }
 
-  /// ----------------------------------------------------------------
-  /// STATE MODIFIERS
-  /// ----------------------------------------------------------------
+  // --------------------------------------------------
+  // LOGIN
+  // --------------------------------------------------
 
-  Future<String?> getUuid() async {
-    final id = Global.storageServices.getUserId();
-    if (id.isEmpty) return null;
-    return id;
-  }
+  Future<void> setUser(AuthUser user) async {
+    _user = user;
 
-  Future<String?> getRole() async {
-    final role = Global.storageServices.getUserRole();
-    if (role.isEmpty) return null;
-    return role;
-  }
+    await _storage.saveUser(user.toJson());
+    await _storage.saveToken(user.token);
 
-  Future<void> updateLocalAvatar(String assetPath) async {
-    _selectedAvatarPath = assetPath;
     notifyListeners();
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_local_avatar_path', assetPath);
   }
 
-  Future<void> refreshUser() async {
-    await initUser();
-  }
+  // --------------------------------------------------
+  // LOGOUT
+  // --------------------------------------------------
 
   Future<void> logout() async {
     _user = null;
-    _selectedAvatarPath = "assets/avatars/male_avatar2.png";
 
-    // 1. Clear Local Storage
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(AppConstants.UserId);
-    await prefs.remove(AppConstants.UserRole);
+    await _storage.clear();
 
-    // 2. Firebase Sign Out
-    // await _auth.signOut();
-
-    notifyListeners();
-  }
-
-  void _setLoading(bool value) {
-    _isLoading = value;
     notifyListeners();
   }
 }
