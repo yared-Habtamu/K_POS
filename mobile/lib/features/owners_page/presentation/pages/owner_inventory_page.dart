@@ -332,6 +332,5 @@ class _InventoryRow {
     required this.sold,
     required this.remain,
     required this.barcode,
-    this.imageAsset,
   });
 }

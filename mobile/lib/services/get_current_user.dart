@@ -35,7 +35,7 @@ class UserProvider extends ChangeNotifier {
       final String uuid = prefs.getUserId();
 
       print("......getting current user data user id is: $uuid....");
-      if (uuid == null || uuid.isEmpty) {
+      if (uuid.isEmpty) {
         _setLoading(false);
         return false;
       }
