@@ -403,7 +403,7 @@ class _OwnerSettingsPageState extends State<OwnerSettingsPage> {
                           const _FieldLabel('Currency'),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            initialValue: _currency,
+                            // initialValue: _currency,
                             items: const [
                               DropdownMenuItem(
                                   value: 'USD', child: Text('USD')),
@@ -419,7 +419,7 @@ class _OwnerSettingsPageState extends State<OwnerSettingsPage> {
                           const _FieldLabel('Payment System'),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            initialValue: _paymentSystem,
+                            value: _paymentSystem,
                             items: const [
                               DropdownMenuItem(
                                 value: 'Cash', child: Text('Cash')),

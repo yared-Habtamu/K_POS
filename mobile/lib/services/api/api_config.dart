@@ -9,13 +9,13 @@ class ApiConfig {
     // When running on the web, the browser can reach the backend
     // at http://localhost:4000 (or the host machine IP). Use that
     // instead of the Android emulator's 10.0.2.2 address.
-    if (kIsWeb) return 'http://localhost:4000';
+    if (kIsWeb) return 'https://pos-yjx9.onrender.com';
 
     // For non-web targets, allow overriding via build-time define,
     // default to Android emulator loopback which maps to host machine.
     return const String.fromEnvironment(
       'API_BASE_URL',
-      defaultValue: 'http://10.0.2.2:4000',
+      defaultValue: 'https://pos-yjx9.onrender.com',
     );
   }
 

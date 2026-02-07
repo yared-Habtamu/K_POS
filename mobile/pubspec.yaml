@@ -61,6 +61,7 @@ dependencies:
   http:
   shimmer:
   flutter_secure_storage: ^9.2.4
+  lottie:
 
 dev_dependencies:
   flutter_test:

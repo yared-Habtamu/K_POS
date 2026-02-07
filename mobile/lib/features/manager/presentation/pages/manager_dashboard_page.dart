@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import '../../../../utils/common_modern_snackbar.dart';
 import '../../domain/manager_model.dart';
 import '../widgets/dashboard_header.dart';
 import '../widgets/dashboard_stats_grid.dart';
@@ -90,6 +91,6 @@ class _ManagerDashboardPageState extends State<ManagerDashboardPage> {
   }
 
   void _toast(BuildContext context, String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    AppSnackbar.success(msg);
   }
 }

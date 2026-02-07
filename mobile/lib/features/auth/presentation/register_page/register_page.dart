@@ -213,7 +213,7 @@ class _RegisterMartPageState extends State<RegisterMartPage> {
       'Harari'
     ];
     return DropdownButtonFormField<String>(
-      initialValue: regions[0],
+      value: regions[0],
       items: regions
           .map((e) => DropdownMenuItem(value: e, child: Text(e)))
           .toList(),
