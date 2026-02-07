@@ -48,7 +48,13 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
   @override
   void initState() {
     super.initState();
-    // nothing else in initState for the role dashboard itself
+    // Load persisted role (saved during sign-in / auth check). Default is
+    // 'cashier' but we should use the stored value when present so the
+    // correct dashboard is displayed (e.g., manager, owner, etc.).
+    final savedRole = Global.storageServices.getUserRole();
+    if (savedRole.isNotEmpty) {
+      setState(() => _role = savedRole);
+    }
   }
 
   List<_MenuItem> _menuForRole(String role) {
@@ -66,8 +72,12 @@ class _RoleDashboardPageState extends State<RoleDashboardPage> {
           _MenuItem(_RolePage.products, Icons.inventory_2, 'Products'),
           _MenuItem(_RolePage.inventory, Icons.warehouse, 'Inventory'),
           _MenuItem(_RolePage.employees, Icons.people, 'Employees'),
+          _MenuItem(_RolePage.todaySales, Icons.today, "Today's Sales"),
+          _MenuItem(_RolePage.alerts, Icons.notifications, 'Alerts'),
+          _MenuItem(_RolePage.assets, Icons.storage, 'Assets'),
           _MenuItem(_RolePage.expenses, Icons.receipt_long, 'Expenses'),
           _MenuItem(_RolePage.reports, Icons.bar_chart, 'Reports'),
+          _MenuItem(_RolePage.settings, Icons.settings, 'Settings'),
         ];
       case 'manager':
         return const [
