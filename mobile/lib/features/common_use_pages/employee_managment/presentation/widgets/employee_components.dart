@@ -482,7 +482,7 @@ class _PermissionRow extends StatelessWidget {
                   Switch(
                     value: val,
                     onChanged: cb,
-                    activeThumbColor: Colors.white,
+                    activeColor: Colors.white,
                     activeTrackColor: Colors.blue.shade900,
                     inactiveThumbColor: Colors.white,
                     inactiveTrackColor: Colors.grey.shade300,

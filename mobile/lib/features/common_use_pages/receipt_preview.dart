@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:pos_app/features/sales/domain/sale_model.dart';
+import '../../services/get_current_user.dart';
 import '../../services/global.dart';
 
 Future<bool> showReceiptPreviewDialog(
