@@ -3,7 +3,7 @@ class MProduct {
   final String name;
   final String? category;
   final int quantity;
-  final int revenue;
+   int? revenue;
   final int sold;
   final int lowStockThreshold;
   final double purchasePrice;
@@ -16,7 +16,7 @@ class MProduct {
     required this.name,
     required this.category,
     required this.quantity,
-    required this.revenue,
+     this.revenue,
     required this.sold,
     required this.lowStockThreshold,
     required this.purchasePrice,
@@ -31,8 +31,8 @@ class MProduct {
       name: json['name'] ?? 'Unnamed',
       category: json['category'] ?? '',
       quantity: json['quantity'] ?? 0,
-      revenue: json['revenue'],
-      sold: json['sold'],
+      revenue: json['revenue']??0,
+      sold: json['sold']??0,
       lowStockThreshold: json['lowStockThreshold'] ?? 0,
       purchasePrice: (json['purchasePrice'] ?? 0).toDouble(),
       sellingPrice: (json['sellingPrice'] ?? 0).toDouble(),
