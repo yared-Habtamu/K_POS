@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
+import 'package:pos_app/features/products/domain/product_model.dart';
 import 'package:pos_app/features/products/domain/product_repository.dart';
 import 'package:pos_app/features/common_use_pages/reusable_qr_scanner_page.dart';
 import 'package:pos_app/services/global.dart';
@@ -20,6 +21,8 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
   final _sellingPriceController = TextEditingController();
   final _lowStockController = TextEditingController(text: '10');
   final _barcodeController = TextEditingController();
+
+  String? _editingProductId;
 
   String _category = 'Select category';
   String _unit = 'PCS';
@@ -65,24 +68,111 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
     return '${two(d.month)}/${two(d.day)}/${d.year}';
   }
 
-  void _addBarcode() {
+  Future<void> _prefillFromExistingProduct(Product p) async {
+    DateTime? parsedExpiry;
+    if (p.expiryDate != null && p.expiryDate!.trim().isNotEmpty) {
+      parsedExpiry = DateTime.tryParse(p.expiryDate!.trim());
+    }
+
+    final normalizedUnit = p.unit.trim().toUpperCase();
+    const allowedUnits = <String>['PCS', 'KG', 'L'];
+    final nextUnit = allowedUnits.contains(normalizedUnit)
+        ? normalizedUnit
+        : (allowedUnits.contains(_unit) ? _unit : 'PCS');
+
+    if (!mounted) return;
+    setState(() {
+      _editingProductId = p.id;
+
+      _nameController.text = p.name;
+      _category = p.category.isNotEmpty ? p.category : 'Uncategorized';
+      _unit = nextUnit;
+      _purchasePriceController.text = p.purchasePrice.toString();
+      _sellingPriceController.text = p.sellingPrice.toString();
+      _quantityController.text = p.quantity.toString();
+      _lowStockController.text = p.lowStockThreshold.toString();
+      _expiryDate = parsedExpiry;
+
+      // Keep UI compatible with existing API usage (single barcode field).
+      _barcodes
+        ..clear()
+        ..addAll(p.barcodes);
+
+      _barcodeController.clear();
+    });
+  }
+
+  Future<bool> _showBarcodeConflictDialog(Product existing) async {
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Barcode already registered'),
+          content: Text(
+            'This barcode is already registered for ${existing.name}.\n\nDo you want to increase quantity for that product?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Increase quantity'),
+            ),
+          ],
+        );
+      },
+    );
+    return res ?? false;
+  }
+
+  Future<void> _addBarcode() async {
     final v = _barcodeController.text.trim();
     if (v.isEmpty) return;
     if (_barcodes.contains(v)) {
       _toast('Barcode already added');
       return;
     }
+
+    final repo = ProductRepository();
+    final existing = await repo.findByBarcode(v);
+    if (existing != null && existing.id.isNotEmpty) {
+      // If we are already editing that same product, allow adding.
+      if (_editingProductId == null || _editingProductId != existing.id) {
+        final confirm = await _showBarcodeConflictDialog(existing);
+        if (!confirm) return;
+        final full = await repo.getProduct(existing.id);
+        await _prefillFromExistingProduct(full);
+        _toast('Loaded ${full.name}. Update quantity and Save.');
+        return;
+      }
+    }
+
+    if (!mounted) return;
     setState(() {
       _barcodes.add(v);
       _barcodeController.clear();
     });
   }
 
-  void _generateBarcode() {
-    // Mock only (no extra deps / real generation needed).
-    final v = DateTime.now().millisecondsSinceEpoch.toString();
-    if (_barcodes.contains(v)) return;
-    setState(() => _barcodes.add(v));
+  Future<void> _generateBarcode() async {
+    final repo = ProductRepository();
+
+    // Keep generation simple, but ensure uniqueness within this mart.
+    for (var i = 0; i < 6; i++) {
+      final v = DateTime.now().microsecondsSinceEpoch.toString();
+      if (_barcodes.contains(v)) continue;
+      final existing = await repo.findByBarcode(v);
+      if (existing == null) {
+        if (!mounted) return;
+        setState(() => _barcodes.add(v));
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+    }
+
+    _toast('Could not generate a unique barcode');
   }
 
   Future<void> _saveProduct() async {
@@ -98,19 +188,27 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
         'name': name,
         'category':
             _category == 'Select category' ? 'Uncategorized' : _category,
+        'unit': _unit,
         'purchasePrice': _purchasePriceController.text.trim(),
         'sellingPrice': _sellingPriceController.text.trim(),
         'quantity': _quantityController.text.trim(),
         'lowStockThreshold': _lowStockController.text.trim(),
       };
 
+      if (_expiryDate != null) {
+        fields['expiryDate'] = _expiryDate!.toIso8601String();
+      }
+
       if (_barcodes.isNotEmpty) fields['barcode'] = _barcodes.first;
 
       final filename = _selectedImageName;
       final bytes = _selectedImageBytes;
 
-      final res = await repo.createProduct(fields,
-          imageBytes: bytes, filename: filename);
+      final res = _editingProductId == null
+          ? await repo.createProduct(fields,
+              imageBytes: bytes, filename: filename)
+          : await repo.updateProduct(_editingProductId!, fields,
+              imageBytes: bytes, filename: filename);
 
       if (res.containsKey('product')) {
         final created = res['product'];
@@ -126,7 +224,9 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
           'imageUrl': created.imageUrl ?? ''
         });
       } else if (res.containsKey('requestId')) {
-        _toast('Product submitted for approval');
+        _toast(_editingProductId == null
+            ? 'Product submitted for approval'
+            : 'Update submitted for approval');
         // return pending payload so UI can show a placeholder
         final payload = {
           'name': fields['name'] ?? '',
@@ -699,8 +799,8 @@ class _DateField extends StatelessWidget {
 class _BarcodesSection extends StatelessWidget {
   final TextEditingController controller;
   final List<String> barcodes;
-  final VoidCallback onAdd;
-  final VoidCallback onGenerate;
+  final Future<void> Function() onAdd;
+  final Future<void> Function() onGenerate;
   final ValueChanged<String> onRemove;
 
   const _BarcodesSection({
@@ -772,7 +872,9 @@ class _BarcodesSection extends StatelessWidget {
             );
 
             final addBtn = OutlinedButton(
-              onPressed: onAdd,
+              onPressed: () {
+                onAdd();
+              },
               style: OutlinedButton.styleFrom(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -785,7 +887,9 @@ class _BarcodesSection extends StatelessWidget {
             );
 
             final genBtn = OutlinedButton.icon(
-              onPressed: onGenerate,
+              onPressed: () {
+                onGenerate();
+              },
               icon: const Icon(Icons.qr_code_2, size: 18),
               label: const Text('Generate'),
               style: OutlinedButton.styleFrom(
