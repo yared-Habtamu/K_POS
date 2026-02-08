@@ -197,13 +197,19 @@ class EmployeesTable extends StatelessWidget {
   final int totalCount;
   final void Function(Employee) onEdit;
   final void Function(Employee) onDelete;
+  final void Function(String) onStartClock;
+  final void Function(String) onStopClock;
+  final Map<String, bool> activeClockIns;
 
   const EmployeesTable(
       {super.key,
       required this.items,
       required this.totalCount,
       required this.onEdit,
-      required this.onDelete});
+      required this.onDelete,
+      required this.onStartClock,
+      required this.onStopClock,
+      this.activeClockIns = const {}});
 
   @override
   Widget build(BuildContext context) {
@@ -281,6 +287,26 @@ class EmployeesTable extends StatelessWidget {
                             DataCell(StatusChip(active: e.active)),
                             DataCell(
                                 Row(mainAxisSize: MainAxisSize.min, children: [
+                              // Start/Stop attendance button
+                              IconButton(
+                                onPressed: () {
+                                  final isActive = activeClockIns[e.id] == true;
+                                  if (isActive) {
+                                    onStopClock(e.id);
+                                  } else {
+                                    onStartClock(e.id);
+                                  }
+                                },
+                                icon: Icon(
+                                  activeClockIns[e.id] == true
+                                      ? Icons.stop_circle_outlined
+                                      : Icons.play_circle_outline,
+                                  size: 20,
+                                  color: activeClockIns[e.id] == true
+                                      ? Colors.red.shade500
+                                      : Colors.green.shade600,
+                                ),
+                              ),
                               IconButton(
                                   onPressed: () => onEdit(e),
                                   icon:

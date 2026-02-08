@@ -59,6 +59,8 @@ class _CommonEmployeeManagementPageState
   TimeOfDay? _manualClockIn;
   TimeOfDay? _manualClockOut;
   DateTime _recordsDate = DateTime.now();
+  // active clock-ins tracked by employeeId
+  final Map<String, bool> _activeClockIns = {};
 
   @override
   void initState() {
@@ -264,75 +266,300 @@ class _CommonEmployeeManagementPageState
       // ignore parse error, allow edit UI which will be validated by server
     }
 
-    final dateCtrl = TextEditingController(text: rec.dateYmd);
-    final clockInCtrl = TextEditingController(text: rec.clockIn);
-    final clockOutCtrl = TextEditingController(text: rec.clockOut);
+    TimeOfDay? parseTimeOfDay(String raw) {
+      final s = raw.trim();
+      if (s.isEmpty) return null;
 
-    final result = await showDialog<bool>(
+      // Accept HH:mm
+      final m24 = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(s);
+      if (m24 != null) {
+        final h = int.tryParse(m24.group(1)!);
+        final m = int.tryParse(m24.group(2)!);
+        if (h != null && m != null && h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+          return TimeOfDay(hour: h, minute: m);
+        }
+      }
+
+      // Accept hh:mm AM/PM
+      final m12 = RegExp(r'^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$').firstMatch(s);
+      if (m12 != null) {
+        var h = int.tryParse(m12.group(1)!);
+        final m = int.tryParse(m12.group(2)!);
+        final ap = m12.group(3)!.toUpperCase();
+        if (h == null || m == null || h < 1 || h > 12 || m < 0 || m > 59) {
+          return null;
+        }
+        if (ap == 'AM') {
+          if (h == 12) h = 0;
+        } else {
+          if (h != 12) h = h + 12;
+        }
+        return TimeOfDay(hour: h, minute: m);
+      }
+
+      return null;
+    }
+
+    String? selectedEmployeeId = rec.employeeId;
+    if ((selectedEmployeeId == null || selectedEmployeeId!.isEmpty) &&
+        rec.employeeName.isNotEmpty) {
+      final match = _employees
+          .where((e) => e.name == rec.employeeName)
+          .toList(growable: false);
+      if (match.isNotEmpty) selectedEmployeeId = match.first.id;
+    }
+
+    TimeOfDay? clockInTime = parseTimeOfDay(rec.clockIn);
+    TimeOfDay? clockOutTime = parseTimeOfDay(rec.clockOut);
+
+    final saved = await showModalBottomSheet<bool>(
       context: context,
+      isScrollControlled: true,
       builder: (context) {
-        return Dialog(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const Text('Edit Attendance',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 12),
-              TextField(
-                  controller: dateCtrl,
-                  decoration:
-                      const InputDecoration(labelText: 'Date (YYYY-MM-DD)')),
-              const SizedBox(height: 8),
-              TextField(
-                  controller: clockInCtrl,
-                  decoration: const InputDecoration(labelText: 'Clock In')),
-              const SizedBox(height: 8),
-              TextField(
-                  controller: clockOutCtrl,
-                  decoration: const InputDecoration(labelText: 'Clock Out')),
-              const SizedBox(height: 12),
-              Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                TextButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: const Text('Cancel')),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    child: const Text('Save'))
-              ])
-            ]),
-          ),
-        );
+        return StatefulBuilder(builder: (context, setModalState) {
+          Future<void> pickClockIn() async {
+            final picked = await showTimePicker(
+              context: context,
+              initialTime: clockInTime ?? const TimeOfDay(hour: 9, minute: 0),
+            );
+            if (picked != null) {
+              setModalState(() => clockInTime = picked);
+            }
+          }
+
+          Future<void> pickClockOut() async {
+            final picked = await showTimePicker(
+              context: context,
+              initialTime: clockOutTime ?? const TimeOfDay(hour: 17, minute: 0),
+            );
+            if (picked != null) {
+              setModalState(() => clockOutTime = picked);
+            }
+          }
+
+          final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+          InputDecoration fieldDecoration(
+            String label, {
+            IconData? icon,
+          }) {
+            final cs = Theme.of(context).colorScheme;
+            return InputDecoration(
+              labelText: label,
+              prefixIcon: icon == null ? null : Icon(icon),
+              filled: true,
+              fillColor: cs.surfaceVariant,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: cs.primary, width: 1.6),
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            );
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(bottom: bottomInset),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Edit Attendance',
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.of(context).pop(false),
+                          icon: const Icon(Icons.close),
+                        )
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text('Date: ${rec.dateYmd}',
+                        style: TextStyle(
+                            color: Colors.grey.shade700,
+                            fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: (selectedEmployeeId != null &&
+                              selectedEmployeeId!.isNotEmpty)
+                          ? selectedEmployeeId
+                          : null,
+                      decoration:
+                          fieldDecoration('Employee', icon: Icons.person),
+                      items: _employees
+                          .map((e) => DropdownMenuItem<String>(
+                                value: e.id,
+                                child: Text(e.name),
+                              ))
+                          .toList(growable: false),
+                      onChanged: (v) {
+                        setModalState(() => selectedEmployeeId = v);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      readOnly: true,
+                      onTap: pickClockIn,
+                      decoration: fieldDecoration('Clock In', icon: Icons.login)
+                          .copyWith(
+                        suffixIcon: const Icon(Icons.access_time),
+                      ),
+                      controller: TextEditingController(
+                        text: clockInTime == null
+                            ? ''
+                            : EmployeeUtils.formatTime(clockInTime!),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      readOnly: true,
+                      onTap: pickClockOut,
+                      decoration: fieldDecoration('Clock Out (optional)',
+                              icon: Icons.logout)
+                          .copyWith(
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (clockOutTime != null)
+                              IconButton(
+                                tooltip: 'Clear',
+                                onPressed: () {
+                                  setModalState(() => clockOutTime = null);
+                                },
+                                icon: const Icon(Icons.clear),
+                              ),
+                            const Padding(
+                              padding: EdgeInsets.only(right: 8),
+                              child: Icon(Icons.access_time),
+                            ),
+                          ],
+                        ),
+                      ),
+                      controller: TextEditingController(
+                        text: clockOutTime == null
+                            ? ''
+                            : EmployeeUtils.formatTime(clockOutTime!),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onPressed: () => Navigator.of(context).pop(false),
+                            child: const Text(
+                              'Cancel',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onPressed: () {
+                              if (clockInTime == null) {
+                                EmployeeUtils.toast(
+                                    context, 'Please set clock in time');
+                                return;
+                              }
+                              if (selectedEmployeeId == null ||
+                                  selectedEmployeeId!.isEmpty) {
+                                EmployeeUtils.toast(
+                                    context, 'Please select an employee');
+                                return;
+                              }
+                              Navigator.of(context).pop(true);
+                            },
+                            child: const Text(
+                              'Save',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        });
       },
     );
 
-    if (result == true) {
-      final newClockIn = clockInCtrl.text.trim();
-      final newClockOut = clockOutCtrl.text.trim();
-      final newDate = dateCtrl.text.trim();
+    if (saved == true) {
+      final emp = _employees.firstWhere(
+        (e) => e.id == selectedEmployeeId,
+        orElse: () => const Employee(
+          id: '',
+          name: '',
+          phone: '',
+          role: '',
+          salaryText: '',
+          active: true,
+        ),
+      );
 
-      // Validate basic date format before calling server
-      if (!RegExp(r"^\d{4}-\d{2}-\d{2}").hasMatch(newDate)) {
+      if (emp.id.isEmpty) {
         if (!mounted) return;
-        EmployeeUtils.toast(context, 'Invalid date format. Use YYYY-MM-DD');
+        EmployeeUtils.toast(context, 'Please select an employee');
         return;
       }
+
+      final newClockIn = EmployeeUtils.formatTime(clockInTime!);
+      final newClockOut =
+          clockOutTime == null ? null : EmployeeUtils.formatTime(clockOutTime!);
 
       try {
         if (rec.id != null && rec.id!.isNotEmpty) {
           await EmployeeRemoteDataSource.updateAttendance(
-              id: rec.id!,
-              clockIn: newClockIn,
-              clockOut: newClockOut,
-              notes: null);
+            id: rec.id!,
+            employeeId: emp.id,
+            employeeName: emp.name,
+            clockIn: newClockIn,
+            clockOut: newClockOut,
+            notes: null,
+          );
         } else {
           // create new if no id
           await EmployeeRemoteDataSource.createAttendance(
-              employeeId: '',
-              employeeName: rec.employeeName,
-              dateYmd: newDate,
-              clockIn: newClockIn,
-              clockOut: newClockOut);
+            employeeId: emp.id,
+            employeeName: emp.name,
+            dateYmd: rec.dateYmd,
+            clockIn: newClockIn,
+            clockOut: newClockOut,
+          );
         }
         if (!mounted) return;
         EmployeeUtils.toast(context, 'Attendance updated');
@@ -817,14 +1044,16 @@ class _CommonEmployeeManagementPageState
       EmployeeUtils.toast(context, 'Please select an employee');
       return;
     }
-    if (_manualClockIn == null || _manualClockOut == null) {
-      EmployeeUtils.toast(context, 'Please set clock in and clock out times');
+    if (_manualClockIn == null) {
+      EmployeeUtils.toast(context, 'Please set clock in time');
       return;
     }
 
     final dateYmd = EmployeeUtils.formatYmd(_manualDate);
     final clockIn = EmployeeUtils.formatTime(_manualClockIn!);
-    final clockOut = EmployeeUtils.formatTime(_manualClockOut!);
+    final clockOut = _manualClockOut != null
+        ? EmployeeUtils.formatTime(_manualClockOut!)
+        : null;
 
     try {
       // find the selected employee id by name (we expect unique names in a mart)
@@ -845,6 +1074,13 @@ class _CommonEmployeeManagementPageState
         clockOut: clockOut,
       );
 
+      // mark active if no clockOut provided
+      if (clockOut == null) {
+        _activeClockIns[empId] = true;
+      } else {
+        _activeClockIns.remove(empId);
+      }
+
       if (!mounted) return;
       EmployeeUtils.toast(context, 'Attendance Saved');
       // refresh local attendance list
@@ -858,6 +1094,76 @@ class _CommonEmployeeManagementPageState
     } catch (e) {
       if (!mounted) return;
       EmployeeUtils.toast(context, 'Failed to save attendance');
+    }
+  }
+
+  // Start clock for an employee: create attendance with no clockOut
+  Future<void> _startClock(String employeeId) async {
+    try {
+      final emp = _employees.firstWhere((e) => e.id == employeeId,
+          orElse: () => Employee(
+              id: '',
+              name: '',
+              phone: '',
+              role: '',
+              salaryText: '',
+              active: true));
+      final dateYmd = EmployeeUtils.formatYmd(DateTime.now());
+      final clockIn =
+          EmployeeUtils.formatTime(TimeOfDay.fromDateTime(DateTime.now()));
+      await EmployeeRemoteDataSource.createAttendance(
+        employeeId: emp.id,
+        employeeName: emp.name,
+        dateYmd: dateYmd,
+        clockIn: clockIn,
+        clockOut: null,
+      );
+      // refresh list and mark active
+      _attendanceRecords = await EmployeeRemoteDataSource.fetchAttendance();
+      _annotateAttendanceRoles();
+      setState(() {
+        _activeClockIns[employeeId] = true;
+      });
+      EmployeeUtils.toast(context, '${emp.name} clocked in');
+    } catch (e) {
+      EmployeeUtils.toast(context, 'Failed to start clock');
+    }
+  }
+
+  // Stop clock for an employee: find the open attendance record and update it
+  Future<void> _stopClock(String employeeId) async {
+    try {
+      // find the most recent attendance for today without clockOut
+      final today = EmployeeUtils.formatYmd(DateTime.now());
+      final rec = _attendanceRecords.reversed.firstWhere(
+          (r) =>
+              r.employeeId == employeeId &&
+              r.dateYmd == today &&
+              (r.clockOut == null || r.clockOut.isEmpty),
+          orElse: () => AttendanceRecord(
+              id: null,
+              employeeId: null,
+              employeeName: '',
+              dateYmd: '',
+              clockIn: '',
+              clockOut: '',
+              duration: ''));
+      if (rec.id == null || rec.id!.isEmpty) {
+        EmployeeUtils.toast(context, 'No active clock-in found');
+        return;
+      }
+      final clockOut =
+          EmployeeUtils.formatTime(TimeOfDay.fromDateTime(DateTime.now()));
+      await EmployeeRemoteDataSource.updateAttendance(
+          id: rec.id!, clockOut: clockOut);
+      _attendanceRecords = await EmployeeRemoteDataSource.fetchAttendance();
+      _annotateAttendanceRoles();
+      setState(() {
+        _activeClockIns.remove(employeeId);
+      });
+      EmployeeUtils.toast(context, '${rec.employeeName} clocked out');
+    } catch (e) {
+      EmployeeUtils.toast(context, 'Failed to stop clock');
     }
   }
 
@@ -1008,6 +1314,9 @@ class _CommonEmployeeManagementPageState
                         totalCount: displayList.length,
                         onEdit: _onEditEmployee,
                         onDelete: _onDeleteEmployee,
+                        onStartClock: _startClock,
+                        onStopClock: _stopClock,
+                        activeClockIns: _activeClockIns,
                       ),
                     const SizedBox(height: 14),
                     if (displayList.isNotEmpty)

@@ -113,6 +113,7 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
         'name': name,
         'category':
             _category == 'Select category' ? 'Uncategorized' : _category,
+        'unit': _unit,
         'purchasePrice':
             canSetPurchase ? _purchasePriceController.text.trim() : '0',
         'sellingPrice': _sellingPriceController.text.trim(),

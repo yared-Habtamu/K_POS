@@ -43,6 +43,16 @@ import {
   Image as ImageIcon,
   Loader2,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const units: ProductUnit[] = ["pcs", "kg", "g", "l", "ml", "box"];
 const ITEMS_PER_PAGE = 7; // ✅ Set to 7 items per page
@@ -52,6 +62,9 @@ export default function ProductManagement() {
   const { products, categories, addProduct, updateProduct, deleteProduct } =
     useProductStore();
   const navigate = useNavigate();
+
+  // Must be declared before any useEffect that references it in a dependency array
+  const [currentPage, setCurrentPage] = useState(1); // Pagination state
 
   useEffect(() => {
     // fetch from backend on mount
@@ -114,7 +127,6 @@ export default function ProductManagement() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1); // Pagination state
   const [soldMap, setSoldMap] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -141,6 +153,41 @@ export default function ProductManagement() {
     barcodes: [] as string[],
     barcodeInput: "",
   });
+
+  const [barcodeConflictOpen, setBarcodeConflictOpen] = useState(false);
+  const [barcodeConflict, setBarcodeConflict] = useState<null | {
+    code: string;
+    productId: string;
+    productName: string;
+    storeQuantity: number;
+  }>(null);
+
+  const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+  const token = useAuthStore.getState().user?.token;
+
+  const findProductByBarcode = async (code: string) => {
+    const trimmed = (code || "").trim();
+    if (!trimmed) return null;
+    const res = await fetch(
+      `${API_BASE}/api/products/by-barcode/${encodeURIComponent(trimmed)}`,
+      {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      },
+    );
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(await res.text());
+    return await res.json();
+  };
+
+  const generateUniqueBarcode = async () => {
+    const candidate = () => `${Date.now()}`.slice(-12);
+    for (let i = 0; i < 6; i++) {
+      const code = i === 0 ? candidate() : `${candidate()}${Math.floor(Math.random() * 9)}`.slice(0, 12);
+      const existing = await findProductByBarcode(code);
+      if (!existing) return code;
+    }
+    return String(Math.floor(Math.random() * 1e12)).padStart(12, "0");
+  };
 
   // Filter products based on search and category (applies to current page only)
   const filteredProducts = products.filter((p) => {
@@ -270,9 +317,16 @@ export default function ProductManagement() {
   };
 
   const generateBarcode = () => {
-    const b = `${Date.now()}`.slice(-12);
-    const existing = Array.isArray(form.barcodes) ? form.barcodes.slice() : [];
-    setForm({ ...form, barcodes: [...existing, b], barcodeInput: "" });
+    void (async () => {
+      try {
+        const b = await generateUniqueBarcode();
+        const existing = Array.isArray(form.barcodes) ? form.barcodes.slice() : [];
+        setForm({ ...form, barcodes: [...existing, b], barcodeInput: "" });
+      } catch (e) {
+        console.error("generate barcode failed", e);
+        toast({ title: "Failed to generate barcode", variant: "destructive" });
+      }
+    })();
   };
 
   // Pagination handlers
@@ -462,16 +516,58 @@ export default function ProductManagement() {
                         type="button"
                         variant="outline"
                         onClick={() => {
-                          const val = (form.barcodeInput || "").trim();
-                          if (!val) return;
-                          const existing = Array.isArray(form.barcodes)
-                            ? form.barcodes.slice()
-                            : [];
-                          setForm({
-                            ...form,
-                            barcodes: [...existing, val],
-                            barcodeInput: "",
-                          });
+                          void (async () => {
+                            const val = (form.barcodeInput || "").trim();
+                            if (!val) return;
+                            try {
+                              const found = await findProductByBarcode(val);
+                              if (found) {
+                                const foundId = String(found._id || found.id);
+                                const currentEditingId = String(
+                                  (editingProduct as any)?.id ||
+                                    (editingProduct as any)?._id ||
+                                    "",
+                                );
+                                // allow adding the barcode if it belongs to the same product being edited
+                                if (editingProduct && currentEditingId && foundId === currentEditingId) {
+                                  const existing = Array.isArray(form.barcodes)
+                                    ? form.barcodes.slice()
+                                    : [];
+                                  setForm({
+                                    ...form,
+                                    barcodes: [...existing, val],
+                                    barcodeInput: "",
+                                  });
+                                  return;
+                                }
+
+                                setBarcodeConflict({
+                                  code: val,
+                                  productId: foundId,
+                                  productName: String(found.name || "Product"),
+                                  storeQuantity: Number(found.storeQuantity || 0),
+                                });
+                                setBarcodeConflictOpen(true);
+                                return;
+                              }
+
+                              const existing = Array.isArray(form.barcodes)
+                                ? form.barcodes.slice()
+                                : [];
+                              setForm({
+                                ...form,
+                                barcodes: [...existing, val],
+                                barcodeInput: "",
+                              });
+                            } catch (e: any) {
+                              console.error("barcode lookup failed", e);
+                              toast({
+                                title: "Failed to check barcode",
+                                description: e?.message || "Server error",
+                                variant: "destructive",
+                              });
+                            }
+                          })();
                         }}
                       >
                         Add
@@ -517,6 +613,97 @@ export default function ProductManagement() {
                         generate new ones.
                       </div>
                     )}
+
+                    <AlertDialog
+                      open={barcodeConflictOpen}
+                      onOpenChange={setBarcodeConflictOpen}
+                    >
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>
+                            Barcode already registered
+                          </AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {barcodeConflict
+                              ? `This barcode is already registered for ${barcodeConflict.productName}. Do you want to increase its quantity instead?`
+                              : "This barcode is already registered. Do you want to increase its quantity instead?"}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => {
+                              void (async () => {
+                                if (!barcodeConflict) return;
+                                try {
+                                  // Load the existing product so user can edit quantity and then Save.
+                                  const res = await fetch(
+                                    `${API_BASE}/api/products/${encodeURIComponent(
+                                      barcodeConflict.productId,
+                                    )}`,
+                                    {
+                                      headers: token
+                                        ? { Authorization: `Bearer ${token}` }
+                                        : undefined,
+                                    },
+                                  );
+                                  if (!res.ok) throw new Error(await res.text());
+                                  const p = await res.json();
+                                  const normalized: any = {
+                                    ...p,
+                                    id: p.id || p._id,
+                                  };
+
+                                  setEditingProduct(normalized);
+                                  setForm({
+                                    name: String(normalized.name || ''),
+                                    category: String(normalized.category || ''),
+                                    unit: (normalized.unit as any) || 'pcs',
+                                    purchasePrice: String(normalized.purchasePrice ?? 0),
+                                    sellingPrice: String(normalized.sellingPrice ?? 0),
+                                    quantity: String(
+                                      normalized.storeQuantity ??
+                                        normalized.quantity ??
+                                        normalized.supermarketQuantity ??
+                                        0,
+                                    ),
+                                    lowStockThreshold: String(normalized.lowStockThreshold ?? 10),
+                                    expiryDate: normalized.expiryDate
+                                      ? new Date(normalized.expiryDate)
+                                          .toISOString()
+                                          .split('T')[0]
+                                      : '',
+                                    barcodes: Array.isArray(normalized.barcodes)
+                                      ? normalized.barcodes.map(String)
+                                      : normalized.barcode
+                                        ? [String(normalized.barcode)]
+                                        : [],
+                                    barcodeInput: '',
+                                  });
+
+                                  toast({
+                                    title: 'Product loaded',
+                                    description: 'Update quantity and press Save.',
+                                  });
+
+                                  setBarcodeConflictOpen(false);
+                                  setBarcodeConflict(null);
+                                } catch (e: any) {
+                                  console.error("increase quantity failed", e);
+                                  toast({
+                                    title: "Failed to load product",
+                                    description: e?.message || "Server error",
+                                    variant: "destructive",
+                                  });
+                                }
+                              })();
+                            }}
+                          >
+                            Increase quantity
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
 

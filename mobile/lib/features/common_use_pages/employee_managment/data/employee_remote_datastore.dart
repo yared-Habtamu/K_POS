@@ -106,7 +106,7 @@ class EmployeeRemoteDataSource {
     required String employeeName,
     required String dateYmd,
     required String clockIn,
-    required String clockOut,
+    String? clockOut,
   }) async {
     try {
       final auth = AuthStorage();
@@ -117,8 +117,8 @@ class EmployeeRemoteDataSource {
         'employeeName': employeeName,
         'dateYmd': dateYmd,
         'clockIn': clockIn,
-        'clockOut': clockOut,
       };
+      if (clockOut != null) body['clockOut'] = clockOut;
       if (employeeId.isNotEmpty) body['employeeId'] = employeeId;
 
       final response = await http
@@ -196,10 +196,24 @@ class EmployeeRemoteDataSource {
       }).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        final List<dynamic> body = jsonDecode(response.body);
-        return body
-            .map((e) => AttendanceRecord.fromJson(e as Map<String, dynamic>))
-            .toList();
+        try {
+          final decoded = jsonDecode(response.body);
+          if (decoded is! List) {
+            throw const FormatException('Expected a JSON array');
+          }
+          return decoded
+              .map((e) =>
+                  AttendanceRecord.fromJson((e as Map).cast<String, dynamic>()))
+              .toList(growable: false);
+        } on FormatException catch (_) {
+          final prefix = response.body.length > 120
+              ? response.body.substring(0, 120)
+              : response.body;
+          throw AppException(
+              'Attendance response is not valid JSON. Check API base URL. Got: ${prefix.trim()}');
+        } on TypeError catch (e) {
+          throw AppException('Failed to parse attendance data: $e');
+        }
       }
 
       _processResponse(response);
@@ -218,6 +232,8 @@ class EmployeeRemoteDataSource {
   // Update attendance
   static Future<bool> updateAttendance({
     required String id,
+    String? employeeId,
+    String? employeeName,
     String? clockIn,
     String? clockOut,
     String? notes,
@@ -228,6 +244,8 @@ class EmployeeRemoteDataSource {
       final url = ApiConfig.apiUrl('/attendance/$id');
 
       final body = <String, dynamic>{};
+      if (employeeId != null) body['employeeId'] = employeeId;
+      if (employeeName != null) body['employeeName'] = employeeName;
       if (clockIn != null) body['clockIn'] = clockIn;
       if (clockOut != null) body['clockOut'] = clockOut;
       if (notes != null) body['notes'] = notes;

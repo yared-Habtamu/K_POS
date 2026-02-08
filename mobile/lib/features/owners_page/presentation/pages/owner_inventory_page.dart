@@ -88,6 +88,7 @@ class _OwnerInventoryPageState extends State<OwnerInventoryPage> {
           sold: sold,
           remain: remaining < 0 ? 0 : remaining,
           barcode: barcode,
+          imageUrl: p.imageUrl,
         );
       }).toList();
 
@@ -241,7 +242,7 @@ class _InventoryTable extends StatelessWidget {
         .map(
           (p) => DataRow(
             cells: [
-              DataCell(_Thumb(imageAsset: p.imageAsset)),
+              DataCell(_Thumb(imageUrl: p.imageUrl)),
               DataCell(Text(p.name,
                   style: const TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w600))),
@@ -285,9 +286,9 @@ class _InventoryTable extends StatelessWidget {
 }
 
 class _Thumb extends StatelessWidget {
-  final String? imageAsset;
+  final String? imageUrl;
 
-  const _Thumb({required this.imageAsset});
+  const _Thumb({required this.imageUrl});
 
   @override
   Widget build(BuildContext context) {
@@ -301,18 +302,24 @@ class _Thumb extends StatelessWidget {
       ),
     );
 
-    if (imageAsset == null) return fallback;
+    if (imageUrl == null || imageUrl!.isEmpty) return fallback;
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
-      child: Image.asset(
-        imageAsset!,
-        width: 34,
-        height: 34,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => fallback,
-      ),
-    );
+    // Remote URL -> use network image; otherwise treat as local asset
+    final isNetwork = imageUrl!.startsWith('http');
+
+    final image = isNetwork
+        ? Image.network(imageUrl!,
+            width: 34,
+            height: 34,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => fallback)
+        : Image.asset(imageUrl!,
+            width: 34,
+            height: 34,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => fallback);
+
+    return ClipRRect(borderRadius: BorderRadius.circular(6), child: image);
   }
 }
 
@@ -324,7 +331,7 @@ class _InventoryRow {
   final int sold;
   final int remain;
   final String barcode;
-  final String? imageAsset;
+  final String? imageUrl;
 
   const _InventoryRow({
     required this.name,
@@ -332,6 +339,6 @@ class _InventoryRow {
     required this.sold,
     required this.remain,
     required this.barcode,
-    this.imageAsset,
+    this.imageUrl,
   });
 }

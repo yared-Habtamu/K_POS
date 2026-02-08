@@ -30,6 +30,17 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
 import { useAuthStore } from '@/stores/authStore';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -54,14 +65,28 @@ import type { UserRole } from '@/types';
 // ✅ PDF Dependencies (install: npm install jspdf html2canvas)
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import {
+  createAttendance,
+  deleteAttendance,
+  fetchAttendance,
+  updateAttendance,
+  type AttendanceApiRecord,
+} from '@/lib/api/attendance';
 
 // Owner-managed employees are fetched from backend
 
 const ALL_ROLES: UserRole[] = ['manager', 'cashier', 'store_keeper'];
 
+const formatDateKey = (date: Date) => date.toISOString().split('T')[0];
+const toDateTimeLocal = (d: Date) => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
 type AttendanceRecord = {
   id: string;
   employeeId: string;
+  employeeName?: string;
   clockIn: string; // ISO
   clockOut: string | null;
   durationMinutes: number | null;
@@ -112,6 +137,16 @@ export default function OwnerEmployeeManagement(): JSX.Element {
   const [manualEntry, setManualEntry] = useState({
     employeeId: '',
     date: new Date().toISOString().split('T')[0],
+    clockIn: '',
+    clockOut: '',
+  });
+  const [manualEditingId, setManualEditingId] = useState<string | null>(null);
+
+  // Attendance edit subpage
+  const [editSubpageOpen, setEditSubpageOpen] = useState(false);
+  const [editingAttendanceId, setEditingAttendanceId] = useState<string | null>(null);
+  const [attendanceEditForm, setAttendanceEditForm] = useState({
+    employeeId: '',
     clockIn: '',
     clockOut: '',
   });
@@ -489,6 +524,150 @@ export default function OwnerEmployeeManagement(): JSX.Element {
     }
   };
 
+  // Track active clock-ins for owner page
+  const [activeClockIns, setActiveClockIns] = useState<Record<string, string>>({});
+
+  const timeToHHmm = (timeRaw: string) => {
+    const s = (timeRaw || '').trim();
+    if (!s) return '';
+    // already HH:mm
+    const m24 = s.match(/^(\d{1,2}):(\d{2})$/);
+    if (m24) {
+      const hh = String(Math.max(0, Math.min(23, Number(m24[1])))).padStart(2, '0');
+      const mm = String(Math.max(0, Math.min(59, Number(m24[2])))).padStart(2, '0');
+      return `${hh}:${mm}`;
+    }
+    // hh:mm AM/PM
+    const m12 = s.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
+    if (m12) {
+      let hh = Number(m12[1]);
+      const mm = Number(m12[2]);
+      const ap = m12[3].toUpperCase();
+      if (ap === 'AM') {
+        if (hh === 12) hh = 0;
+      } else {
+        if (hh !== 12) hh = hh + 12;
+      }
+      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+    }
+    return '';
+  };
+
+  const isoFromDateAndTime = (dateYmd: string, timeRaw: string) => {
+    // If API ever returns ISO, keep it.
+    if (timeRaw && timeRaw.includes('T')) {
+      const d = new Date(timeRaw);
+      if (!Number.isNaN(d.getTime())) return d.toISOString();
+    }
+    const hhmm = timeToHHmm(timeRaw);
+    if (!dateYmd || !hhmm) return new Date(dateYmd || Date.now()).toISOString();
+    const d = new Date(`${dateYmd}T${hhmm}:00`);
+    return d.toISOString();
+  };
+
+  const mapApiAttendance = (r: AttendanceApiRecord): AttendanceRecord => {
+    const id = (r._id || r.id || '') as string;
+    const employeeId = (r.employeeId || '') as string;
+    const date = (r.dateYmd || '') as string;
+    const clockInIso = isoFromDateAndTime(date, String(r.clockIn || ''));
+    const clockOutIso = r.clockOut
+      ? isoFromDateAndTime(date, String(r.clockOut))
+      : null;
+    return {
+      id,
+      employeeId,
+      employeeName: r.employeeName || undefined,
+      date,
+      clockIn: clockInIso,
+      clockOut: clockOutIso,
+      durationMinutes: (typeof r.durationMinutes === 'number' ? r.durationMinutes : null),
+    };
+  };
+
+  const deriveActiveFromAttendance = (records: AttendanceRecord[]) => {
+    const next: Record<string, string> = {};
+    records.forEach((r) => {
+      if (!r.clockOut) next[r.employeeId] = r.clockIn;
+    });
+    return next;
+  };
+
+  const refreshAttendance = async () => {
+    if (!token) return;
+    try {
+      const data = await fetchAttendance({}, token);
+      const mapped = (Array.isArray(data) ? data : []).map(mapApiAttendance);
+      setAttendance(mapped);
+      setActiveClockIns(deriveActiveFromAttendance(mapped));
+    } catch (e: any) {
+      console.error('fetch attendance error', e);
+      toast({
+        title: 'Failed to load attendance',
+        description: e?.message || 'Server error',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'attendance') return;
+    refreshAttendance();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, token]);
+
+  const handleClockToggle = async (employeeId: string) => {
+    if (!token) {
+      toast({ title: 'Not authenticated', variant: 'destructive' });
+      return;
+    }
+
+    const now = new Date();
+    const today = formatDateKey(now);
+    const nowHHmm = now.toTimeString().slice(0, 5);
+    const isClockedIn = !!activeClockIns[employeeId];
+    const emp = employees.find(e => e.id === employeeId);
+
+    try {
+      if (isClockedIn) {
+        // find open record (prefer local state)
+        let open = attendance
+          .filter(r => r.employeeId === employeeId && r.date === today && !r.clockOut)
+          .sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime())[0];
+
+        if (!open) {
+          const list = await fetchAttendance({ employeeId, dateYmd: today }, token);
+          const mapped = (Array.isArray(list) ? list : []).map(mapApiAttendance);
+          open = mapped.find(r => !r.clockOut);
+        }
+
+        if (!open) {
+          toast({ title: 'No active clock-in found', variant: 'destructive' });
+          return;
+        }
+
+        await updateAttendance(open.id, { clockOut: nowHHmm }, token);
+        await refreshAttendance();
+        toast({ title: 'Clocked Out', description: emp ? `${emp.name} clocked out` : 'Clocked out' });
+      } else {
+        await createAttendance(
+          {
+            employeeId,
+            employeeName: emp?.name,
+            dateYmd: today,
+            clockIn: nowHHmm,
+            clockOut: null,
+          },
+          token,
+        );
+        await refreshAttendance();
+        toast({ title: 'Clocked In', description: emp ? `${emp.name} clocked in` : 'Clocked in' });
+      }
+    } catch (e: any) {
+      console.error('clock toggle failed', e);
+      toast({ title: 'Attendance update failed', description: e?.message || 'Server error', variant: 'destructive' });
+    }
+  };
+
   const nextAttendancePage = () => {
     if (attendancePage < attendanceTotalPages) {
       setAttendancePage(attendancePage + 1);
@@ -501,43 +680,108 @@ export default function OwnerEmployeeManagement(): JSX.Element {
     }
   };
 
-  const handleSaveManualAttendance = () => {
+  const handleSaveManualAttendance = async () => {
     const { employeeId, date, clockIn, clockOut } = manualEntry;
 
-    if (!employeeId || !date || !clockIn || !clockOut) {
-      toast({ title: 'Please fill all fields' });
+    if (!employeeId || !date || !clockIn) {
+      toast({ title: 'Please fill employee, date and clock-in' });
       return;
     }
 
-    const clockInDate = new Date(`${date}T${clockIn}`);
-    const clockOutDate = new Date(`${date}T${clockOut}`);
+    if (clockOut && clockOut <= clockIn) {
+      toast({ title: 'Invalid Time', description: 'Clock-out must be after clock-in.' });
+      return;
+    }
+    if (!token) {
+      toast({ title: 'Not authenticated', variant: 'destructive' });
+      return;
+    }
 
-    if (clockOutDate <= clockInDate) {
+    try {
+      const emp = employees.find(e => e.id === employeeId);
+      await createAttendance(
+        {
+          employeeId,
+          employeeName: emp?.name,
+          dateYmd: date,
+          clockIn,
+          clockOut: clockOut || null,
+        },
+        token,
+      );
+      await refreshAttendance();
+      toast({ title: 'Attendance Saved', description: 'Saved to database.' });
+      setManualEditingId(null);
+      setManualEntry({ employeeId: '', date: formatDateKey(new Date()), clockIn: '', clockOut: '' });
+    } catch (e: any) {
+      console.error('manual attendance save failed', e);
+      toast({ title: 'Failed to save attendance', description: e?.message || 'Server error', variant: 'destructive' });
+    }
+  };
+
+  const handleEditAttendance = (rec: AttendanceRecord) => {
+    setEditingAttendanceId(rec.id || null);
+    setAttendanceEditForm({
+      employeeId: rec.employeeId || '',
+      clockIn: toDateTimeLocal(new Date(rec.clockIn)),
+      clockOut: rec.clockOut ? toDateTimeLocal(new Date(rec.clockOut)) : '',
+    });
+    // make sure the "Add Attendance Manually" form is not populated
+    setManualEditingId(null);
+    setManualEntry({ employeeId: '', date: new Date().toISOString().split('T')[0], clockIn: '', clockOut: '' });
+    setEditSubpageOpen(true);
+  };
+
+  const handleSaveEditedAttendance = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAttendanceId) return;
+
+    const employeeId = attendanceEditForm.employeeId;
+    if (!employeeId || !attendanceEditForm.clockIn) {
+      toast({ title: 'Please fill employee and clock-in' });
+      return;
+    }
+
+    const clockInTime = attendanceEditForm.clockIn.includes('T')
+      ? attendanceEditForm.clockIn.split('T')[1].slice(0, 5)
+      : attendanceEditForm.clockIn;
+    const clockOutTime = attendanceEditForm.clockOut
+      ? (attendanceEditForm.clockOut.includes('T')
+          ? attendanceEditForm.clockOut.split('T')[1].slice(0, 5)
+          : attendanceEditForm.clockOut)
+      : '';
+
+    if (clockOutTime && clockOutTime <= clockInTime) {
       toast({ title: 'Invalid Time', description: 'Clock-out must be after clock-in.' });
       return;
     }
 
-    const durationMs = clockOutDate.getTime() - clockInDate.getTime();
-    const durationMinutes = Math.round(durationMs / 60000);
-
-    const newRecord: AttendanceRecord = {
-      id: Date.now().toString(),
-      employeeId,
-      clockIn: clockInDate.toISOString(),
-      clockOut: clockOutDate.toISOString(),
-      durationMinutes,
-      date,
-    };
-
-    setAttendance(prev => [...prev, newRecord]);
-    toast({ title: 'Attendance Saved', description: 'Manual entry saved successfully.' });
-
-    setManualEntry({
-      employeeId: '',
-      date: new Date().toISOString().split('T')[0],
-      clockIn: '',
-      clockOut: '',
-    });
+    (async () => {
+      if (!token) {
+        toast({ title: 'Not authenticated', variant: 'destructive' });
+        return;
+      }
+      try {
+        const emp = employees.find(e => e.id === employeeId);
+        await updateAttendance(
+          editingAttendanceId,
+          {
+            employeeId,
+            employeeName: emp?.name || null,
+            clockIn: clockInTime,
+            clockOut: clockOutTime || null,
+          },
+          token,
+        );
+        await refreshAttendance();
+        toast({ title: 'Attendance updated', description: 'Saved to database.' });
+        setEditSubpageOpen(false);
+        setEditingAttendanceId(null);
+      } catch (e: any) {
+        console.error('attendance edit save failed', e);
+        toast({ title: 'Failed to update attendance', description: e?.message || 'Server error', variant: 'destructive' });
+      }
+    })();
   };
 
   const exportAttendanceToCSV = () => {
@@ -853,7 +1097,9 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
-                                {/* <Button variant="ghost" size="icon" onClick={() => handleClockIn(e.id)}><Clock className="h-4 w-4" /></Button> */}
+                                <Button variant="ghost" size="icon" onClick={() => handleClockToggle(e.id)} className={activeClockIns[e.id] ? 'text-destructive' : 'text-success'}>
+                                  <Clock className="h-4 w-4" />
+                                </Button>
                                 <Button variant="ghost" size="icon" onClick={() => handleEdit(e)}><Edit className="h-4 w-4" /></Button>
                                 <Button variant="ghost" size="icon" onClick={() => handleDelete(e.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
                               </div>
@@ -1103,7 +1349,8 @@ export default function OwnerEmployeeManagement(): JSX.Element {
             </Card>
 
             {/* Manual Entry Section */}
-            <Card>
+            {!editSubpageOpen && (
+              <Card>
               <CardHeader>
                 <CardTitle>Add Attendance Manually</CardTitle>
               </CardHeader>
@@ -1154,7 +1401,8 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                   </div>
                 </div>
               </CardContent>
-            </Card>
+              </Card>
+            )}
 
             {/* Attendance Records Table */}
             <Card>
@@ -1191,8 +1439,8 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {paginatedAttendance.length > 0 ? (
-                        paginatedAttendance.map((rec) => {
+                        {paginatedAttendance.length > 0 ? (
+                          paginatedAttendance.map((rec) => {
                           const emp = employees.find(e => e.id === rec.employeeId);
                           return (
                             <TableRow key={rec.id}>
@@ -1209,12 +1457,77 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                               <TableCell>{rec.clockOut ? new Date(rec.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</TableCell>
                               <TableCell>{rec.durationMinutes ? `${rec.durationMinutes} min` : '—'}</TableCell>
                               <TableCell className="text-right">
-                                <Button variant="ghost" size="icon">
+                                {(!rec.clockOut || rec.clockOut === null) && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={async () => {
+                                      if (!token) {
+                                        toast({ title: 'Not authenticated', variant: 'destructive' });
+                                        return;
+                                      }
+                                      try {
+                                        const now = new Date();
+                                        const nowHHmm = now.toTimeString().slice(0, 5);
+                                        await updateAttendance(rec.id, { clockOut: nowHHmm }, token);
+                                        await refreshAttendance();
+                                        toast({ title: 'Clocked out', description: `${emp?.name || rec.employeeName || 'Employee'} clocked out now` });
+                                      } catch (e: any) {
+                                        console.error('clock out now failed', e);
+                                        toast({ title: 'Failed to clock out', description: e?.message || 'Server error', variant: 'destructive' });
+                                      }
+                                    }}
+                                  >
+                                    Clock Out Now
+                                  </Button>
+                                )}
+                                <Button variant="ghost" size="icon" onClick={() => handleEditAttendance(rec)}>
                                   <Edit className="h-4 w-4" />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="text-destructive hover:text-destructive"
+                                      aria-label="Delete attendance"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete attendance record?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Delete the attendance record for {emp?.name || rec.employeeName || 'this employee'} on {rec.date}? This action cannot be undone.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        onClick={() => {
+                                          void (async () => {
+                                            if (!token) {
+                                              toast({ title: 'Not authenticated', variant: 'destructive' });
+                                              return;
+                                            }
+                                            try {
+                                              await deleteAttendance(rec.id, token);
+                                              await refreshAttendance();
+                                              toast({ title: 'Attendance deleted', description: 'Removed from database.' });
+                                            } catch (e: any) {
+                                              console.error('delete attendance failed', e);
+                                              toast({ title: 'Failed to delete attendance', description: e?.message || 'Server error', variant: 'destructive' });
+                                            }
+                                          })();
+                                        }}
+                                      >
+                                        Delete
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
                               </TableCell>
                             </TableRow>
                           );
@@ -1276,6 +1589,85 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                 )}
               </CardContent>
             </Card>
+
+            {/* Edit Attendance Subpage (slide-over) */}
+            {editSubpageOpen && (
+              <div className="fixed inset-0 z-50 flex">
+                <div
+                  className="flex-1"
+                  onClick={() => {
+                    setEditSubpageOpen(false);
+                    setEditingAttendanceId(null);
+                  }}
+                />
+                <div className="w-full sm:w-1/2 lg:w-1/3 h-full bg-background border-l border-border overflow-auto p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold">Edit Attendance</h2>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        setEditSubpageOpen(false);
+                        setEditingAttendanceId(null);
+                      }}
+                    >
+                      Close
+                    </Button>
+                  </div>
+
+                  <form onSubmit={handleSaveEditedAttendance} className="space-y-4">
+                    <div>
+                      <Label>Employee</Label>
+                      <Select
+                        value={attendanceEditForm.employeeId}
+                        onValueChange={(v) => setAttendanceEditForm(prev => ({ ...prev, employeeId: v }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select Employee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {employees.map(emp => (
+                            <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label>Clock In</Label>
+                      <Input
+                        type="datetime-local"
+                        value={attendanceEditForm.clockIn}
+                        onChange={(e) => setAttendanceEditForm(prev => ({ ...prev, clockIn: e.target.value }))}
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <Label>Clock Out</Label>
+                      <Input
+                        type="datetime-local"
+                        value={attendanceEditForm.clockOut}
+                        onChange={(e) => setAttendanceEditForm(prev => ({ ...prev, clockOut: e.target.value }))}
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setEditSubpageOpen(false);
+                          setEditingAttendanceId(null);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit">Save Changes</Button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
