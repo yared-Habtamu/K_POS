@@ -99,15 +99,10 @@ class ManagerBloc extends Bloc<ManagerEvent, ManagerState> {
     try {
       String path = '/assets';
 
-      if (event.martID != null && event.martID!.isNotEmpty) {
+      if (event.martID.isNotEmpty) {
         path += '?martId=${event.martID}';
       }
       final response = await apiClient.getJson(path) as List;
-
-      // Backend returns a LIST
-      if (response is! List) {
-        throw ApiException(message: "Invalid server response");
-      }
 
       final assets = response.map((e) {
         return {
@@ -146,7 +141,7 @@ class ManagerBloc extends Bloc<ManagerEvent, ManagerState> {
       final response = await apiClient.getJson('/products');
 
       final List list;
-      if (response is Map && response['data'] is List) {
+      if (response['data'] is List) {
         list = response['data'];
       } else {
         throw Exception("Invalid server response");
@@ -217,11 +212,6 @@ class ManagerBloc extends Bloc<ManagerEvent, ManagerState> {
       debugPrint("✅ [5] API RESPONSE RECEIVED");
       debugPrint("RESPONSE TYPE -> ${response.runtimeType}");
       debugPrint("RESPONSE BODY -> $response");
-
-      if (response is! Map<String, dynamic>) {
-        debugPrint("❌ [6] Response is NOT a Map");
-        throw ApiException(message: "Invalid server response");
-      }
       debugPrint("✅ [8] Parsing totals...");
 
       final double totalSales = (response['totalSales'] ?? 0).toDouble();
@@ -253,7 +243,7 @@ class ManagerBloc extends Bloc<ManagerEvent, ManagerState> {
 
       final random = Random();
 
-      final paymentMethods = paymentList?.map<PaymentMethod>((e) {
+      final paymentMethods = paymentList.map<PaymentMethod>((e) {
             return PaymentMethod(
               name: e['method'] as String? ?? "Unknown",
               amount: (e['total'] as num? ?? 0).toDouble(),

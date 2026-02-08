@@ -333,6 +333,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
   updateProduct: async (id, updates) => {
     const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
     const token = useAuthStore.getState().user?.token;
+    const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
     try {
       // support FormData (for image upload) or plain object
       const isForm = updates instanceof FormData;
@@ -384,6 +385,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
   deleteProduct: async (id) => {
     const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
     const token = useAuthStore.getState().user?.token;
+    const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
     try {
       const res = await fetch(`${API_BASE}/api/products/${id}`, {
         method: "DELETE",

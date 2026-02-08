@@ -3,6 +3,18 @@ const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
 const mongoose = require("mongoose");
+const dns = require('dns');
+
+// Prefer well-known public DNS servers for SRV resolution when local
+// DNS may refuse SRV queries (works around environments where the
+// system DNS blocks SRV/UDP queries). These are fallbacks and can be
+// removed if not desired.
+try {
+  dns.setServers(['1.1.1.1', '8.8.8.8']);
+  console.log('Using DNS servers:', dns.getServers());
+} catch (e) {
+  // ignore
+}
 
 const app = express();
 
@@ -82,6 +94,23 @@ async function start() {
 
   } catch (err) {
     console.error("Failed to connect to MongoDB", err);
+
+    // If using an Atlas SRV connection string, DNS SRV lookups can fail
+    // in some environments (corporate DNS, offline machine, or blocked DNS).
+    // Provide a clearer hint for common resolution steps.
+    try {
+      const uriLower = (uri || '').toLowerCase();
+      if (uriLower.startsWith('mongodb+srv') && err && err.code === 'ECONNREFUSED') {
+        console.error('\nHint: DNS SRV lookup for the Atlas host failed (querySrv ECONNREFUSED).');
+        console.error(' - Ensure this machine has internet access and can resolve DNS SRV records.');
+        console.error(' - Test with: nslookup -type=SRV _mongodb._tcp.cluster0.terbebv.mongodb.net');
+        console.error(" - Or use a standard (non-SRV) connection string from MongoDB Atlas 'Connect' -> 'Connect your application' and paste it into .env as MONGODB_URI.");
+        console.error(' - As a quick local workaround, install MongoDB locally and set MONGODB_URI=mongodb://localhost:27017/');
+      }
+    } catch (e) {
+      // ignore
+    }
+
     process.exit(1);
   }
 

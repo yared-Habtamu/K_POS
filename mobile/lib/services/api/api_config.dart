@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 
 class ApiConfig {
   // Backend API base URL used by web app defaults to http://localhost:4000
@@ -9,14 +10,19 @@ class ApiConfig {
     // When running on the web, the browser can reach the backend
     // at http://localhost:4000 (or the host machine IP). Use that
     // instead of the Android emulator's 10.0.2.2 address.
-    if (kIsWeb) return 'https://pos-yjx9.onrender.com';
+    if (kIsWeb) return 'http://localhost:4000';
 
-    // For non-web targets, allow overriding via build-time define,
-    // default to Android emulator loopback which maps to host machine.
-    return const String.fromEnvironment(
-      'API_BASE_URL',
-      defaultValue: 'https://pos-yjx9.onrender.com',
-    );
+    // For non-web targets, allow overriding via build-time define.
+    const overridden = String.fromEnvironment('API_BASE_URL');
+    if (overridden.isNotEmpty) return overridden;
+
+    // Defaults:
+    // - Android emulator: 10.0.2.2 maps to host machine localhost
+    // - Others (iOS simulator, desktop): localhost
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return 'http://10.0.2.2:4000';
+    }
+    return 'http://localhost:4000';
   }
 
   static const String apiPrefix = '/api';

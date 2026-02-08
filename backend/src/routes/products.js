@@ -110,6 +110,32 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
       createdBy: user.id,
     };
 
+    // Enforce barcode uniqueness within this mart
+    const incomingBarcodes = (Array.isArray(productPayload.barcodes)
+      ? productPayload.barcodes
+      : [])
+      .map((b) => String(b).trim())
+      .filter(Boolean);
+    if (incomingBarcodes.length > 0) {
+      const existing = await Product.findOne({
+        martId: finalMartId,
+        $or: [{ barcodes: { $in: incomingBarcodes } }, { barcode: { $in: incomingBarcodes } }],
+      })
+        .select('_id name barcodes')
+        .lean();
+
+      if (existing) {
+        return res.status(409).json({
+          message: `Barcode already registered for ${existing.name}`,
+          product: {
+            id: String(existing._id),
+            name: existing.name,
+            barcodes: existing.barcodes || [],
+          },
+        });
+      }
+    }
+
     // Owners require manager approval before product is created (case-insensitive check)
     if (String(user.role || '').toLowerCase() === 'owner' && String(user.role || '').toLowerCase() !== 'systemadmin') {
         const reqDoc = new ProductAddRequest({
@@ -302,6 +328,35 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
         .json({ message: "Access denied for this product" });
     }
 
+    // Handle barcode updates: support adding/removing barcodes + enforce per-mart uniqueness
+    if (update.barcodes !== undefined || update.barcode !== undefined) {
+      const newBarcodes = Array.isArray(update.barcodes)
+        ? update.barcodes.map((b) => String(b).trim()).filter(Boolean)
+        : update.barcode
+          ? [String(update.barcode).trim()].filter(Boolean)
+          : [];
+
+      if (newBarcodes.length > 0) {
+        const dup = await Product.findOne({
+          _id: { $ne: product._id },
+          martId: product.martId,
+          $or: [{ barcodes: { $in: newBarcodes } }, { barcode: { $in: newBarcodes } }],
+        })
+          .select('_id name')
+          .lean();
+
+        if (dup) {
+          return res.status(409).json({
+            message: `Barcode already registered for ${dup.name}`,
+            product: { id: String(dup._id), name: dup.name },
+          });
+        }
+      }
+
+      update.barcodes = newBarcodes;
+      delete update.barcode;
+    }
+
     // Owners require manager/systemAdmin approval for any update (case-insensitive check)
     if (String(user.role || '').toLowerCase() === 'owner' && String(user.role || '').toLowerCase() !== 'systemadmin') {
       const changes = { ...update };
@@ -361,21 +416,6 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
           message: 'Update submitted for manager approval',
           requestId: reqDoc._id,
         });
-    }
-
-    // Handle barcode updates: support adding/removing barcodes
-    if (update.barcodes !== undefined || update.barcode !== undefined) {
-      // normalize to array
-      const newBarcodes = Array.isArray(update.barcodes)
-        ? update.barcodes.map(String)
-        : update.barcode
-          ? [String(update.barcode)]
-          : undefined;
-      if (newBarcodes !== undefined) {
-        update.barcodes = newBarcodes;
-      }
-      // remove single barcode field if present
-      delete update.barcode;
     }
 
     const updated = await Product.findByIdAndUpdate(id, update, { new: true });

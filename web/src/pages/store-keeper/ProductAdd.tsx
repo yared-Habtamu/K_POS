@@ -18,6 +18,16 @@ import { useProductStore } from "@/stores/productStore";
 import type { ProductUnit } from "@/types";
 import { Barcode, Loader2, Image as ImageIcon, Trash2 } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const units: ProductUnit[] = ["pcs", "kg", "g", "l", "ml", "box"];
 import axios from "axios";
@@ -47,6 +57,47 @@ export default function ProductAdd() {
     barcodeInput: "",
   });
 
+  const [barcodeConflictOpen, setBarcodeConflictOpen] = useState(false);
+  const [barcodeConflict, setBarcodeConflict] = useState<null | {
+    code: string;
+    productId: string;
+    productName: string;
+    storeQuantity?: number;
+  }>(null);
+  const [barcodeConflictProduct, setBarcodeConflictProduct] = useState<any | null>(null);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+
+  const API_BASE = import.meta.env.VITE_API_URL || "";
+  const token = useAuthStore.getState().user?.token;
+
+  const findProductByBarcode = async (code: string) => {
+    const trimmed = (code || "").trim();
+    if (!trimmed) return null;
+    try {
+      const res = await axios.get(
+        `${API_BASE}/api/products/by-barcode/${encodeURIComponent(trimmed)}`,
+        {
+          headers: { Authorization: token ? `Bearer ${token}` : "" },
+        },
+      );
+      return res?.data || null;
+    } catch (e: any) {
+      if (e?.response?.status === 404) return null;
+      throw e;
+    }
+  };
+
+  const generateUniqueBarcode = async () => {
+    const candidate = () => `${Date.now()}`.slice(-12);
+    for (let i = 0; i < 6; i++) {
+      const code = i === 0 ? candidate() : `${candidate()}${Math.floor(Math.random() * 9)}`.slice(0, 12);
+      const existing = await findProductByBarcode(code);
+      if (!existing) return code;
+    }
+    // fallback: 12-digit random
+    return String(Math.floor(Math.random() * 1e12)).padStart(12, "0");
+  };
+
   const resetForm = () => {
     setForm({
       name: "",
@@ -62,6 +113,9 @@ export default function ProductAdd() {
     });
     setImageFile(null);
     setImagePreview(null);
+    setEditingProductId(null);
+    setBarcodeConflict(null);
+    setBarcodeConflictProduct(null);
   };
 
   const onFileChange = useCallback((file?: File) => {
@@ -101,8 +155,6 @@ export default function ProductAdd() {
     e.preventDefault();
     setIsLoading(true);
 
-    const API_BASE = import.meta.env.VITE_API_URL || "";
-    const token = useAuthStore.getState().user?.token;
 
     const formData = new FormData();
     formData.append("name", form.name);
@@ -123,20 +175,39 @@ export default function ProductAdd() {
     );
     if (form.expiryDate) formData.append("expiryDate", form.expiryDate);
     // barcodes: send as repeated form fields; prefer explicit array from UI
-    const barcodesArr = Array.isArray(form.barcodes) ? form.barcodes.filter(Boolean) : [];
-    if (barcodesArr.length === 0) barcodesArr.push(`${Date.now()}`.slice(-12));
+    const barcodesArr = Array.isArray(form.barcodes)
+      ? form.barcodes.filter(Boolean)
+      : [];
+    if (barcodesArr.length === 0) {
+      try {
+        barcodesArr.push(await generateUniqueBarcode());
+      } catch (e) {
+        console.error('generate unique barcode failed', e);
+        barcodesArr.push(`${Date.now()}`.slice(-12));
+      }
+    }
     for (const b of barcodesArr) formData.append('barcodes', b);
     if (imageFile) formData.append("image", imageFile, imageFile.name);
 
     try {
-      const res = await axios.post(`${API_BASE}/api/products`, formData, {
+      const url = editingProductId
+        ? `${API_BASE}/api/products/${encodeURIComponent(editingProductId)}`
+        : `${API_BASE}/api/products`;
+
+      const res = editingProductId
+        ? await axios.put(url, formData, {
+            headers: {
+              Authorization: token ? `Bearer ${token}` : "",
+            },
+          })
+        : await axios.post(url, formData, {
         headers: {
           Authorization: token ? `Bearer ${token}` : "",
         },
       });
 
       if (res && (res.status === 200 || res.status === 201)) {
-        toast({ title: t("product_added") });
+        toast({ title: editingProductId ? t("product_updated") : t("product_added") });
         resetForm();
         try {
           await fetchProducts?.();
@@ -147,7 +218,9 @@ export default function ProductAdd() {
       } else if (res && res.status === 202) {
         toast({
           title: "Sent for manager approval",
-          description: "Your product will appear after approval.",
+          description: editingProductId
+            ? "Your changes will apply after approval."
+            : "Your product will appear after approval.",
         });
         resetForm();
         navigate("/owner/products");
@@ -189,9 +262,16 @@ export default function ProductAdd() {
   };
 
   const generateBarcode = () => {
-    const b = `${Date.now()}`.slice(-12);
-    const existing = Array.isArray(form.barcodes) ? form.barcodes.slice() : [];
-    setForm({ ...form, barcodes: [...existing, b], barcodeInput: '' });
+    void (async () => {
+      try {
+        const b = await generateUniqueBarcode();
+        const existing = Array.isArray(form.barcodes) ? form.barcodes.slice() : [];
+        setForm({ ...form, barcodes: [...existing, b], barcodeInput: '' });
+      } catch (e) {
+        console.error('generate barcode failed', e);
+        toast({ title: 'Failed to generate barcode', variant: 'destructive' });
+      }
+    })();
   };
 
   return (
@@ -405,10 +485,33 @@ export default function ProductAdd() {
                       type="button"
                       variant="outline"
                       onClick={() => {
-                        const val = (form.barcodeInput || '').trim();
-                        if (!val) return;
-                        const existing = Array.isArray(form.barcodes) ? form.barcodes.slice() : [];
-                        setForm({ ...form, barcodes: [...existing, val], barcodeInput: '' });
+                        void (async () => {
+                          const val = (form.barcodeInput || '').trim();
+                          if (!val) return;
+                          try {
+                            const found = await findProductByBarcode(val);
+                            if (found) {
+                              setBarcodeConflict({
+                                code: val,
+                                productId: String(found._id || found.id),
+                                productName: String(found.name || 'Product'),
+                                storeQuantity: Number(found.storeQuantity || 0),
+                              });
+                              setBarcodeConflictProduct(found);
+                              setBarcodeConflictOpen(true);
+                              return;
+                            }
+                            const existing = Array.isArray(form.barcodes) ? form.barcodes.slice() : [];
+                            setForm({ ...form, barcodes: [...existing, val], barcodeInput: '' });
+                          } catch (e: any) {
+                            console.error('barcode lookup failed', e);
+                            toast({
+                              title: 'Failed to check barcode',
+                              description: e?.message || 'Server error',
+                              variant: 'destructive',
+                            });
+                          }
+                        })();
                       }}
                     >
                       Add
@@ -442,6 +545,95 @@ export default function ProductAdd() {
                     Previously registered barcodes are shown above. Add or generate new ones.
                   </div>
                 </div>
+
+                <AlertDialog open={barcodeConflictOpen} onOpenChange={setBarcodeConflictOpen}>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Barcode already registered</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {barcodeConflict
+                          ? `This barcode is already registered for ${barcodeConflict.productName}. Do you want to increase its quantity instead?`
+                          : 'This barcode is already registered. Do you want to increase its quantity instead?'}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => {
+                          void (async () => {
+                            if (!barcodeConflict) return;
+                            try {
+                              // Load existing product info into the form so user can update quantity and save.
+                              const p =
+                                barcodeConflictProduct &&
+                                String(barcodeConflictProduct._id || barcodeConflictProduct.id) ===
+                                  String(barcodeConflict.productId)
+                                  ? barcodeConflictProduct
+                                  : (await axios
+                                      .get(
+                                        `${API_BASE}/api/products/${encodeURIComponent(
+                                          barcodeConflict.productId,
+                                        )}`,
+                                        {
+                                          headers: {
+                                            Authorization: token
+                                              ? `Bearer ${token}`
+                                              : "",
+                                          },
+                                        },
+                                      )
+                                      .then((r) => r.data));
+
+                              setEditingProductId(String(p?._id || p?.id || barcodeConflict.productId));
+                              setForm({
+                                name: String(p?.name || ''),
+                                category: String(p?.category || ''),
+                                unit: (p?.unit as ProductUnit) || 'pcs',
+                                purchasePrice: String(p?.purchasePrice ?? 0),
+                                sellingPrice: String(p?.sellingPrice ?? 0),
+                                quantity: String(
+                                  p?.storeQuantity ??
+                                    p?.quantity ??
+                                    p?.supermarketQuantity ??
+                                    0,
+                                ),
+                                lowStockThreshold: String(p?.lowStockThreshold ?? 10),
+                                expiryDate: p?.expiryDate
+                                  ? new Date(p.expiryDate).toISOString().split('T')[0]
+                                  : '',
+                                barcodes: Array.isArray(p?.barcodes)
+                                  ? p.barcodes.map(String)
+                                  : p?.barcode
+                                    ? [String(p.barcode)]
+                                    : [],
+                                barcodeInput: '',
+                              });
+                              setImageFile(null);
+                              setImagePreview(
+                                (p?.imageUrl || p?.pictureUrl || '')
+                                  ? String(p?.imageUrl || p?.pictureUrl)
+                                  : null,
+                              );
+
+                              toast({
+                                title: 'Product loaded',
+                                description: 'Update quantity and save to apply changes.',
+                              });
+
+                              setBarcodeConflictOpen(false);
+                            } catch (e: any) {
+                              console.error('increase quantity failed', e);
+                              const msg = e?.response?.data?.message || e?.message || 'Server error';
+                              toast({ title: 'Failed to load product', description: String(msg), variant: 'destructive' });
+                            }
+                          })();
+                        }}
+                      >
+                        Increase quantity
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
 
               <div className="flex justify-end gap-2 pt-4">

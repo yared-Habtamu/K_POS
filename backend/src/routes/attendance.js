@@ -191,16 +191,39 @@ router.put('/:id', authenticate, async (req, res) => {
       } catch (e) {}
     }
 
-    const { clockIn, clockOut, notes } = req.body;
+    let { employeeId, employeeName, clockIn, clockOut, notes } = req.body;
+
+    // sanitize empty employeeId
+    if (employeeId === '') employeeId = undefined;
+
+    // Optionally validate employee belongs to mart and keep name consistent
+    if (employeeId !== undefined) {
+      if (employeeId) {
+        const emp = await User.findById(employeeId);
+        if (!emp) return res.status(400).json({ message: 'Employee not found' });
+        const martId = requester.role === 'systemAdmin' ? rec.martId : requester.martId;
+        if (emp && String(emp.martId) !== String(martId)) {
+          return res.status(400).json({ message: 'Employee does not belong to mart' });
+        }
+        if (!employeeName) employeeName = emp.name;
+      }
+      rec.employeeId = employeeId;
+    }
+    if (employeeName !== undefined) rec.employeeName = employeeName;
     if (clockIn !== undefined) rec.clockIn = clockIn;
     if (clockOut !== undefined) rec.clockOut = clockOut;
     if (notes !== undefined) rec.notes = notes;
 
-    // Validate and recompute duration and normalize times when possible
-    const a = parseTimeToMinutes(rec.clockIn);
-    const b = parseTimeToMinutes(rec.clockOut);
-    if ((rec.clockIn || rec.clockOut) && (a === null || b === null)) {
-      return res.status(400).json({ message: 'Invalid time format. Use HH:mm or hh:mm AM/PM' });
+    // Validate and recompute duration and normalize times when possible.
+    // Allow open records: clockOut may be missing until later.
+    const a = rec.clockIn ? parseTimeToMinutes(rec.clockIn) : null;
+    const b = rec.clockOut ? parseTimeToMinutes(rec.clockOut) : null;
+
+    if (rec.clockIn && a === null) {
+      return res.status(400).json({ message: 'Invalid clock in time format. Use HH:mm or hh:mm AM/PM' });
+    }
+    if (rec.clockOut && b === null) {
+      return res.status(400).json({ message: 'Invalid clock out time format. Use HH:mm or hh:mm AM/PM' });
     }
     if (a !== null && b !== null) {
       if (b < a) return res.status(400).json({ message: 'Clock out time must be after clock in time' });

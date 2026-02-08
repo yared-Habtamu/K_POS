@@ -66,15 +66,30 @@ class AttendanceRecord {
 
   factory AttendanceRecord.fromJson(Map<String, dynamic> j) => AttendanceRecord(
         id: (j['_id'] ?? j['id']) as String?,
-        employeeId:
-            (j['employeeId'] as String?) ?? (j['employee_id'] as String?),
-        employeeName: j['employeeName'] as String? ?? '',
-        dateYmd: j['dateYmd'] as String? ?? '',
-        clockIn: j['clockIn'] as String? ?? '',
-        clockOut: j['clockOut'] as String? ?? '',
-        duration: j['duration'] as String? ??
-            (j['durationMinutes'] != null ? '${j['durationMinutes']} min' : ''),
-        employeeRole: j['employeeRole'] as String?,
+        employeeId: () {
+          final v = j['employeeId'] ?? j['employee_id'];
+          if (v == null) return null;
+          if (v is String) return v;
+          if (v is Map) {
+            final id = v['_id'] ?? v['id'];
+            if (id is String) return id;
+            if (id != null) return id.toString();
+          }
+          return v.toString();
+        }(),
+        employeeName: (j['employeeName'] ?? '').toString(),
+        dateYmd: (j['dateYmd'] ?? '').toString(),
+        clockIn: (j['clockIn'] ?? '').toString(),
+        clockOut: (j['clockOut'] ?? '').toString(),
+        duration: () {
+          final d = j['duration'];
+          if (d is String) return d;
+          if (d != null) return d.toString();
+          final dm = j['durationMinutes'];
+          if (dm == null) return '';
+          return '${dm.toString()} min';
+        }(),
+        employeeRole: j['employeeRole']?.toString(),
       );
 
   Map<String, dynamic> toJson() => {

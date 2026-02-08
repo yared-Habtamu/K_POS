@@ -31,6 +31,17 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
 import { useAuthStore } from '@/stores/authStore';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -56,6 +67,13 @@ import type { UserRole } from '@/types';
 // PDF Dependencies
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import {
+  createAttendance,
+  deleteAttendance,
+  fetchAttendance,
+  updateAttendance,
+  type AttendanceApiRecord,
+} from '@/lib/api/attendance';
 
 /** Manager can only assign these roles */
 type ManagerAssignableRole = 'cashier' | 'store_keeper';
@@ -76,6 +94,7 @@ type Employee = {
 type AttendanceRecord = {
   id: string; // unique per record
   employeeId: string;
+  employeeName?: string;
   clockIn: string; // ISO
   clockOut: string | null; // ISO | null
   durationMinutes: number | null;
@@ -128,6 +147,8 @@ export default function MEmployeeManagement(): JSX.Element {
     clockIn: '',
     clockOut: '',
   });
+  const [editingAttendanceId, setEditingAttendanceId] = useState<string | null>(null);
+  const [editSubpageOpen, setEditSubpageOpen] = useState(false);
 
   // Monthly attendance dialog
   const [monthlyDialogOpen, setMonthlyDialogOpen] = useState(false);
@@ -214,37 +235,6 @@ export default function MEmployeeManagement(): JSX.Element {
       return next;
     });
 
-    // Initialize attendance records from mock if needed
-    setAttendance(prev => {
-      if (prev.length > 0) return prev;
-      return [
-        {
-          id: '1',
-          employeeId: '1',
-          clockIn: '2025-12-01T08:00:00Z',
-          clockOut: '2025-12-01T17:00:00Z',
-          durationMinutes: 540,
-          date: '2025-12-01'
-        },
-        {
-          id: '2',
-          employeeId: '2',
-          clockIn: '2025-12-01T08:30:00Z',
-          clockOut: '2025-12-01T16:30:00Z',
-          durationMinutes: 480,
-          date: '2025-12-01'
-        },
-        {
-          id: '3',
-          employeeId: '3',
-          clockIn: '2025-12-01T09:00:00Z',
-          clockOut: '2025-12-01T18:00:00Z',
-          durationMinutes: 540,
-          date: '2025-12-01'
-        },
-      ];
-    });
-
     setActiveClockIns(prev => {
       const next = { ...prev };
       Object.keys(next).forEach(id => {
@@ -253,6 +243,85 @@ export default function MEmployeeManagement(): JSX.Element {
       return next;
     });
   }, [employees]);
+
+  const timeToHHmm = (timeRaw: string) => {
+    const s = (timeRaw || '').trim();
+    if (!s) return '';
+    const m24 = s.match(/^(\d{1,2}):(\d{2})$/);
+    if (m24) {
+      const hh = String(Math.max(0, Math.min(23, Number(m24[1])))).padStart(2, '0');
+      const mm = String(Math.max(0, Math.min(59, Number(m24[2])))).padStart(2, '0');
+      return `${hh}:${mm}`;
+    }
+    const m12 = s.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
+    if (m12) {
+      let hh = Number(m12[1]);
+      const mm = Number(m12[2]);
+      const ap = m12[3].toUpperCase();
+      if (ap === 'AM') {
+        if (hh === 12) hh = 0;
+      } else {
+        if (hh !== 12) hh = hh + 12;
+      }
+      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+    }
+    return '';
+  };
+
+  const isoFromDateAndTime = (dateYmd: string, timeRaw: string) => {
+    if (timeRaw && timeRaw.includes('T')) {
+      const d = new Date(timeRaw);
+      if (!Number.isNaN(d.getTime())) return d.toISOString();
+    }
+    const hhmm = timeToHHmm(timeRaw);
+    if (!dateYmd || !hhmm) return new Date(dateYmd || Date.now()).toISOString();
+    return new Date(`${dateYmd}T${hhmm}:00`).toISOString();
+  };
+
+  const mapApiAttendance = (r: AttendanceApiRecord): AttendanceRecord => {
+    const id = (r._id || r.id || '') as string;
+    const employeeId = (r.employeeId || '') as string;
+    const date = (r.dateYmd || '') as string;
+    const clockInIso = isoFromDateAndTime(date, String(r.clockIn || ''));
+    const clockOutIso = r.clockOut ? isoFromDateAndTime(date, String(r.clockOut)) : null;
+    return {
+      id,
+      employeeId,
+      employeeName: r.employeeName || undefined,
+      date,
+      clockIn: clockInIso,
+      clockOut: clockOutIso,
+      durationMinutes: typeof r.durationMinutes === 'number' ? r.durationMinutes : null,
+    };
+  };
+
+  const refreshAttendance = async () => {
+    if (!token) return;
+    try {
+      const data = await fetchAttendance({}, token);
+      const mapped = (Array.isArray(data) ? data : []).map(mapApiAttendance);
+      setAttendance(mapped);
+      // derive open clock-ins
+      const next: Record<string, string> = {};
+      mapped.forEach((r) => {
+        if (!r.clockOut) next[r.employeeId] = r.clockIn;
+      });
+      setActiveClockIns(next);
+    } catch (e: any) {
+      console.error('fetch attendance error', e);
+      toast({
+        title: 'Failed to load attendance',
+        description: e?.message || 'Server error',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'attendance') return;
+    refreshAttendance();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, token]);
 
   const resetForm = () => {
     setForm({ username: '', name: '', phone: '', role: 'cashier', salary: '', password: '', confirmPassword: '' });
@@ -337,66 +406,74 @@ export default function MEmployeeManagement(): JSX.Element {
     resetForm();
   };
 
-  // Real-time clock toggle
-  const handleClockToggle = (employeeId: string) => {
+  // Real-time clock toggle (persist to DB)
+  const handleClockToggle = async (employeeId: string) => {
+    if (!token) {
+      toast({ title: 'Not authenticated', variant: 'destructive' });
+      return;
+    }
+
     const now = new Date();
-    const nowIso = now.toISOString();
+    const today = formatDateKey(now);
+    const nowHHmm = now.toTimeString().slice(0, 5);
     const isClockedIn = !!activeClockIns[employeeId];
+    const emp = employees.find(e => e.id === employeeId);
 
-    if (isClockedIn) {
-      const clockInIso = activeClockIns[employeeId];
-      const clockInDate = new Date(clockInIso);
-      const duration = Math.round((now.getTime() - clockInDate.getTime()) / 60000);
+    try {
+      if (isClockedIn) {
+        let open = attendance
+          .filter(r => r.employeeId === employeeId && r.date === today && !r.clockOut)
+          .sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime())[0];
 
-      setAttendance(prev => [
-        ...prev,
-        {
-          id: Date.now().toString(),
-          employeeId,
-          clockIn: clockInIso,
-          clockOut: nowIso,
-          durationMinutes: duration,
-          date: formatDateKey(new Date(clockInIso)),
+        if (!open) {
+          const list = await fetchAttendance({ employeeId, dateYmd: today }, token);
+          const mapped = (Array.isArray(list) ? list : []).map(mapApiAttendance);
+          open = mapped.find(r => !r.clockOut);
         }
-      ]);
 
-      setActiveClockIns(prev => {
-        const copy = { ...prev };
-        delete copy[employeeId];
-        return copy;
-      });
-
-      const emp = employees.find(e => e.id === employeeId);
-      toast({ title: 'Clocked Out', description: emp ? `${emp.name} worked ${duration} minutes` : `Worked ${duration} minutes` });
-    } else {
-      setActiveClockIns(prev => ({ ...prev, [employeeId]: nowIso }));
-      setAttendance(prev => [
-        ...prev,
-        {
-          id: Date.now().toString(),
-          employeeId,
-          clockIn: nowIso,
-          clockOut: null,
-          durationMinutes: null,
-          date: formatDateKey(now),
+        if (!open) {
+          toast({ title: 'No active clock-in found', variant: 'destructive' });
+          return;
         }
-      ]);
 
-      const emp = employees.find(e => e.id === employeeId);
-      toast({ title: 'Clocked In', description: emp ? `${emp.name} clocked in` : 'Clocked in' });
+        await updateAttendance(open.id, { clockOut: nowHHmm }, token);
+        await refreshAttendance();
+        toast({ title: 'Clocked Out', description: emp ? `${emp.name} clocked out` : 'Clocked out' });
+      } else {
+        await createAttendance(
+          { employeeId, employeeName: emp?.name, dateYmd: today, clockIn: nowHHmm, clockOut: null },
+          token,
+        );
+        await refreshAttendance();
+        toast({ title: 'Clocked In', description: emp ? `${emp.name} clocked in` : 'Clocked in' });
+      }
+    } catch (e: any) {
+      console.error('clock toggle failed', e);
+      toast({ title: 'Attendance update failed', description: e?.message || 'Server error', variant: 'destructive' });
     }
   };
 
   // Open manual attendance dialog
   const handleOpenAttendanceDialog = (employeeId: string) => {
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
     setAttendanceForm({
-      clockIn: `${today}T08:00`,
-      clockOut: `${today}T17:00`,
+      clockIn: '08:00',
+      clockOut: '17:00',
     });
+    setEditingAttendanceId(null);
     setSelectedEmployeeId(employeeId);
     setAttendanceDialogOpen(true);
+  };
+
+  const handleEditAttendance = (rec: AttendanceRecord) => {
+    setEditingAttendanceId(rec.id || null);
+    setSelectedEmployeeId(rec.employeeId);
+    setAttendanceForm({
+      clockIn: new Date(rec.clockIn).toTimeString().slice(0, 5),
+      clockOut: rec.clockOut ? new Date(rec.clockOut).toTimeString().slice(0, 5) : '',
+    });
+    // clear manual entry form so top "Add Attendance Manually" isn't populated
+    setManualEntryForm({ employeeId: '', date: new Date().toISOString().split('T')[0], clockIn: '', clockOut: '' });
+    setEditSubpageOpen(true);
   };
 
   // Save manual attendance
@@ -404,44 +481,102 @@ export default function MEmployeeManagement(): JSX.Element {
     e.preventDefault();
     if (!selectedEmployeeId) return;
 
-    const clockInDate = new Date(attendanceForm.clockIn);
-    const clockOutDate = new Date(attendanceForm.clockOut);
+    const clockInTime = attendanceForm.clockIn.includes('T')
+      ? attendanceForm.clockIn.split('T')[1].slice(0, 5)
+      : attendanceForm.clockIn;
+    const clockOutTime = attendanceForm.clockOut
+      ? (attendanceForm.clockOut.includes('T')
+          ? attendanceForm.clockOut.split('T')[1].slice(0, 5)
+          : attendanceForm.clockOut)
+      : '';
 
-    if (clockOutDate <= clockInDate) {
+    if (clockOutTime && clockOutTime <= clockInTime) {
       toast({ title: 'Invalid Time', description: 'Clock-out must be after clock-in.' });
       return;
     }
 
-    const durationMs = clockOutDate.getTime() - clockInDate.getTime();
-    const durationMinutes = Math.round(durationMs / 60000);
+    (async () => {
+      if (!token) {
+        toast({ title: 'Not authenticated', variant: 'destructive' });
+        return;
+      }
 
-    const newRecord: AttendanceRecord = {
-      id: Date.now().toString(),
-      employeeId: selectedEmployeeId,
-      clockIn: clockInDate.toISOString(),
-      clockOut: clockOutDate.toISOString(),
-      durationMinutes,
-      date: formatDateKey(clockInDate),
+      const day = editingAttendanceId
+        ? (attendance.find(r => r.id === editingAttendanceId)?.date || formatDateKey(new Date()))
+        : formatDateKey(new Date());
+      const emp = employees.find(e => e.id === selectedEmployeeId);
+
+      try {
+        if (editingAttendanceId) {
+          await updateAttendance(
+            editingAttendanceId,
+            {
+              employeeId: selectedEmployeeId,
+              employeeName: emp?.name || null,
+              clockIn: clockInTime,
+              clockOut: clockOutTime || null,
+            },
+            token,
+          );
+          setEditingAttendanceId(null);
+        } else {
+          await createAttendance(
+            {
+              employeeId: selectedEmployeeId,
+              employeeName: emp?.name,
+              dateYmd: day,
+              clockIn: clockInTime,
+              clockOut: clockOutTime || null,
+            },
+            token,
+          );
+        }
+
+        await refreshAttendance();
+        toast({ title: 'Attendance Saved', description: 'Saved to database.' });
+        setAttendanceDialogOpen(false);
+      } catch (e: any) {
+        console.error('save attendance failed', e);
+        toast({ title: 'Failed to save attendance', description: e?.message || 'Server error', variant: 'destructive' });
+      }
+    })();
+  };
+
+    const handleClockOutNow = (recordId: string) => {
+      (async () => {
+        if (!token) {
+          toast({ title: 'Not authenticated', variant: 'destructive' });
+          return;
+        }
+        try {
+          const now = new Date();
+          const nowHHmm = now.toTimeString().slice(0, 5);
+          await updateAttendance(recordId, { clockOut: nowHHmm }, token);
+          await refreshAttendance();
+          toast({ title: 'Clocked Out', description: 'Saved to database.' });
+        } catch (e: any) {
+          console.error('clock out now failed', e);
+          toast({ title: 'Failed to clock out', description: e?.message || 'Server error', variant: 'destructive' });
+        }
+      })();
     };
 
-    setAttendance(prev => [...prev, newRecord]);
-
-    if (activeClockIns[selectedEmployeeId]) {
-      setActiveClockIns(prev => {
-        const copy = { ...prev };
-        delete copy[selectedEmployeeId];
-        return copy;
-      });
-    }
-
-    const emp = employees.find(e => e.id === selectedEmployeeId);
-    toast({
-      title: 'Attendance Saved',
-      description: `${emp?.name} worked ${durationMinutes} minutes.`,
-    });
-
-    setAttendanceDialogOpen(false);
-  };
+    const handleDeleteAttendanceRecord = (recordId: string) => {
+      (async () => {
+        if (!token) {
+          toast({ title: 'Not authenticated', variant: 'destructive' });
+          return;
+        }
+        try {
+          await deleteAttendance(recordId, token);
+          await refreshAttendance();
+          toast({ title: 'Attendance deleted', description: 'Removed from database.' });
+        } catch (e: any) {
+          console.error('delete attendance failed', e);
+          toast({ title: 'Failed to delete attendance', description: e?.message || 'Server error', variant: 'destructive' });
+        }
+      })();
+    };
 
   // Open monthly attendance view
   const handleViewMonthlyAttendance = (employeeId: string) => {
@@ -516,44 +651,43 @@ case 'this-week':
   };
 
   // Handle manual entry save
-  const handleSaveManualEntry = () => {
+  const handleSaveManualEntry = async () => {
     const { employeeId, date, clockIn, clockOut } = manualEntryForm;
 
-    if (!employeeId || !date || !clockIn || !clockOut) {
-      toast({ title: 'Please fill all fields' });
+    if (!employeeId || !date || !clockIn) {
+      toast({ title: 'Please fill employee, date and clock-in' });
       return;
     }
 
-    const clockInDate = new Date(`${date}T${clockIn}`);
-    const clockOutDate = new Date(`${date}T${clockOut}`);
-
-    if (clockOutDate <= clockInDate) {
+    if (clockOut && clockOut <= clockIn) {
       toast({ title: 'Invalid Time', description: 'Clock-out must be after clock-in.' });
       return;
     }
 
-    const durationMs = clockOutDate.getTime() - clockInDate.getTime();
-    const durationMinutes = Math.round(durationMs / 60000);
+    if (!token) {
+      toast({ title: 'Not authenticated', variant: 'destructive' });
+      return;
+    }
 
-    const newRecord: AttendanceRecord = {
-      id: Date.now().toString(),
-      employeeId,
-      clockIn: clockInDate.toISOString(),
-      clockOut: clockOutDate.toISOString(),
-      durationMinutes,
-      date: date,
-    };
-
-    setAttendance(prev => [...prev, newRecord]);
-    toast({ title: 'Attendance Saved', description: 'Manual entry saved successfully.' });
-
-    // Reset form
-    setManualEntryForm({
-      employeeId: '',
-      date: new Date().toISOString().split('T')[0],
-      clockIn: '',
-      clockOut: '',
-    });
+    try {
+      const emp = employees.find(e => e.id === employeeId);
+      await createAttendance(
+        {
+          employeeId,
+          employeeName: emp?.name,
+          dateYmd: date,
+          clockIn,
+          clockOut: clockOut || null,
+        },
+        token,
+      );
+      await refreshAttendance();
+      toast({ title: 'Attendance Saved', description: 'Saved to database.' });
+      setManualEntryForm({ employeeId: '', date: formatDateKey(new Date()), clockIn: '', clockOut: '' });
+    } catch (e: any) {
+      console.error('manual entry save failed', e);
+      toast({ title: 'Failed to save attendance', description: e?.message || 'Server error', variant: 'destructive' });
+    }
   };
 
   // Export to CSV
@@ -987,9 +1121,9 @@ case 'this-week':
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1 items-center">
-                              {/* <Button variant="ghost" size="icon" onClick={() => handleClockToggle(e.id)}>
+                              <Button variant="ghost" size="icon" onClick={() => handleClockToggle(e.id)} className={activeClockIns[e.id] ? 'text-destructive' : 'text-success'}>
                                 <Clock className="h-4 w-4" />
-                              </Button> */}
+                              </Button>
                               {/* <Button
                                 variant="ghost"
                                 size="icon"
@@ -1187,7 +1321,8 @@ case 'this-week':
             </Card>
 
             {/* Manual Entry Form */}
-            <Card>
+            {!editSubpageOpen && (
+              <Card>
               <CardHeader>
                 <CardTitle>Add Attendance Manually</CardTitle>
               </CardHeader>
@@ -1238,7 +1373,8 @@ case 'this-week':
                   </div>
                 </div>
               </CardContent>
-            </Card>
+              </Card>
+            )}
 
             {/* Attendance Table */}
             <Card>
@@ -1292,12 +1428,43 @@ case 'this-week':
                             <TableCell>{rec.clockOut ? new Date(rec.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</TableCell>
                             <TableCell>{rec.durationMinutes ? `${rec.durationMinutes} min` : '—'}</TableCell>
                             <TableCell className="text-right">
-                              <Button variant="ghost" size="icon">
+                              {!rec.clockOut && (
+                                <Button variant="ghost" size="icon" onClick={() => handleClockOutNow(rec.id)} title="Clock Out Now">
+                                  <Clock className="h-4 w-4" />
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="icon" onClick={() => handleEditAttendance(rec)}>
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-destructive hover:text-destructive"
+                                    aria-label="Delete attendance"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete attendance record?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Delete the attendance record for {emp?.name || rec.employeeName || 'this employee'} on {rec.date}? This action cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                      onClick={() => handleDeleteAttendanceRecord(rec.id)}
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             </TableCell>
                           </TableRow>
                         );
@@ -1325,7 +1492,7 @@ case 'this-week':
               <div className="space-y-2">
                 <Label>Clock In</Label>
                 <Input
-                  type="datetime-local"
+                  type="time"
                   value={attendanceForm.clockIn}
                   onChange={(e) => setAttendanceForm({ ...attendanceForm, clockIn: e.target.value })}
                   required
@@ -1334,10 +1501,9 @@ case 'this-week':
               <div className="space-y-2">
                 <Label>Clock Out</Label>
                 <Input
-                  type="datetime-local"
+                  type="time"
                   value={attendanceForm.clockOut}
                   onChange={(e) => setAttendanceForm({ ...attendanceForm, clockOut: e.target.value })}
-                  required
                 />
               </div>
               <DialogFooter>
@@ -1349,6 +1515,71 @@ case 'this-week':
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* Edit Attendance Subpage (slide-over) */}
+        {editSubpageOpen && (
+          <div className="fixed inset-0 z-50 flex">
+            <div className="flex-1" onClick={() => { setEditSubpageOpen(false); setEditingAttendanceId(null); }} />
+            <div className="w-full sm:w-1/2 lg:w-1/3 h-full bg-white shadow-xl overflow-auto p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">Edit Attendance</h2>
+                <Button variant="ghost" onClick={() => { setEditSubpageOpen(false); setEditingAttendanceId(null); }}>Close</Button>
+              </div>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                if (!editingAttendanceId || !selectedEmployeeId) return;
+                const clockInDate = new Date(attendanceForm.clockIn);
+                const clockOutDate = attendanceForm.clockOut ? new Date(attendanceForm.clockOut) : null;
+
+                if (clockOutDate && clockOutDate <= clockInDate) {
+                  toast({ title: 'Invalid Time', description: 'Clock-out must be after clock-in.' });
+                  return;
+                }
+
+                const durationMinutes = clockOutDate ? Math.round((clockOutDate.getTime() - clockInDate.getTime()) / 60000) : null;
+
+                setAttendance(prev => prev.map(r => r.id === editingAttendanceId ? { ...r, employeeId: selectedEmployeeId, clockIn: clockInDate.toISOString(), clockOut: clockOutDate ? clockOutDate.toISOString() : null, durationMinutes, date: formatDateKey(clockInDate) } : r));
+
+                // update active clock-ins
+                if (!clockOutDate) {
+                  setActiveClockIns(prev => ({ ...prev, [selectedEmployeeId]: clockInDate.toISOString() }));
+                } else {
+                  setActiveClockIns(prev => { const copy = { ...prev }; delete copy[selectedEmployeeId]; return copy; });
+                }
+
+                toast({ title: 'Attendance updated' });
+                setEditSubpageOpen(false);
+                setEditingAttendanceId(null);
+              }} className="space-y-4">
+                <div>
+                  <Label>Employee</Label>
+                  <Select value={selectedEmployeeId || ''} onValueChange={(v) => setSelectedEmployeeId(v)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Employee" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredEmployees.map(emp => (
+                        <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Clock In</Label>
+                  <Input type="datetime-local" value={attendanceForm.clockIn} onChange={(e) => setAttendanceForm(prev => ({ ...prev, clockIn: e.target.value }))} required />
+                </div>
+                <div>
+                  <Label>Clock Out</Label>
+                  <Input type="datetime-local" value={attendanceForm.clockOut} onChange={(e) => setAttendanceForm(prev => ({ ...prev, clockOut: e.target.value }))} />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" type="button" onClick={() => { setEditSubpageOpen(false); setEditingAttendanceId(null); }}>Cancel</Button>
+                  <Button type="submit">Save Changes</Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* Monthly Attendance Dialog */}
         <Dialog open={monthlyDialogOpen} onOpenChange={setMonthlyDialogOpen}>
