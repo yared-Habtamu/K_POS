@@ -6,6 +6,7 @@ class Employee {
   final String role;
   final String salaryText;
   final bool active;
+  final List<String> permissions;
 
   const Employee({
     required this.id,
@@ -15,24 +16,38 @@ class Employee {
     required this.role,
     required this.salaryText,
     required this.active,
+    this.permissions = const [],
   });
 
-  factory Employee.fromJson(Map<String, dynamic> json) => Employee(
-        id: (json['id'] ?? json['_id']) as String? ?? '',
-        username: json['username'] as String?,
-        name: json['name'] as String? ?? '',
-        phone: json['phone'] as String? ?? '',
-        role: json['role'] as String? ?? '',
-        salaryText: (json['salaryText'] ??
-                    (json['salary'] != null ? '${json['salary']} ETB' : ''))
-                as String? ??
-            '',
-        active: json.containsKey('active')
-            ? (json['active'] is bool
-                ? json['active'] as bool
-                : (json['active'] == 'true'))
-            : true,
-      );
+  factory Employee.fromJson(Map<String, dynamic> json) {
+    final permsRaw = json['permissions'];
+    final perms = <String>[];
+    if (permsRaw is List) {
+      for (final p in permsRaw) {
+        try {
+          perms.add(p.toString());
+        } catch (_) {}
+      }
+    }
+
+    return Employee(
+      id: (json['id'] ?? json['_id']) as String? ?? '',
+      username: json['username'] as String?,
+      name: json['name'] as String? ?? '',
+      phone: json['phone'] as String? ?? '',
+      role: json['role'] as String? ?? '',
+      salaryText: (json['salaryText'] ??
+                  (json['salary'] != null ? '${json['salary']} ETB' : ''))
+              as String? ??
+          '',
+      active: json.containsKey('active')
+          ? (json['active'] is bool
+              ? json['active'] as bool
+              : (json['active'] == 'true'))
+          : true,
+      permissions: perms,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,

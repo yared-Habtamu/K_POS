@@ -5,6 +5,9 @@ import 'package:pos_app/features/products/domain/product_repository.dart';
 import 'package:pos_app/features/common_use_pages/reusable_qr_scanner_page.dart';
 import 'package:pos_app/services/global.dart';
 import 'package:pos_app/utils/common_widgets.dart';
+import 'package:provider/provider.dart';
+import 'package:pos_app/services/get_current_user.dart';
+import 'package:pos_app/utils/permission_notifier.dart';
 
 class OwnerAddProductPage extends StatefulWidget {
   const OwnerAddProductPage({super.key});
@@ -94,11 +97,24 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
     try {
       final repo = ProductRepository();
 
+      final canSetPurchase = (() {
+        try {
+          final current =
+              Provider.of<UserProvider>(context, listen: false).user;
+          return current != null &&
+              (current.role == 'owner' ||
+                  (current.permissions ?? []).contains('addItem'));
+        } catch (e) {
+          return false;
+        }
+      })();
+
       final fields = <String, String>{
         'name': name,
         'category':
             _category == 'Select category' ? 'Uncategorized' : _category,
-        'purchasePrice': _purchasePriceController.text.trim(),
+        'purchasePrice':
+            canSetPurchase ? _purchasePriceController.text.trim() : '0',
         'sellingPrice': _sellingPriceController.text.trim(),
         'quantity': _quantityController.text.trim(),
         'lowStockThreshold': _lowStockController.text.trim(),
@@ -159,6 +175,17 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
       'Household'
     ];
     final units = const <String>['PCS', 'KG', 'L'];
+
+    final canSetPurchase = (() {
+      try {
+        final current = Provider.of<UserProvider>(context, listen: false).user;
+        return current != null &&
+            (current.role == 'owner' ||
+                (current.permissions ?? []).contains('addItem'));
+      } catch (e) {
+        return false;
+      }
+    })();
 
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
@@ -268,11 +295,33 @@ class _OwnerAddProductPageState extends State<OwnerAddProductPage> {
                             const SizedBox(height: 14),
                             _Labeled(
                               label: 'Purchase Price (ETB) *',
-                              child: _Input(
-                                controller: _purchasePriceController,
-                                hintText: '',
-                                keyboardType: TextInputType.number,
-                              ),
+                              child: (() {
+                                if (canSetPurchase) {
+                                  return _Input(
+                                    controller: _purchasePriceController,
+                                    hintText: '',
+                                    keyboardType: TextInputType.number,
+                                  );
+                                }
+
+                                return Container(
+                                  height: 46,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border:
+                                        Border.all(color: Colors.grey.shade300),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                        _purchasePriceController.text.trim(),
+                                        style: TextStyle(
+                                            color: Colors.grey.shade700)),
+                                  ),
+                                );
+                              })(),
                             ),
                             const SizedBox(height: 14),
                             _Labeled(

@@ -1,4 +1,4 @@
-// src/pages/owner/ProductManagement.tsx
+// src/pages/manager/ProductManagement.tsx
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -45,19 +45,23 @@ import {
 } from "lucide-react";
 
 const units: ProductUnit[] = ["pcs", "kg", "g", "l", "ml", "box"];
-const ITEMS_PER_PAGE = 7; // ✅ Set to 7 items per page
+const ITEMS_PER_PAGE = 7; // match owner
 
-export default function ProductManagement() {
+export default function ManagerProductManagement() {
   const { t } = useTranslation();
   const { products, categories, addProduct, updateProduct, deleteProduct } =
     useProductStore();
+  const { user, isAuthenticated } = useAuthStore();
+  const canSetPurchase = user?.role === 'owner' || (user?.permissions || []).includes('addItem');
+  // Debug: confirm this page is rendered and show user role
+  // Remove after debugging
+  // eslint-disable-next-line no-console
+  console.debug('ManagerProductManagement render', { role: user?.role, isAuthenticated, canSetPurchase });
   const navigate = useNavigate();
 
   useEffect(() => {
-    // fetch from backend on mount
     (async () => {
       try {
-        // initial page load (server-side pagination)
         await (useProductStore
           .getState()
           .fetchProducts?.(1, ITEMS_PER_PAGE) as Promise<void>);
@@ -67,7 +71,6 @@ export default function ProductManagement() {
     })();
   }, []);
 
-  // Fetch sales to compute sold counts per product (so we can show remaining = quantity - sold)
   useEffect(() => {
     let mounted = true;
     const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
@@ -102,7 +105,6 @@ export default function ProductManagement() {
       }
     }
 
-    // run on mount and whenever products change (so UI updates after product list refresh)
     loadSales();
     return () => {
       mounted = false;
@@ -114,7 +116,7 @@ export default function ProductManagement() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1); // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
   const [soldMap, setSoldMap] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -142,7 +144,6 @@ export default function ProductManagement() {
     barcodeInput: "",
   });
 
-  // Filter products based on search and category (applies to current page only)
   const filteredProducts = products.filter((p) => {
     const matchSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -152,7 +153,6 @@ export default function ProductManagement() {
     return matchSearch && matchCategory;
   });
 
-  // Pagination logic - rely on server total when available
   const totalPages = Math.max(
     1,
     Math.ceil(
@@ -180,12 +180,8 @@ export default function ProductManagement() {
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
-    // product.quantity is authoritative remaining value after sales
     const remaining = Number(
-      product.quantity ??
-        product.supermarketQuantity ??
-        product.storeQuantity ??
-        0,
+      product.quantity ?? product.supermarketQuantity ?? product.storeQuantity ?? 0,
     );
 
     setForm({
@@ -194,7 +190,6 @@ export default function ProductManagement() {
       unit: product.unit,
       purchasePrice: product.purchasePrice.toString(),
       sellingPrice: product.sellingPrice.toString(),
-      // show remaining quantity in the edit form so owner edits the remaining amount
       quantity: String(remaining),
       lowStockThreshold: product.lowStockThreshold.toString(),
       expiryDate: product.expiryDate
@@ -203,8 +198,8 @@ export default function ProductManagement() {
       barcodes: Array.isArray(product.barcodes)
         ? product.barcodes.slice()
         : product.barcode
-          ? [product.barcode]
-          : [],
+        ? [product.barcode]
+        : [],
       barcodeInput: "",
     });
     setIsDialogOpen(true);
@@ -213,7 +208,6 @@ export default function ProductManagement() {
   const handleDelete = async (id: string) => {
     await deleteProduct(id);
     toast({ title: t("product_deleted") });
-    // Reset to page 1 if current page becomes empty
     if (
       filteredProducts.length <= (currentPage - 1) * ITEMS_PER_PAGE &&
       currentPage > 1
@@ -230,7 +224,7 @@ export default function ProductManagement() {
       name: form.name,
       category: form.category,
       unit: form.unit,
-      purchasePrice: parseFloat(form.purchasePrice),
+      purchasePrice: editingProduct && !canSetPurchase ? editingProduct.purchasePrice : parseFloat(form.purchasePrice),
       sellingPrice: parseFloat(form.sellingPrice),
       quantity: parseInt(form.quantity),
       storeQuantity: parseInt(form.quantity),
@@ -255,9 +249,8 @@ export default function ProductManagement() {
           toast({ title: t("product_updated") });
         }
       } else {
-        await addProduct(productData);
-        toast({ title: t("product_added") });
-        setCurrentPage(1); // Reset to first page after adding
+        // prevent manager from creating new products from this page; redirect to owner flow if needed
+        toast({ title: "Only owners can add products" , variant: "destructive" });
       }
     } catch (error) {
       console.error("Save failed:", error);
@@ -275,7 +268,6 @@ export default function ProductManagement() {
     setForm({ ...form, barcodes: [...existing, b], barcodeInput: "" });
   };
 
-  // Pagination handlers
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
@@ -295,23 +287,23 @@ export default function ProductManagement() {
   };
 
   return (
-    <RoleLayout allowedRoles={["owner"]}>
+    // Manager and owner can access this page
+    <RoleLayout allowedRoles={["manager", "owner"]}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">{t("products")}</h1>
-            <p className="text-muted-foreground">
-              Manage your product inventory
-            </p>
+            <p className="text-muted-foreground">View product inventory</p>
           </div>
 
           <div>
-            <Button onClick={() => navigate("/owner/products/add")}>
+            <Button onClick={() => navigate("/manager/products/add")}>
               <Plus className="mr-2 h-4 w-4" />
               {t("add_product")}
             </Button>
           </div>
+
           <Dialog
             open={isDialogOpen}
             onOpenChange={(open) => {
@@ -396,24 +388,24 @@ export default function ProductManagement() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="purchasePrice">
-                      {t("purchase_price")} (ETB) *
-                    </Label>
-                    <Input
-                      id="purchasePrice"
-                      type="number"
-                      step="0.01"
-                      value={form.purchasePrice}
-                      onChange={(e) =>
-                        setForm({ ...form, purchasePrice: e.target.value })
-                      }
-                      required
-                    />
+                    {canSetPurchase && (
+                    <div className="space-y-2">
+                      <Label htmlFor="purchasePrice">{t("purchase_price")} (ETB) *</Label>
+                      <Input
+                        id="purchasePrice"
+                        type="number"
+                        step="0.01"
+                        value={form.purchasePrice}
+                        onChange={(e) =>
+                          setForm({ ...form, purchasePrice: e.target.value })
+                        }
+                        required
+                      />
+                    </div>
+                  )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="sellingPrice">
-                      {t("selling_price")} (ETB) *
-                    </Label>
+                    <Label htmlFor="sellingPrice">{t("selling_price")} (ETB) *</Label>
                     <Input
                       id="sellingPrice"
                       type="number"
@@ -593,12 +585,8 @@ export default function ProductManagement() {
                     <TableHead className="w-12">Image</TableHead>
                     <TableHead>{t("product_name")}</TableHead>
                     <TableHead>{t("category")}</TableHead>
-                    <TableHead className="text-right">
-                      {t("purchase_price")}
-                    </TableHead>
-                    <TableHead className="text-right">
-                      {t("selling_price")}
-                    </TableHead>
+                    <TableHead className="text-right">{t("purchase_price")}</TableHead>
+                    <TableHead className="text-right">{t("selling_price")}</TableHead>
                     <TableHead className="text-right">{t("stock")}</TableHead>
                     <TableHead className="text-right">Mart Qty</TableHead>
                     <TableHead className="text-right">{t("actions")}</TableHead>
@@ -621,50 +609,29 @@ export default function ProductManagement() {
                             </div>
                           )}
                         </TableCell>
-                        <TableCell className="font-medium">
-                          {product.name}
-                        </TableCell>
+                        <TableCell className="font-medium">{product.name}</TableCell>
                         <TableCell>
                           <Badge variant="outline">{product.category}</Badge>
                         </TableCell>
-                        <TableCell className="text-right">
-                          {product.purchasePrice} ETB
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {product.sellingPrice} ETB
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {(() => {
-                            const storeQty = Number(product.storeQuantity ?? 0);
-                            return (
-                              <Badge variant="secondary">
-                                {storeQty} {product.unit}
-                              </Badge>
-                            );
-                          })()}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {(() => {
-                            // product.quantity is the authoritative sellable quantity (mart/front)
-                            const martQty = Number(
-                              product.quantity ??
-                                product.supermarketQuantity ??
-                                0,
-                            );
-                            const lowThreshold = Number(
-                              product.lowStockThreshold || 0,
-                            );
-                            const variant =
-                              martQty <= lowThreshold
-                                ? "destructive"
-                                : "secondary";
-                            return (
-                              <Badge variant={variant}>
-                                {martQty} {product.unit}
-                              </Badge>
-                            );
-                          })()}
-                        </TableCell>
+                        <TableCell className="text-right">{product.purchasePrice} ETB</TableCell>
+                        <TableCell className="text-right">{product.sellingPrice} ETB</TableCell>
+                        <TableCell className="text-right">{(() => {
+                          const storeQty = Number(product.storeQuantity ?? 0);
+                          return (
+                            <Badge variant="secondary">{storeQty} {product.unit}</Badge>
+                          );
+                        })()}</TableCell>
+                        <TableCell className="text-right">{(() => {
+                          const martQty = Number(
+                            product.quantity ?? product.supermarketQuantity ?? 0,
+                          );
+                          const lowThreshold = Number(product.lowStockThreshold || 0);
+                          const variant =
+                            martQty <= lowThreshold ? "destructive" : "secondary";
+                          return (
+                            <Badge variant={variant}>{martQty} {product.unit}</Badge>
+                          );
+                        })()}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             <Button
@@ -688,13 +655,10 @@ export default function ProductManagement() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell
-                        colSpan={8}
-                        className="text-center py-4 text-muted-foreground"
-                      >
+                      <TableCell colSpan={8} className="text-center py-4 text-muted-foreground">
                         {search || categoryFilter !== "all"
                           ? "No products found"
-                          : "No products yet. Add your first product."}
+                          : "No products yet."}
                       </TableCell>
                     </TableRow>
                   )}
@@ -702,54 +666,19 @@ export default function ProductManagement() {
               </Table>
             </div>
 
-            {/* ✅ PAGINATION CONTROLS (ALWAYS VISIBLE) */}
             <div className="flex flex-col sm:flex-row items-center justify-between px-2 py-3 border-t border-border">
               <div className="text-xs text-muted-foreground mb-2 sm:mb-0">
-                Showing <span className="font-medium">{startIndex + 1}</span>–
-                <span className="font-medium">
-                  {startIndex + filteredProducts.length}
-                </span>{" "}
-                of
-                <span className="font-medium">
-                  {" "}
-                  {useProductStore.getState().totalProducts ||
-                    filteredProducts.length}
-                </span>{" "}
-                products
+                Showing <span className="font-medium">{startIndex + 1}</span>–<span className="font-medium">{startIndex + filteredProducts.length}</span> of <span className="font-medium">{useProductStore.getState().totalProducts || filteredProducts.length}</span> products
               </div>
 
               <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={prevPage}
-                  disabled={currentPage === 1}
-                >
-                  Prev
-                </Button>
+                <Button variant="outline" size="sm" onClick={prevPage} disabled={currentPage === 1}>Prev</Button>
 
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                  (page) => (
-                    <Button
-                      key={page}
-                      variant={currentPage === page ? "default" : "outline"}
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      onClick={() => goToPage(page)}
-                    >
-                      {page}
-                    </Button>
-                  ),
-                )}
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <Button key={page} variant={currentPage === page ? "default" : "outline"} size="sm" className="h-8 w-8 p-0" onClick={() => goToPage(page)}>{page}</Button>
+                ))}
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={nextPage}
-                  disabled={currentPage === totalPages}
-                >
-                  Next
-                </Button>
+                <Button variant="outline" size="sm" onClick={nextPage} disabled={currentPage === totalPages}>Next</Button>
               </div>
             </div>
           </CardContent>

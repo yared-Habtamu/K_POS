@@ -70,7 +70,7 @@ type AttendanceRecord = {
 
 const ITEMS_PER_PAGE = 7; // ✅ 7 items per page
 
-export default function OwnerEmployeeManagement() {
+export default function OwnerEmployeeManagement(): JSX.Element {
   const { t } = useTranslation();
 
   const { user } = useAuthStore();
@@ -160,8 +160,8 @@ export default function OwnerEmployeeManagement() {
     employees.forEach(emp => {
       const has = (k:string) => Array.isArray(emp.permissions) && emp.permissions.includes(k);
       if (emp.role === 'manager') initial[emp.id] = { discount: has('discount'), addItem: has('addItem') };
-      // store keepers are not allowed discount permission in the frontend — only manageQuantity
-      else if (emp.role === 'store_keeper' || emp.role === 'storeKeeper') initial[emp.id] = { manageQuantity: has('manageQuantity') };
+      // store keepers are managed via transferStock permission
+      else if (emp.role === 'store_keeper' || emp.role === 'storeKeeper') initial[emp.id] = { transferStock: has('transferStock') };
       else initial[emp.id] = { discount: has('discount') };
     });
     setPermissions(initial);
@@ -276,7 +276,7 @@ export default function OwnerEmployeeManagement() {
         setPermissions(prev => {
           const newPerms = { ...prev };
           if (newEmployee.role === 'manager') newPerms[newEmployee.id] = { discount: false, addItem: false };
-          else if (newEmployee.role === 'store_keeper' || newEmployee.role === 'storeKeeper') newPerms[newEmployee.id] = { manageQuantity: false };
+          else if (newEmployee.role === 'store_keeper' || newEmployee.role === 'storeKeeper') newPerms[newEmployee.id] = { transferStock: false };
           else newPerms[newEmployee.id] = { discount: false };
           return newPerms;
         });
@@ -301,9 +301,17 @@ export default function OwnerEmployeeManagement() {
     const employee = employees.find(e => e.id === employeeId);
     if (!employee) return;
 
-    // Guard: store-keepers must not be given the discount permission
-    if (key === 'discount' && (employee.role === 'store_keeper' || employee.role === 'storeKeeper')) {
-      toast({ title: 'Not allowed', description: 'Store keepers cannot be assigned the discount permission.', variant: 'destructive' });
+    // Validate permission applicability for the target role
+    const allowedPerRole: Record<string, string[]> = {
+      manager: ['discount', 'addItem'],
+      cashier: ['discount'],
+      store_keeper: ['transferStock'],
+      storeKeeper: ['transferStock'],
+    };
+
+    const allowed = allowedPerRole[employee.role] || [];
+    if (!allowed.includes(key)) {
+      toast({ title: 'Not allowed', description: 'This permission cannot be assigned to the selected role.', variant: 'destructive' });
       return;
     }
 
@@ -329,14 +337,24 @@ export default function OwnerEmployeeManagement() {
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ permissions: cur }),
       });
-      if (!res.ok) throw new Error('Failed to save permissions');
+      const body = await res.json().catch(() => null);
+      console.debug('togglePermission response', res.status, body);
+      if (!res.ok) throw new Error(body?.message || 'Failed to save permissions');
 
       // update local employee's permissions
       setEmployees(prev => prev.map(e => e.id === employeeId ? { ...e, permissions: cur } : e));
 
+      // If this is the currently logged-in user, update their session immediately so the change persists locally
+      const currentUser = useAuthStore.getState().user;
+      if (currentUser && currentUser.id === employeeId) {
+        useAuthStore.getState().setUser({ ...currentUser, permissions: cur });
+        toast({ title: 'Your permissions were updated', description: 'Changes applied to your current session.' });
+      }
+
       const labels: Record<string, string> = {
         discount: 'Apply Discounts',
-        addItem: 'Add Items with Purchase Price'
+        addItem: 'Add Items with Purchase Price',
+        transferStock: 'Transfer Stock'
       };
 
       toast({
@@ -956,12 +974,11 @@ export default function OwnerEmployeeManagement() {
                                 <div>
                                   <p className="text-sm font-medium">{emp.name}</p>
                                 </div>
-                                {/* Apply Discounts toggle removed for store-keepers */}
                                 <div className="flex items-center space-x-2">
-                                  <span className="text-xs text-muted-foreground">Manage Quantity</span>
+                                  <span className="text-xs text-muted-foreground">Transfer Stock</span>
                                   <Switch
-                                    checked={!!permissions[emp.id]?.manageQuantity}
-                                    onCheckedChange={(v) => togglePermission(emp.id, 'manageQuantity', v)}
+                                    checked={!!permissions[emp.id]?.transferStock}
+                                    onCheckedChange={(v) => togglePermission(emp.id, 'transferStock', v)}
                                   />
                                 </div>
                               </div>

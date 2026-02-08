@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../features/auth/domain/auth_user.dart';
 import '../services/api/auth_storage.dart';
+import '../utils/socket.dart' as socket_util;
 
 class UserProvider extends ChangeNotifier {
   final AuthStorage _storage;
@@ -38,6 +39,15 @@ class UserProvider extends ChangeNotifier {
 
       if (savedUserJson != null) {
         _user = AuthUser.fromJson(savedUserJson);
+        // Initialize realtime socket if token present so permissions update realtime works across app restarts
+        try {
+          if (_user?.token?.isNotEmpty ?? false) {
+            socket_util.initSocket(_user!.token, this);
+            debugPrint('[user] init socket from stored session');
+          }
+        } catch (e) {
+          debugPrint('[user] failed to init socket on load: $e');
+        }
         notifyListeners();
       }
 
@@ -60,6 +70,15 @@ class UserProvider extends ChangeNotifier {
     await _storage.saveUser(user.toJson());
     await _storage.saveToken(user.token);
 
+    // Initialize realtime socket for permission updates
+    try {
+      if (user.token.isNotEmpty) {
+        socket_util.initSocket(user.token, this);
+      }
+    } catch (e) {
+      debugPrint('[socket] init error: $e');
+    }
+
     notifyListeners();
   }
 
@@ -69,6 +88,13 @@ class UserProvider extends ChangeNotifier {
 
   Future<void> logout() async {
     _user = null;
+
+    // Disconnect realtime socket
+    try {
+      socket_util.disconnectSocket();
+    } catch (e) {
+      debugPrint('[socket] disconnect error: $e');
+    }
 
     await _storage.clear();
 

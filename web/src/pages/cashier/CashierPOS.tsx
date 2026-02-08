@@ -9,11 +9,13 @@ import { Badge } from '@/components/ui/badge';
 import { useCartStore } from '@/stores/cartStore';
 import { useProductStore } from '@/stores/productStore';
 import { ShoppingCart, Package, AlertTriangle, Clock } from 'lucide-react';
+import { useAuthStore } from '@/stores/authStore';
 
 export default function CashierPOS() {
   const { t } = useTranslation();
   const { items } = useCartStore();
   const { getLowStockProducts, getExpiringProducts } = useProductStore();
+  const { user } = useAuthStore();
 
   const lowStock = getLowStockProducts();
   const expiring = getExpiringProducts(7);
@@ -95,7 +97,9 @@ export default function CashierPOS() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <PaymentPanel canApplyDiscount={true} />
+              <PaymentPanel canApplyDiscount={
+                user?.role === 'owner' || (Array.isArray(user?.permissions) && user!.permissions.includes('discount'))
+              } />
             </CardContent>
           </Card>
         </motion.div>

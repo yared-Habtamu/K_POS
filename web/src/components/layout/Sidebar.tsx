@@ -48,6 +48,7 @@ const roleNavItems: Record<UserRole, NavItem[]> = {
   manager: [
     { label: 'dashboard', icon: LayoutDashboard, path: '/manager' },
     { label: 'pos', icon: ShoppingCart, path: '/owner/pos' },
+    { label: 'products', icon: Package, path: '/manager/products' },
     { label: 'employees', icon: Users, path: '/manager/employees' },
     { label: 'approvals', icon: ClipboardList, path: '/manager/approvals' },
     { label: 'inventory', icon: Package, path: '/manager/inventory' },

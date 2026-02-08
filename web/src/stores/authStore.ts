@@ -11,6 +11,7 @@ type AuthUser = {
   phone?: string;
   role: UserRole;
   token: string;
+  permissions?: string[]; // optional permissions granted to the user
 };
 
 interface AuthState {
@@ -77,7 +78,9 @@ export const useAuthStore = create<AuthState>()(
                 phone: data.user.phone,
                 role: normalizedRole,
                 token: data.token,
+                permissions: Array.isArray(data.user.permissions) ? data.user.permissions : [],
               },
+
               isAuthenticated: true,
               isLoading: false,
             });

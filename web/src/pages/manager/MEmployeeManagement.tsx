@@ -155,7 +155,7 @@ export default function MEmployeeManagement(): JSX.Element {
   });
 
   // Permission state (fields optional to allow partial updates)
-  const [permissions, setPermissions] = useState<Record<string, { discount?: boolean; manageQuantity?: boolean }>>({});
+  const [permissions, setPermissions] = useState<Record<string, { discount?: boolean; transferStock?: boolean }>>({});
 
   // fetch employees for this mart
   useEffect(() => {
@@ -205,7 +205,7 @@ export default function MEmployeeManagement(): JSX.Element {
           if ((emp.role === 'cashier' || emp.role === 'store_keeper') && !next[emp.id]) {
             // initialize from backend permissions if present
             const has = (k:string) => Array.isArray((emp as any).permissions) && (emp as any).permissions.includes(k);
-            next[emp.id] = { discount: has('discount'), manageQuantity: has('manageQuantity') };
+            next[emp.id] = { discount: has('discount'), transferStock: has('transferStock') };
         }
       });
       Object.keys(next).forEach(id => {
@@ -704,7 +704,11 @@ case 'this-week':
     const employee = employees.find(e => e.id === employeeId);
     if (!employee) return;
 
-    // store-keepers are not allowed to have discount permission (guard)
+    // Managers cannot modify other managers; store-keepers are not allowed to have discount permission
+    if (employee.role === 'manager') {
+      toast({ title: 'Not allowed', description: 'You cannot modify other managers.', variant: 'destructive' });
+      return;
+    }
     if (employee.role === 'store_keeper') {
       toast({ title: 'Not allowed', description: 'Store keepers cannot be assigned the discount permission.', variant: 'destructive' });
       return;
@@ -745,16 +749,24 @@ case 'this-week':
     }
   };
 
-  const toggleManageQuantityPermission = async (employeeId: string, value: boolean) => {
+
+
+  const toggleTransferStockPermission = async (employeeId: string, value: boolean) => {
     const employee = employees.find(e => e.id === employeeId);
     if (!employee) return;
 
-    setPermissions(prev => ({ ...prev, [employeeId]: { ...(prev[employeeId] || {}), manageQuantity: value } }));
+    // Managers can only set transferStock for store keepers
+    if (employee.role !== 'store_keeper') {
+      toast({ title: 'Not allowed', description: 'Transfer stock may only be assigned to store keepers.', variant: 'destructive' });
+      return;
+    }
+
+    setPermissions(prev => ({ ...prev, [employeeId]: { ...(prev[employeeId] || {}), transferStock: value } }));
 
     try {
       const cur = Array.isArray((employee as any).permissions) ? [...(employee as any).permissions] : [];
-      const idx = cur.indexOf('manageQuantity');
-      if (value && idx === -1) cur.push('manageQuantity');
+      const idx = cur.indexOf('transferStock');
+      if (value && idx === -1) cur.push('transferStock');
       if (!value && idx !== -1) cur.splice(idx, 1);
 
       const API_BASE = (import.meta.env.VITE_API_URL || '');
@@ -763,12 +775,14 @@ case 'this-week':
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ permissions: cur }),
       });
-      if (!res.ok) throw new Error('Failed to save permission');
+      const body = await res.json().catch(() => null);
+      console.debug('toggleTransferStockPermission response', res.status, body);
+      if (!res.ok) throw new Error(body?.message || 'Failed to save permission');
 
       setEmployees(prev => prev.map(e => e.id === employeeId ? { ...e, permissions: cur } : e));
-      toast({ title: `Quantity management ${value ? 'enabled' : 'disabled'} for ${employee.name}` });
+      toast({ title: `Transfer stock ${value ? 'enabled' : 'disabled'} for ${employee.name}` });
     } catch (err) {
-      setPermissions(prev => ({ ...prev, [employeeId]: { ...(prev[employeeId] || {}), manageQuantity: !value } }));
+      setPermissions(prev => ({ ...prev, [employeeId]: { ...(prev[employeeId] || {}), transferStock: !value } }));
       console.error('save permission err', err);
       toast({ title: 'Failed to save permission', description: String(err) });
     }
@@ -1060,10 +1074,10 @@ case 'this-week':
                                 </div>
                                 {/* Removed discount toggle for store keepers per business rules */}
                                 <div className="flex items-center space-x-2">
-                                  <span className="text-xs text-muted-foreground">Quantity Management</span>
+                                  <span className="text-xs text-muted-foreground">Transfer Stock</span>
                                   <Switch
-                                    checked={!!permissions[emp.id]?.manageQuantity}
-                                    onCheckedChange={(v) => toggleManageQuantityPermission(emp.id, v)}
+                                    checked={!!permissions[emp.id]?.transferStock}
+                                    onCheckedChange={(v) => toggleTransferStockPermission(emp.id, v)}
                                   />
                                 </div>
                               </div>

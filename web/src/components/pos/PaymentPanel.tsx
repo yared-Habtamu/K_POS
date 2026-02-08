@@ -91,10 +91,24 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
 
   const handleApplyDiscount = () => {
     const value = parseFloat(discountValue);
-    if (value > 0) {
-      setCartDiscount(discountType, value);
-      setDiscountValue("");
+    if (!(value > 0)) return;
+
+    const allowed =
+      canApplyDiscount ||
+      user?.role === "owner" ||
+      (Array.isArray(user?.permissions) && user!.permissions!.includes("discount"));
+
+    if (!allowed) {
+      toast({
+        title: t("not_authorized") || "Not authorized",
+        description: t("no_permission_apply_discount") || "You do not have permission to apply discounts",
+        variant: "destructive",
+      });
+      return;
     }
+
+    setCartDiscount(discountType, value);
+    setDiscountValue("");
   };
 
   const chargeTypeToLabel = (type: string) => {

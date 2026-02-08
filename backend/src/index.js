@@ -37,6 +37,15 @@ app.use("/api/reports", reportsRouter);
 app.use("/api/daily-reports", dailyReportsRouter);
 app.use("/api/marts", martsRouter);
 app.use("/api/auth", authRouter);
+
+// Mount debug endpoints (development only)
+try {
+  const debugRouter = require('./routes/debug');
+  app.use('/api/debug', debugRouter);
+  console.log('Debug routes enabled at /api/debug');
+} catch (e) {
+  console.log('Debug routes not available');
+}
 app.use("/api/products", productsRouter);
 app.use("/api/employees", employeesRouter);
 app.use("/api/attendance", attendanceRouter);
@@ -85,9 +94,21 @@ async function start() {
     process.exit(1);
   }
 
-  app.listen(PORT, () => {
+  // Create HTTP server and upgrade to socket.io
+  const http = require('http');
+  const server = http.createServer(app);
+  const { Server } = require('socket.io');
+  const io = new Server(server, { cors: { origin: '*' } });
+
+  // wire socket helper
+  const socketHelper = require('./socket');
+  socketHelper.setIo(io);
+
+  server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });
 }
 
 start();
+
+

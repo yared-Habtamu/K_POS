@@ -8,10 +8,14 @@ import 'package:pos_app/features/common_use_pages/employee_managment/presentatio
 import 'package:pos_app/features/common_use_pages/employee_managment/domain/employee_model.dart';
 import 'package:pos_app/features/common_use_pages/employee_managment/data/employee_remote_datastore.dart';
 import 'package:pos_app/core/error/exceptions.dart';
+import 'package:pos_app/services/api/auth_storage.dart';
 import '../../employee_utils.dart';
 import '../widgets/add_employee_dialog.dart';
 import '../widgets/employee_components.dart';
 import '../widgets/employee_shimmer_effect.dart';
+import 'package:provider/provider.dart';
+import 'package:pos_app/services/get_current_user.dart';
+import 'package:pos_app/utils/permission_notifier.dart';
 
 class CommonEmployeeManagementPage extends StatefulWidget {
   final bool hideOtherManagers;
@@ -38,7 +42,7 @@ class _CommonEmployeeManagementPageState
   List<Employee> _employees = [];
   final Map<String, bool> _managerApplyDiscount = {};
   final Map<String, bool> _managerAddItemsWithPrice = {};
-  final Map<String, bool> _storeManageQty = {};
+  final Map<String, bool> _storeTransferStock = {};
   final Map<String, bool> _cashierApplyDiscount = {};
   List<AttendanceRecord> _attendanceRecords = [];
 
@@ -60,6 +64,25 @@ class _CommonEmployeeManagementPageState
   void initState() {
     super.initState();
     _loadInitialData();
+    PermissionNotifier.instance.addListener(_onPermissionNotification);
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _onPermissionNotification());
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    PermissionNotifier.instance.removeListener(_onPermissionNotification);
+    super.dispose();
+  }
+
+  void _onPermissionNotification() {
+    final msg = PermissionNotifier.instance.consume();
+    if (msg == null) return;
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    });
   }
 
   // --- Employee edit/delete handlers ---
@@ -488,23 +511,16 @@ class _CommonEmployeeManagementPageState
   void _seedPermissions(List<Employee> list) {
     for (final e in list) {
       final role = e.role.toLowerCase();
+      final has = (String k) => e.permissions.contains(k);
       if (role.contains('manager')) {
-        _managerApplyDiscount.putIfAbsent(e.id, () => true);
-        _managerAddItemsWithPrice.putIfAbsent(e.id, () => false);
+        _managerApplyDiscount.putIfAbsent(e.id, () => has('discount'));
+        _managerAddItemsWithPrice.putIfAbsent(e.id, () => has('addItem'));
       } else if (role.contains('store') && role.contains('keeper')) {
-        _storeManageQty.putIfAbsent(e.id, () => false);
+        _storeTransferStock.putIfAbsent(e.id, () => has('transferStock'));
       } else if (role.contains('cashier')) {
-        _cashierApplyDiscount.putIfAbsent(e.id, () => false);
+        _cashierApplyDiscount.putIfAbsent(e.id, () => has('discount'));
       }
     }
-  }
-
-  Future<void> _saveEmployees() async {
-    final prefs = await SharedPreferences.getInstance();
-    final s = jsonEncode(_employees.map((e) => e.toJson()).toList());
-    await prefs.setString('owner_employees_v1', s);
-    debugPrint(
-        '[employees] saved ${_employees.length} employees (${s.length} chars)');
   }
 
   Future<void> _saveAttendance() async {
@@ -667,10 +683,117 @@ class _CommonEmployeeManagementPageState
     }
   }
 
+  // Toggle permission for an employee and persist to backend
+  Future<void> _togglePermission(
+      String employeeId, String key, bool value) async {
+    final empIdx = _employees.indexWhere((e) => e.id == employeeId);
+    if (empIdx == -1) return;
+    final emp = _employees[empIdx];
+
+    // optimistic local update on UI maps
+    setState(() {
+      switch (key) {
+        case 'discount':
+          if (emp.role.toLowerCase().contains('manager'))
+            _managerApplyDiscount[employeeId] = value;
+          if (emp.role.toLowerCase().contains('cashier'))
+            _cashierApplyDiscount[employeeId] = value;
+          break;
+        case 'addItem':
+          _managerAddItemsWithPrice[employeeId] = value;
+          break;
+        case 'transferStock':
+          _storeTransferStock[employeeId] = value;
+          break;
+      }
+    });
+
+    try {
+      final curPerms = List<String>.from(emp.permissions);
+      final idx = curPerms.indexOf(key);
+      if (value && idx == -1) curPerms.add(key);
+      if (!value && idx != -1) curPerms.removeAt(idx);
+
+      final updated = await EmployeeRemoteDataSource.updateUserPermissions(
+          id: employeeId, permissions: curPerms);
+
+      // update local employee entry with updated permissions
+      setState(() {
+        _employees[empIdx] = updated;
+      });
+
+      // If this affects current session user, update UserProvider and storage
+      final authStorage = AuthStorage();
+      final currentUserJson = await authStorage.readUser();
+      if (currentUserJson != null) {
+        final curId =
+            (currentUserJson['id'] ?? currentUserJson['_id'])?.toString();
+        if (curId != null && curId == employeeId) {
+          // update local session user
+          final userProvider = context.read<UserProvider>();
+          final current = userProvider.user;
+          if (current != null) {
+            final newUser = current.copyWith(permissions: updated.permissions);
+            await userProvider.setUser(newUser);
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Your permissions were updated')));
+          }
+        }
+      }
+
+      EmployeeUtils.toast(context, 'Permission saved');
+      // Optionally show a small snackbar for the current UI
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Permissions updated')));
+      });
+    } on AppException catch (e) {
+      // rollback UI maps
+      setState(() {
+        switch (key) {
+          case 'discount':
+            if (emp.role.toLowerCase().contains('manager'))
+              _managerApplyDiscount[employeeId] = !value;
+            if (emp.role.toLowerCase().contains('cashier'))
+              _cashierApplyDiscount[employeeId] = !value;
+            break;
+          case 'addItem':
+            _managerAddItemsWithPrice[employeeId] = !value;
+            break;
+          case 'transferStock':
+            _storeTransferStock[employeeId] = !value;
+            break;
+        }
+      });
+      EmployeeUtils.toast(context, e.message);
+    } catch (e) {
+      // rollback
+      setState(() {
+        switch (key) {
+          case 'discount':
+            if (emp.role.toLowerCase().contains('manager'))
+              _managerApplyDiscount[employeeId] = !value;
+            if (emp.role.toLowerCase().contains('cashier'))
+              _cashierApplyDiscount[employeeId] = !value;
+            break;
+          case 'addItem':
+            _managerAddItemsWithPrice[employeeId] = !value;
+            break;
+          case 'transferStock':
+            _storeTransferStock[employeeId] = !value;
+            break;
+        }
+      });
+      EmployeeUtils.toast(context, 'Failed to save permission');
+    }
+  }
+
+  // Time pickers
   Future<void> _pickClockIn() async {
     final picked = await showTimePicker(
-        context: context,
-        initialTime: _manualClockIn ?? const TimeOfDay(hour: 9, minute: 0));
+      context: context,
+      initialTime: _manualClockIn ?? const TimeOfDay(hour: 9, minute: 0),
+    );
     if (picked != null) {
       if (!mounted) return;
       setState(() => _manualClockIn = picked);
@@ -679,8 +802,9 @@ class _CommonEmployeeManagementPageState
 
   Future<void> _pickClockOut() async {
     final picked = await showTimePicker(
-        context: context,
-        initialTime: _manualClockOut ?? const TimeOfDay(hour: 17, minute: 0));
+      context: context,
+      initialTime: _manualClockOut ?? const TimeOfDay(hour: 17, minute: 0),
+    );
     if (picked != null) {
       if (!mounted) return;
       setState(() => _manualClockOut = picked);
@@ -891,16 +1015,16 @@ class _CommonEmployeeManagementPageState
                         employees: displayList,
                         managerApplyDiscount: _managerApplyDiscount,
                         managerAddItemsWithPrice: _managerAddItemsWithPrice,
-                        storeManageQty: _storeManageQty,
+                        storeTransferStock: _storeTransferStock,
                         cashierApplyDiscount: _cashierApplyDiscount,
                         onManagerDiscount: (id, v) =>
-                            setState(() => _managerApplyDiscount[id] = v),
+                            _togglePermission(id, 'discount', v),
                         onManagerAddItems: (id, v) =>
-                            setState(() => _managerAddItemsWithPrice[id] = v),
-                        onStoreManageQty: (id, v) =>
-                            setState(() => _storeManageQty[id] = v),
+                            _togglePermission(id, 'addItem', v),
+                        onStoreTransferStock: (id, v) =>
+                            _togglePermission(id, 'transferStock', v),
                         onCashierDiscount: (id, v) =>
-                            setState(() => _cashierApplyDiscount[id] = v),
+                            _togglePermission(id, 'discount', v),
                       ),
                   ] else ...[
                     SectionHeader(

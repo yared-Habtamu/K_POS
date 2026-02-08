@@ -183,7 +183,7 @@ interface ProductState {
   addProduct: (
     product: Omit<Product, "id" | "createdAt" | "updatedAt">,
   ) => Promise<Product>;
-  updateProduct: (id: string, updates: Partial<Product>) => Promise<void>;
+  updateProduct: (id: string, updates: Partial<Product>) => Promise<{ status: number; data: any }>;
   deleteProduct: (id: string) => Promise<void>;
   searchProducts: (query: string) => Product[];
   getProductByBarcode: (barcode: string) => Product | undefined;

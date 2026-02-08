@@ -28,6 +28,12 @@ export default function ProductAdd() {
   const navigate = useNavigate();
   const { categories } = useProductStore();
   const fetchProducts = useProductStore((s) => s.fetchProducts);
+  // Determine where to return after add based on current user role
+  const role = useAuthStore((s) => s.user?.role) || "owner";
+  const productsRoute = role === "manager" ? "/manager/products" : "/owner/products";
+  // Permissions
+  const user = useAuthStore((s) => s.user);
+  const canSetPurchase = user?.role === 'owner' || (user?.permissions || []).includes('addItem');
 
   const [isLoading, setIsLoading] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -108,10 +114,15 @@ export default function ProductAdd() {
     formData.append("name", form.name);
     formData.append("category", form.category || "");
     formData.append("unit", form.unit);
-    formData.append(
-      "purchasePrice",
-      String(parseFloat(form.purchasePrice || "0"))
-    );
+    if (canSetPurchase) {
+      formData.append(
+        "purchasePrice",
+        String(parseFloat(form.purchasePrice || "0"))
+      );
+    } else {
+      // Manager without permission: send 0 as purchase price (owner controls actual purchase price)
+      formData.append("purchasePrice", "0");
+    }
     formData.append(
       "sellingPrice",
       String(parseFloat(form.sellingPrice || "0"))
@@ -143,14 +154,14 @@ export default function ProductAdd() {
         } catch (err) {
           console.error("Failed to refresh products", err);
         }
-        navigate("/owner/products");
+        navigate(productsRoute);
       } else if (res && res.status === 202) {
         toast({
           title: "Sent for manager approval",
           description: "Your product will appear after approval.",
         });
         resetForm();
-        navigate("/owner/products");
+        navigate(productsRoute);
       } else {
         console.warn("Unexpected response creating product", res);
         toast({ title: "Failed to add product" });
@@ -195,8 +206,8 @@ export default function ProductAdd() {
   };
 
   return (
-    // Product creation should be restricted to owners. Use RoleLayout to enforce.
-    <RoleLayout allowedRoles={["owner"]}>
+    // Product creation allowed for owners and managers.
+    <RoleLayout allowedRoles={["owner", "manager"]}>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">{t("add_product")}</h1>
@@ -338,18 +349,22 @@ export default function ProductAdd() {
 
                 <div className="space-y-2">
                   <Label htmlFor="purchasePrice">
-                    {t("purchase_price")} (ETB) *
+                    {t("purchase_price")} (ETB){canSetPurchase ? ' *' : ''}
                   </Label>
-                  <Input
-                    id="purchasePrice"
-                    type="number"
-                    step="0.01"
-                    value={form.purchasePrice}
-                    onChange={(e) =>
-                      setForm({ ...form, purchasePrice: e.target.value })
-                    }
-                    required
-                  />
+                  {canSetPurchase ? (
+                    <Input
+                      id="purchasePrice"
+                      type="number"
+                      step="0.01"
+                      value={form.purchasePrice}
+                      onChange={(e) =>
+                        setForm({ ...form, purchasePrice: e.target.value })
+                      }
+                      required
+                    />
+                  ) : (
+                    <div className="text-sm text-muted-foreground">(Owner-only)</div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -448,7 +463,7 @@ export default function ProductAdd() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => navigate("/owner/products")}
+                  onClick={() => navigate(productsRoute)}
                 >
                   {t("cancel")}
                 </Button>
