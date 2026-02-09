@@ -20,3 +20,10 @@ class OwnerExpenseDeleteEvent extends OwnerEvent {
 
   OwnerExpenseDeleteEvent(this.id);
 }
+
+class OwnerReportFetchEvent extends OwnerEvent {
+  final String? range; // daily|weekly|monthly|custom
+  final String? martId;
+
+  OwnerReportFetchEvent({this.range, this.martId});
+}

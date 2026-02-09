@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/owner_bloc.dart';
 
 // If you want the upgraded look for the widgets too, see the section below this code block.
 import '../widget/report_sections.dart';
@@ -27,6 +29,13 @@ class _OwnerReportsPageState extends State<OwnerReportsPage>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..forward();
+
+    // Fetch initial report data after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        context.read<OwnerBloc>().add(OwnerReportFetchEvent(range: 'monthly'));
+      } catch (_) {}
+    });
   }
 
   @override
@@ -98,12 +107,15 @@ class _OwnerReportsPageState extends State<OwnerReportsPage>
               _FadeSlide(
                 controller: _controller,
                 delay: 200,
-                child: const StatsGrid(
-                  totalSales: '\$432.00',
-                  totalOrders: '12',
-                  avgOrder: '\$36.00',
-                  grossProfit: '\$360.00',
-                ),
+                child: BlocBuilder<OwnerBloc, OwnerState>(
+                    builder: (context, state) {
+                  return StatsGrid(
+                    totalSales: '\$${state.totalSales.toStringAsFixed(2)}',
+                    totalOrders: state.totalOrders.toString(),
+                    avgOrder: '\$${state.avgOrder.toStringAsFixed(2)}',
+                    grossProfit: '\$${state.profit.toStringAsFixed(2)}',
+                  );
+                }),
               ),
 
               SizedBox(height: 24.h),
@@ -117,17 +129,17 @@ class _OwnerReportsPageState extends State<OwnerReportsPage>
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Expanded(child: PaymentMethodsSection()),
+                        Expanded(child: PaymentMethodsSection()),
                         SizedBox(width: 16.w),
-                        const Expanded(child: TopSellingProductsSection()),
+                        Expanded(child: TopSellingProductsSection()),
                       ],
                     );
                   }
                   return Column(
                     children: [
-                      const PaymentMethodsSection(),
+                      PaymentMethodsSection(),
                       SizedBox(height: 16.h),
-                      const TopSellingProductsSection(),
+                      TopSellingProductsSection(),
                     ],
                   );
                 }),
@@ -202,6 +214,26 @@ class _OwnerReportsPageState extends State<OwnerReportsPage>
   void _updatePeriod(ReportPeriod period) {
     setState(() => _selectedPeriod = period);
     HapticFeedback.selectionClick(); // Adds physical feel to the tap
+    // Dispatch report fetch for the new period
+    String range = 'monthly';
+    switch (period) {
+      case ReportPeriod.daily:
+        range = 'daily';
+        break;
+      case ReportPeriod.weekly:
+        range = 'weekly';
+        break;
+      case ReportPeriod.monthly:
+        range = 'monthly';
+        break;
+      case ReportPeriod.custom:
+        range = 'custom';
+        break;
+    }
+
+    try {
+      context.read<OwnerBloc>().add(OwnerReportFetchEvent(range: range));
+    } catch (_) {}
   }
 }
 
