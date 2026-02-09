@@ -61,6 +61,14 @@ router.post('/', authenticate, async (req, res) => {
       return res.status(403).json({ message: 'Only store keepers, managers or owners can request transfers' });
     }
 
+    // store keepers need explicit permission to request transfers
+    if (user.role === 'store_keeper' || user.role === 'storeKeeper') {
+      const perms = Array.isArray(user.permissions) ? user.permissions : [];
+      if (!perms.includes('transferStock')) {
+        return res.status(403).json({ message: 'Insufficient permissions to request stock transfer' });
+      }
+    }
+
     const product = await Product.findById(productId);
     if (!product) return res.status(404).json({ message: 'Product not found' });
     if (user.role !== 'systemAdmin' && String(product.martId) !== String(user.martId)) {
@@ -106,6 +114,9 @@ router.post('/', authenticate, async (req, res) => {
         data: { requestId: reqDoc._id, productId },
       });
     }
+
+    // debug: log requester and their permissions for auditing
+    console.log(`Stock transfer request from user ${user.id} (${user.username || user.name}) permissions:`, user.permissions);
 
     res.status(202).json({ message: 'Transfer request submitted for approval', requestId: reqDoc._id });
   } catch (err) {

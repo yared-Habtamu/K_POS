@@ -48,6 +48,7 @@ dependencies:
   flutter_feature_tour:
   google_fonts:
   file_picker: ^5.2.4
+  socket_io_client: ^2.0.0
   linear_progress_bar:
   circular_bottom_navigation:
   progress_indicator:

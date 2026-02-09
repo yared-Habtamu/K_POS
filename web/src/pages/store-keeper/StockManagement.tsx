@@ -38,9 +38,12 @@ import {
 
 export default function StockManagement() {
   const { t } = useTranslation();
-  const token = useAuthStore.getState().user?.token;
+  const { user } = useAuthStore();
+  const token = user?.token;
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const canTransfer = !user || (user.role !== 'store_keeper' && user.role !== 'storeKeeper') || (Array.isArray(user.permissions) && user.permissions.includes('transferStock'));
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -146,9 +149,11 @@ export default function StockManagement() {
         body: JSON.stringify({ productId: selectedProduct.id, quantity: qty }),
       });
 
+      const body = await res.json().catch(() => null);
+      console.debug('stock transfer response', res.status, body);
+
       if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}));
-        throw new Error(errBody.message || `Request failed ${res.status}`);
+        throw new Error(body?.message || `Request failed ${res.status}`);
       }
 
       toast({
@@ -471,7 +476,8 @@ export default function StockManagement() {
                     disabled={
                       !addQuantity ||
                       parseInt(addQuantity) <= 0 ||
-                      parseInt(addQuantity) > selectedProduct.storeQuantity
+                      parseInt(addQuantity) > selectedProduct.storeQuantity ||
+                      (user && (user.role === 'store_keeper' || user.role === 'storeKeeper') && !(Array.isArray(user.permissions) && user.permissions.includes('transferStock')))
                     }
                   >
                     <Plus className="mr-2 h-4 w-4" />

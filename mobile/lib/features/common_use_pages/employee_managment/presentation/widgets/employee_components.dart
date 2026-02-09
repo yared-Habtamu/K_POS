@@ -337,12 +337,12 @@ class PermissionsSection extends StatelessWidget {
   // State maps passed down from parent
   final Map<String, bool> managerApplyDiscount;
   final Map<String, bool> managerAddItemsWithPrice;
-  final Map<String, bool> storeManageQty;
+  final Map<String, bool> storeTransferStock;
   final Map<String, bool> cashierApplyDiscount;
   // Callbacks
   final Function(String, bool) onManagerDiscount;
   final Function(String, bool) onManagerAddItems;
-  final Function(String, bool) onStoreManageQty;
+  final Function(String, bool) onStoreTransferStock;
   final Function(String, bool) onCashierDiscount;
 
   const PermissionsSection({
@@ -350,11 +350,11 @@ class PermissionsSection extends StatelessWidget {
     required this.employees,
     required this.managerApplyDiscount,
     required this.managerAddItemsWithPrice,
-    required this.storeManageQty,
+    required this.storeTransferStock,
     required this.cashierApplyDiscount,
     required this.onManagerDiscount,
     required this.onManagerAddItems,
-    required this.onStoreManageQty,
+    required this.onStoreTransferStock,
     required this.onCashierDiscount,
   });
 
@@ -406,9 +406,9 @@ class PermissionsSection extends StatelessWidget {
                       e.role.toLowerCase().contains('keeper'))
                   .map((e) => _PermissionRow(
                       name: e.name,
-                      label1: 'Manage Quantity',
-                      val1: storeManageQty[e.id] ?? false,
-                      on1: (v) => onStoreManageQty(e.id, v)))
+                      label1: 'Transfer Stock',
+                      val1: storeTransferStock[e.id] ?? false,
+                      on1: (v) => onStoreTransferStock(e.id, v)))
                   .toList()),
           const SizedBox(height: 14),
           _buildGroup(

@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pos_app/features/products/domain/product_repository.dart';
+import 'package:provider/provider.dart';
+import 'package:pos_app/services/get_current_user.dart';
+import 'package:pos_app/utils/permission_notifier.dart';
 
 import 'owner_add_product_page.dart';
 
@@ -28,12 +31,17 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
   void initState() {
     super.initState();
     _loadProducts();
+    PermissionNotifier.instance.addListener(_onPermissionNotification);
+    // Consume any pending permission change that occurred before this page mounted
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _onPermissionNotification());
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     _pendingPollTimer?.cancel();
+    PermissionNotifier.instance.removeListener(_onPermissionNotification);
     super.dispose();
   }
 
@@ -41,6 +49,15 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
+  }
+
+  void _onPermissionNotification() {
+    final msg = PermissionNotifier.instance.consume();
+    if (msg == null) return;
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    });
   }
 
   static const String _kProductsKey = 'owner_products_v1';
@@ -114,6 +131,18 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
     final catCtrl = TextEditingController(text: p.category);
     final purchaseCtrl =
         TextEditingController(text: p.purchasePriceEtb.toString());
+
+    final canSetPurchase = (() {
+      try {
+        final userProvider = Provider.of<UserProvider>(context, listen: false);
+        final current = userProvider.user;
+        return current != null &&
+            (current.role == 'owner' ||
+                (current.permissions ?? []).contains('addItem'));
+      } catch (e) {
+        return false;
+      }
+    })();
     final sellingCtrl =
         TextEditingController(text: p.sellingPriceEtb.toString());
     final stockCtrl = TextEditingController(text: p.stockQty.toString());
@@ -190,11 +219,15 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
                       controller: catCtrl,
                       decoration: const InputDecoration(labelText: 'Category')),
                   const SizedBox(height: 8),
-                  TextField(
+                  if (canSetPurchase) ...[
+                    TextField(
                       controller: purchaseCtrl,
                       decoration:
-                          const InputDecoration(labelText: 'Purchase Price')),
-                  const SizedBox(height: 8),
+                          const InputDecoration(labelText: 'Purchase Price'),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  if (!canSetPurchase) const SizedBox(height: 0),
                   TextField(
                       controller: sellingCtrl,
                       decoration:
@@ -236,7 +269,7 @@ class _OwnerProductsPageState extends State<OwnerProductsPage> {
         final fields = <String, String>{
           if (newName.isNotEmpty) 'name': newName,
           if (newCat.isNotEmpty) 'category': newCat,
-          'purchasePrice': purchaseCtrl.text.trim(),
+          if (canSetPurchase) 'purchasePrice': purchaseCtrl.text.trim(),
           'sellingPrice': sellingCtrl.text.trim(),
           'storeQuantity': martCtrl.text.trim(),
           'quantity': stockCtrl.text.trim(),

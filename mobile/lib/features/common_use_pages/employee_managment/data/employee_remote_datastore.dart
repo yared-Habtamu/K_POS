@@ -376,4 +376,41 @@ class EmployeeRemoteDataSource {
       throw AppException("Failed to update employee data");
     }
   }
+
+  // Update user permissions (PUT /api/auth/users/:id)
+  static Future<Employee> updateUserPermissions({
+    required String id,
+    required List<String> permissions,
+  }) async {
+    try {
+      final auth = AuthStorage();
+      final token = await auth.readToken();
+      final url = ApiConfig.apiUrl('/auth/users/$id');
+
+      final response = await http
+          .put(Uri.parse(url),
+              headers: {
+                if (token != null) 'Authorization': 'Bearer $token',
+                'Content-Type': 'application/json'
+              },
+              body: jsonEncode({'permissions': permissions}))
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> body = jsonDecode(response.body);
+        return Employee.fromJson(body);
+      }
+
+      _processResponse(response);
+      throw AppException('Unexpected response');
+    } on SocketException {
+      throw NoInternetException(
+          'No Internet connection. Please check your settings.');
+    } on TimeoutException {
+      throw FetchDataException('Connection timed out. Please try again.');
+    } catch (e) {
+      if (e is AppException) rethrow;
+      throw AppException('Failed to update user permissions');
+    }
+  }
 }

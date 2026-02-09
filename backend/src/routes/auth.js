@@ -123,18 +123,33 @@ router.put('/users/:id', authenticate, async (req, res) => {
     if (req.body.permissions) {
       if (!Array.isArray(req.body.permissions)) return res.status(400).json({ message: 'permissions must be an array' });
 
-      // managers have limited permission scope
+      // Validate by target role: only certain permissions make sense per role
+      const targetRole = target.role;
+      const allowedPerTarget = (r) => {
+        if (r === 'manager') return ['discount', 'addItem'];
+        if (r === 'storeKeeper' || r === 'store_keeper') return ['transferStock'];
+        if (r === 'cashier') return ['discount'];
+        return [];
+      };
+
+      const allowedForTarget = allowedPerTarget(targetRole);
+      const invalidForTarget = req.body.permissions.filter(p => !allowedForTarget.includes(p));
+      if (invalidForTarget.length) return res.status(403).json({ message: 'Some permissions are not valid for target user role' });
+
+      // managers have limited permission scope and cannot modify peers
       if (requester.role === 'manager') {
+        // managers may only modify store_keeper or cashier
+        if (targetRole === 'manager') return res.status(403).json({ message: 'Manager cannot modify other managers' });
+
         // allow only manager-scoped permissions to be modified by managers
-        // managers may toggle 'discount' and 'manageQuantity' (but manageQuantity only for store keepers)
-        const allowedForManager = ['discount', 'manageQuantity'];
+        const allowedForManager = ['discount', 'transferStock'];
         const invalid = req.body.permissions.filter(p => !allowedForManager.includes(p));
         if (invalid.length) return res.status(403).json({ message: 'Manager cannot change these permissions' });
 
-        // if manager tries to set manageQuantity ensure target is storeKeeper
-        if (req.body.permissions.includes('manageQuantity')) {
+        // if manager tries to set transferStock ensure target is storeKeeper
+        if (req.body.permissions.includes('transferStock')) {
           if (!(target.role === 'storeKeeper' || target.role === 'store_keeper')) {
-            return res.status(403).json({ message: 'manageQuantity can only be assigned to store keeper users' });
+            return res.status(403).json({ message: 'transferStock can only be assigned to store keeper users' });
           }
         }
       }
@@ -150,6 +165,36 @@ router.put('/users/:id', authenticate, async (req, res) => {
 
     const user = await User.findByIdAndUpdate(id, update, { new: true }).select('-passwordHash -__v');
     if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Emit realtime notification if permissions were changed
+    if (update.permissions) {
+      try {
+        // Log change and notify user in realtime
+        console.log(`Permissions updated for user ${user._id}:`, user.permissions);
+        const socketHelper = require('../socket');
+        // Include actor info so clients can show who changed permissions
+        const actor = {
+          id: requester._id ? String(requester._id) : null,
+          role: requester.role || null,
+          name: requester.name || requester.username || null,
+        };
+        socketHelper.emitToUser(user._id.toString(), 'permissions_updated', { userId: user._id.toString(), permissions: user.permissions || [], actor });
+
+        // create a notification so offline sessions will see this change in notifications
+        const Notification = require('../models/notification.model');
+        await Notification.create({
+          martId: user.martId,
+          userId: user._id,
+          type: 'permissions_changed',
+          title: 'Permissions updated',
+          message: `Your permissions were changed by ${actor.role || 'an administrator'}`,
+          data: { permissions: user.permissions || [], actor },
+        });
+      } catch (e) {
+        console.error('Failed to emit permissions update', e);
+      }
+    }
+
     res.json(user);
   } catch (err) {
     console.error(err);

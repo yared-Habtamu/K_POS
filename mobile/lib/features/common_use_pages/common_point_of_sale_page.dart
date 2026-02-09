@@ -4,6 +4,8 @@ import 'package:pos_app/features/common_use_pages/reusable_qr_scanner_page.dart'
 import 'cart_provider.dart';
 import 'receipt_preview.dart';
 import 'package:provider/provider.dart';
+import 'package:pos_app/services/get_current_user.dart';
+import 'package:pos_app/utils/permission_notifier.dart';
 
 import 'package:pos_app/features/products/domain/product_model.dart';
 import 'package:pos_app/features/products/domain/product_repository.dart';
@@ -65,7 +67,8 @@ class _CommonPointOfSaleState extends State<CommonPointOfSale> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _productsError = e is ApiException ? e.message : 'Failed to load products';
+        _productsError =
+            e is ApiException ? e.message : 'Failed to load products';
         _isLoadingProducts = false;
       });
     }
@@ -248,7 +251,8 @@ class _CommonPointOfSaleState extends State<CommonPointOfSale> {
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis),
                                     const SizedBox(height: 6),
-                                    Text('${p.sellingPrice.toStringAsFixed(2)} ETB',
+                                    Text(
+                                        '${p.sellingPrice.toStringAsFixed(2)} ETB',
                                         style: TextStyle(
                                             color: Colors.blue.shade900,
                                             fontWeight: FontWeight.w800),
@@ -279,7 +283,9 @@ class _CommonPointOfSaleState extends State<CommonPointOfSale> {
                     children: [
                       const _CartCard(),
                       const SizedBox(width: 16),
-                      Expanded(child: _PaymentCard(onSaleFinalized: _onSaleFinalized)),
+                      Expanded(
+                          child:
+                              _PaymentCard(onSaleFinalized: _onSaleFinalized)),
                     ],
                   )
                 else ...[
@@ -530,9 +536,10 @@ class _CartCard extends StatelessWidget {
                     const SizedBox(height: 6),
                     ...List.generate(cart.extraChargesJson.length, (i) {
                       final e = cart.extraChargesJson[i];
-                      final label = (e['type']?.toString().trim().isNotEmpty ?? false)
-                          ? e['type'].toString()
-                          : 'extra_charge';
+                      final label =
+                          (e['type']?.toString().trim().isNotEmpty ?? false)
+                              ? e['type'].toString()
+                              : 'extra_charge';
                       final amount = (e['amount'] as num?)?.toDouble() ??
                           double.tryParse(e['amount']?.toString() ?? '') ??
                           0.0;
@@ -689,10 +696,16 @@ class _PaymentCardState extends State<_PaymentCard> {
   void dispose() {
     _discountValueController.dispose();
     _extraChargeAmountController.dispose();
+    PermissionNotifier.instance.removeListener(_onPermissionNotification);
     super.dispose();
   }
 
   void _syncDiscountToCart() {
+    final user = Provider.of<UserProvider>(context, listen: false).user;
+    final canApply = user != null &&
+        (user.role == 'owner' || (user.permissions ?? []).contains('discount'));
+    if (!canApply) return;
+
     final cart = Provider.of<CartProvider>(context, listen: false);
     final raw = double.tryParse(_discountValueController.text) ?? 0.0;
     if (raw <= 0) {
@@ -703,6 +716,25 @@ class _PaymentCardState extends State<_PaymentCard> {
       type: _discountType == 'Percentage' ? 'percentage' : 'value',
       value: raw,
     );
+  }
+
+  void _onPermissionNotification() {
+    final msg = PermissionNotifier.instance.consume();
+    if (msg == null) return;
+    if (!mounted) return;
+
+    // If discount permission was removed, clear any applied discount
+    final user = Provider.of<UserProvider>(context, listen: false).user;
+    final canApply = user != null &&
+        (user.role == 'owner' || (user.permissions ?? []).contains('discount'));
+    if (!canApply) {
+      final cart = Provider.of<CartProvider>(context, listen: false);
+      cart.clearDiscount();
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    });
   }
 
   void _syncExtraChargeToCart() {
@@ -800,14 +832,15 @@ class _PaymentCardState extends State<_PaymentCard> {
         widget.onSaleFinalized?.call();
 
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Sale completed: ${sale.total.toStringAsFixed(2)} ETB')),
+          SnackBar(
+              content:
+                  Text('Sale completed: ${sale.total.toStringAsFixed(2)} ETB')),
         );
       }
     } catch (e) {
       final msg = e is ApiException ? e.message : 'Failed to complete sale';
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(msg)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } finally {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
@@ -818,6 +851,9 @@ class _PaymentCardState extends State<_PaymentCard> {
   void initState() {
     super.initState();
     _loadSavedAccounts();
+    PermissionNotifier.instance.addListener(_onPermissionNotification);
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _onPermissionNotification());
   }
 
   String _normalizePaymentKey(String raw) {
@@ -868,8 +904,9 @@ class _PaymentCardState extends State<_PaymentCard> {
       }
 
       final rawPaymentSystem = mart['paymentSystem']?.toString();
-      final defaultKey =
-          rawPaymentSystem == null ? '' : _normalizePaymentKey(rawPaymentSystem);
+      final defaultKey = rawPaymentSystem == null
+          ? ''
+          : _normalizePaymentKey(rawPaymentSystem);
 
       if (!mounted) return;
       setState(() {
@@ -926,16 +963,17 @@ class _PaymentCardState extends State<_PaymentCard> {
 
               final methods = [
                 _PaymentMethodItem(
-                  'Cash', Icons.payments_outlined, _PaymentMethod.cash),
+                    'Cash', Icons.payments_outlined, _PaymentMethod.cash),
                 _PaymentMethodItem(
                     'Tele Birr', Icons.phone_iphone, _PaymentMethod.telebirr),
                 _PaymentMethodItem('CBE Bank', Icons.account_balance_outlined,
-                  _PaymentMethod.cbeBank),
+                    _PaymentMethod.cbeBank),
                 _PaymentMethodItem(
-                  'Card', Icons.credit_card, _PaymentMethod.card),
+                    'Card', Icons.credit_card, _PaymentMethod.card),
                 _PaymentMethodItem(
-                  'Wallet', Icons.account_balance_wallet_outlined,
-                  _PaymentMethod.wallet),
+                    'Wallet',
+                    Icons.account_balance_wallet_outlined,
+                    _PaymentMethod.wallet),
                 _PaymentMethodItem(
                     'other', Icons.receipt_long, _PaymentMethod.other),
               ];
@@ -1030,6 +1068,12 @@ class _PaymentCardState extends State<_PaymentCard> {
             builder: (context, constraints) {
               final isNarrow = constraints.maxWidth < 520;
 
+              final user =
+                  Provider.of<UserProvider>(context, listen: false).user;
+              final canApplyDiscount = user != null &&
+                  (user.role == 'owner' ||
+                      (user.permissions ?? []).contains('discount'));
+
               final type = _Dropdown(
                 value: _discountType,
                 items: const ['Percentage', 'Value'],
@@ -1044,16 +1088,25 @@ class _PaymentCardState extends State<_PaymentCard> {
                 controller: _discountValueController,
                 hintText: 'Value',
                 keyboardType: TextInputType.number,
+                enabled: canApplyDiscount,
                 onChanged: (_) => _syncDiscountToCart(),
               );
 
               final add = _SquareButton(
                 icon: Icons.add,
-                onTap: () {
-                  _syncDiscountToCart();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Discount applied to cart')));
-                },
+                onTap: canApplyDiscount
+                    ? () {
+                        _syncDiscountToCart();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('Discount applied to cart')));
+                      }
+                    : () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content:
+                                    Text('Not authorized to apply discounts')));
+                      },
                 color: primary,
               );
 
@@ -1130,7 +1183,6 @@ class _PaymentCardState extends State<_PaymentCard> {
                     amount,
                   ],
                 );
-
               }
 
               return Row(
@@ -1152,9 +1204,10 @@ class _PaymentCardState extends State<_PaymentCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: List.generate(cart.extraChargesJson.length, (i) {
                   final e = cart.extraChargesJson[i];
-                  final label = (e['type']?.toString().trim().isNotEmpty ?? false)
-                      ? e['type'].toString()
-                      : 'extra_charge';
+                  final label =
+                      (e['type']?.toString().trim().isNotEmpty ?? false)
+                          ? e['type'].toString()
+                          : 'extra_charge';
                   final amount = (e['amount'] as num?)?.toDouble() ??
                       double.tryParse(e['amount']?.toString() ?? '') ??
                       0.0;
@@ -1322,12 +1375,14 @@ class _InputBox extends StatelessWidget {
   final String hintText;
   final TextInputType keyboardType;
   final ValueChanged<String>? onChanged;
+  final bool enabled;
 
   const _InputBox({
     required this.controller,
     required this.hintText,
     required this.keyboardType,
     this.onChanged,
+    this.enabled = true,
   });
 
   @override
@@ -1345,6 +1400,7 @@ class _InputBox extends StatelessWidget {
           controller: controller,
           keyboardType: keyboardType,
           onChanged: onChanged,
+          enabled: enabled,
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: TextStyle(

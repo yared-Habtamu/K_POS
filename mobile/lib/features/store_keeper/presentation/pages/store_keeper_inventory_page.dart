@@ -4,6 +4,8 @@ import 'package:pos_app/features/products/domain/product_repository.dart';
 import 'package:pos_app/services/api/api_config.dart';
 import 'package:pos_app/services/api/api_client.dart';
 import 'package:pos_app/services/api/auth_storage.dart';
+import 'package:provider/provider.dart';
+import 'package:pos_app/services/get_current_user.dart';
 
 class StoreKeeperInventoryPage extends StatefulWidget {
   const StoreKeeperInventoryPage({super.key});
@@ -736,6 +738,23 @@ Future<void> showAddStockDialog(
                 child: LayoutBuilder(
                   builder: (context, c) {
                     final veryNarrow = c.maxWidth < 320;
+                    // Compute permission once and reuse in both narrow and wide layouts
+                    bool canTransfer = true;
+                    try {
+                      final userProvider =
+                          Provider.of<UserProvider>(context, listen: false);
+                      final current = userProvider.user;
+                      if (current != null &&
+                          (current.role.toLowerCase().contains('store') ||
+                              current.role.toLowerCase().contains('keeper'))) {
+                        final perms = current.permissions ?? [];
+                        if (!perms.contains('transferStock'))
+                          canTransfer = false;
+                      }
+                    } catch (e) {
+                      // ignore provider errors and fallback to server enforcement
+                    }
+
                     if (veryNarrow) {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -746,56 +765,65 @@ Future<void> showAddStockDialog(
                           const SizedBox(height: 8),
                           SizedBox(
                             height: 44,
-                            child: ElevatedButton.icon(
-                              onPressed: () async {
-                                final val =
-                                    int.tryParse(controller.text.trim()) ?? 0;
-                                if (val <= 0) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                          content:
-                                              Text('Enter a valid quantity')));
-                                  return;
-                                }
-                                if (val > warehouseStock) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                          content: Text(
-                                              'Quantity exceeds warehouse stock')));
-                                  return;
-                                }
+                            child: Tooltip(
+                              message: canTransfer
+                                  ? ''
+                                  : 'Not authorized to transfer stock',
+                              child: ElevatedButton.icon(
+                                onPressed: canTransfer
+                                    ? () async {
+                                        final val = int.tryParse(
+                                                controller.text.trim()) ??
+                                            0;
+                                        if (val <= 0) {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(const SnackBar(
+                                                  content: Text(
+                                                      'Enter a valid quantity')));
+                                          return;
+                                        }
+                                        if (val > warehouseStock) {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(const SnackBar(
+                                                  content: Text(
+                                                      'Quantity exceeds warehouse stock')));
+                                          return;
+                                        }
 
-                                try {
-                                  final auth = AuthStorage();
-                                  final client = ApiClient(
-                                      baseUrl: ApiConfig.baseUrl,
-                                      authStorage: auth);
-                                  final res = await client.postJson(
-                                      '${ApiConfig.apiPrefix}/stock-transfer-requests',
-                                      body: {
-                                        'productId': item.id,
-                                        'quantity': val
-                                      });
-                                  Navigator.of(ctx).pop();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                          content: Text(res['message'] ??
-                                              'Transfer request submitted for approval')));
-                                } catch (e) {
-                                  final msg = e is ApiException
-                                      ? e.message
-                                      : e.toString();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                          content: Text(
-                                              'Failed to submit transfer: $msg')));
-                                }
-                              },
-                              icon: const Icon(Icons.add),
-                              label: const Text('Transfer Stock'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue.shade900,
-                                foregroundColor: Colors.white,
+                                        try {
+                                          final auth = AuthStorage();
+                                          final client = ApiClient(
+                                              baseUrl: ApiConfig.baseUrl,
+                                              authStorage: auth);
+                                          final res = await client.postJson(
+                                              '${ApiConfig.apiPrefix}/stock-transfer-requests',
+                                              body: {
+                                                'productId': item.id,
+                                                'quantity': val
+                                              });
+                                          Navigator.of(ctx).pop();
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(SnackBar(
+                                                  content: Text(res[
+                                                          'message'] ??
+                                                      'Transfer request submitted for approval')));
+                                        } catch (e) {
+                                          final msg = e is ApiException
+                                              ? e.message
+                                              : e.toString();
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(SnackBar(
+                                                  content: Text(
+                                                      'Failed to submit transfer: $msg')));
+                                        }
+                                      }
+                                    : null,
+                                icon: const Icon(Icons.add),
+                                label: const Text('Transfer Stock'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue.shade900,
+                                  foregroundColor: Colors.white,
+                                ),
                               ),
                             ),
                           ),
@@ -812,55 +840,64 @@ Future<void> showAddStockDialog(
                         const SizedBox(width: 12),
                         SizedBox(
                           height: 44,
-                          child: ElevatedButton.icon(
-                            onPressed: () async {
-                              final val =
-                                  int.tryParse(controller.text.trim()) ?? 0;
-                              if (val <= 0) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content:
-                                            Text('Enter a valid quantity')));
-                                return;
-                              }
-                              if (val > warehouseStock) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content: Text(
-                                            'Quantity exceeds warehouse stock')));
-                                return;
-                              }
+                          child: Tooltip(
+                            message: canTransfer
+                                ? ''
+                                : 'Not authorized to transfer stock',
+                            child: ElevatedButton.icon(
+                              onPressed: canTransfer
+                                  ? () async {
+                                      final val = int.tryParse(
+                                              controller.text.trim()) ??
+                                          0;
+                                      if (val <= 0) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(const SnackBar(
+                                                content: Text(
+                                                    'Enter a valid quantity')));
+                                        return;
+                                      }
+                                      if (val > warehouseStock) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(const SnackBar(
+                                                content: Text(
+                                                    'Quantity exceeds warehouse stock')));
+                                        return;
+                                      }
 
-                              try {
-                                final auth = AuthStorage();
-                                final client = ApiClient(
-                                    baseUrl: ApiConfig.baseUrl,
-                                    authStorage: auth);
-                                final res = await client.postJson(
-                                    '${ApiConfig.apiPrefix}/stock-transfer-requests',
-                                    body: {
-                                      'productId': item.id,
-                                      'quantity': val
-                                    });
-                                Navigator.of(ctx).pop();
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                    content: Text(res['message'] ??
-                                        'Transfer request submitted for approval')));
-                              } catch (e) {
-                                final msg = e is ApiException
-                                    ? e.message
-                                    : e.toString();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                        content: Text(
-                                            'Failed to submit transfer: $msg')));
-                              }
-                            },
-                            icon: const Icon(Icons.add),
-                            label: const Text('Transfer Stock'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue.shade900,
-                              foregroundColor: Colors.white,
+                                      try {
+                                        final auth = AuthStorage();
+                                        final client = ApiClient(
+                                            baseUrl: ApiConfig.baseUrl,
+                                            authStorage: auth);
+                                        final res = await client.postJson(
+                                            '${ApiConfig.apiPrefix}/stock-transfer-requests',
+                                            body: {
+                                              'productId': item.id,
+                                              'quantity': val
+                                            });
+                                        Navigator.of(ctx).pop();
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(SnackBar(
+                                                content: Text(res['message'] ??
+                                                    'Transfer request submitted for approval')));
+                                      } catch (e) {
+                                        final msg = e is ApiException
+                                            ? e.message
+                                            : e.toString();
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(SnackBar(
+                                                content: Text(
+                                                    'Failed to submit transfer: $msg')));
+                                      }
+                                    }
+                                  : null,
+                              icon: const Icon(Icons.add),
+                              label: const Text('Transfer Stock'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue.shade900,
+                                foregroundColor: Colors.white,
+                              ),
                             ),
                           ),
                         ),
