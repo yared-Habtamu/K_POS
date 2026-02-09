@@ -102,9 +102,8 @@ class ManagerBloc extends Bloc<ManagerEvent, ManagerState> {
       if (event.martID.isNotEmpty) {
         path += '?martId=${event.martID}';
       }
-      final response = await apiClient.getJson(path) as List;
-
-      final assets = response.map((e) {
+      final response = await apiClient.getJson(path);
+      final assets = (response['data'] as List).map<Map<String, dynamic>>((e) {
         return {
           "id": e['_id'] ?? e['id'],
           "name": e['name'] ?? 'Unnamed',

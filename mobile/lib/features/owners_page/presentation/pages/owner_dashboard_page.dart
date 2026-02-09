@@ -1,8 +1,9 @@
 import 'dart:math' as math;
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/owner_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
-
 
 class OwnerDashboardPage extends StatefulWidget {
   const OwnerDashboardPage({super.key});
@@ -15,10 +16,44 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
   _SalesPeriod _period = _SalesPeriod.weekly;
 
   @override
+  void initState() {
+    super.initState();
+    // Fetch initial dashboard data for weekly range
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        context.read<OwnerBloc>().add(OwnerReportFetchEvent(range: 'weekly'));
+      } catch (_) {}
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final stats = _mockOwnerStats();
-    final sales = _mockSales(_period);
-    final topProducts = _mockTopProducts();
+    final ownerState = context.watch<OwnerBloc>().state;
+
+    final stats = _OwnerStats(
+      todaySalesEtb: ownerState.totalSales,
+      salesDeltaPct: 0.0,
+      transactions: ownerState.totalOrders,
+      transactionsDeltaPct: 0.0,
+      profitEtb: ownerState.profit,
+      profitDeltaPct: 0.0,
+      alerts: 0,
+    );
+
+    final sales = ownerState.salesSeries.isEmpty
+        ? _mockSales(_period)
+        : ownerState.salesSeries;
+
+    final topProducts = ownerState.topProducts.cast<dynamic>().isEmpty
+        ? _mockTopProducts()
+        : (ownerState.topProducts
+                .cast<dynamic>()
+                .map((p) => _TopProduct(
+                    label: p.name ?? 'N/A', value: (p.sold ?? 0).toDouble()))
+                .toList()
+              ..sort((a, b) => b.value.compareTo(a.value)))
+            .take(10)
+            .toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FD),
@@ -29,7 +64,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
             final isWide = width >= 1000;
             final isDesktop = width >= 1100;
             final isTablet = width >= 700 && width < 1100;
-        
+
             return SingleChildScrollView(
               padding: EdgeInsets.symmetric(
                 horizontal: width > 600 ? 32.w : 16.w,
@@ -39,11 +74,12 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _ModernHeader(
-                    onInvite: () => _toast(context, 'Invite Owner'),
-                    onRegister: () => _toast(context, 'Register Mart'),
+                    onInvite: () {},
+                    onRegister: () {},
                   ),
                   SizedBox(height: 32.h),
-                  _StatsGrid(stats: stats, isDesktop: isDesktop, isTablet: isTablet),
+                  _StatsGrid(
+                      stats: stats, isDesktop: isDesktop, isTablet: isTablet),
                   SizedBox(height: 32.h),
                   if (isWide)
                     Row(
@@ -68,7 +104,16 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
                     _SalesChartCard(
                       period: _period,
                       data: sales,
-                      onPeriodChanged: (p) => setState(() => _period = p),
+                      onPeriodChanged: (p) {
+                        setState(() => _period = p);
+                        // Dispatch fetch for the newly selected range
+                        final r = p.name;
+                        try {
+                          context
+                              .read<OwnerBloc>()
+                              .add(OwnerReportFetchEvent(range: r));
+                        } catch (_) {}
+                      },
                     ),
                     const SizedBox(height: 24),
                     _TopProductsCard(products: topProducts),
@@ -82,9 +127,7 @@ class _OwnerDashboardPageState extends State<OwnerDashboardPage> {
     );
   }
 
-  void _toast(BuildContext context, String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
+  // Action callbacks removed; no inline toast helper needed anymore.
 }
 
 class _ModernHeader extends StatelessWidget {
@@ -96,8 +139,6 @@ class _ModernHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
-      final isSmall = constraints.maxWidth < 600;
-
       final title = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -113,97 +154,13 @@ class _ModernHeader extends StatelessWidget {
         ],
       );
 
-      final buttons = Row(
-        children: [
-          _ActionButton(
-            label: 'invite'.tr,
-            icon: Icons.person_add_alt_1_rounded,
-            isPrimary: false,
-            onTap: onInvite,
-          ),
-          const SizedBox(width: 12),
-          _ActionButton(
-            label: 'new_mart'.tr,
-            icon: Icons.store_rounded,
-            isPrimary: true,
-            onTap: onRegister,
-          ),
-        ],
-      );
-
-      if (isSmall) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [title, const SizedBox(height: 20), buttons],
-        );
-      }
-
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [title, buttons],
-      );
+      // Only show the title; action buttons removed
+      return title;
     });
   }
 }
 
-class _ActionButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool isPrimary;
-  final VoidCallback onTap;
-
-  const _ActionButton({
-    required this.label,
-    required this.icon,
-    required this.isPrimary,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12.r),
-      child: Container(
-        height: 48.h,
-        padding: EdgeInsets.symmetric(horizontal: 20.w),
-        decoration: BoxDecoration(
-          color: isPrimary ? const Color(0xFF0F172A) : Colors.white,
-          borderRadius: BorderRadius.circular(12.r),
-          border: isPrimary ? null : Border.all(color: Colors.grey.shade300),
-          boxShadow: isPrimary
-              ? [
-                  BoxShadow(
-                    color: const Color(0xFF0F172A).withOpacity(0.2),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  )
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 18.sp,
-              color: isPrimary ? Colors.white : const Color(0xFF0F172A),
-            ),
-            SizedBox(width: 8.w),
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 14.sp,
-                color: isPrimary ? Colors.white : const Color(0xFF0F172A),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// _ActionButton removed from Owner dashboard header (buttons were intentionally removed)
 
 class _StatsGrid extends StatelessWidget {
   final _OwnerStats stats;
@@ -221,7 +178,11 @@ class _StatsGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final columns = width >= 1200 ? 4 : width >= 900 ? 2 : 1;
+        final columns = width >= 1200
+            ? 4
+            : width >= 900
+                ? 2
+                : 1;
 
         final cards = [
           _StatData(
@@ -301,8 +262,9 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final deltaColor = data.isTrendUp ? const Color(0xFF10B981) : const Color(0xFFEF4444);
-    
+    final deltaColor =
+        data.isTrendUp ? const Color(0xFF10B981) : const Color(0xFFEF4444);
+
     return Container(
       padding: EdgeInsets.all(14.w),
       decoration: BoxDecoration(
@@ -349,7 +311,7 @@ class _StatCard extends StatelessWidget {
             children: [
               Text(
                 data.value,
-                style:  TextStyle(
+                style: TextStyle(
                   fontSize: 17.sp,
                   fontWeight: FontWeight.w800,
                   color: Color(0xFF1E293B),
@@ -444,7 +406,7 @@ class _SalesChartCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-               Text(
+              Text(
                 'sales_analytics'.tr,
                 style: TextStyle(
                   fontSize: 14.sp,
@@ -500,7 +462,7 @@ class _TopProductsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-           Text(
+          Text(
             'top_performers'.tr,
             style: TextStyle(
               fontSize: 18.sp,
@@ -533,7 +495,7 @@ class _TopProductsCard extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          "${p.value.toStringAsFixed(1)}k",
+                          "${p.value.toInt()}",
                           style: TextStyle(
                             fontSize: 14.sp,
                             fontWeight: FontWeight.w700,
@@ -615,7 +577,8 @@ class _ModernTabs extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 13.sp,
                   fontWeight: FontWeight.w600,
-                  color: isSel ? const Color(0xFF1E293B) : const Color(0xFF94A3B8),
+                  color:
+                      isSel ? const Color(0xFF1E293B) : const Color(0xFF94A3B8),
                 ),
               ),
             ),
@@ -649,7 +612,9 @@ class _SmoothChartPainter extends CustomPainter {
 
     double getY(double val) {
       if (range == 0) return size.height / 2;
-      return size.height - ((val - minVal) / range) * (size.height * 0.8) - (size.height * 0.1);
+      return size.height -
+          ((val - minVal) / range) * (size.height * 0.8) -
+          (size.height * 0.1);
     }
 
     final path = Path();
@@ -678,7 +643,9 @@ class _SmoothChartPainter extends CustomPainter {
 
     canvas.drawPath(
       fillPath,
-      Paint()..shader = gradient.createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
+      Paint()
+        ..shader =
+            gradient.createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
     );
 
     canvas.drawPath(path, paint);
@@ -753,7 +720,18 @@ List<double> _mockSales(_SalesPeriod period) {
       return [0, 4500, 0, 0, 0, 3200, 0];
     case _SalesPeriod.monthly:
       return [
-        800, 1200, 1600, 900, 1400, 1800, 1500, 2100, 1700, 2300, 1900, 2500
+        800,
+        1200,
+        1600,
+        900,
+        1400,
+        1800,
+        1500,
+        2100,
+        1700,
+        2300,
+        1900,
+        2500
       ];
   }
 }

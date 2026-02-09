@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';import '../../../../services/get_current_user.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:pos_app/utils/common_modern_snackbar.dart';
+import '../../../../services/get_current_user.dart';
 
+import '../../../common_use_pages/employee_managment/presentation/widgets/employee_shimmer_effect.dart';
 import '../bloc/manager_bloc.dart'; // Adjust path to your BLoC
 
 class ManagerAlertsPage extends StatelessWidget {
@@ -17,38 +20,34 @@ class ManagerAlertsPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Alerts Summary'),
       ),
-      body: BlocBuilder<ManagerBloc, ManagerState>(
+      body: BlocConsumer<ManagerBloc, ManagerState>(
+        listener: (context, state) {
+          if (state.error != null) {
+            return AppSnackbar.error(state.error!);
+          }
+        },
         builder: (context, state) {
           if (state.loading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (state.error != null) {
-            return Center(
-              child: Text(
-                state.error!,
-                style: const TextStyle(color: Colors.red, fontSize: 16),
-              ),
-            );
+            return EmployeeManagementShimmer();
           }
 
           final lowStock = state.alertProducts
               .map((p) => _SummaryItem(
-            title: p.name,
-            subtitle: p.name,
-            trailingText: '${p.quantity} left',
-            danger: true,
-          ))
+                    title: p.name,
+                    subtitle: p.name,
+                    trailingText: '${p.quantity} left',
+                    danger: true,
+                  ))
               .toList();
 
           final expiring = state.expiringSoonProducts
               .map((p) => _SummaryItem(
-            title: p.name,
-            subtitle: 'Qty: ${p.quantity}',
-            trailingText: p.expiryDate != null
-                ? '${p.expiryDate!.month}/${p.expiryDate!.day}/${p.expiryDate!.year}'
-                : 'No expiry',
-          ))
+                    title: p.name,
+                    subtitle: 'Qty: ${p.quantity}',
+                    trailingText: p.expiryDate != null
+                        ? '${p.expiryDate!.month}/${p.expiryDate!.day}/${p.expiryDate!.year}'
+                        : 'No expiry',
+                  ))
               .toList();
 
           return SingleChildScrollView(
@@ -71,12 +70,12 @@ class ManagerAlertsPage extends StatelessWidget {
                   children: lowStock
                       .map(
                         (s) => _SummaryRow(
-                      title: s.title,
-                      subtitle: s.subtitle,
-                      trailingText: s.trailingText,
-                      trailingDanger: s.danger,
-                    ),
-                  )
+                          title: s.title,
+                          subtitle: s.subtitle,
+                          trailingText: s.trailingText,
+                          trailingDanger: s.danger,
+                        ),
+                      )
                       .toList(),
                 ),
 
@@ -90,12 +89,12 @@ class ManagerAlertsPage extends StatelessWidget {
                   children: expiring
                       .map(
                         (s) => _SummaryRow(
-                      title: s.title,
-                      subtitle: s.subtitle,
-                      trailingText: s.trailingText,
-                      trailingDanger: false,
-                    ),
-                  )
+                          title: s.title,
+                          subtitle: s.subtitle,
+                          trailingText: s.trailingText,
+                          trailingDanger: false,
+                        ),
+                      )
                       .toList(),
                 ),
               ],
@@ -157,7 +156,8 @@ class _SummaryCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(999),
@@ -177,9 +177,9 @@ class _SummaryCard extends StatelessWidget {
           const Divider(height: 1),
           const SizedBox(height: 8),
           ...children.map((c) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: c,
-          )),
+                padding: const EdgeInsets.only(bottom: 8),
+                child: c,
+              )),
         ],
       ),
     );
@@ -224,7 +224,8 @@ class _SummaryRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                Text(title,
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
@@ -240,14 +241,16 @@ class _SummaryRow extends StatelessWidget {
               color: trailingDanger ? Colors.red.shade50 : Colors.grey.shade100,
               borderRadius: BorderRadius.circular(999),
               border: Border.all(
-                color: trailingDanger ? Colors.red.shade100 : Colors.grey.shade300,
+                color:
+                    trailingDanger ? Colors.red.shade100 : Colors.grey.shade300,
               ),
             ),
             child: Text(
               trailingText,
               style: TextStyle(
                 fontWeight: FontWeight.w700,
-                color: trailingDanger ? Colors.red.shade700 : Colors.grey.shade800,
+                color:
+                    trailingDanger ? Colors.red.shade700 : Colors.grey.shade800,
               ),
             ),
           ),

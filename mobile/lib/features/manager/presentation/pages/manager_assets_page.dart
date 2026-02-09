@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:pos_app/services/get_current_user.dart';
+import 'package:pos_app/utils/common_modern_snackbar.dart';
 import '../bloc/manager_bloc.dart';
 
 class ManagerAssetsPage extends StatefulWidget {
@@ -15,18 +16,16 @@ class _ManagerAssetsPageState extends State<ManagerAssetsPage> {
   final _qtyController = TextEditingController();
 
   @override
-  void dispose() {
-    _nameController.dispose();
-    _qtyController.dispose();
+  void initState() {
     fetchRegisteredAssets();
-    super.dispose();
+    super.initState();
   }
 
   void fetchRegisteredAssets() async {
     final martID = await context.read<UserProvider>().martId;
     context.read<ManagerBloc>().add(
-      ManagerAssetFetchingEvent(martID: martID!),
-    );
+          ManagerAssetFetchingEvent(martID: martID!),
+        );
   }
 
   void _add() {
@@ -43,12 +42,12 @@ class _ManagerAssetsPageState extends State<ManagerAssetsPage> {
     final martID = context.read<UserProvider>().user?.martId ?? "";
 
     context.read<ManagerBloc>().add(
-      ManagerAssetRegistrations(
-        name: name,
-        quantity: qty,
-        martId: martID,
-      ),
-    );
+          ManagerAssetRegistrations(
+            name: name,
+            quantity: qty,
+            martId: martID,
+          ),
+        );
   }
 
   void _exportCsv() {
@@ -62,14 +61,20 @@ class _ManagerAssetsPageState extends State<ManagerAssetsPage> {
   }
 
   @override
+  void dispose() {
+    _nameController.dispose();
+    _qtyController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       body: BlocConsumer<ManagerBloc, ManagerState>(
         listener: (context, state) {
           if (state.error != null) {
-            ScaffoldMessenger.of(context)
-                .showSnackBar(SnackBar(content: Text(state.error!)));
+            return AppSnackbar.error(state.error!);
           }
 
           /// Clear inputs after successful add
@@ -151,14 +156,14 @@ class _ManagerAssetsPageState extends State<ManagerAssetsPage> {
                             height: 46,
                             child: ElevatedButton(
                               onPressed:
-                              state.loading ? null : _add, // prevent spam
+                                  state.loading ? null : _add, // prevent spam
                               child: state.loading
                                   ? const SizedBox(
-                                height: 18,
-                                width: 18,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2),
-                              )
+                                      height: 18,
+                                      width: 18,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
+                                    )
                                   : const Text('Add'),
                             ),
                           ),
@@ -196,7 +201,7 @@ class _ManagerAssetsPageState extends State<ManagerAssetsPage> {
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           item['name'],

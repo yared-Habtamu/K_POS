@@ -64,7 +64,7 @@ class TopProductsCard extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          "${p.value.toStringAsFixed(1)}k",
+                          "${p.value.toInt()}",
                           style: TextStyle(
                             fontSize: 14.sp,
                             fontWeight: FontWeight.w700,

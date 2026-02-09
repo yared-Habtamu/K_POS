@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'report_widgets.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../presentation/bloc/owner_bloc.dart';
+import '../../../manager/domain/payment_model.dart' as mgr_models;
 
 // 1. Header Section
 class ReportHeader extends StatelessWidget {
@@ -31,12 +34,15 @@ class ReportHeader extends StatelessWidget {
                 Text(
                   title,
                   style: TextStyle(
-                      fontSize: 24.sp, fontWeight: FontWeight.w800, height: 1.2),
+                      fontSize: 24.sp,
+                      fontWeight: FontWeight.w800,
+                      height: 1.2),
                 ),
                 SizedBox(height: 4.h),
                 Text(
                   dateRange,
-                  style: TextStyle(fontSize: 12.sp, color: Colors.grey.shade600),
+                  style:
+                      TextStyle(fontSize: 12.sp, color: Colors.grey.shade600),
                 ),
               ],
             ),
@@ -44,9 +50,11 @@ class ReportHeader extends StatelessWidget {
             if (ScreenUtil().screenWidth > 400)
               Row(
                 children: [
-                  _IconBtn(Icons.table_chart_outlined, Colors.green, onExportExcel),
+                  _IconBtn(
+                      Icons.table_chart_outlined, Colors.green, onExportExcel),
                   SizedBox(width: 8.w),
-                  _IconBtn(Icons.picture_as_pdf_outlined, Colors.red, onExportPdf),
+                  _IconBtn(
+                      Icons.picture_as_pdf_outlined, Colors.red, onExportPdf),
                 ],
               )
           ],
@@ -95,10 +103,26 @@ class StatsGrid extends StatelessWidget {
       mainAxisSpacing: 12.h,
       childAspectRatio: ScreenUtil().screenWidth > 600 ? 2.5 : 1.6,
       children: [
-        StatCard(title: 'Total Sales', value: totalSales, icon: Icons.attach_money, iconColor: Colors.green),
-        StatCard(title: 'Orders', value: totalOrders, icon: Icons.shopping_bag_outlined, iconColor: Colors.blue),
-        StatCard(title: 'Avg Order', value: avgOrder, icon: Icons.analytics_outlined, iconColor: Colors.orange),
-        StatCard(title: 'Profit', value: grossProfit, icon: Icons.trending_up, iconColor: Colors.purple),
+        StatCard(
+            title: 'Total Sales',
+            value: totalSales,
+            icon: Icons.attach_money,
+            iconColor: Colors.green),
+        StatCard(
+            title: 'Orders',
+            value: totalOrders,
+            icon: Icons.shopping_bag_outlined,
+            iconColor: Colors.blue),
+        StatCard(
+            title: 'Avg Order',
+            value: avgOrder,
+            icon: Icons.analytics_outlined,
+            iconColor: Colors.orange),
+        StatCard(
+            title: 'Profit',
+            value: grossProfit,
+            icon: Icons.trending_up,
+            iconColor: Colors.purple),
       ],
     );
   }
@@ -116,7 +140,9 @@ class PaymentMethodsSection extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Payment Methods', style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w700)),
+              Text('Payment Methods',
+                  style:
+                      TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w700)),
               Icon(Icons.more_horiz, color: Colors.grey, size: 20.sp),
             ],
           ),
@@ -124,32 +150,82 @@ class PaymentMethodsSection extends StatelessWidget {
           SizedBox(
             height: 180.h,
             width: 180.h,
-            child: CustomPaint(
-              painter: PieChartPainter(
-                values: [0.6, 0.25, 0.15],
-                colors: const [Color(0xFF1677FF), Color(0xFF10B981), Color(0xFFF59E0B)],
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text("Total", style: TextStyle(fontSize: 12.sp, color: Colors.grey)),
-                    Text("\$360", style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold)),
-                  ],
+            child:
+                BlocBuilder<OwnerBloc, OwnerState>(builder: (context, state) {
+              final pm = state.paymentMethods.cast<mgr_models.PaymentMethod>();
+
+              if (state.loading || pm.isEmpty) {
+                // Fallback to placeholder
+                return CustomPaint(
+                  painter: PieChartPainter(
+                    values: [0.6, 0.25, 0.15],
+                    colors: const [
+                      Color(0xFF1677FF),
+                      Color(0xFF10B981),
+                      Color(0xFFF59E0B)
+                    ],
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text("Total",
+                            style:
+                                TextStyle(fontSize: 12.sp, color: Colors.grey)),
+                        Text("\$360",
+                            style: TextStyle(
+                                fontSize: 18.sp, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              final total = pm.fold<double>(0, (p, e) => p + e.amount);
+              final values =
+                  pm.map((e) => total == 0 ? 0.0 : (e.amount / total)).toList();
+              final colors = pm.map((e) => e.color).toList();
+
+              return CustomPaint(
+                painter: PieChartPainter(values: values, colors: colors),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text("Total",
+                          style:
+                              TextStyle(fontSize: 12.sp, color: Colors.grey)),
+                      Text("\$${state.totalSales.toStringAsFixed(2)}",
+                          style: TextStyle(
+                              fontSize: 18.sp, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
                 ),
-              ),
-            ),
+              );
+            }),
           ),
           SizedBox(height: 20.h),
           // Legend
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: const [
-              _LegendItem(color: Color(0xFF1677FF), label: 'Cash'),
-              _LegendItem(color: Color(0xFF10B981), label: 'Card'),
-              _LegendItem(color: Color(0xFFF59E0B), label: 'Mobile'),
-            ],
-          )
+          BlocBuilder<OwnerBloc, OwnerState>(builder: (context, state) {
+            final pm = state.paymentMethods.cast<mgr_models.PaymentMethod>();
+            if (pm.isEmpty) {
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: const [
+                  _LegendItem(color: Color(0xFF1677FF), label: 'Cash'),
+                  _LegendItem(color: Color(0xFF10B981), label: 'Card'),
+                  _LegendItem(color: Color(0xFFF59E0B), label: 'Mobile'),
+                ],
+              );
+            }
+
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: pm
+                  .map((e) => _LegendItem(color: e.color, label: e.name))
+                  .toList(),
+            );
+          })
         ],
       ),
     );
@@ -167,14 +243,12 @@ class _LegendItem extends StatelessWidget {
       children: [
         CircleAvatar(radius: 4.r, backgroundColor: color),
         SizedBox(width: 6.w),
-        Text(label, style: TextStyle(fontSize: 12.sp, color: Colors.grey.shade700)),
+        Text(label,
+            style: TextStyle(fontSize: 12.sp, color: Colors.grey.shade700)),
       ],
     );
   }
 }
-
-
-
 
 class TopSellingProductsSection extends StatelessWidget {
   const TopSellingProductsSection({super.key});
@@ -236,19 +310,49 @@ class _BarChartBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // We use a Row to distribute bars evenly
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: const [
-        // Example Bars (You can map these from a list later)
-        _SingleBar(label: 'Oil', percentage: 0.85, color: Color(0xFF1677FF)),
-        _SingleBar(label: 'Bread', percentage: 0.45, color: Color(0xFF1677FF)),
-        _SingleBar(label: 'Milk', percentage: 0.65, color: Color(0xFF1677FF)),
-        _SingleBar(label: 'Water', percentage: 0.30, color: Color(0xFF1677FF)),
-        _SingleBar(label: 'Eggs', percentage: 0.55, color: Color(0xFF1677FF)),
-      ],
-    );
+    // Use bloc state to populate bars
+    return BlocBuilder<OwnerBloc, OwnerState>(builder: (context, state) {
+      final products = state.topProducts.cast<mgr_models.TopProduct>();
+
+      if (state.loading || products.isEmpty) {
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: const [
+            // Example Bars (fallback)
+            _SingleBar(
+                label: 'Oil', percentage: 0.85, color: Color(0xFF1677FF)),
+            _SingleBar(
+                label: 'Bread', percentage: 0.45, color: Color(0xFF1677FF)),
+            _SingleBar(
+                label: 'Milk', percentage: 0.65, color: Color(0xFF1677FF)),
+            _SingleBar(
+                label: 'Water', percentage: 0.30, color: Color(0xFF1677FF)),
+            _SingleBar(
+                label: 'Eggs', percentage: 0.55, color: Color(0xFF1677FF)),
+          ],
+        );
+      }
+
+      // Normalize by revenue (or sold if revenue not present)
+      final maxVal = products
+          .map((p) => (p.revenue ?? 0))
+          .fold<double>(0, (prev, e) => e > prev ? e : prev);
+      final list = products.take(5).toList();
+
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: list.map((p) {
+          final val = (p.revenue ?? 0);
+          final pct = maxVal <= 0 ? 0.0 : (val / maxVal).clamp(0.0, 1.0);
+          return _SingleBar(
+              label: (p.name ?? 'N/A'),
+              percentage: pct,
+              color: Theme.of(context).primaryColor);
+        }).toList(),
+      );
+    });
   }
 }
 
