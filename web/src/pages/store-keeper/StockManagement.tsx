@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/stores/authStore";
+import { useProductStore } from "@/stores/productStore";
 import type { Product } from "@/types";
 import {
   Package,
@@ -40,50 +41,32 @@ export default function StockManagement() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
   const token = user?.token;
-  const [products, setProducts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { products, isLoading, fetchProducts, fetchError, updateProduct } =
+    useProductStore();
 
-  const canTransfer = !user || (user.role !== 'store_keeper' && user.role !== 'storeKeeper') || (Array.isArray(user.permissions) && user.permissions.includes('transferStock'));
-  const [error, setError] = useState<string | null>(null);
+  const canTransfer =
+    !user ||
+    user.role !== "store_keeper" ||
+    (Array.isArray(user.permissions) &&
+      user.permissions.includes("transferStock"));
+  const error = fetchError || null;
 
   useEffect(() => {
-    const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
-    const abort = new AbortController();
-    async function load() {
-      setLoading(true);
-      setError(null);
+    // ensure product store is populated (it also fetches sales to compute _sold)
+    (async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/products`, {
-          headers: { Authorization: token ? `Bearer ${token}` : "" },
-          signal: abort.signal,
-        });
-        if (!res.ok) throw new Error(`Failed to fetch products: ${res.status}`);
-        const data = await res.json();
-        const normalized = Array.isArray(data)
-          ? data.map((p: any) => ({
-              ...p,
-              id: p.id || p._id,
-              pictureUrl:
-                p.pictureUrl || p.imageUrl || p.secure_url || p.url || "",
-            }))
-          : [];
-        setProducts(normalized);
-      } catch (err: any) {
-        if (err.name !== "AbortError")
-          setError(err.message || "Failed to load products");
-      } finally {
-        setLoading(false);
+        await fetchProducts?.();
+      } catch (e) {
+        // ignore
       }
-    }
-    load();
-    return () => abort.abort();
-  }, [token]);
+    })();
+  }, [fetchProducts]);
   const [search, setSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [addQuantity, setAddQuantity] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [barcodeEditingFor, setBarcodeEditingFor] = useState<string | null>(
-    null
+    null,
   );
   const [imageUploadFor, setImageUploadFor] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
@@ -91,47 +74,11 @@ export default function StockManagement() {
   const filteredProducts = products.filter(
     (p) =>
       (p.name || "").toLowerCase().includes(search.toLowerCase()) ||
-      (p.barcode || "").includes(search)
+      (p.barcode || "").includes(search),
   );
 
-  const updateProduct = async (
-    id: string,
-    updates: Partial<any> | FormData
-  ) => {
-    const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
-    try {
-      const isForm = updates instanceof FormData;
-      const res = await fetch(`${API_BASE}/api/products/${id}`, {
-        method: "PUT",
-        headers: isForm
-          ? ({ Authorization: token ? `Bearer ${token}` : "" } as any)
-          : {
-              "Content-Type": "application/json",
-              Authorization: token ? `Bearer ${token}` : "",
-            },
-        body: isForm ? updates : JSON.stringify(updates),
-      });
-      if (!res.ok) throw new Error(`Update failed ${res.status}`);
-      const updated = await res.json();
-      // normalize image field on updated item
-      const norm = {
-        ...updated,
-        pictureUrl:
-          updated.pictureUrl ||
-          updated.imageUrl ||
-          updated.secure_url ||
-          updated.url ||
-          "",
-      };
-      setProducts((cur) =>
-        cur.map((p) => (p.id === id ? { ...p, ...norm } : p))
-      );
-      return updated;
-    } catch (err) {
-      console.error("Update product error", err);
-      throw err;
-    }
-  };
+  // use product store's update to keep state in sync and ensure `_sold` remains accurate
+  // `updateProduct` is pulled from the store above via useProductStore()
 
   const handleAddStock = async () => {
     if (!selectedProduct || !addQuantity) return;
@@ -150,7 +97,7 @@ export default function StockManagement() {
       });
 
       const body = await res.json().catch(() => null);
-      console.debug('stock transfer response', res.status, body);
+      console.debug("stock transfer response", res.status, body);
 
       if (!res.ok) {
         throw new Error(body?.message || `Request failed ${res.status}`);
@@ -163,10 +110,13 @@ export default function StockManagement() {
       setIsDialogOpen(false);
       setSelectedProduct(null);
       setAddQuantity("");
-    } catch (err: any) {
+    } catch (err: unknown) {
+      let msg = "Please try again";
+      if (err instanceof Error && err.message) msg = err.message;
+      else if (typeof err === "string") msg = err;
       toast({
         title: "Could not submit transfer",
-        description: err?.message || "Please try again",
+        description: msg,
         variant: "destructive",
       });
     }
@@ -224,7 +174,9 @@ export default function StockManagement() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {loading && <p className="py-6 text-center">Loading products...</p>}
+            {isLoading && (
+              <p className="py-6 text-center">Loading products...</p>
+            )}
             {error && (
               <p className="py-6 text-center text-destructive">{error}</p>
             )}
@@ -236,13 +188,15 @@ export default function StockManagement() {
               )}
 
               {filteredProducts.map((product) => {
-                const sold = Math.max(
-                  0,
-                  (product.storeQuantity ?? 0) -
-                    (product.supermarketQuantity ?? 0)
-                );
+                // prefer backend-computed sold count when available
+                const sold = Math.max(0, Number(product._sold || 0));
                 // product.quantity is authoritative remaining after sales
-                const remaining = Number(product.quantity ?? product.supermarketQuantity ?? product.storeQuantity ?? 0);
+                const remaining = Number(
+                  product.quantity ??
+                    product.supermarketQuantity ??
+                    product.storeQuantity ??
+                    0,
+                );
                 return (
                   <div
                     key={product.id}
@@ -282,26 +236,28 @@ export default function StockManagement() {
                           variant="outline"
                           onClick={() => {
                             const current = Array.isArray(product.barcodes)
-                              ? product.barcodes.join(',')
-                              : (product.barcode || '');
+                              ? product.barcodes.join(",")
+                              : product.barcode || "";
                             const val = window.prompt(
                               "Enter barcodes (comma-separated)",
-                              current
+                              current,
                             );
                             if (val !== null) {
                               const arr = String(val)
-                                .split(',')
+                                .split(",")
                                 .map((s) => s.trim())
                                 .filter(Boolean);
                               updateProduct(product.id, {
                                 barcodes: arr,
                               })
-                                .then(() => toast({ title: "Barcodes updated" }))
+                                .then(() =>
+                                  toast({ title: "Barcodes updated" }),
+                                )
                                 .catch(() =>
                                   toast({
                                     title: "Failed to update barcodes",
                                     variant: "destructive",
-                                  })
+                                  }),
                                 );
                             }
                           }}
@@ -451,7 +407,7 @@ export default function StockManagement() {
                         Warehouse:{" "}
                         {Math.max(
                           0,
-                          selectedProduct.storeQuantity - parseInt(addQuantity)
+                          selectedProduct.storeQuantity - parseInt(addQuantity),
                         )}
                       </span>
                       <ArrowRight className="w-4 h-4" />
@@ -477,7 +433,12 @@ export default function StockManagement() {
                       !addQuantity ||
                       parseInt(addQuantity) <= 0 ||
                       parseInt(addQuantity) > selectedProduct.storeQuantity ||
-                      (user && (user.role === 'store_keeper' || user.role === 'storeKeeper') && !(Array.isArray(user.permissions) && user.permissions.includes('transferStock')))
+                      (user &&
+                        user.role === "store_keeper" &&
+                        !(
+                          Array.isArray(user.permissions) &&
+                          user.permissions.includes("transferStock")
+                        ))
                     }
                   >
                     <Plus className="mr-2 h-4 w-4" />
