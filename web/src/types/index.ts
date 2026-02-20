@@ -35,6 +35,8 @@ export interface Product {
   quantity: number;
   storeQuantity: number; // warehouse
   supermarketQuantity: number; // front store
+  // backend-provided computed sold count (optional)
+  _sold?: number;
   barcodes?: string[];
   // legacy single barcode (kept for backward compatibility)
   barcode?: string;

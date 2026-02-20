@@ -32,11 +32,17 @@ import {
   Percent,
   DollarSign,
   Plus,
+  Copy,
   X,
   Receipt as ReceiptIcon,
   Loader2,
 } from "lucide-react";
 
+// module-level cache for mart id to avoid using `any` on the component object
+let paymentPanelCachedMartId: string | null = null;
+
+// shape for outgoing sale request saved temporarily before POST
+type SaleRequest = { receiptId?: string; [key: string]: unknown };
 const paymentMethods: {
   value: PaymentMethod;
   label: string;
@@ -46,7 +52,7 @@ const paymentMethods: {
   { value: "card", label: "card", icon: CreditCard },
   { value: "telebirr", label: "telebirr", icon: Smartphone },
   { value: "cbe_bank", label: "cbe_bank", icon: Building2 },
-  { value: "wallet", label: "wallet", icon: Wallet },
+  { value: "wallet", label: "credit", icon: Wallet },
   { value: "other", label: "other", icon: Wallet },
 ];
 
@@ -85,8 +91,12 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [currentReceipt, setCurrentReceipt] = useState<Receipt | null>(null);
-  const [savedSalePayload, setSavedSalePayload] = useState<Sale | null>(null);
-  const [paymentAccounts, setPaymentAccounts] = useState<Record<string, string>>({});
+  const [savedSalePayload, setSavedSalePayload] = useState<SaleRequest | null>(
+    null,
+  );
+  const [paymentAccounts, setPaymentAccounts] = useState<
+    Record<string, string>
+  >({});
   const [martCurrency, setMartCurrency] = useState<string | null>(null);
 
   const handleApplyDiscount = () => {
@@ -96,12 +106,15 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     const allowed =
       canApplyDiscount ||
       user?.role === "owner" ||
-      (Array.isArray(user?.permissions) && user!.permissions!.includes("discount"));
+      (Array.isArray(user?.permissions) &&
+        user!.permissions!.includes("discount"));
 
     if (!allowed) {
       toast({
         title: t("not_authorized") || "Not authorized",
-        description: t("no_permission_apply_discount") || "You do not have permission to apply discounts",
+        description:
+          t("no_permission_apply_discount") ||
+          "You do not have permission to apply discounts",
         variant: "destructive",
       });
       return;
@@ -194,7 +207,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     };
 
     // prepare sale payload but do NOT send it yet; save when user presses Done on the receipt
-    const salePayload: Sale = {
+    const salePayload: SaleRequest = {
       martId: user?.martId,
       receiptId,
       items: items.map((it) => ({
@@ -211,7 +224,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
       taxRate: receipt.taxRate,
       total: receipt.total,
       paymentMethod: receipt.paymentMethod,
-    } as any;
+    };
 
     setSavedSalePayload(salePayload);
     setCurrentReceipt(receipt);
@@ -296,7 +309,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
         if (!martId) return;
 
         // avoid refetching the same mart repeatedly
-        if ((PaymentPanel as any)._cachedMartId === martId) return;
+        if (paymentPanelCachedMartId === martId) return;
 
         const res = await fetch(`${API_BASE}/api/marts/${martId}`, {
           headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -306,15 +319,19 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
         if (!mounted) return;
 
         const accounts: Record<string, string> = {};
-        let raw: any = undefined;
+        let raw: unknown = undefined;
         if (Array.isArray(json.customPaymentFields)) {
           for (const entry of json.customPaymentFields) {
             try {
-              if (!entry) continue;
-              const k = String((entry as any).key || "").trim().toLowerCase();
-              const v = (entry as any).value == null ? "" : String((entry as any).value);
+              if (!entry || typeof entry !== "object") continue;
+              const obj = entry as Record<string, unknown>;
+              const k = String(obj["key"] ?? "")
+                .trim()
+                .toLowerCase();
+              const v = obj["value"] == null ? "" : String(obj["value"]);
               if (k) accounts[k] = v;
-            } catch (e) {
+            } catch (err) {
+              // ignore malformed entry
               continue;
             }
           }
@@ -324,31 +341,45 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
 
         try {
           if (Array.isArray(raw)) {
+            // case: flat string array [key, value, key, value, ...]
             if (raw.length > 0 && raw.every((r) => typeof r === "string")) {
               for (let i = 0; i + 1 < raw.length; i += 2) {
-                const k = String(raw[i] || "").trim().toLowerCase();
+                const k = String(raw[i] || "")
+                  .trim()
+                  .toLowerCase();
                 const v = String(raw[i + 1] || "");
                 if (k) accounts[k] = v;
               }
             } else {
-              for (const entry of raw) {
-                if (!entry) continue;
-                if (typeof entry === "object") {
-                  if ("key" in entry && "value" in entry) {
-                    accounts[String((entry as any).key || "").trim().toLowerCase()] = String((entry as any).value || "");
-                  } else {
-                    Object.entries(entry as any).forEach(([k, v]) => {
-                      const nk = String(k || "").trim().toLowerCase();
-                      accounts[nk] = Array.isArray(v) ? String((v as any)[0] || "") : String(v || "");
-                    });
-                  }
+              // case: array of objects
+              for (const entry of raw as unknown[]) {
+                if (!entry || typeof entry !== "object") continue;
+                const obj = entry as Record<string, unknown>;
+                if ("key" in obj && "value" in obj) {
+                  const k = String(obj["key"] ?? "")
+                    .trim()
+                    .toLowerCase();
+                  const v = obj["value"] == null ? "" : String(obj["value"]);
+                  if (k) accounts[k] = v;
+                } else {
+                  Object.entries(obj).forEach(([k, v]) => {
+                    const nk = String(k || "")
+                      .trim()
+                      .toLowerCase();
+                    accounts[nk] = Array.isArray(v)
+                      ? String((v as unknown[])[0] ?? "")
+                      : String(v ?? "");
+                  });
                 }
               }
             }
           } else if (raw && typeof raw === "object") {
-            Object.entries(raw).forEach(([k, v]) => {
-              const nk = String(k || "").trim().toLowerCase();
-              if (Array.isArray(v)) accounts[nk] = String((v as any)[0] || "");
+            Object.entries(raw as Record<string, unknown>).forEach(([k, v]) => {
+              const nk = String(k || "")
+                .trim()
+                .toLowerCase();
+              if (Array.isArray(v))
+                accounts[nk] = String((v as unknown[])[0] ?? "");
               else accounts[nk] = v == null ? "" : String(v);
             });
           }
@@ -357,9 +388,14 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
         }
 
         if (!accounts.card && accounts.bank) accounts.card = accounts.bank;
-        if (!accounts.wallet && accounts.amole) accounts.wallet = accounts.amole;
-        if (!accounts.telebirr && (accounts.telebirr_number || accounts.tel || accounts.phone)) {
-          accounts.telebirr = accounts.telebirr_number || accounts.tel || accounts.phone;
+        if (!accounts.wallet && accounts.amole)
+          accounts.wallet = accounts.amole;
+        if (
+          !accounts.telebirr &&
+          (accounts.telebirr_number || accounts.tel || accounts.phone)
+        ) {
+          accounts.telebirr =
+            accounts.telebirr_number || accounts.tel || accounts.phone;
         }
 
         setPaymentAccounts((prev) => {
@@ -373,9 +409,12 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
         });
 
         // DEV: show normalized accounts so owners can see what the cashier reads
-        if (import.meta.env.DEV) console.debug("Normalized payment accounts:", accounts);
+        if (import.meta.env.DEV)
+          console.debug("Normalized payment accounts:", accounts);
 
-        setMartCurrency((prev) => (prev === (json.currency || null) ? prev : json.currency || null));
+        setMartCurrency((prev) =>
+          prev === (json.currency || null) ? prev : json.currency || null,
+        );
 
         const incomingRate = Number(json.taxRate) || 0;
         if (typeof setTaxRate === "function") {
@@ -388,7 +427,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
         }
 
         // cache mart id to avoid repeated fetches
-        (PaymentPanel as any)._cachedMartId = martId;
+        paymentPanelCachedMartId = martId;
       } catch (err) {
         console.error("Load mart settings error", err);
       }
@@ -396,24 +435,32 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
 
     fetchMart();
 
-    const handleMartSettingsUpdated = (ev: any) => {
+    const handleMartSettingsUpdated = (ev: Event) => {
       try {
-        const changedId = ev?.detail?.martId;
+        const changedId = (ev as CustomEvent)?.detail?.martId;
         if (changedId && changedId === user?.martId) {
           // invalidate cache and refetch
-          (PaymentPanel as any)._cachedMartId = null;
+          paymentPanelCachedMartId = null;
           fetchMart();
         }
-      } catch (e) {}
+      } catch (err) {
+        console.warn("mart-settings-updated handler error", err);
+      }
     };
 
-    window.addEventListener("mart-settings-updated", handleMartSettingsUpdated as EventListener);
+    window.addEventListener(
+      "mart-settings-updated",
+      handleMartSettingsUpdated as EventListener,
+    );
 
     return () => {
       mounted = false;
-      window.removeEventListener("mart-settings-updated", handleMartSettingsUpdated as EventListener);
+      window.removeEventListener(
+        "mart-settings-updated",
+        handleMartSettingsUpdated as EventListener,
+      );
     };
-  }, [user?.martId]);
+  }, [user?.martId, user?.token, setTaxRate, taxRate]);
 
   const handleCloseReceipt = () => {
     // Close the receipt preview without saving. Cart remains intact so the user can retry.
@@ -450,30 +497,38 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
           <Label>{t("saved_accounts") || "Saved Accounts"}</Label>
           <div className="grid grid-cols-2 gap-2">
             {Object.entries(paymentAccounts).map(([key, value]) => {
-              const niceKey = String(key || "").replace(/_/g, " ").toUpperCase();
+              const niceKey = String(key || "")
+                .replace(/_/g, " ")
+                .toUpperCase();
               return (
                 <div
                   key={key}
                   className="p-2 border rounded-lg bg-muted flex items-center justify-between"
                 >
                   <div className="text-sm">
-                    <div className="text-xs text-muted-foreground">{niceKey}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {niceKey}
+                    </div>
                     <div className="text-sm font-medium mt-1">
                       {value || t("not_configured")}
                     </div>
                   </div>
                   {value ? (
                     <Button
-                      size="sm"
+                      size="icon"
                       variant="ghost"
+                      aria-label={t("copy") || "Copy"}
+                      title={t("copy") || "Copy"}
                       onClick={() => {
                         try {
                           navigator.clipboard?.writeText(value);
                           toast({ title: t("copied") });
-                        } catch {}
+                        } catch (err) {
+                          console.warn("copy to clipboard failed", err);
+                        }
                       }}
                     >
-                      Copy
+                      <Copy className="h-4 w-4" />
                     </Button>
                   ) : null}
                 </div>

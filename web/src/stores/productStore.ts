@@ -176,6 +176,7 @@ interface ProductState {
   products: Product[];
   categories: Category[];
   isLoading: boolean;
+  fetchError?: string | null;
   totalProducts: number;
 
   // Actions
@@ -183,7 +184,10 @@ interface ProductState {
   addProduct: (
     product: Omit<Product, "id" | "createdAt" | "updatedAt">,
   ) => Promise<Product>;
-  updateProduct: (id: string, updates: Partial<Product>) => Promise<{ status: number; data: any }>;
+  updateProduct: (
+    id: string,
+    updates: Partial<Product> | FormData,
+  ) => Promise<{ status: number; data: any }>;
   deleteProduct: (id: string) => Promise<void>;
   searchProducts: (query: string) => Product[];
   getProductByBarcode: (barcode: string) => Product | undefined;

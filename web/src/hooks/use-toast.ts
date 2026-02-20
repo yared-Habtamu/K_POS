@@ -3,7 +3,10 @@ import * as React from "react";
 import type { ToastActionElement, ToastProps } from "@/components/ui/toast";
 
 const TOAST_LIMIT = 1;
-const TOAST_REMOVE_DELAY = 1000000;
+// maximum visible toast duration (ms)
+const MAX_TOAST_DURATION = 2000;
+// keep a small buffer before removing from state so exit animations complete
+const TOAST_REMOVE_DELAY = MAX_TOAST_DURATION + 1000;
 
 type ToasterToast = ToastProps & {
   id: string;
@@ -79,7 +82,9 @@ export const reducer = (state: State, action: Action): State => {
     case "UPDATE_TOAST":
       return {
         ...state,
-        toasts: state.toasts.map((t) => (t.id === action.toast.id ? { ...t, ...action.toast } : t)),
+        toasts: state.toasts.map((t) =>
+          t.id === action.toast.id ? { ...t, ...action.toast } : t,
+        ),
       };
 
     case "DISMISS_TOAST": {
@@ -134,8 +139,14 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">;
 
-function toast({ ...props }: Toast) {
+function toast({ ...props }: Toast & { duration?: number }) {
   const id = genId();
+
+  // enforce a maximum visible duration for all toasts
+  const duration =
+    typeof props.duration === "number"
+      ? Math.min(props.duration, MAX_TOAST_DURATION)
+      : MAX_TOAST_DURATION;
 
   const update = (props: ToasterToast) =>
     dispatch({
@@ -148,6 +159,7 @@ function toast({ ...props }: Toast) {
     type: "ADD_TOAST",
     toast: {
       ...props,
+      duration,
       id,
       open: true,
       onOpenChange: (open) => {

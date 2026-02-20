@@ -84,10 +84,10 @@ export default function OwnerSettings() {
           setCustomPaymentFields((prev) => (prev && prev.length ? prev : arr));
           const obj = arr.reduce(
             (acc: any, it: any) => ({ ...acc, [it.key]: it.value }),
-            {}
+            {},
           );
           setPaymentAccounts((prev) =>
-            prev && Object.keys(prev).length ? prev : obj
+            prev && Object.keys(prev).length ? prev : obj,
           );
 
           // paymentSystem: prefer explicit server value; otherwise default to first saved key
@@ -103,11 +103,11 @@ export default function OwnerSettings() {
                 Object.entries(json.paymentAccounts).map(([k, v]) => [
                   k,
                   String(v),
-                ])
+                ]),
               )
             : {};
           setPaymentAccounts((prev) =>
-            prev && Object.keys(prev).length ? prev : accounts
+            prev && Object.keys(prev).length ? prev : accounts,
           );
           const arr = Object.entries(accounts || {}).map(([k, v]) => ({
             key: String(k || "")
@@ -119,7 +119,7 @@ export default function OwnerSettings() {
           setPaymentSystem((prev) =>
             prev
               ? prev
-              : json.paymentSystem || (arr.length > 0 ? arr[0].key || "" : "")
+              : json.paymentSystem || (arr.length > 0 ? arr[0].key || "" : ""),
           );
         }
 
@@ -176,10 +176,9 @@ export default function OwnerSettings() {
         try {
           // notify other windows/components that mart settings changed so they can refresh
           window.dispatchEvent(
-            new CustomEvent("mart-settings-updated", { detail: { martId } })
+            new CustomEvent("mart-settings-updated", { detail: { martId } }),
           );
-        } catch (e) 
-        {
+        } catch (e) {
           // ignore
         }
       } catch (err) {
@@ -316,7 +315,7 @@ export default function OwnerSettings() {
                     <SelectItem value="telebirr">Telebirr</SelectItem>
                     <SelectItem value="cbe_bank">CBE Bank</SelectItem>
                     <SelectItem value="card">Card</SelectItem>
-                    <SelectItem value="wallet">Wallet</SelectItem>
+                    <SelectItem value="wallet">Credit</SelectItem>
                     <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
@@ -339,12 +338,12 @@ export default function OwnerSettings() {
                       paymentSystem === "telebirr"
                         ? "Enter Telebirr number"
                         : paymentSystem === "cbe_bank"
-                        ? "Enter CBE account number"
-                        : paymentSystem === "card"
-                        ? "Enter card/merchant account"
-                        : paymentSystem === "wallet"
-                        ? "Enter wallet number"
-                        : "Enter account identifier"
+                          ? "Enter CBE account number"
+                          : paymentSystem === "card"
+                            ? "Enter card/merchant account"
+                            : paymentSystem === "wallet"
+                              ? "Enter credit number"
+                              : "Enter account identifier"
                     }
                     className="mt-2"
                   />
