@@ -301,7 +301,7 @@ class _CommonEmployeeManagementPageState
     }
 
     String? selectedEmployeeId = rec.employeeId;
-    if ((selectedEmployeeId == null || selectedEmployeeId!.isEmpty) &&
+    if ((selectedEmployeeId == null || selectedEmployeeId.isEmpty) &&
         rec.employeeName.isNotEmpty) {
       final match = _employees
           .where((e) => e.name == rec.employeeName)

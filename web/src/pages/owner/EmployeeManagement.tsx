@@ -50,7 +50,6 @@ import {
   Search,
   Edit,
   Trash2,
-  Clock,
   Phone,
   DollarSign,
   UserCog,
@@ -169,7 +168,8 @@ export default function OwnerEmployeeManagement(): JSX.Element {
         if (!res.ok) throw new Error('Failed to fetch employees');
         const data = await res.json();
         // normalize to expected shape
-        const list = data.map((u:any) => ({
+        const list = data
+        .map((u:any) => ({
           id: u._id || u.id,
           name: u.name,
           username: u.username,
@@ -180,8 +180,10 @@ export default function OwnerEmployeeManagement(): JSX.Element {
           salary: u.salary || 0,
           permissions: u.permissions || [],
           status: 'active',
-        }));
-        setEmployees(list);
+        }))
+        // don't include the owner/system admin account in the list
+        .filter((u:any) => u.role !== 'system_admin' && u.role !== 'owner' && u.id !== user?.id);
+      setEmployees(list);
       } catch (err) {
         console.error('fetch employees error', err);
       }
@@ -327,11 +329,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
     resetForm();
   };
 
-  // ✅ Added handleClockIn (even if not used, to avoid error)
-  const handleClockIn = (id: string) => {
-    toast({ title: 'Clocked In', description: 'Attendance recorded' });
-  };
-
+  
   const togglePermission = async (employeeId: string, key: string, value: boolean) => {
     const employee = employees.find(e => e.id === employeeId);
     if (!employee) return;
@@ -504,6 +502,9 @@ export default function OwnerEmployeeManagement(): JSX.Element {
     const base = new Date(baseStr);
     base.setDate(base.getDate() + delta);
     const nextStr = base.toISOString().split('T')[0];
+    const today = new Date().toISOString().split('T')[0];
+    // don't navigate beyond today
+    if (nextStr > today) return;
     setAttendanceFilter(prev => ({
       ...prev,
       dateRange: 'custom',
@@ -524,8 +525,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
     }
   };
 
-  // Track active clock-ins for owner page
-  const [activeClockIns, setActiveClockIns] = useState<Record<string, string>>({});
+  // clock-in state has been removed; attendance is handled in the dedicated tab
 
   const timeToHHmm = (timeRaw: string) => {
     const s = (timeRaw || '').trim();
@@ -598,7 +598,6 @@ export default function OwnerEmployeeManagement(): JSX.Element {
       const data = await fetchAttendance({}, token);
       const mapped = (Array.isArray(data) ? data : []).map(mapApiAttendance);
       setAttendance(mapped);
-      setActiveClockIns(deriveActiveFromAttendance(mapped));
     } catch (e: any) {
       console.error('fetch attendance error', e);
       toast({
@@ -615,58 +614,6 @@ export default function OwnerEmployeeManagement(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, token]);
 
-  const handleClockToggle = async (employeeId: string) => {
-    if (!token) {
-      toast({ title: 'Not authenticated', variant: 'destructive' });
-      return;
-    }
-
-    const now = new Date();
-    const today = formatDateKey(now);
-    const nowHHmm = now.toTimeString().slice(0, 5);
-    const isClockedIn = !!activeClockIns[employeeId];
-    const emp = employees.find(e => e.id === employeeId);
-
-    try {
-      if (isClockedIn) {
-        // find open record (prefer local state)
-        let open = attendance
-          .filter(r => r.employeeId === employeeId && r.date === today && !r.clockOut)
-          .sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime())[0];
-
-        if (!open) {
-          const list = await fetchAttendance({ employeeId, dateYmd: today }, token);
-          const mapped = (Array.isArray(list) ? list : []).map(mapApiAttendance);
-          open = mapped.find(r => !r.clockOut);
-        }
-
-        if (!open) {
-          toast({ title: 'No active clock-in found', variant: 'destructive' });
-          return;
-        }
-
-        await updateAttendance(open.id, { clockOut: nowHHmm }, token);
-        await refreshAttendance();
-        toast({ title: 'Clocked Out', description: emp ? `${emp.name} clocked out` : 'Clocked out' });
-      } else {
-        await createAttendance(
-          {
-            employeeId,
-            employeeName: emp?.name,
-            dateYmd: today,
-            clockIn: nowHHmm,
-            clockOut: null,
-          },
-          token,
-        );
-        await refreshAttendance();
-        toast({ title: 'Clocked In', description: emp ? `${emp.name} clocked in` : 'Clocked in' });
-      }
-    } catch (e: any) {
-      console.error('clock toggle failed', e);
-      toast({ title: 'Attendance update failed', description: e?.message || 'Server error', variant: 'destructive' });
-    }
-  };
 
   const nextAttendancePage = () => {
     if (attendancePage < attendanceTotalPages) {
@@ -1097,10 +1044,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
-                                <Button variant="ghost" size="icon" onClick={() => handleClockToggle(e.id)} className={activeClockIns[e.id] ? 'text-destructive' : 'text-success'}>
-                                  <Clock className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" onClick={() => handleEdit(e)}><Edit className="h-4 w-4" /></Button>
+                                    <Button variant="ghost" size="icon" onClick={() => handleEdit(e)}><Edit className="h-4 w-4" /></Button>
                                 <Button variant="ghost" size="icon" onClick={() => handleDelete(e.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
                               </div>
                             </TableCell>
@@ -1330,16 +1274,26 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                         <Label>Start Date</Label>
                         <Input
                           type="date"
+                          max={new Date().toISOString().split('T')[0]}
                           value={attendanceFilter.startDate}
-                          onChange={(e) => setAttendanceFilter(prev => ({ ...prev, startDate: e.target.value }))}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const today = new Date().toISOString().split('T')[0];
+                            setAttendanceFilter(prev => ({ ...prev, startDate: val > today ? today : val }));
+                          }}
                         />
                       </div>
                       <div>
                         <Label>End Date</Label>
                         <Input
                           type="date"
+                          max={new Date().toISOString().split('T')[0]}
                           value={attendanceFilter.endDate}
-                          onChange={(e) => setAttendanceFilter(prev => ({ ...prev, endDate: e.target.value }))}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const today = new Date().toISOString().split('T')[0];
+                            setAttendanceFilter(prev => ({ ...prev, endDate: val > today ? today : val }));
+                          }}
                         />
                       </div>
                     </>
@@ -1376,8 +1330,13 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                     <Label>Date</Label>
                     <Input
                       type="date"
+                      max={new Date().toISOString().split('T')[0]}
                       value={manualEntry.date}
-                      onChange={(e) => setManualEntry(prev => ({ ...prev, date: e.target.value }))}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const today = new Date().toISOString().split('T')[0];
+                        setManualEntry(prev => ({ ...prev, date: val > today ? today : val }));
+                      }}
                     />
                   </div>
                   <div>
@@ -1442,6 +1401,8 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                         {paginatedAttendance.length > 0 ? (
                           paginatedAttendance.map((rec) => {
                           const emp = employees.find(e => e.id === rec.employeeId);
+                          const today = new Date().toISOString().split('T')[0];
+                          const isPast = rec.date < today;
                           return (
                             <TableRow key={rec.id}>
                               <TableCell>
@@ -1457,77 +1418,82 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                               <TableCell>{rec.clockOut ? new Date(rec.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</TableCell>
                               <TableCell>{rec.durationMinutes ? `${rec.durationMinutes} min` : '—'}</TableCell>
                               <TableCell className="text-right">
-                                {(!rec.clockOut || rec.clockOut === null) && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={async () => {
-                                      if (!token) {
-                                        toast({ title: 'Not authenticated', variant: 'destructive' });
-                                        return;
-                                      }
-                                      try {
-                                        const now = new Date();
-                                        const nowHHmm = now.toTimeString().slice(0, 5);
-                                        await updateAttendance(rec.id, { clockOut: nowHHmm }, token);
-                                        await refreshAttendance();
-                                        toast({ title: 'Clocked out', description: `${emp?.name || rec.employeeName || 'Employee'} clocked out now` });
-                                      } catch (e: any) {
-                                        console.error('clock out now failed', e);
-                                        toast({ title: 'Failed to clock out', description: e?.message || 'Server error', variant: 'destructive' });
-                                      }
-                                    }}
-                                  >
-                                    Clock Out Now
-                                  </Button>
-                                )}
-                                <Button variant="ghost" size="icon" onClick={() => handleEditAttendance(rec)}>
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="text-destructive hover:text-destructive"
-                                      aria-label="Delete attendance"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Delete attendance record?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Delete the attendance record for {emp?.name || rec.employeeName || 'this employee'} on {rec.date}? This action cannot be undone.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                      <AlertDialogAction
-                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                        onClick={() => {
-                                          void (async () => {
+                                      {(!rec.clockOut || rec.clockOut === null) && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={async () => {
                                             if (!token) {
                                               toast({ title: 'Not authenticated', variant: 'destructive' });
                                               return;
                                             }
                                             try {
-                                              await deleteAttendance(rec.id, token);
+                                              const now = new Date();
+                                              const nowHHmm = now.toTimeString().slice(0, 5);
+                                              await updateAttendance(rec.id, { clockOut: nowHHmm }, token);
                                               await refreshAttendance();
-                                              toast({ title: 'Attendance deleted', description: 'Removed from database.' });
+                                              toast({ title: 'Clocked out', description: `${emp?.name || rec.employeeName || 'Employee'} clocked out now` });
                                             } catch (e: any) {
-                                              console.error('delete attendance failed', e);
-                                              toast({ title: 'Failed to delete attendance', description: e?.message || 'Server error', variant: 'destructive' });
+                                              console.error('clock out now failed', e);
+                                              toast({ title: 'Failed to clock out', description: e?.message || 'Server error', variant: 'destructive' });
                                             }
-                                          })();
-                                        }}
-                                      >
-                                        Delete
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
+                                          }}
+                                        >
+                                          Clock Out Now
+                                        </Button>
+                                      )}
+                                      {!isPast && (
+                                        <>
+                                          <Button variant="ghost" size="icon" onClick={() => handleEditAttendance(rec)}>
+                                            <Edit className="h-4 w-4" />
+                                          </Button>
+                                          <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="text-destructive hover:text-destructive"
+                                                aria-label="Delete attendance"
+                                                disabled={rec.date < new Date().toISOString().split('T')[0]}
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                              <AlertDialogHeader>
+                                                <AlertDialogTitle>Delete attendance record?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                  Delete the attendance record for {emp?.name || rec.employeeName || 'this employee'} on {rec.date}? This action cannot be undone.
+                                                </AlertDialogDescription>
+                                              </AlertDialogHeader>
+                                              <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                  onClick={() => {
+                                                    void (async () => {
+                                                      if (!token) {
+                                                        toast({ title: 'Not authenticated', variant: 'destructive' });
+                                                        return;
+                                                      }
+                                                      try {
+                                                        await deleteAttendance(rec.id, token);
+                                                        await refreshAttendance();
+                                                        toast({ title: 'Attendance deleted', description: 'Removed from database.' });
+                                                      } catch (e: any) {
+                                                        console.error('delete attendance failed', e);
+                                                        toast({ title: 'Failed to delete attendance', description: e?.message || 'Server error', variant: 'destructive' });
+                                                      }
+                                                    })();
+                                                  }}
+                                                >
+                                                  Delete
+                                                </AlertDialogAction>
+                                              </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                          </AlertDialog>
+                                        </>
+                                      )}
                               </TableCell>
                             </TableRow>
                           );

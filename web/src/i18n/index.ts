@@ -97,6 +97,7 @@ const resources = {
       expense_category: "Category",
       amount: "Amount",
       add_expense: "Add Expense",
+      edit_expense: "Edit Expense",
       salary_expense: "Salary",
       rent: "Rent",
       electricity: "Electricity",
@@ -140,6 +141,7 @@ const resources = {
       product_deleted: "Product deleted successfully!",
       employee_added: "Employee added successfully!",
       expense_added: "Expense recorded successfully!",
+      expense_updated: "Expense updated successfully!",
       report_submitted: "Report submitted successfully!",
 
       // Currency
@@ -241,6 +243,7 @@ const resources = {
       expense_category: "ምድብ",
       amount: "መጠን",
       add_expense: "ወጪ ጨምር",
+      edit_expense: "ወጪ አስተካክል",
       salary_expense: "ደሞዝ",
       rent: "ኪራይ",
       electricity: "መብራት",
@@ -283,8 +286,7 @@ const resources = {
       product_updated: "ምርት በተሳካ ሁኔታ ተዘምኗል!",
       product_deleted: "ምርት በተሳካ ሁኔታ ተሰርዟል!",
       employee_added: "ሰራተኛ በተሳካ ሁኔታ ተጨምሯል!",
-      expense_added: "ወጪ በተሳካ ሁኔታ ተመዝግቧል!",
-      report_submitted: "ሪፖርት በተሳካ ሁኔታ ቀርቧል!",
+      expense_added: "ወጪ በተሳካ ሁኔታ ተመዝግቧል!",      expense_updated: "ወጪው በተሳካ ሁኔታ አዘምኗል!",      report_submitted: "ሪፖርት በተሳካ ሁኔታ ቀርቧል!",
 
       // Currency
       etb: "ብር",

@@ -53,6 +53,31 @@ router.post("/", authenticate, async (req, res) => {
   }
 });
 
+// Update asset
+router.put("/:id", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, quantity, description } = req.body;
+    const asset = await Asset.findById(id);
+    if (!asset) return res.status(404).json({ message: "Asset not found" });
+    if (req.user.role !== "systemAdmin") {
+      if (!req.user.martId || String(asset.martId) !== String(req.user.martId))
+        return res
+          .status(403)
+          .json({ message: "Insufficient permissions to update asset" });
+    }
+    // allow partial updates
+    if (name != null) asset.name = name;
+    if (quantity != null) asset.quantity = Number(quantity);
+    if (description != null) asset.description = description;
+    await asset.save();
+    res.json(asset);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // Delete asset
 router.delete("/:id", authenticate, async (req, res) => {
   try {

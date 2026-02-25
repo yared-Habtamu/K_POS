@@ -14,6 +14,8 @@ export default function ManagerAssets() {
   const API_BASE = import.meta.env.VITE_API_URL || "";
   const [name, setName] = useState("");
   const [qty, setQty] = useState<number | "">("");
+  // when editing an existing asset we keep its id here
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // ✅ Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -57,33 +59,59 @@ export default function ManagerAssets() {
       try {
         const token = auth?.token;
         const payload = { name, quantity: Number(qty), martId: auth?.martId };
-        const res = await fetch(`${API_BASE}/api/assets`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify(payload),
-        });
+        let res;
+        if (editingId) {
+          // update existing asset
+          res = await fetch(`${API_BASE}/api/assets/${editingId}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(payload),
+          });
+        } else {
+          // create new asset
+          res = await fetch(`${API_BASE}/api/assets`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(payload),
+          });
+        }
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          console.warn("Failed to add asset", err);
+          console.warn(editingId ? "Failed to update asset" : "Failed to add asset", err);
           return;
         }
         const saved = await res.json();
-        setAssets((a) => [
-          {
-            id: saved._id || saved.id,
-            name: saved.name,
-            quantity: saved.quantity,
-          },
-          ...a,
-        ]);
+        if (editingId) {
+          setAssets((a) =>
+            a.map((x) =>
+              x.id === editingId
+                ? { id: saved._id || saved.id, name: saved.name, quantity: saved.quantity }
+                : x
+            )
+          );
+        } else {
+          setAssets((a) => [
+            {
+              id: saved._id || saved.id,
+              name: saved.name,
+              quantity: saved.quantity,
+            },
+            ...a,
+          ]);
+          setCurrentPage(1);
+        }
+        // reset form
         setName("");
         setQty("");
-        setCurrentPage(1);
+        setEditingId(null);
       } catch (err) {
-        console.error("Add asset error", err);
+        console.error(editingId ? "Update asset error" : "Add asset error", err);
       }
     })();
   };
@@ -104,15 +132,24 @@ export default function ManagerAssets() {
     URL.revokeObjectURL(url);
   };
 
+  const cancelEdit = () => {
+    setEditingId(null);
+    setName("");
+    setQty("");
+  };
+
   const printList = () => {
-    const html = `<h1>Assets</h1><table border="1" cellpadding="8"><tr><th>ID</th><th>Name</th><th>Quantity</th></tr>${assets
+    // build page with title and centered header
+    const html = `<!DOCTYPE html><html><head><title>SuperMarket's Asset</title><style>body{font-family:sans-serif;}h1{text-align:center;}</style></head><body><h1>SuperMarket's Asset</h1><table border="1" cellpadding="8" style="margin:auto"><tr><th>Name</th><th>Quantity</th></tr>${assets
       .map(
         (a) =>
-          `<tr><td>${a.id}</td><td>${a.name}</td><td>${a.quantity}</td></tr>`
+          `<tr><td>${a.name}</td><td>${a.quantity}</td></tr>`
       )
-      .join("")}</table>`;
+      .join("")}</table></body></html>`;
     const w = window.open("", "_blank");
     if (!w) return;
+    // set title explicitly in case print header uses it
+    w.document.title = "SuperMarket's Asset";
     w.document.write(html);
     w.document.close();
     w.print();
@@ -165,7 +202,7 @@ export default function ManagerAssets() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Add Asset</CardTitle>
+            <CardTitle>{editingId ? "Edit Asset" : "Add Asset"}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex gap-2">
@@ -185,7 +222,12 @@ export default function ManagerAssets() {
                   )
                 }
               />
-              <Button onClick={add}>Add</Button>
+              <Button onClick={add}>{editingId ? "Save" : "Add"}</Button>
+              {editingId && (
+                <Button variant="outline" onClick={cancelEdit}>
+                  Cancel
+                </Button>
+              )}
             </div>
 
             <div className="mt-4 space-y-2">
@@ -206,6 +248,17 @@ export default function ManagerAssets() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          // populate form for editing
+                          setEditingId(a.id);
+                          setName(a.name);
+                          setQty(a.quantity);
+                        }}
+                      >
+                        Edit
+                      </Button>
                       <Button
                         variant="destructive"
                         size="sm"

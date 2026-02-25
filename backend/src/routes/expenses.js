@@ -61,6 +61,41 @@ router.post("/", authenticate, async (req, res) => {
   }
 });
 
+// Update expense
+router.put("/:id", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { category, description, amount, date } = req.body;
+
+    const expense = await Expense.findById(id);
+    if (!expense) return res.status(404).json({ message: "Expense not found" });
+
+    // authorization: systemAdmin can edit any; others only within their mart
+    if (req.user.role !== "systemAdmin") {
+      if (
+        !req.user.martId ||
+        String(expense.martId) !== String(req.user.martId)
+      ) {
+        return res
+          .status(403)
+          .json({ message: "Insufficient permissions to update expense" });
+      }
+    }
+
+    // update allowed fields
+    if (category !== undefined) expense.category = category;
+    if (description !== undefined) expense.description = description;
+    if (amount !== undefined) expense.amount = Number(amount);
+    if (date !== undefined) expense.date = new Date(date);
+
+    await expense.save();
+    res.json(expense);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // Delete expense
 router.delete("/:id", authenticate, async (req, res) => {
   try {
