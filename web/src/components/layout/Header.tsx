@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import {
   LogOut,
-  User,
+  Settings,
   Bell,
   Globe,
   Menu,
@@ -21,6 +21,7 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface HeaderProps {
   onToggleSidebar?: () => void;
@@ -30,6 +31,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
   const { t, i18n } = useTranslation();
   const { user, logout } = useAuthStore();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -119,10 +121,12 @@ export function Header({ onToggleSidebar }: HeaderProps) {
               <p className="text-xs text-muted-foreground">{user?.email || user?.phone}</p>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <User className="mr-2 h-4 w-4" />
-              Profile
-            </DropdownMenuItem>
+            {user?.role === 'owner' && (
+              <DropdownMenuItem onClick={() => navigate('/owner/settings')}>
+                <Settings className="mr-2 h-4 w-4" />
+                Settings
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">
               <LogOut className="mr-2 h-4 w-4" />
