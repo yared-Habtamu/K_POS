@@ -1,7 +1,7 @@
 // src/pages/manager/ProductManagement.tsx
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,7 @@ export default function ManagerProductManagement() {
   // eslint-disable-next-line no-console
   console.debug('ManagerProductManagement render', { role: user?.role, isAuthenticated, canSetPurchase });
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     (async () => {
@@ -215,6 +216,15 @@ export default function ManagerProductManagement() {
       setCurrentPage(1);
     }
   };
+
+  useEffect(() => {
+    const editId = (location.state as any)?.editProductId;
+    if (!editId) return;
+    const product = products.find((p: any) => (p.id || p._id) === editId);
+    if (!product) return;
+    handleEdit(product);
+    navigate("/manager/products", { replace: true, state: {} });
+  }, [location.state, products]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -114,6 +114,53 @@ router.get("/summary", authenticate, async (req, res) => {
     const filter = { ...filterBase, date: { $gte: startDate, $lte: endDate } };
     const sales = await Sale.find(filter).lean();
 
+    const totalTax = sales.reduce((s, x) => s + (x.tax || 0), 0);
+
+    // Build product map for tax by category
+    const productIds = Array.from(
+      new Set(
+        sales.flatMap((s) =>
+          (s.items || []).map((it) => it.productId).filter(Boolean)
+        )
+      )
+    );
+    const products = productIds.length
+      ? await Product.find({ _id: { $in: productIds } }).lean()
+      : [];
+    const productMap = {};
+    for (const p of products) productMap[String(p._id)] = p;
+
+    const taxByCategoryMap = {};
+    for (const s of sales) {
+      const saleTax = Number(s.tax || 0);
+      if (!saleTax) continue;
+
+      const items = s.items || [];
+      const itemTotals = items.map((it) => {
+        if (it.total != null) return Number(it.total || 0);
+        if (it.price != null) return Number(it.quantity || 0) * Number(it.price || 0);
+        return 0;
+      });
+      const computedSubtotal = itemTotals.reduce((acc, v) => acc + v, 0);
+      const saleSubtotal = Number(s.subtotal || computedSubtotal || 0);
+      if (!saleSubtotal) continue;
+
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i] || {};
+        const rawPid = it.productId ? String(it.productId) : null;
+        const category = rawPid && productMap[rawPid] && productMap[rawPid].category
+          ? String(productMap[rawPid].category)
+          : "Uncategorized";
+        const itemTotal = itemTotals[i] || 0;
+        if (!itemTotal) continue;
+        const itemTax = (itemTotal / saleSubtotal) * saleTax;
+        taxByCategoryMap[category] = (taxByCategoryMap[category] || 0) + itemTax;
+      }
+    }
+    const taxByCategory = Object.entries(taxByCategoryMap)
+      .map(([category, tax]) => ({ category, tax: Number(tax || 0) }))
+      .sort((a, b) => b.tax - a.tax);
+
     const totalSales = sales.reduce((s, x) => s + (x.total || 0), 0);
     const grossSales = sales.reduce((s, x) => s + (x.subtotal || 0), 0);
     const discountsTotal = sales.reduce(
@@ -169,6 +216,8 @@ router.get("/summary", authenticate, async (req, res) => {
       totalSales,
       grossSales,
       discountsTotal,
+      totalTax,
+      taxByCategory,
       salesByPaymentMethod: Object.entries(salesByPaymentMethod).map(
         ([method, total]) => ({ method, total })
       ),
@@ -223,12 +272,44 @@ router.get("/mart", authenticate, async (req, res) => {
     const sales = await Sale.find({ martId: targetMartId, date: { $gte: startDate, $lte: endDate } }).lean();
     const totalSales = sales.reduce((s, x) => s + (x.total || 0), 0);
     const transactions = sales.length;
+    const totalTax = sales.reduce((s, x) => s + (x.tax || 0), 0);
 
     // Compute COGS: sum of (item.quantity * purchasePrice). Need product purchasePrice lookup
     const productIds = Array.from(new Set(sales.flatMap((s) => (s.items || []).map((it) => it.productId).filter(Boolean))));
     const products = productIds.length ? await Product.find({ _id: { $in: productIds } }).lean() : [];
     const productMap = {};
     for (const p of products) productMap[String(p._id)] = p;
+
+    const taxByCategoryMap = {};
+    for (const s of sales) {
+      const saleTax = Number(s.tax || 0);
+      if (!saleTax) continue;
+
+      const items = s.items || [];
+      const itemTotals = items.map((it) => {
+        if (it.total != null) return Number(it.total || 0);
+        if (it.price != null) return Number(it.quantity || 0) * Number(it.price || 0);
+        return 0;
+      });
+      const computedSubtotal = itemTotals.reduce((acc, v) => acc + v, 0);
+      const saleSubtotal = Number(s.subtotal || computedSubtotal || 0);
+      if (!saleSubtotal) continue;
+
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i] || {};
+        const rawPid = it.productId ? String(it.productId) : null;
+        const category = rawPid && productMap[rawPid] && productMap[rawPid].category
+          ? String(productMap[rawPid].category)
+          : "Uncategorized";
+        const itemTotal = itemTotals[i] || 0;
+        if (!itemTotal) continue;
+        const itemTax = (itemTotal / saleSubtotal) * saleTax;
+        taxByCategoryMap[category] = (taxByCategoryMap[category] || 0) + itemTax;
+      }
+    }
+    const taxByCategory = Object.entries(taxByCategoryMap)
+      .map(([category, tax]) => ({ category, tax: Number(tax || 0) }))
+      .sort((a, b) => b.tax - a.tax);
 
     let cogs = 0;
     for (const s of sales) {
@@ -331,6 +412,8 @@ router.get("/mart", authenticate, async (req, res) => {
       cogs,
       expenses: totalExpenses,
       profit,
+      totalTax,
+      taxByCategory,
       topProducts,
       series,
     });

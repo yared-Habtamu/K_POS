@@ -17,29 +17,43 @@ export default function CashierDashboard({ items, totals }: { items: Item[]; tot
     .map((it) => ({ name: it.name, total: Number(it.total) || 0 }));
 
   const pieData = topItems.map((d) => ({ name: d.name, value: d.total }));
+  const totalItems = totals?.totalItemsSold ?? 0;
+  const totalCost = totals?.totalPurchasingCost ?? 0;
+  const avgPerItem = totalItems > 0 ? totalCost / totalItems : 0;
 
   return (
     <div className="space-y-4 mb-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Quick overview</p>
-        </div>
-        <div className="flex gap-3">
-          <div className="bg-card p-3 rounded-xl border text-center">
-            <p className="text-sm text-muted-foreground">Items Sold Today</p>
-            <p className="text-lg font-bold">{totals?.totalItemsSold ?? 0}</p>
+      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-800 text-white p-5">
+        <div className="absolute -right-14 -top-14 h-36 w-36 rounded-full bg-indigo-400/20 blur-3xl" />
+        <div className="absolute -left-10 -bottom-10 h-36 w-36 rounded-full bg-emerald-400/20 blur-3xl" />
+        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-semibold">Cashier Dashboard</h1>
+            <p className="text-sm text-slate-300">Quick overview for today</p>
           </div>
-          <div className="bg-card p-3 rounded-xl border text-center">
-            <p className="text-sm text-muted-foreground">Total Sales</p>
-            <p className="text-lg font-bold">{(totals?.totalPurchasingCost || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <div className="flex gap-3">
+            <div className="bg-white/10 backdrop-blur px-4 py-3 rounded-xl border border-white/10 text-center">
+              <p className="text-xs text-slate-300">Items Sold</p>
+              <p className="text-xl font-semibold">{totalItems}</p>
+            </div>
+            <div className="bg-white/10 backdrop-blur px-4 py-3 rounded-xl border border-white/10 text-center">
+              <p className="text-xs text-slate-300">Total Cost</p>
+              <p className="text-xl font-semibold">{totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            </div>
+            <div className="bg-white/10 backdrop-blur px-4 py-3 rounded-xl border border-white/10 text-center">
+              <p className="text-xs text-slate-300">Avg / Item</p>
+              <p className="text-xl font-semibold">{avgPerItem.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="md:col-span-2 bg-card p-4 rounded-xl border h-56">
-          <h3 className="text-sm font-medium mb-2">Top items (by sales)</h3>
+        <div className="md:col-span-2 bg-card p-4 rounded-2xl border h-56">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold">Top items (by sales)</h3>
+            <span className="text-xs text-muted-foreground">top 6</span>
+          </div>
           {topItems.length === 0 ? (
             <div className="text-muted-foreground">No sales yet</div>
           ) : (
@@ -48,14 +62,17 @@ export default function CashierDashboard({ items, totals }: { items: Item[]; tot
                 <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="total" fill="#4f46e5" />
+                <Bar dataKey="total" fill="#4f46e5" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
         </div>
 
-        <div className="bg-card p-4 rounded-xl border h-56">
-          <h3 className="text-sm font-medium mb-2">Sales share</h3>
+        <div className="bg-card p-4 rounded-2xl border h-56">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold">Sales share</h3>
+            <span className="text-xs text-muted-foreground">distribution</span>
+          </div>
           {pieData.length === 0 ? (
             <div className="text-muted-foreground">No data</div>
           ) : (
