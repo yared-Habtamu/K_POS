@@ -24,8 +24,12 @@ async function request(path: string, token?: string, opts: RequestInit = {}) {
   return res.json();
 }
 
-export async function createCustomer(payload: { name: string; phoneNumber: string; city?: string; martId?: string }, token?: string) {
+export async function createCustomer(payload: { name: string; phoneNumber: string; city?: string; martId?: string; totalCredit?: number; totalPaid?: number; totalUnpaid?: number }, token?: string) {
   return request('/api/customers', token, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+}
+
+export async function updateCustomer(id: string, payload: { name?: string; phoneNumber?: string; city?: string; totalCredit?: number; totalPaid?: number; totalUnpaid?: number }, token?: string) {
+  return request(`/api/customers/${id}`, token, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
 }
 
 export async function fetchCustomers(params: { martId?: string } = {}, token?: string) {
@@ -34,4 +38,4 @@ export async function fetchCustomers(params: { martId?: string } = {}, token?: s
   return request(`/api/customers${suffix}`, token);
 }
 
-export default { createCustomer, fetchCustomers };
+export default { createCustomer, updateCustomer, fetchCustomers };
