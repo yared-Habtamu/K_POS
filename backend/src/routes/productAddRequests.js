@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const { authenticate } = require('../middleware/auth');
 const ProductAddRequest = require('../models/productAddRequest.model');
 const Product = require('../models/product.model');
-const Notification = require('../models/notification.model');
+const { createNotification } = require('../services/notification.service');
 
 const router = express.Router();
 
@@ -95,16 +95,14 @@ router.put('/:id/approve', authenticate, async (req, res) => {
       reqDoc.decidedAt = new Date();
       await reqDoc.save({ session });
 
-      await Notification.create([
-        {
-          martId: reqDoc.martId,
-          userId: reqDoc.requesterId,
-          type: 'product_add_result',
-          title: 'Product request approved',
-          message: `Your product request for ${payload.name} was approved`,
-          data: { requestId: reqDoc._id, productId: product._id, result: 'approved' },
-        },
-      ], { session });
+      await createNotification({
+        martId: reqDoc.martId,
+        userId: reqDoc.requesterId,
+        type: 'product_add_result',
+        title: 'Product request approved',
+        message: `Your product request for ${payload.name} was approved`,
+        metadata: { requestId: reqDoc._id, productId: product._id, result: 'approved' },
+      }, session);
 
       await session.commitTransaction();
       session.endSession();
@@ -145,13 +143,13 @@ router.put('/:id/reject', authenticate, async (req, res) => {
     reqDoc.decidedAt = new Date();
     await reqDoc.save();
 
-    await Notification.create({
+    await createNotification({
       martId: reqDoc.martId,
       userId: reqDoc.requesterId,
       type: 'product_add_result',
       title: 'Product request rejected',
       message: `Your product request for ${(reqDoc.payload && reqDoc.payload.name) || 'product'} was rejected. ${reason || ''}`,
-      data: { requestId: reqDoc._id, result: 'rejected' },
+      metadata: { requestId: reqDoc._id, result: 'rejected' },
     });
 
     res.json({ message: 'Request rejected' });

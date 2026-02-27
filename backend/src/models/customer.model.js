@@ -6,6 +6,9 @@ const CustomerSchema = new mongoose.Schema({
   name: { type: String, required: true, index: true },
   phoneNumber: { type: String, required: true },
   city: { type: String, default: '' },
+  totalCredit: { type: Number, default: 0 },
+  totalPaid: { type: Number, default: 0 },
+  totalUnpaid: { type: Number, default: 0 },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Customer', CustomerSchema);

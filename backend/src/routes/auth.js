@@ -181,14 +181,14 @@ router.put('/users/:id', authenticate, async (req, res) => {
         socketHelper.emitToUser(user._id.toString(), 'permissions_updated', { userId: user._id.toString(), permissions: user.permissions || [], actor });
 
         // create a notification so offline sessions will see this change in notifications
-        const Notification = require('../models/notification.model');
-        await Notification.create({
+        const { createNotification } = require('../services/notification.service');
+        await createNotification({
           martId: user.martId,
           userId: user._id,
           type: 'permissions_changed',
           title: 'Permissions updated',
           message: `Your permissions were changed by ${actor.role || 'an administrator'}`,
-          data: { permissions: user.permissions || [], actor },
+          metadata: { permissions: user.permissions || [], actor },
         });
       } catch (e) {
         console.error('Failed to emit permissions update', e);

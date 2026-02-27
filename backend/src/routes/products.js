@@ -4,7 +4,7 @@ const router = express.Router();
 const Product = require("../models/product.model");
 const ProductEditRequest = require("../models/productEditRequest.model");
 const ProductAddRequest = require("../models/productAddRequest.model");
-const Notification = require("../models/notification.model");
+const { createNotification } = require("../services/notification.service");
 const { authenticate } = require("../middleware/auth");
 const multer = require("multer");
 const { uploadBuffer } = require("../utils/cloudinary");
@@ -152,22 +152,23 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
       // Find managers case-insensitively (some DB entries may have different casing)
       const managers = await User.find({ martId: finalMartId, role: { $regex: /^manager$/i } }).select('_id username name').lean();
       if (managers && managers.length > 0) {
-        const notes = managers.map(m => ({
-          martId: finalMartId,
-          userId: m._id,
-          type: 'product_add_request',
-          title: 'Product creation requested',
-          message: `${reqDoc.requesterName || 'Owner'} requested to add product ${name}`,
-          data: { requestId: reqDoc._id, name },
-        }));
-        await Notification.create(notes);
+        for (const m of managers) {
+          await createNotification({
+            martId: finalMartId,
+            userId: m._id,
+            type: 'product_add_request',
+            title: 'Product creation requested',
+            message: `${reqDoc.requesterName || 'Owner'} requested to add product ${name}`,
+            metadata: { requestId: reqDoc._id, name },
+          });
+        }
       } else {
-        await Notification.create({
+        await createNotification({
           martId: finalMartId,
           type: 'product_add_request',
           title: 'Product creation requested',
           message: `${reqDoc.requesterName || 'Owner'} requested to add product ${name}`,
-          data: { requestId: reqDoc._id, name },
+          metadata: { requestId: reqDoc._id, name },
         });
       }
 
@@ -391,22 +392,23 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
       const User = require('../models/user.model');
       const managers = await User.find({ martId: product.martId, role: 'manager' }).select('_id username name').lean();
       if (managers && managers.length > 0) {
-        const notes = managers.map(m => ({
-          martId: product.martId,
-          userId: m._id,
-          type: 'product_edit_request',
-          title: 'Product edit requested',
-          message: `${reqDoc.requesterName} requested updates for product ${product.name}`,
-          data: { requestId: reqDoc._id, productId: product._id, requestedChanges: reqDoc.changes },
-        }));
-        await Notification.create(notes);
+        for (const m of managers) {
+          await createNotification({
+            martId: product.martId,
+            userId: m._id,
+            type: 'product_edit_request',
+            title: 'Product edit requested',
+            message: `${reqDoc.requesterName} requested updates for product ${product.name}`,
+            metadata: { requestId: reqDoc._id, productId: product._id, requestedChanges: reqDoc.changes },
+          });
+        }
       } else {
-        await Notification.create({
+        await createNotification({
           martId: product.martId,
           type: 'product_edit_request',
           title: 'Product edit requested',
           message: `${reqDoc.requesterName} requested updates for product ${product.name}`,
-          data: { requestId: reqDoc._id, productId: product._id, requestedChanges: reqDoc.changes },
+          metadata: { requestId: reqDoc._id, productId: product._id, requestedChanges: reqDoc.changes },
         });
       }
 
@@ -473,28 +475,5 @@ router.delete("/:id", authenticate, async (req, res) => {
   }
 });
 
-// Notifications: list notifications for mart or user
-router.get("/notifications", authenticate, async (req, res) => {
-  try {
-    const user = req.user;
-    const { martId } = req.query;
-    const filter = {};
-    if (user.role === "systemAdmin") {
-      if (martId) filter.martId = martId;
-    } else {
-      filter.martId = user.martId;
-    }
-    // optionally limit to user-specific notifications
-    filter.$or = [{ userId: null }, { userId: user.id }];
-
-    const list = await Notification.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(200);
-    res.json(list);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
-  }
-});
 
 module.exports = router;

@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const { authenticate } = require('../middleware/auth');
 const ProductEditRequest = require('../models/productEditRequest.model');
 const Product = require('../models/product.model');
-const Notification = require('../models/notification.model');
+const { createNotification } = require('../services/notification.service');
 
 function isApprover(user) {
   return user.role === 'systemAdmin' || user.role === 'manager';
@@ -79,16 +79,14 @@ router.put('/:id/approve', authenticate, async (req, res) => {
 
       // notify requester
       // notify requester
-      await Notification.create([
-        {
-          martId: reqDoc.martId,
-          userId: reqDoc.requesterId,
-          type: 'product_edit_result',
-          title: 'Product edit approved',
-          message: `Your requested edit for product ${String(reqDoc.productId)} was approved.`,
-          data: { requestId: reqDoc._id, productId: reqDoc.productId, result: 'approved' },
-        },
-      ], { session });
+      await createNotification({
+        martId: reqDoc.martId,
+        userId: reqDoc.requesterId,
+        type: 'product_edit_result',
+        title: 'Product edit approved',
+        message: `Your requested edit for product ${String(reqDoc.productId)} was approved.`,
+        metadata: { requestId: reqDoc._id, productId: reqDoc.productId, result: 'approved' },
+      }, session);
 
       await session.commitTransaction();
       session.endSession();
@@ -128,13 +126,13 @@ router.put('/:id/reject', authenticate, async (req, res) => {
     reqDoc.decidedAt = new Date();
     await reqDoc.save();
 
-    await Notification.create({
+    await createNotification({
       martId: reqDoc.martId,
       userId: reqDoc.requesterId,
       type: 'product_edit_result',
       title: 'Product edit rejected',
       message: `Your requested edit for product ${String(reqDoc.productId)} was rejected. ${reason || ''}`,
-      data: { requestId: reqDoc._id, productId: reqDoc.productId, result: 'rejected' },
+      metadata: { requestId: reqDoc._id, productId: reqDoc.productId, result: 'rejected' },
     });
 
     res.json({ message: 'Request rejected' });

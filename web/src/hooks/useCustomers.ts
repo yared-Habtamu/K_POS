@@ -40,5 +40,18 @@ export default function useCustomers() {
     return res;
   };
 
-  return { customers, loading, error, fetch, create };
+  const update = async (id: string, payload: {
+    name?: string;
+    phoneNumber?: string;
+    city?: string;
+    totalCredit?: number;
+    totalPaid?: number;
+    totalUnpaid?: number;
+  }) => {
+    const res = await customersApi.updateCustomer(id, payload, token);
+    setCustomers((s) => s.map((c) => (c._id === id ? res : c)));
+    return res;
+  };
+
+  return { customers, loading, error, fetch, create, update };
 }

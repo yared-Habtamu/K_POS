@@ -3,11 +3,97 @@ const router = express.Router();
 const axios = require('axios');
 const Sale = require('../models/sale.model');
 const Mart = require('../models/mart.model');
+const Notification = require('../models/notification.model');
 const { authenticate } = require('../middleware/auth');
+const { sseManager } = require('../utils/sse');
+const { getUnreadCount } = require('../services/notification.service');
+
+/**
+ * SSE Stream for real-time notifications
+ * GET /api/notifications/stream?token=...
+ */
+router.get('/stream', authenticate, (req, res) => {
+  const clientId = Date.now().toString();
+  const userId = req.user.id;
+  const martId = req.user.martId;
+
+  // Add client to manager
+  sseManager.addClient(clientId, userId, martId, res);
+
+  // Send initial unread count
+  getUnreadCount(userId).then(count => {
+    sseManager.sendUnreadCountUpdate(userId, count);
+  });
+
+  // Handle client disconnect
+  req.on('close', () => {
+    sseManager.removeClient(clientId);
+  });
+});
+
+/**
+ * Trigger a test notification
+ * POST /api/notifications/test
+ */
+router.post('/test', authenticate, async (req, res) => {
+  try {
+    const { createNotification } = require('../services/notification.service');
+    await createNotification({
+      userId: req.user.id,
+      martId: req.user.martId,
+      type: 'test_notification',
+      title: 'Real-time Test',
+      message: 'This notification was sent via SSE!',
+      metadata: { test: true }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to trigger test' });
+  }
+});
+
+/**
+ * Get recent notifications for the logged-in user
+ * GET /api/notifications
+ */
+router.get('/', authenticate, async (req, res) => {
+  try {
+    const notifications = await Notification.find({ userId: req.user.id })
+      .sort({ createdAt: -1 })
+      .limit(50);
+    res.json(notifications);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch notifications' });
+  }
+});
+
+/**
+ * Mark notification as read
+ * PATCH /api/notifications/:id/read
+ */
+router.patch('/:id/read', authenticate, async (req, res) => {
+  try {
+    const notification = await Notification.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user.id },
+      { read: true },
+      { new: true }
+    );
+    if (!notification) return res.status(404).json({ message: 'Notification not found' });
+
+    // Broadcast updated unread count
+    const count = await getUnreadCount(req.user.id);
+    sseManager.sendUnreadCountUpdate(req.user.id, count);
+
+    res.json(notification);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to update notification' });
+  }
+});
 
 // POST /api/notifications/sms
 // Body: { saleId, phone, name, message? }
 router.post('/sms', authenticate, async (req, res) => {
+  // ... (existing SMS code)
   try {
     const { saleId, phone, name, message } = req.body || {};
     if (!phone) return res.status(400).json({ message: 'phone required' });
