@@ -144,6 +144,13 @@ const resources = {
       expense_updated: "Expense updated successfully!",
       report_submitted: "Report submitted successfully!",
 
+      // Notifications
+      notifications: "Notifications",
+      unread: "Unread",
+      no_notifications: "No notifications",
+      mark_as_read: "Mark as read",
+      view_all_notifications: "View all notifications",
+
       // Currency
       etb: "ETB",
     },
@@ -287,6 +294,13 @@ const resources = {
       product_deleted: "ምርት በተሳካ ሁኔታ ተሰርዟል!",
       employee_added: "ሰራተኛ በተሳካ ሁኔታ ተጨምሯል!",
       expense_added: "ወጪ በተሳካ ሁኔታ ተመዝግቧል!",      expense_updated: "ወጪው በተሳካ ሁኔታ አዘምኗል!",      report_submitted: "ሪፖርት በተሳካ ሁኔታ ቀርቧል!",
+
+      // Notifications
+      notifications: "ማሳወቂያዎች",
+      unread: "ያልተነበቡ",
+      no_notifications: "ማሳወቂያ የለም",
+      mark_as_read: "እንደተነበበ ምልክት አድርግ",
+      view_all_notifications: "ሁሉንም ማሳወቂያዎች ተመልከት",
 
       // Currency
       etb: "ብር",

@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const { authenticate } = require('../middleware/auth');
 const StockTransferRequest = require('../models/stockTransferRequest.model');
 const Product = require('../models/product.model');
-const Notification = require('../models/notification.model');
+const { createNotification } = require('../services/notification.service');
 
 const router = express.Router();
 
@@ -96,22 +96,23 @@ router.post('/', authenticate, async (req, res) => {
     const User = require('../models/user.model');
     const managers = await User.find({ martId: product.martId, role: 'manager' }).select('_id username name').lean();
     if (managers && managers.length > 0) {
-      const notes = managers.map(m => ({
-        martId: product.martId,
-        userId: m._id,
-        type: 'stock_transfer_request',
-        title: 'Stock transfer requested',
-        message: `${reqDoc.requesterName || 'User'} requested to move ${qty} units`,
-        data: { requestId: reqDoc._id, productId },
-      }));
-      await Notification.create(notes);
+      for (const m of managers) {
+        await createNotification({
+          martId: product.martId,
+          userId: m._id,
+          type: 'stock_transfer_request',
+          title: 'Stock transfer requested',
+          message: `${reqDoc.requesterName || 'User'} requested to move ${qty} units`,
+          metadata: { requestId: reqDoc._id, productId },
+        });
+      }
     } else {
-      await Notification.create({
+      await createNotification({
         martId: product.martId,
         type: 'stock_transfer_request',
         title: 'Stock transfer requested',
         message: `${reqDoc.requesterName || 'User'} requested to move ${qty} units`,
-        data: { requestId: reqDoc._id, productId },
+        metadata: { requestId: reqDoc._id, productId },
       });
     }
 
@@ -158,16 +159,14 @@ router.put('/:id/approve', authenticate, async (req, res) => {
       reqDoc.decidedAt = new Date();
       await reqDoc.save({ session });
 
-      await Notification.create([
-        {
-          martId: reqDoc.martId,
-          userId: reqDoc.requesterId,
-          type: 'stock_transfer_result',
-          title: 'Stock transfer approved',
-          message: `Your stock transfer request was approved`,
-          data: { requestId: reqDoc._id, productId: product._id, result: 'approved' },
-        },
-      ], { session });
+      await createNotification({
+        martId: reqDoc.martId,
+        userId: reqDoc.requesterId,
+        type: 'stock_transfer_result',
+        title: 'Stock transfer approved',
+        message: `Your stock transfer request was approved`,
+        metadata: { requestId: reqDoc._id, productId: product._id, result: 'approved' },
+      }, session);
 
       await session.commitTransaction();
       session.endSession();
@@ -208,13 +207,13 @@ router.put('/:id/reject', authenticate, async (req, res) => {
     reqDoc.decidedAt = new Date();
     await reqDoc.save();
 
-    await Notification.create({
+    await createNotification({
       martId: reqDoc.martId,
       userId: reqDoc.requesterId,
       type: 'stock_transfer_result',
       title: 'Stock transfer rejected',
       message: `Your stock transfer request was rejected. ${reason || ''}`,
-      data: { requestId: reqDoc._id, result: 'rejected' },
+      metadata: { requestId: reqDoc._id, result: 'rejected' },
     });
 
     res.json({ message: 'Request rejected' });

@@ -41,6 +41,7 @@ const stockTransferRequestsRouter = require("./routes/stockTransferRequests");
 const customersRouter = require("./routes/customers");
 const employeesRouter = require("./routes/employees");
 const attendanceRouter = require("./routes/attendance");
+const notificationsRouter = require("./routes/notifications");
 
 app.use("/api/expenses", expensesRouter);
 app.use("/api/assets", assetsRouter);
@@ -65,6 +66,7 @@ app.use("/api/product-edit-requests", productEditRequestsRouter);
 app.use("/api/product-add-requests", productAddRequestsRouter);
 app.use("/api/stock-transfer-requests", stockTransferRequestsRouter);
 app.use("/api/customers", customersRouter);
+app.use("/api/notifications", notificationsRouter);
 
 const PORT = process.env.PORT || 4000;
 
