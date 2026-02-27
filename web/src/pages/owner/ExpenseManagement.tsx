@@ -38,6 +38,7 @@ import {
   Plus,
   Search,
   Trash2,
+  Edit,
   DollarSign,
   Home,
   Zap,
@@ -106,8 +107,27 @@ export default function ExpenseManagement() {
   const API_BASE = import.meta.env.VITE_API_URL || "";
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  // month filter formatted as YYYY-MM; empty = all
+  const [monthFilter, setMonthFilter] = useState<string>(() =>
+    new Date().toISOString().slice(0, 7)
+  );
+
+  // compute unique month options: include last 12 calendar months plus any months actually present
+  const monthSet = new Set<string>();
+  // add recent 12 months
+  for (let i = 0; i < 12; i++) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    monthSet.add(d.toISOString().slice(0, 7));
+  }
+  // also include any months that exist in data
+  expenses.forEach((e) => {
+    monthSet.add(new Date(e.date).toISOString().slice(0, 7));
+  });
+  const monthOptions = Array.from(monthSet).sort((a, b) => b.localeCompare(a));
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1); // ✅ Pagination state
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     category: "miscellaneous" as ExpenseCategory,
@@ -122,16 +142,18 @@ export default function ExpenseManagement() {
       .includes(search.toLowerCase());
     const matchCategory =
       categoryFilter === "all" || e.category === categoryFilter;
-    return matchSearch && matchCategory;
+    const matchMonth =
+      !monthFilter ||
+      new Date(e.date).toISOString().slice(0, 7) === monthFilter;
+    return matchSearch && matchCategory && matchMonth;
   });
 
-  // total expenses for the current month (from DB-fetched expenses)
-  const now = new Date();
+  // total expenses for the selected month (or current if not set)
   const totalExpensesThisMonth = expenses
     .filter((e) => {
-      const d = new Date(e.date);
+      if (!monthFilter) return true;
       return (
-        d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+        new Date(e.date).toISOString().slice(0, 7) === monthFilter
       );
     })
     .reduce((sum, e) => sum + e.amount, 0);
@@ -185,18 +207,60 @@ export default function ExpenseManagement() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    (async () => {
-      try {
-        const token = auth?.token;
-        const payload = {
-          category: form.category,
-          description: form.description,
-          amount: Number(form.amount),
-          date: form.date,
-          martId: auth?.martId,
-        };
+  const handleEdit = (expense: Expense) => {
+    setEditingExpenseId(expense.id);
+    setForm({
+      category: expense.category,
+      description: expense.description,
+      amount: expense.amount.toString(),
+      date: new Date(expense.date).toISOString().split("T")[0],
+    });
+    setIsDialogOpen(true);
+  };
+
+  const addExpense = async () => {
+    const token = auth?.token;
+    const payload = {
+      category: form.category,
+      description: form.description,
+      amount: Number(form.amount),
+      date: form.date,
+      martId: auth?.martId,
+    };
+
+    try {
+      if (editingExpenseId) {
+        // update existing
+        const res = await fetch(`${API_BASE}/api/expenses/${editingExpenseId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast({ title: err.message || "Failed to update expense" });
+          return;
+        }
+        const saved = await res.json();
+        setExpenses((prev) =>
+          prev.map((e) =>
+            e.id === editingExpenseId
+              ? {
+                  ...e,
+                  category: saved.category,
+                  description: saved.description,
+                  amount: saved.amount,
+                  date: new Date(saved.date),
+                }
+              : e
+          )
+        );
+        toast({ title: t("expense_updated") });
+      } else {
+        // create new
         const res = await fetch(`${API_BASE}/api/expenses`, {
           method: "POST",
           headers: {
@@ -223,19 +287,26 @@ export default function ExpenseManagement() {
         };
         setExpenses((prev) => [newExpense, ...prev]);
         toast({ title: t("expense_added") });
-        setIsDialogOpen(false);
-        setForm({
-          category: "miscellaneous",
-          description: "",
-          amount: "",
-          date: new Date().toISOString().split("T")[0],
-        });
-        setCurrentPage(1);
-      } catch (err) {
-        console.error(err);
-        toast({ title: "Failed to add expense" });
       }
-    })();
+      // reset dialog/form state
+      setIsDialogOpen(false);
+      setEditingExpenseId(null);
+      setForm({
+        category: "miscellaneous",
+        description: "",
+        amount: "",
+        date: new Date().toISOString().split("T")[0],
+      });
+      setCurrentPage(1);
+    } catch (err) {
+      console.error(err);
+      toast({ title: editingExpenseId ? "Failed to update expense" : "Failed to add expense" });
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    addExpense();
   };
 
   useEffect(() => {
@@ -337,12 +408,12 @@ export default function ExpenseManagement() {
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
-                {t("add_expense")}
+                {editingExpenseId ? t("edit_expense") : t("add_expense")}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{t("add_expense")}</DialogTitle>
+                <DialogTitle>{editingExpenseId ? t("edit_expense") : t("add_expense")}</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
@@ -405,11 +476,16 @@ export default function ExpenseManagement() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setIsDialogOpen(false)}
+                    onClick={() => {
+                      setIsDialogOpen(false);
+                      setEditingExpenseId(null);
+                    }}
                   >
                     {t("cancel")}
                   </Button>
-                  <Button type="submit">{t("add")}</Button>
+                  <Button type="submit">
+                    {editingExpenseId ? t("save") : t("add")}
+                  </Button>
                 </div>
               </form>
             </DialogContent>
@@ -427,7 +503,7 @@ export default function ExpenseManagement() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">
-                      Total Expenses
+                      Total Expenses{monthFilter ? ` (${format(new Date(monthFilter + "-01"), "MMMM yyyy")})` : ""}
                     </p>
                     <p className="text-2xl font-bold">
                       {totalExpensesThisMonth.toLocaleString()} ETB
@@ -450,7 +526,9 @@ export default function ExpenseManagement() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">
-                      This Month Revenue
+                      {monthFilter
+                        ? `${format(new Date(monthFilter + "-01"), "MMMM yyyy")} Revenue`
+                        : "This Month Revenue"}
                     </p>
                     <p className="text-2xl font-bold">
                       {(monthRevenue ?? 0).toLocaleString()} ETB
@@ -547,6 +625,32 @@ export default function ExpenseManagement() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {/* month filter dropdown */}
+                    <Select
+                      value={monthFilter || "all"}
+                      onValueChange={(v) => {
+                        setMonthFilter(v === "all" ? "" : v);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <SelectTrigger className="w-36">
+                        <SelectValue
+                          placeholder={
+                            monthFilter
+                              ? format(new Date(monthFilter + "-01"), "MMM yyyy")
+                              : "All months"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All months</SelectItem>
+                        {monthOptions.map((m) => (
+                          <SelectItem key={m} value={m}>
+                            {format(new Date(m + "-01"), "MMM yyyy")}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </CardHeader>
@@ -592,6 +696,13 @@ export default function ExpenseManagement() {
                                 {format(new Date(expense.date), "MMM dd, yyyy")}
                               </TableCell>
                               <TableCell className="text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleEdit(expense)}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
                                 <Button
                                   variant="ghost"
                                   size="icon"

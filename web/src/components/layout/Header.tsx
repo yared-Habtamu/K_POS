@@ -31,6 +31,8 @@ export function Header({ onToggleSidebar }: HeaderProps) {
   const { t, i18n } = useTranslation();
   const { user, logout } = useAuthStore();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [approvalCount, setApprovalCount] = useState(0);
+  const role = user?.role;
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -45,6 +47,45 @@ export function Header({ onToggleSidebar }: HeaderProps) {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+
+  // fetch pending approval count for notification badge (managers only)
+  useEffect(() => {
+    if (role !== 'manager') return;
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+    const token = user?.token;
+    if (!token) return;
+
+    const fetchCount = async () => {
+      try {
+        const qs = new URLSearchParams();
+        qs.append('status', 'pending');
+        const endpoints = [
+          `${API_BASE}/api/product-add-requests?${qs}`,
+          `${API_BASE}/api/product-edit-requests?${qs}`,
+          `${API_BASE}/api/stock-transfer-requests?${qs}`,
+        ];
+        const responses = await Promise.all(
+          endpoints.map((url) =>
+            fetch(url, { headers: { Authorization: `Bearer ${token}` } }).catch(() => null)
+          )
+        );
+        let count = 0;
+        for (const res of responses) {
+          if (res && res.ok) {
+            const arr = await res.json();
+            if (Array.isArray(arr)) count += arr.length;
+          }
+        }
+        setApprovalCount(count);
+      } catch (e) {
+        console.warn('failed to fetch approval count', e);
+      }
+    };
+
+    fetchCount();
+    const iv = setInterval(fetchCount, 60000); // refresh every minute
+    return () => clearInterval(iv);
+  }, [role, user]);
 
   const toggleLanguage = () => {
     i18n.changeLanguage(i18n.language === 'en' ? 'am' : 'en');
@@ -94,11 +135,25 @@ export function Header({ onToggleSidebar }: HeaderProps) {
           <span className="hidden sm:inline">{i18n.language === 'en' ? 'EN' : 'አማ'}</span>
         </Button>
 
-        {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
-        </Button>
+        {/* Notifications (only shown to managers) */}
+        {role === 'manager' && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative"
+            onClick={() => navigate('/manager/approvals')}
+          >
+            <Bell className="h-5 w-5" />
+            {approvalCount > 0 && (
+              <Badge
+                variant="destructive"
+                className="absolute top-0 right-0 text-[10px] leading-none"
+              >
+                {approvalCount}
+              </Badge>
+            )}
+          </Button>
+        )}
 
         {/* User menu */}
         <DropdownMenu>

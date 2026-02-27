@@ -191,7 +191,16 @@ export default function MEmployeeManagement(): JSX.Element {
         const data = await res.json();
         const list: Employee[] = data
           .filter((u:any) => u.role === 'cashier' || u.role === 'storeKeeper' || u.role === 'store_keeper')
-            .map((u:any) => ({ id: u._id || u.id, name: u.name, phone: u.phone, role: u.role === 'storeKeeper' ? 'store_keeper' : u.role, salary: u.salary || 0, status: 'active', permissions: u.permissions || [], martId: u.martId || u.martid || u.shopId }));
+            .map((u:any) => ({
+              id: u._id || u.id,
+              name: typeof u.name === 'string' ? u.name : '',
+              phone: typeof u.phone === 'string' ? u.phone : '',
+              role: u.role === 'storeKeeper' ? 'store_keeper' : u.role,
+              salary: Number(u.salary) || 0,
+              status: 'active',
+              permissions: u.permissions || [],
+              martId: u.martId || u.martid || u.shopId,
+            }));
         setEmployees(list);
       } catch (err) {
         console.error('fetch employees error', err);
@@ -214,7 +223,9 @@ export default function MEmployeeManagement(): JSX.Element {
 
   const filteredEmployees = employees.filter((e) => {
     if (e.role === 'manager') return false;
-    const matchSearch = e.name.toLowerCase().includes(search.toLowerCase()) || e.phone.includes(search);
+    const name = typeof e.name === 'string' ? e.name : '';
+    const phone = typeof e.phone === 'string' ? e.phone : '';
+    const matchSearch = name.toLowerCase().includes(search.toLowerCase()) || phone.includes(search);
     const matchRole = roleFilter === 'all' || e.role === roleFilter;
     return matchSearch && matchRole;
   });
@@ -406,53 +417,6 @@ export default function MEmployeeManagement(): JSX.Element {
     resetForm();
   };
 
-  // Real-time clock toggle (persist to DB)
-  const handleClockToggle = async (employeeId: string) => {
-    if (!token) {
-      toast({ title: 'Not authenticated', variant: 'destructive' });
-      return;
-    }
-
-    const now = new Date();
-    const today = formatDateKey(now);
-    const nowHHmm = now.toTimeString().slice(0, 5);
-    const isClockedIn = !!activeClockIns[employeeId];
-    const emp = employees.find(e => e.id === employeeId);
-
-    try {
-      if (isClockedIn) {
-        let open = attendance
-          .filter(r => r.employeeId === employeeId && r.date === today && !r.clockOut)
-          .sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime())[0];
-
-        if (!open) {
-          const list = await fetchAttendance({ employeeId, dateYmd: today }, token);
-          const mapped = (Array.isArray(list) ? list : []).map(mapApiAttendance);
-          open = mapped.find(r => !r.clockOut);
-        }
-
-        if (!open) {
-          toast({ title: 'No active clock-in found', variant: 'destructive' });
-          return;
-        }
-
-        await updateAttendance(open.id, { clockOut: nowHHmm }, token);
-        await refreshAttendance();
-        toast({ title: 'Clocked Out', description: emp ? `${emp.name} clocked out` : 'Clocked out' });
-      } else {
-        await createAttendance(
-          { employeeId, employeeName: emp?.name, dateYmd: today, clockIn: nowHHmm, clockOut: null },
-          token,
-        );
-        await refreshAttendance();
-        toast({ title: 'Clocked In', description: emp ? `${emp.name} clocked in` : 'Clocked in' });
-      }
-    } catch (e: any) {
-      console.error('clock toggle failed', e);
-      toast({ title: 'Attendance update failed', description: e?.message || 'Server error', variant: 'destructive' });
-    }
-  };
-
   // Open manual attendance dialog
   const handleOpenAttendanceDialog = (employeeId: string) => {
     setAttendanceForm({
@@ -642,6 +606,8 @@ case 'this-week':
     const base = new Date(baseStr);
     base.setDate(base.getDate() + delta);
     const nextStr = formatDateKey(base);
+    const today = formatDateKey(new Date());
+    if (nextStr > today) return;
     setAttendanceFilter(prev => ({
       ...prev,
       dateRange: 'custom',
@@ -922,7 +888,13 @@ case 'this-week':
     }
   };
 
-  const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase();
+  const getInitials = (name: string) =>
+    (name || '')
+      .split(' ')
+      .map(n => n[0])
+      .filter(Boolean)
+      .join('')
+      .toUpperCase();
 
   const getRoleBadgeVariant = (role: UserRole) => {
     switch (role) {
@@ -1135,24 +1107,7 @@ case 'this-week':
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1 items-center">
-                              <Button variant="ghost" size="icon" onClick={() => handleClockToggle(e.id)} className={activeClockIns[e.id] ? 'text-destructive' : 'text-success'}>
-                                <Clock className="h-4 w-4" />
-                              </Button>
-                              {/* <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleOpenAttendanceDialog(e.id)}
-                              >
-                                <UserCog className="h-4 w-4" />
-                              </Button> */}
-                              {/* <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleViewMonthlyAttendance(e.id)}
-                              >
-                                <Calendar className="h-4 w-4" />
-                              </Button> */}
-                              {activeClockIns[e.id] ? <Badge variant="secondary">Clocked In</Badge> : null}
+                              {/* attendance handled on attendance tab */}
                               <Button variant="ghost" size="icon" onClick={() => handleEdit(e)}>
                                 <Edit className="h-4 w-4" />
                               </Button>
@@ -1316,16 +1271,26 @@ case 'this-week':
                         <Label>Start Date</Label>
                         <Input
                           type="date"
+                          max={new Date().toISOString().split('T')[0]}
                           value={attendanceFilter.startDate}
-                          onChange={(e) => setAttendanceFilter(prev => ({ ...prev, startDate: e.target.value }))}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const today = new Date().toISOString().split('T')[0];
+                            setAttendanceFilter(prev => ({ ...prev, startDate: val > today ? today : val }));
+                          }}
                         />
                       </div>
                       <div className="flex-1">
                         <Label>End Date</Label>
                         <Input
                           type="date"
+                          max={new Date().toISOString().split('T')[0]}
                           value={attendanceFilter.endDate}
-                          onChange={(e) => setAttendanceFilter(prev => ({ ...prev, endDate: e.target.value }))}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const today = new Date().toISOString().split('T')[0];
+                            setAttendanceFilter(prev => ({ ...prev, endDate: val > today ? today : val }));
+                          }}
                         />
                       </div>
                     </>
@@ -1362,8 +1327,13 @@ case 'this-week':
                     <Label>Date</Label>
                     <Input
                       type="date"
+                      max={new Date().toISOString().split('T')[0]}
                       value={manualEntryForm.date}
-                      onChange={(e) => setManualEntryForm(prev => ({ ...prev, date: e.target.value }))}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const today = new Date().toISOString().split('T')[0];
+                        setManualEntryForm(prev => ({ ...prev, date: val > today ? today : val }));
+                      }}
                     />
                   </div>
                   <div>
@@ -1427,6 +1397,7 @@ case 'this-week':
                     <TableBody>
                       {filteredAttendance.map((rec) => {
                         const emp = employees.find(e => e.id === rec.employeeId);
+                        const isPast = rec.date < formatDateKey(new Date());
                         return (
                           <TableRow key={rec.id}>
                             <TableCell>
@@ -1442,26 +1413,28 @@ case 'this-week':
                             <TableCell>{rec.clockOut ? new Date(rec.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</TableCell>
                             <TableCell>{rec.durationMinutes ? `${rec.durationMinutes} min` : '—'}</TableCell>
                             <TableCell className="text-right">
-                              {!rec.clockOut && (
-                                <Button variant="ghost" size="icon" onClick={() => handleClockOutNow(rec.id)} title="Clock Out Now">
-                                  <Clock className="h-4 w-4" />
-                                </Button>
-                              )}
-                              <Button variant="ghost" size="icon" onClick={() => handleEditAttendance(rec)}>
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="text-destructive hover:text-destructive"
-                                    aria-label="Delete attendance"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
+                                      {!rec.clockOut && (
+                                        <Button variant="ghost" size="icon" onClick={() => handleClockOutNow(rec.id)} title="Clock Out Now">
+                                          <Clock className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                      {!isPast && (
+                                        <>
+                                          <Button variant="ghost" size="icon" onClick={() => handleEditAttendance(rec)}>
+                                            <Edit className="h-4 w-4" />
+                                          </Button>
+                                          <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="text-destructive hover:text-destructive"
+                                                aria-label="Delete attendance"
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>Delete attendance record?</AlertDialogTitle>
                                     <AlertDialogDescription>
@@ -1479,6 +1452,8 @@ case 'this-week':
                                   </AlertDialogFooter>
                                 </AlertDialogContent>
                               </AlertDialog>
+                                        </>
+                                      )}
                             </TableCell>
                           </TableRow>
                         );

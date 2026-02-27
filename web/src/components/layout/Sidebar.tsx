@@ -21,6 +21,7 @@ import {
   Barcode,
   Image,
   Store,
+  Warehouse,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -51,7 +52,8 @@ const roleNavItems: Record<UserRole, NavItem[]> = {
     { label: 'products', icon: Package, path: '/manager/products' },
     { label: 'employees', icon: Users, path: '/manager/employees' },
     { label: 'approvals', icon: ClipboardList, path: '/manager/approvals' },
-    { label: 'inventory', icon: Package, path: '/manager/inventory' },
+    // inventory uses warehouse icon to match design
+    { label: 'inventory', icon: Warehouse, path: '/manager/inventory' },
     { label: 'assets', icon: Boxes, path: '/manager/assets' },
     { label: 'reports', icon: BarChart3, path: '/manager/reports' },
     { label: 'today_sales', icon: Receipt, path: '/manager/today-sales' },
@@ -61,7 +63,8 @@ const roleNavItems: Record<UserRole, NavItem[]> = {
     { label: 'dashboard', icon: LayoutDashboard, path: '/owner' },
     { label: 'pos', icon: ShoppingCart, path: '/owner/pos' },
     { label: 'products', icon: Package, path: '/owner/products' },
-    { label: 'inventory', icon: Boxes, path: '/inventory' },
+    // inventory uses warehouse icon so it’s distinct from products
+    { label: 'inventory', icon: Warehouse, path: '/inventory' },
     { label: 'employees', icon: Users, path: '/owner/employees' },
     { label: 'expenses', icon: Wallet, path: '/owner/expenses' },
     { label: 'alerts', icon: AlertTriangle, path: '/alerts' },

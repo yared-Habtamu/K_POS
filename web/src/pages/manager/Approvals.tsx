@@ -175,6 +175,7 @@ export default function Approvals() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Date</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Requested By</TableHead>
                     <TableHead>Store Qty</TableHead>
@@ -201,6 +202,13 @@ export default function Approvals() {
                     );
                     return (
                       <TableRow key={r._id || r.id}>
+                          <TableCell>
+                          {r.decidedAt ? (
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(r.decidedAt as any).toLocaleDateString()}
+                            </span>
+                          ) : '-'}
+                        </TableCell>
                         <TableCell>
                           <div className="font-medium">{payload.name || "Unnamed"}</div>
                           <div className="text-xs text-muted-foreground">{payload.category || ""}</div>
@@ -210,11 +218,6 @@ export default function Approvals() {
                         <TableCell>{payload.supermarketQuantity ?? 0}</TableCell>
                         <TableCell className="space-x-2 flex items-center">
                           {statusBadge}
-                          {r.decidedAt && (
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(r.decidedAt as any).toLocaleDateString()}
-                            </span>
-                          )}
                         </TableCell>
                         <TableCell className="text-right space-x-2">
                           {r.status === "pending" && (
@@ -251,6 +254,7 @@ export default function Approvals() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Date</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Owner</TableHead>
                     <TableHead>Quantity</TableHead>
@@ -280,16 +284,18 @@ export default function Approvals() {
                     );
                     return (
                       <TableRow key={r._id || r.id}>
+                        <TableCell>
+                          {r.decidedAt ? (
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(r.decidedAt as any).toLocaleDateString()}
+                            </span>
+                          ) : '-'}
+                        </TableCell>
                         <TableCell>{(r as any).productId?.name || r.productId}</TableCell>
                         <TableCell>{r.requesterName || "Owner"}</TableCell>
                         <TableCell>{qty}</TableCell>
                         <TableCell className="space-x-2 flex items-center">
                           {statusBadge}
-                          {r.decidedAt && (
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(r.decidedAt as any).toLocaleDateString()}
-                            </span>
-                          )}
                         </TableCell>
                         <TableCell className="text-right space-x-2">
                           {r.status === "pending" && (
@@ -326,6 +332,7 @@ export default function Approvals() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Date</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Quantity</TableHead>
                     <TableHead>Requested By</TableHead>
@@ -350,16 +357,18 @@ export default function Approvals() {
                     );
                     return (
                       <TableRow key={r._id || r.id}>
+                        <TableCell>
+                          {r.decidedAt ? (
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(r.decidedAt as any).toLocaleDateString()}
+                            </span>
+                          ) : '-'}
+                        </TableCell>
                         <TableCell>{(r as any).productId?.name || r.productId}</TableCell>
                         <TableCell>{r.quantity}</TableCell>
                         <TableCell>{r.requesterName || "Store Keeper"}</TableCell>
                         <TableCell className="space-x-2 flex items-center">
                           {statusBadge}
-                          {r.decidedAt && (
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(r.decidedAt as any).toLocaleDateString()}
-                            </span>
-                          )}
                         </TableCell>
                         <TableCell className="text-right space-x-2">
                           {r.status === "pending" && (

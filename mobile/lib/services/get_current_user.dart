@@ -41,7 +41,7 @@ class UserProvider extends ChangeNotifier {
         _user = AuthUser.fromJson(savedUserJson);
         // Initialize realtime socket if token present so permissions update realtime works across app restarts
         try {
-          if (_user?.token?.isNotEmpty ?? false) {
+          if (_user?.token.isNotEmpty ?? false) {
             socket_util.initSocket(_user!.token, this);
             debugPrint('[user] init socket from stored session');
           }
