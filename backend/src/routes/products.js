@@ -136,9 +136,31 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
       }
     }
 
-    // Owners require manager approval before product is created (case-insensitive check)
+    // Owners normally require manager approval before product is created.
     if (String(user.role || '').toLowerCase() === 'owner' && String(user.role || '').toLowerCase() !== 'systemadmin') {
-        const reqDoc = new ProductAddRequest({
+      const User = require('../models/user.model');
+      // Find managers case-insensitively
+      const managers = await User.find({ martId: finalMartId, role: { $regex: /^manager$/i } }).select('_id username name').lean();
+
+      // If there are no managers for this mart, auto-create the product and notify the requester
+      if (!managers || managers.length === 0) {
+        const product = new Product(productPayload);
+        await product.save();
+
+        await createNotification({
+          martId: finalMartId,
+          userId: user.id,
+          type: 'product_add_result',
+          title: 'Product created',
+          message: `Your product ${productPayload.name} was created`,
+          metadata: { productId: product._id, result: 'approved' },
+        });
+
+        return res.status(201).json(product);
+      }
+
+      // Otherwise, create a pending request and notify managers
+      const reqDoc = new ProductAddRequest({
         martId: finalMartId,
         requesterId: user.id,
         requesterName: user.username || user.name,
@@ -147,10 +169,6 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
 
       await reqDoc.save();
 
-      // Notify managers specifically (if any), otherwise broadcast to mart
-      const User = require('../models/user.model');
-      // Find managers case-insensitively (some DB entries may have different casing)
-      const managers = await User.find({ martId: finalMartId, role: { $regex: /^manager$/i } }).select('_id username name').lean();
       if (managers && managers.length > 0) {
         for (const m of managers) {
           await createNotification({
@@ -173,21 +191,19 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
       }
 
       // Return pending payload so callers (mobile) can render a placeholder reliably
-      return res
-        .status(202)
-        .json({
-          message: 'Product submitted for manager approval',
-          requestId: reqDoc._id,
-          pending: {
-            name: productPayload.name,
-            category: productPayload.category,
-            purchasePriceEtb: Number(productPayload.purchasePrice || 0),
-            sellingPriceEtb: Number(productPayload.sellingPrice || 0),
-            stockQty: Number(productPayload.quantity || 0),
-            martQty: Number(productPayload.storeQuantity || 0),
-            imageUrl: productPayload.imageUrl || '',
-          },
-        });
+      return res.status(202).json({
+        message: 'Product submitted for manager approval',
+        requestId: reqDoc._id,
+        pending: {
+          name: productPayload.name,
+          category: productPayload.category,
+          purchasePriceEtb: Number(productPayload.purchasePrice || 0),
+          sellingPriceEtb: Number(productPayload.sellingPrice || 0),
+          stockQty: Number(productPayload.quantity || 0),
+          martQty: Number(productPayload.storeQuantity || 0),
+          imageUrl: productPayload.imageUrl || '',
+        },
+      });
     }
 
     const product = new Product(productPayload);
@@ -379,6 +395,25 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
         delete changes.supermarketQuantity;
       }
 
+      const User = require('../models/user.model');
+      const managers = await User.find({ martId: product.martId, role: { $regex: /^manager$/i } }).select('_id username name').lean();
+
+      // If no managers exist for this mart, apply changes immediately and notify requester
+      if (!managers || managers.length === 0) {
+        const updated = await Product.findByIdAndUpdate(id, changes, { new: true });
+
+        await createNotification({
+          martId: product.martId,
+          userId: user.id,
+          type: 'product_edit_result',
+          title: 'Product edit applied',
+          message: `Your requested updates for product ${updated.name} were applied`,
+          metadata: { productId: updated._id, result: 'approved' },
+        });
+
+        return res.json({ message: 'Update applied', product: updated });
+      }
+
       const reqDoc = new ProductEditRequest({
         productId: product._id,
         martId: product.martId,
@@ -388,9 +423,6 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
       });
       await reqDoc.save();
 
-      // notify managers specifically
-      const User = require('../models/user.model');
-      const managers = await User.find({ martId: product.martId, role: 'manager' }).select('_id username name').lean();
       if (managers && managers.length > 0) {
         for (const m of managers) {
           await createNotification({
@@ -412,12 +444,7 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
         });
       }
 
-      return res
-        .status(202)
-        .json({
-          message: 'Update submitted for manager approval',
-          requestId: reqDoc._id,
-        });
+      return res.status(202).json({ message: 'Update submitted for manager approval', requestId: reqDoc._id });
     }
 
     const updated = await Product.findByIdAndUpdate(id, update, { new: true });

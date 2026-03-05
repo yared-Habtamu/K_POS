@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useLocation } from 'react-router-dom';
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
@@ -40,6 +41,8 @@ import {
 export default function StockManagement() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
+  const location = useLocation();
+  const isAddStockPage = location.pathname.includes('/add-stock');
   const token = user?.token;
   const { products, isLoading, fetchProducts, fetchError, updateProduct } =
     useProductStore();
@@ -95,18 +98,25 @@ export default function StockManagement() {
         },
         body: JSON.stringify({ productId: selectedProduct.id, quantity: qty }),
       });
+        const body = await res.json().catch(() => null);
+        console.debug("stock transfer response", res.status, body);
 
-      const body = await res.json().catch(() => null);
-      console.debug("stock transfer response", res.status, body);
+        if (!res.ok) {
+          throw new Error(body?.message || `Request failed ${res.status}`);
+        }
 
-      if (!res.ok) {
-        throw new Error(body?.message || `Request failed ${res.status}`);
-      }
-
-      toast({
-        title: "Transfer submitted",
-        description: `Request sent for ${qty} units of ${selectedProduct.name}. Awaiting manager approval.`,
-      });
+        // If backend applied transfer immediately it returns 201; otherwise 202 pending
+        if (res.status === 201) {
+          toast({
+            title: "Transfer completed",
+            description: `Transferred ${qty} units of ${selectedProduct.name}.`,
+          });
+        } else {
+          toast({
+            title: "Transfer submitted",
+            description: `Request sent for ${qty} units of ${selectedProduct.name}. Awaiting manager approval.`,
+          });
+        }
       setIsDialogOpen(false);
       setSelectedProduct(null);
       setAddQuantity("");
@@ -129,16 +139,16 @@ export default function StockManagement() {
   };
 
   return (
-    <RoleLayout allowedRoles={["store_keeper"]}>
+    <RoleLayout allowedRoles={["store_keeper", "owner"]}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">{t("inventory")}</h1>
-            <p className="text-muted-foreground">
-              Manage store and supermarket stock levels
-            </p>
-          </div>
+              <h1 className="text-2xl font-bold">{isAddStockPage ? 'Add Stock' : t("inventory")}</h1>
+              <p className="text-muted-foreground">
+                {isAddStockPage ? 'Transfering from warehouse stock to supermarket/mart quantity' : 'Manage store and supermarket stock levels'}
+              </p>
+            </div>
 
           <div>
             {/* Add product is owner-only. Store-keeper should not see Add Product here. */}
@@ -167,7 +177,7 @@ export default function StockManagement() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Package className="h-5 w-5" />
-              Inventory
+              {isAddStockPage ? 'Add Stock' : 'Inventory'}
               <Badge variant="secondary" className="ml-2">
                 {filteredProducts.length}
               </Badge>

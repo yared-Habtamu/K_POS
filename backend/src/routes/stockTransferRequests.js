@@ -82,6 +82,60 @@ router.post('/', authenticate, async (req, res) => {
       return res.status(400).json({ message: 'Not enough stock in store to transfer' });
     }
 
+    const User = require('../models/user.model');
+    const managers = await User.find({ martId: product.martId, role: { $regex: /^manager$/i } }).select('_id username name').lean();
+
+    // If there are no managers, apply the transfer immediately inside a transaction
+    if (!managers || managers.length === 0) {
+      const session = await mongoose.startSession();
+      session.startTransaction();
+      try {
+        // Re-fetch product in session
+        const prod = await Product.findById(productId).session(session);
+        if (!prod) throw new Error('Product not found');
+        if (prod.storeQuantity != null && prod.storeQuantity < qty) throw new Error('Not enough stock in store to transfer');
+
+        prod.storeQuantity = Math.max(0, Number(prod.storeQuantity || 0) - qty);
+        prod.supermarketQuantity = Number(prod.supermarketQuantity || 0) + qty;
+        prod.quantity = prod.supermarketQuantity;
+        await prod.save({ session });
+
+        // create a record of the transfer for audit (status=approved)
+        const reqDoc = new StockTransferRequest({
+          productId,
+          martId: product.martId,
+          quantity: qty,
+          requesterId: user.id,
+          requesterName: user.username || user.name,
+          status: 'approved',
+          approverId: user.id,
+          approverName: user.username || user.name,
+          decidedAt: new Date(),
+        });
+        await reqDoc.save({ session });
+
+        await createNotification({
+          martId: product.martId,
+          userId: user.id,
+          type: 'stock_transfer_result',
+          title: 'Stock transfer completed',
+          message: `Your stock transfer of ${qty} units for ${prod.name} was completed`,
+          metadata: { requestId: reqDoc._id, productId, result: 'approved' },
+        }, session);
+
+        await session.commitTransaction();
+        session.endSession();
+
+        return res.status(201).json({ message: 'Transfer completed', product: prod });
+      } catch (err) {
+        await session.abortTransaction();
+        session.endSession();
+        console.error(err);
+        return res.status(500).json({ message: err.message || 'Failed to complete transfer' });
+      }
+    }
+
+    // Otherwise create a pending request and notify managers
     const reqDoc = new StockTransferRequest({
       productId,
       martId: product.martId,
@@ -92,9 +146,6 @@ router.post('/', authenticate, async (req, res) => {
 
     await reqDoc.save();
 
-    // notify managers specifically
-    const User = require('../models/user.model');
-    const managers = await User.find({ martId: product.martId, role: 'manager' }).select('_id username name').lean();
     if (managers && managers.length > 0) {
       for (const m of managers) {
         await createNotification({
