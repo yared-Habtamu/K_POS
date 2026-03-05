@@ -96,7 +96,7 @@ export function Sidebar({ role, mobileOpen, onClose }: SidebarPropsExtended) {
 
   return (
     <>
-      <aside className="sidebar-desktop w-64 flex-col glass-strong border-r border-border/50">
+      <aside className="sidebar-desktop sticky top-0 h-screen w-64 shrink-0 flex-col overflow-hidden glass-strong border-r border-border/50">
       {/* Logo */}
       <div className="h-16 flex items-center px-6 border-b border-border/50">
         <div className="flex items-center gap-3">
@@ -111,7 +111,7 @@ export function Sidebar({ role, mobileOpen, onClose }: SidebarPropsExtended) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
+      <nav className="flex-1 min-h-0 py-4 px-3 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
           // ✅ FIXED: Exact path match only
           const isActive = location.pathname === item.path;
@@ -153,7 +153,7 @@ export function Sidebar({ role, mobileOpen, onClose }: SidebarPropsExtended) {
       {mobileOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
           <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-          <aside className="absolute left-0 top-0 bottom-0 w-64 glass border-r border-border/50">
+          <aside className="absolute left-0 top-0 bottom-0 w-[85vw] max-w-64 glass border-r border-border/50">
             <div className="h-16 flex items-center px-6 border-b border-border/50">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-glow">
@@ -166,7 +166,7 @@ export function Sidebar({ role, mobileOpen, onClose }: SidebarPropsExtended) {
               </div>
             </div>
 
-            <nav className="py-4 px-3 space-y-1 overflow-y-auto">
+            <nav className="h-[calc(100vh-4rem)] py-4 px-3 space-y-1 overflow-y-auto">
               {navItems.map((item) => {
                 const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path + '/'));
                 return (
