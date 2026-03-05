@@ -51,8 +51,21 @@ coverage/
 .nyc_output/
 test-results/
 
+# Desktop build/output artifacts
+/desktop/dist/
+/desktop/node_modules/
+/desktop/win-unpacked/
+/desktop/.cache/
+
+# Web build output
+/web/dist/
+
 # Lock files (optional - uncomment if you want to ignore lock files)
 # package-lock.json
 # yarn.lock
 # pnpm-lock.yaml
+
+# Local environment overrides
+/desktop/.env
+/web/.env
 
