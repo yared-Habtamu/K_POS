@@ -66,6 +66,7 @@ const roleNavItems: Record<UserRole, NavItem[]> = {
     { label: 'products', icon: Package, path: '/owner/products' },
     // inventory uses warehouse icon so it’s distinct from products
     { label: 'inventory', icon: Warehouse, path: '/inventory' },
+    { label: 'add_stock', icon: ClipboardList, path: '/store-keeper/add-stock' },
     { label: 'employees', icon: Users, path: '/owner/employees' },
     { label: 'customers', icon: Users, path: '/cashier/customers' },
     { label: 'expenses', icon: Wallet, path: '/owner/expenses' },
@@ -76,7 +77,7 @@ const roleNavItems: Record<UserRole, NavItem[]> = {
     { label: 'settings', icon: Settings, path: '/owner/settings' },
   ],
   store_keeper: [
-    { label: 'inventory', icon: Package, path: '/store-keeper' },
+    { label: 'inventory', icon: Package, path: '/store-keeper/inventory' },
     { label: 'add_stock', icon: ClipboardList, path: '/store-keeper/add-stock' },
     { label: 'barcode', icon: Barcode, path: '/store-keeper/barcode' },
     { label: 'products', icon: Image, path: '/store-keeper/pictures' },

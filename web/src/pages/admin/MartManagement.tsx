@@ -15,6 +15,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { CheckCircle, XCircle, Trash, Edit2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuthStore } from '@/stores/authStore';
 
 type Shop = {
   id: string;
@@ -115,6 +116,13 @@ export default function MartManagement() {
   // Only one set of declarations!
   
   const API_BASE = (import.meta.env.VITE_API_URL || '');
+  const authUser = useAuthStore((s) => s.user);
+
+  const getAuthHeaders = () => {
+    const h: Record<string, string> = {};
+    if (authUser && authUser.token) h['Authorization'] = `Bearer ${authUser.token}`;
+    return h;
+  };
 
   const mapBackendToShop = (m: any): Shop => {
     const ownerName = (m.ownerId && (m.ownerId.name || m.ownerId)) || 'Owner';
@@ -140,7 +148,7 @@ export default function MartManagement() {
     if (!API_BASE) return false;
     try {
       const q = statusQuery ? `?status=${encodeURIComponent(statusQuery)}` : '';
-      const res = await fetch(`${API_BASE}/api/marts${q}`);
+      const res = await fetch(`${API_BASE}/api/marts${q}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error('Server error');
       const data = await res.json();
       const mapped = (Array.isArray(data) ? data : []).map(mapBackendToShop);
@@ -190,7 +198,7 @@ export default function MartManagement() {
     (async () => {
       if (API_BASE) {
         try {
-          const res = await fetch(`${API_BASE}/api/marts/${id}/approve`, { method: 'PUT' });
+          const res = await fetch(`${API_BASE}/api/marts/${id}/approve`, { method: 'PUT', headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' } });
           if (!res.ok) throw new Error('Server approve failed');
           await fetchShopsFromServer('approved');
           toast({ title: 'Shop approved', description: 'The shop has been approved on server.' });
@@ -216,7 +224,7 @@ export default function MartManagement() {
     (async () => {
       if (API_BASE) {
         try {
-          const res = await fetch(`${API_BASE}/api/marts/${id}/disable`, { method: 'PUT' });
+          const res = await fetch(`${API_BASE}/api/marts/${id}/disable`, { method: 'PUT', headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' } });
           if (!res.ok) throw new Error('Server suspend failed');
           await fetchShopsFromServer('disabled');
           toast({ title: 'Shop suspended', description: 'The shop has been suspended on server.' });
@@ -235,7 +243,7 @@ export default function MartManagement() {
     (async () => {
       if (API_BASE) {
         try {
-          const res = await fetch(`${API_BASE}/api/marts/${id}/approve`, { method: 'PUT' });
+          const res = await fetch(`${API_BASE}/api/marts/${id}/approve`, { method: 'PUT', headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' } });
           if (!res.ok) throw new Error('Server unsuspend failed');
           await fetchShopsFromServer('approved');
           toast({ title: 'Shop unsuspended', description: 'The shop is active on server.' });
@@ -278,7 +286,7 @@ export default function MartManagement() {
     (async () => {
       if (API_BASE) {
         try {
-          const res = await fetch(`${API_BASE}/api/marts/${id}/reject`, { method: 'PUT' });
+          const res = await fetch(`${API_BASE}/api/marts/${id}/reject`, { method: 'PUT', headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' } });
           if (!res.ok) throw new Error('Server reject failed');
           await fetchShopsFromServer('rejected');
           toast({ title: 'Shop rejected', description: 'The shop registration was rejected on server.' });
