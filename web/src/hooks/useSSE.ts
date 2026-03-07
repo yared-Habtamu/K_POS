@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '@/stores/authStore';
+import { toast } from 'sonner';
 
 export interface Notification {
   _id: string;
@@ -46,7 +47,6 @@ export function useSSE() {
     const eventSource = new EventSource(url);
 
     eventSource.onopen = () => {
-      console.log('[SSE] Connection established');
       setIsConnected(true);
     };
 
@@ -54,13 +54,21 @@ export function useSSE() {
       try {
         const payload = JSON.parse(event.data);
         if (payload.type === 'notification') {
-          setNotifications((prev) => [payload.data, ...prev]);
+          const newNotif = payload.data;
+          setNotifications((prev) => [newNotif, ...prev]);
+          
+          // Show real-time toast
+          toast.info(newNotif.title, {
+            description: newNotif.message,
+            duration: 5000,
+          });
+          
           // Unread count will be updated by a separate message from server usually,
           // but if not, we could increment here. Our server sends unread_count update.
         } else if (payload.type === 'unread_count') {
           setUnreadCount(payload.count);
         } else if (payload.type === 'connected') {
-          console.log('[SSE] Connected as client:', payload.clientId);
+          // Connected successfully
         }
       } catch (err) {
         console.error('[SSE] Error parsing message:', err);
@@ -97,12 +105,30 @@ export function useSSE() {
       console.error('Failed to mark notification as read:', err);
     }
   };
+  const markAllAsRead = async () => {
+    if (!user?.token) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/notifications/read-all`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+      if (res.ok) {
+        setNotifications((prev) =>
+          prev.map((n) => ({ ...n, read: true }))
+        );
+        // Server will broadcast new unread count = 0
+      }
+    } catch (err) {
+      console.error('Failed to mark all notifications as read:', err);
+    }
+  };
 
   return {
     notifications,
     unreadCount,
     isConnected,
     markAsRead,
+    markAllAsRead,
     refresh: fetchNotifications,
   };
 }

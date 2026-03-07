@@ -60,8 +60,10 @@ import {
   FileText,
   Eye,
   Filter,
+  ChevronLeft,
+  ChevronRight,
+  Key,
 } from 'lucide-react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { UserRole } from '@/types';
 
 // PDF Dependencies
@@ -135,6 +137,10 @@ export default function MEmployeeManagement(): JSX.Element {
   const [roleFilter, setRoleFilter] = useState<'all' | ManagerAssignableRole | 'manager'>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [passwordTarget, setPasswordTarget] = useState<any>(null);
+  const [newPassword, setNewPassword] = useState('');
 
   // Attendance state
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
@@ -415,6 +421,33 @@ export default function MEmployeeManagement(): JSX.Element {
 
     setIsDialogOpen(false);
     resetForm();
+  };
+
+  const handlePasswordChangeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      toast({ title: 'Password must be at least 6 characters', variant: 'destructive' });
+      return;
+    }
+    try {
+      const API_BASE = (import.meta.env.VITE_API_URL || '');
+      const res = await fetch(`${API_BASE}/api/auth/users/${passwordTarget.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ password: newPassword }),
+      });
+      if (!res.ok) throw new Error('Failed to update password');
+      toast({ title: 'Password updated successfully' });
+      setChangePasswordOpen(false);
+      setNewPassword('');
+      setPasswordTarget(null);
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'Failed to update password', variant: 'destructive' });
+    }
   };
 
   // Open manual attendance dialog
@@ -1108,10 +1141,13 @@ case 'this-week':
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1 items-center">
                               {/* attendance handled on attendance tab */}
-                              <Button variant="ghost" size="icon" onClick={() => handleEdit(e)}>
+                              <Button variant="ghost" size="icon" onClick={() => { setPasswordTarget(e); setChangePasswordOpen(true); }} title="Change Password">
+                                <Key className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => handleEdit(e)} title="Edit Employee">
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" size="icon" onClick={() => handleDelete(e.id)} className="text-destructive hover:text-destructive">
+                              <Button variant="ghost" size="icon" onClick={() => handleDelete(e.id)} className="text-destructive hover:text-destructive" title="Delete Employee">
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
@@ -1741,6 +1777,32 @@ case 'this-week':
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <Dialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Change Password for {passwordTarget?.name}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handlePasswordChangeSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label>New Password</Label>
+                <Input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password (min. 6 characters)"
+                  minLength={6}
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setChangePasswordOpen(false)}>Cancel</Button>
+                <Button type="submit">Save Password</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
       </div>
     </RoleLayout>
   );

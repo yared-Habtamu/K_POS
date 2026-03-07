@@ -15,7 +15,8 @@ import {
 } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import type { UserRole } from '@/types';
-import { Store, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Store, Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const roleDashboards: Record<UserRole, string> = {
   system_admin: '/admin',
@@ -40,7 +41,7 @@ export default function Login() {
   // Fallback local state remains for legacy usage if needed
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  // Remove role selection
+  const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,7 +51,7 @@ export default function Login() {
     const liveUsername = usernameRef?.current?.value ?? username;
     const livePassword = passwordRef?.current?.value ?? password;
 
-    const result = await login(liveUsername, livePassword);
+    const result = await login(liveUsername, livePassword, rememberMe);
     if (result && (result as any).role) {
       toast({
         title: 'Welcome!',
@@ -91,8 +92,11 @@ export default function Login() {
         transition={{ duration: 0.5 }}
         className="w-full max-w-md"
       >
-        {/* Language toggle */}
-        <div className="flex justify-end mb-4">
+        <div className="flex justify-between items-center mb-4">
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-2 hover:bg-white/10 dark:hover:bg-black/10 transition-colors">
+            <ArrowLeft className="h-4 w-4" />
+            {t('back', 'Back')}
+          </Button>
           <Button variant="outline" size="sm" onClick={toggleLanguage} className="gap-2">
             {i18n.language === 'en' ? '🇪🇹 አማርኛ' : '🇺🇸 English'}
           </Button>
@@ -144,6 +148,34 @@ export default function Login() {
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
+            </div>
+
+            {/* Remember Me & Forgot Password */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="remember" 
+                  checked={rememberMe} 
+                  onCheckedChange={(c) => setRememberMe(c as boolean)} 
+                  className="rounded-sm"
+                />
+                <label
+                  htmlFor="remember"
+                  className="text-sm font-medium leading-none cursor-pointer"
+                >
+                  {t('remember_me', 'Remember me')}
+                </label>
+              </div>
+              <Button 
+                variant="link" 
+                className="p-0 h-auto text-sm" 
+                onClick={(e) => {
+                  e.preventDefault();
+                  alert(t('forgot_password_msg', 'Please contact your system administrator or owner to reset your password.'));
+                }}
+              >
+                {t('forgot_password', 'Forgot password?')}
+              </Button>
             </div>
 
             {/* Submit */}

@@ -68,6 +68,26 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 /**
+ * Mark all notifications as read
+ * PATCH /api/notifications/read-all
+ */
+router.patch('/read-all', authenticate, async (req, res) => {
+  try {
+    await Notification.updateMany(
+      { userId: req.user.id, read: false },
+      { read: true }
+    );
+    
+    // Broadcast updated unread count (should be 0)
+    sseManager.sendUnreadCountUpdate(req.user.id, 0);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to update notifications' });
+  }
+});
+
+/**
  * Mark notification as read
  * PATCH /api/notifications/:id/read
  */

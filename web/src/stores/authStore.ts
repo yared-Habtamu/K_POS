@@ -1,5 +1,5 @@
 ﻿import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { UserRole } from '@/types';
 
 type AuthUser = {
@@ -18,9 +18,11 @@ interface AuthState {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<{ role?: UserRole; message?: string } | false>;
+  rememberMe: boolean;
+  login: (username: string, password: string, rememberMe?: boolean) => Promise<{ role?: UserRole; message?: string } | false>;
   logout: () => void;
   setUser: (user: AuthUser | null) => void;
+  setRememberMe: (val: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -29,9 +31,10 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       isLoading: false,
+      rememberMe: true,
 
-      login: async (username: string, password: string) => {
-        set({ isLoading: true });
+      login: async (username: string, password: string, rememberMe: boolean = true) => {
+        set({ isLoading: true, rememberMe });
         // Default to local backend in dev when VITE_API_URL is not set
         const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:4000');
         try {
@@ -100,10 +103,39 @@ export const useAuthStore = create<AuthState>()(
       logout: () => set({ user: null, isAuthenticated: false }),
 
       setUser: (user) => set({ user, isAuthenticated: !!user }),
+      
+      setRememberMe: (val) => set({ rememberMe: val }),
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }),
+      storage: createJSONStorage(() => ({
+        getItem: (name) => {
+          return sessionStorage.getItem(name) || localStorage.getItem(name) || null;
+        },
+        setItem: (name, value) => {
+          try {
+            const state = typeof value === 'string' ? JSON.parse(value) : value;
+            if (state?.state?.rememberMe === false) {
+              sessionStorage.setItem(name, value);
+              localStorage.removeItem(name);
+            } else {
+              localStorage.setItem(name, value);
+              sessionStorage.removeItem(name);
+            }
+          } catch (e) {
+            localStorage.setItem(name, typeof value === 'string' ? value : JSON.stringify(value));
+          }
+        },
+        removeItem: (name) => {
+          localStorage.removeItem(name);
+          sessionStorage.removeItem(name);
+        }
+      })),
+      partialize: (state) => ({ 
+        user: state.user, 
+        isAuthenticated: state.isAuthenticated, 
+        rememberMe: state.rememberMe 
+      } as any),
     }
   )
 );

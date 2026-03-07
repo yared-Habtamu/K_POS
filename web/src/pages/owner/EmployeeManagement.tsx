@@ -58,6 +58,7 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  Key,
 } from 'lucide-react';
 import type { UserRole } from '@/types';
 
@@ -106,6 +107,10 @@ export default function OwnerEmployeeManagement(): JSX.Element {
   const [roleFilter, setRoleFilter] = useState('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
+
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [passwordTarget, setPasswordTarget] = useState<any>(null);
+  const [newPassword, setNewPassword] = useState('');
 
   // Attendance state
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
@@ -327,6 +332,33 @@ export default function OwnerEmployeeManagement(): JSX.Element {
 
     setIsDialogOpen(false);
     resetForm();
+  };
+
+  const handlePasswordChangeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      toast({ title: 'Password must be at least 6 characters', variant: 'destructive' });
+      return;
+    }
+    try {
+      const API_BASE = (import.meta.env.VITE_API_URL || '');
+      const res = await fetch(`${API_BASE}/api/auth/users/${passwordTarget.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ password: newPassword }),
+      });
+      if (!res.ok) throw new Error('Failed to update password');
+      toast({ title: 'Password updated successfully' });
+      setChangePasswordOpen(false);
+      setNewPassword('');
+      setPasswordTarget(null);
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'Failed to update password', variant: 'destructive' });
+    }
   };
 
   
@@ -1044,8 +1076,9 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
-                                    <Button variant="ghost" size="icon" onClick={() => handleEdit(e)}><Edit className="h-4 w-4" /></Button>
-                                <Button variant="ghost" size="icon" onClick={() => handleDelete(e.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                                <Button variant="ghost" size="icon" onClick={() => { setPasswordTarget(e); setChangePasswordOpen(true); }} title="Change Password"><Key className="h-4 w-4" /></Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleEdit(e)} title="Edit Employee"><Edit className="h-4 w-4" /></Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleDelete(e.id)} className="text-destructive hover:text-destructive" title="Delete Employee"><Trash2 className="h-4 w-4" /></Button>
                               </div>
                             </TableCell>
                           </TableRow>
