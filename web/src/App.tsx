@@ -110,6 +110,7 @@ const App = () => {
           {/* Store Keeper Routes */}
           <Route path="/store-keeper" element={<StockManagement />} />
           <Route path="/store-keeper/add-stock" element={<StockManagement />} />
+          <Route path="/store-keeper/inventory" element={<Inventory />} />
           <Route path="/store-keeper/barcode" element={<BarcodeManagement />} />
           <Route
             path="/store-keeper/pictures"
