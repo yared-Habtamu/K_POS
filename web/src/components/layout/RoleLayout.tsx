@@ -32,12 +32,14 @@ export function RoleLayout({ children, allowedRoles }: RoleLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen flex w-full bg-background">
+    <div className="h-screen flex w-full bg-background overflow-hidden">
       <Sidebar role={user.role} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <Header onToggleSidebar={() => setMobileOpen(true)} />
-        <main className="flex-1 overflow-auto p-4 md:p-6">
-          {children}
+        <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6">
+          <div className="w-full max-w-full">
+            {children}
+          </div>
         </main>
       </div>
     </div>

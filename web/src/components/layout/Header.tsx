@@ -58,14 +58,14 @@ export function Header({ onToggleSidebar }: HeaderProps) {
   };
 
   return (
-    <header className="h-16 glass-strong border-b border-border/50 flex items-center justify-between px-4 md:px-6">
+    <header className="sticky top-0 z-30 h-16 glass-strong border-b border-border/50 flex items-center justify-between px-3 sm:px-4 md:px-6">
       {/* Mobile menu button */}
       <Button variant="ghost" size="icon" className="md:hidden" onClick={() => onToggleSidebar?.()}>
         <Menu className="h-5 w-5" />
       </Button>
 
       {/* Connection status */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 min-w-0">
         <motion.div
           animate={{ scale: isOnline ? 1 : [1, 1.1, 1] }}
           transition={{ repeat: isOnline ? 0 : Infinity, duration: 2 }}
@@ -73,19 +73,19 @@ export function Header({ onToggleSidebar }: HeaderProps) {
           {isOnline ? (
             <Badge variant="secondary" className="gap-1.5 bg-success/10 text-success border-success/20">
               <Wifi className="h-3 w-3" />
-              Online
+              <span className="hidden sm:inline">Online</span>
             </Badge>
           ) : (
             <Badge variant="secondary" className="gap-1.5 bg-warning/10 text-warning border-warning/20">
               <WifiOff className="h-3 w-3" />
-              Offline
+              <span className="hidden sm:inline">Offline</span>
             </Badge>
           )}
         </motion.div>
       </div>
 
       {/* Right side */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2">
         {/* Language toggle */}
         <Button
           variant="ghost"
