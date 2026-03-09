@@ -193,7 +193,34 @@ interface ProductState {
   getProductByBarcode: (barcode: string) => Product | undefined;
   getLowStockProducts: () => Product[];
   getExpiringProducts: (days?: number) => Product[];
+  applyLocalSale: (
+    soldItems: Array<{ productId: string; quantity: number }>,
+  ) => Promise<void>;
 }
+
+const normalizeProducts = (items: any[]) => {
+  return items.map((p: any) => ({
+    ...p,
+    id: p.id || p._id,
+    pictureUrl: p.pictureUrl || p.imageUrl || p.secure_url || p.url || "",
+    quantity: Number(
+      p.quantity ?? p.supermarketQuantity ?? p.storeQuantity ?? 0,
+    ),
+    supermarketQuantity: Number(
+      p.supermarketQuantity ?? p.quantity ?? p.storeQuantity ?? 0,
+    ),
+    storeQuantity: Number(
+      p.storeQuantity ?? p.quantity ?? p.supermarketQuantity ?? 0,
+    ),
+    barcodes: Array.isArray(p.barcodes)
+      ? p.barcodes.map(String)
+      : p.barcode
+        ? [String(p.barcode)]
+        : [],
+    barcode: Array.isArray(p.barcodes) ? p.barcodes[0] || "" : p.barcode || "",
+    _sold: Number(p._sold || 0),
+  }));
+};
 
 export const useProductStore = create<ProductState>((set, get) => ({
   products: [],
@@ -226,30 +253,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
           : [];
       const total = typeof data.total === "number" ? data.total : items.length;
 
-      // normalize products
-      const normalized = items.map((p: any) => ({
-        ...p,
-        id: p.id || p._id,
-        pictureUrl: p.pictureUrl || p.imageUrl || p.secure_url || p.url || "",
-        quantity: Number(
-          p.quantity ?? p.supermarketQuantity ?? p.storeQuantity ?? 0,
-        ),
-        supermarketQuantity: Number(
-          p.supermarketQuantity ?? p.quantity ?? p.storeQuantity ?? 0,
-        ),
-        storeQuantity: Number(
-          p.storeQuantity ?? p.quantity ?? p.supermarketQuantity ?? 0,
-        ),
-        barcodes: Array.isArray(p.barcodes)
-          ? p.barcodes.map(String)
-          : p.barcode
-            ? [String(p.barcode)]
-            : [],
-        barcode: Array.isArray(p.barcodes)
-          ? p.barcodes[0] || ""
-          : p.barcode || "",
-        _sold: 0,
-      }));
+      const normalized = normalizeProducts(items);
 
       set({ totalProducts: total });
 
@@ -289,11 +293,37 @@ export const useProductStore = create<ProductState>((set, get) => ({
         _sold: soldMap[p.id] || soldMap[p._id] || 0,
       }));
 
+      if (withSold.length > 0) {
+        try {
+          await window.posApi?.setCachedProducts?.(withSold as any[]);
+        } catch (cacheErr) {
+          console.warn("failed to persist local product cache", cacheErr);
+        }
+      }
+
       set({ products: withSold, isLoading: false, fetchError: null });
     } catch (err) {
-      // On error, clear products and expose the error so UI can show a message.
       const msg = String(err?.message || err || "Failed to fetch products");
-      set({ products: [], isLoading: false, fetchError: msg });
+      try {
+        const cached = await window.posApi?.getCachedProducts?.();
+        if (Array.isArray(cached) && cached.length > 0) {
+          set({
+            products: normalizeProducts(cached),
+            isLoading: false,
+            fetchError: `${msg} (showing cached products)`,
+          });
+          return;
+        }
+      } catch (cacheErr) {
+        console.warn("failed to load cached products", cacheErr);
+      }
+
+      set({
+        products: mockProducts,
+        totalProducts: mockProducts.length,
+        isLoading: false,
+        fetchError: `${msg} (no local cache found)`,
+      });
       console.error("fetchProducts failed:", err);
     }
   },
@@ -437,9 +467,9 @@ export const useProductStore = create<ProductState>((set, get) => ({
     const low = get().getLowStockProducts();
     const exp = get().getExpiringProducts(expiringWithinDays);
     const byId = new Map<string, any>();
-    for (const p of low) byId.set(p.id || p._id, { ...p, reason: "low_stock" });
+    for (const p of low) byId.set(p.id, { ...p, reason: "low_stock" });
     for (const p of exp) {
-      const key = p.id || p._id;
+      const key = p.id;
       if (byId.has(key)) {
         byId.set(key, { ...byId.get(key), reason: "low_stock_and_expiring" });
       } else {
@@ -455,5 +485,53 @@ export const useProductStore = create<ProductState>((set, get) => ({
     return get().products.filter(
       (p) => p.expiryDate && new Date(p.expiryDate) <= threshold,
     );
+  },
+
+  applyLocalSale: async (soldItems) => {
+    if (!Array.isArray(soldItems) || soldItems.length === 0) return;
+
+    const soldMap = soldItems.reduce<Record<string, number>>((acc, item) => {
+      const productId = String(item.productId || "");
+      const quantity = Number(item.quantity || 0);
+      if (!productId || quantity <= 0) return acc;
+      acc[productId] = (acc[productId] || 0) + quantity;
+      return acc;
+    }, {});
+
+    let nextProducts: Product[] = [];
+    set((state) => {
+      nextProducts = state.products.map((product) => {
+        const soldQty = Number(soldMap[product.id] || 0);
+        if (soldQty <= 0) return product;
+
+        const nextQuantity = Math.max(
+          0,
+          Number(product.quantity || 0) - soldQty,
+        );
+        const nextSupermarketQty = Math.max(
+          0,
+          Number(product.supermarketQuantity || 0) - soldQty,
+        );
+
+        return {
+          ...product,
+          quantity: nextQuantity,
+          supermarketQuantity: nextSupermarketQty,
+          _sold: Number(product._sold || 0) + soldQty,
+          updatedAt: new Date(),
+        } as Product;
+      });
+
+      return { products: nextProducts };
+    });
+
+    try {
+      await window.posApi?.setCachedProducts?.(nextProducts as any[]);
+    } catch (cacheErr) {
+      console.warn(
+        "failed to persist product cache after local sale",
+        cacheErr,
+      );
+    }
   },
 }));

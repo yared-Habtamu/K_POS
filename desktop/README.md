@@ -75,16 +75,19 @@ Output files are created in `desktop/dist`:
 ## 6) Offline behavior (current implementation)
 
 - Local file database path: Electron `app.getPath('userData')` → `pos-local.json`
-- Sales can be queued locally
-- Sync loop runs every ~30 seconds:
-  - Pushes queued sales to `http://localhost:4000/api/sales` (or `POS_BACKEND_URL`)
-  - Pulls product list from `http://localhost:4000/api/products` into local cache
+- Product catalog is cached locally whenever products are fetched successfully
+- Sales are queued locally when backend is unreachable
+- Queued sales are retried every ~30 seconds and also when renderer calls immediate sync
+- Queued sales include auth token metadata so background sync can call protected backend routes
 
 Exposed preload APIs:
 
 - `window.posApi.saveSale(sale)`
 - `window.posApi.getQueuedSales()`
 - `window.posApi.getCachedProducts()`
+- `window.posApi.setCachedProducts(products)`
+- `window.posApi.runSyncNow()`
+- `window.posApi.getSyncStatus()`
 
 ## 7) Common issues
 

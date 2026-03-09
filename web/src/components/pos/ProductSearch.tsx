@@ -25,12 +25,23 @@ export function ProductSearch() {
   // Use the store's getState() to avoid subscribing to the whole store
   // which would change identity on updates and retrigger this effect.
   useEffect(() => {
-    try {
-      // fire-and-forget
-      useProductStore.getState().fetchProducts();
-    } catch (err) {
-      console.warn("Product fetch failed to start:", err);
-    }
+    const refreshProducts = async () => {
+      try {
+        if (!navigator.onLine) return;
+        await useProductStore.getState().fetchProducts();
+      } catch (err) {
+        console.warn("Product fetch failed to start:", err);
+      }
+    };
+
+    refreshProducts();
+    const intervalId = window.setInterval(refreshProducts, 60_000);
+    window.addEventListener("online", refreshProducts);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("online", refreshProducts);
+    };
   }, []);
 
   useEffect(() => {
@@ -131,12 +142,12 @@ export function ProductSearch() {
                   <p className="font-medium truncate">{product.name}</p>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <span>{product.category}</span>
-                    {(product.barcodes && product.barcodes.length > 0) ? (
+                    {product.barcodes && product.barcodes.length > 0 ? (
                       <>
                         <span>•</span>
                         <span className="flex items-center gap-1">
                           <Barcode className="h-3 w-3" />
-                          {(product.barcodes || []).join(', ')}
+                          {(product.barcodes || []).join(", ")}
                         </span>
                       </>
                     ) : product.barcode ? (

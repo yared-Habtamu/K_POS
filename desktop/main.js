@@ -3,6 +3,9 @@ const path = require("path");
 const fs = require("fs");
 
 let win;
+let isSyncing = false;
+let lastSyncAt = null;
+let lastSyncError = null;
 
 function getBuiltIndexPath() {
   const packagedPath = path.join(
@@ -108,7 +111,15 @@ function openLocalDatabase() {
 
   const read = () => {
     try {
-      return JSON.parse(fs.readFileSync(dbPath, "utf8"));
+      const parsed = JSON.parse(fs.readFileSync(dbPath, "utf8"));
+      return {
+        sales: Array.isArray(parsed.sales) ? parsed.sales : [],
+        cache: {
+          products: Array.isArray(parsed?.cache?.products)
+            ? parsed.cache.products
+            : [],
+        },
+      };
     } catch (e) {
       return { sales: [], cache: { products: [] } };
     }
@@ -119,6 +130,85 @@ function openLocalDatabase() {
   };
 
   return { read, write, dbPath };
+}
+
+function getBackendUrl() {
+  return process.env.POS_BACKEND_URL || "http://localhost:4000";
+}
+
+async function syncPendingSales() {
+  if (isSyncing) {
+    return {
+      ok: true,
+      skipped: true,
+      reason: "sync_in_progress",
+      lastSyncAt,
+      lastSyncError,
+    };
+  }
+
+  isSyncing = true;
+  const backendUrl = getBackendUrl();
+  let syncedCount = 0;
+  let failedCount = 0;
+
+  try {
+    const db = global.localDb.read();
+    const pending = (db.sales || [])
+      .filter((sale) => !sale.synced)
+      .sort((a, b) => a.created_at - b.created_at);
+
+    for (const row of pending) {
+      try {
+        const payload = row.payload || {};
+        const authToken =
+          payload._authToken || payload.authToken || payload.token || null;
+        const requestPayload = { ...payload };
+        delete requestPayload._authToken;
+        delete requestPayload.authToken;
+        delete requestPayload.token;
+
+        const headers = { "Content-Type": "application/json" };
+        if (authToken) headers.Authorization = `Bearer ${authToken}`;
+
+        const res = await fetch(`${backendUrl}/api/sales`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(requestPayload),
+        });
+
+        if (res.ok) {
+          const current = global.localDb.read();
+          const sale = current.sales.find((item) => item.id === row.id);
+          if (sale) {
+            sale.synced = true;
+            sale.synced_at = Date.now();
+            global.localDb.write(current);
+          }
+          syncedCount += 1;
+        } else {
+          failedCount += 1;
+          lastSyncError = `POST /api/sales failed: ${res.status}`;
+        }
+      } catch (e) {
+        failedCount += 1;
+        lastSyncError = String(e?.message || e || "sync error");
+      }
+    }
+
+    lastSyncAt = Date.now();
+
+    return {
+      ok: true,
+      skipped: false,
+      syncedCount,
+      failedCount,
+      lastSyncAt,
+      lastSyncError,
+    };
+  } finally {
+    isSyncing = false;
+  }
 }
 
 app.whenReady().then(() => {
@@ -176,56 +266,32 @@ app.whenReady().then(() => {
     return db.cache?.products || [];
   });
 
-  // simple sync loop: try to push queued sales to backend
-  const backendUrl = process.env.POS_BACKEND_URL || "http://localhost:4000";
-  const syncIntervalMs = 30 * 1000;
-  async function trySync() {
+  ipcMain.handle("db:setCachedProducts", (_event, products) => {
     const db = global.localDb.read();
-    const pending = (db.sales || [])
-      .filter((sale) => !sale.synced)
-      .sort((a, b) => a.created_at - b.created_at);
+    db.cache = db.cache || {};
+    db.cache.products = Array.isArray(products) ? products : [];
+    global.localDb.write(db);
+    return { ok: true, count: db.cache.products.length };
+  });
 
-    if (!pending.length) return;
+  ipcMain.handle("db:runSyncNow", async () => {
+    return syncPendingSales();
+  });
 
-    for (const row of pending) {
-      try {
-        const payload = row.payload;
-        const res = await fetch(`${backendUrl}/api/sales`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        if (res.ok) {
-          const current = global.localDb.read();
-          const sale = current.sales.find((item) => item.id === row.id);
-          if (sale) {
-            sale.synced = true;
-            sale.synced_at = Date.now();
-            global.localDb.write(current);
-          }
-        }
-      } catch (e) {
-        // network error — will retry later
-      }
-    }
+  ipcMain.handle("db:getSyncStatus", () => {
+    const db = global.localDb.read();
+    const pendingCount = (db.sales || []).filter((sale) => !sale.synced).length;
+    return {
+      pendingCount,
+      isSyncing,
+      lastSyncAt,
+      lastSyncError,
+    };
+  });
 
-    // pull latest product catalog as example of "latest data" sync down
-    try {
-      const productsRes = await fetch(`${backendUrl}/api/products`);
-      if (productsRes.ok) {
-        const products = await productsRes.json();
-        const current = global.localDb.read();
-        current.cache = current.cache || {};
-        current.cache.products = Array.isArray(products) ? products : [];
-        global.localDb.write(current);
-      }
-    } catch (e) {
-      // offline: keep existing cache
-    }
-  }
-
+  const syncIntervalMs = 30 * 1000;
   setInterval(() => {
-    trySync();
+    syncPendingSales();
   }, syncIntervalMs);
 
   createWindow();

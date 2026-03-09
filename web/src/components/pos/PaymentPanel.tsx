@@ -99,6 +99,25 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
   >({});
   const [martCurrency, setMartCurrency] = useState<string | null>(null);
 
+  useEffect(() => {
+    const runSync = async () => {
+      try {
+        await window.posApi?.runSyncNow?.();
+      } catch (err) {
+        // ignore sync errors here, periodic retries continue
+      }
+    };
+
+    runSync();
+    window.addEventListener("online", runSync);
+    const intervalId = window.setInterval(runSync, 30_000);
+
+    return () => {
+      window.removeEventListener("online", runSync);
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
   const handleApplyDiscount = () => {
     const value = parseFloat(discountValue);
     if (!(value > 0)) return;
@@ -247,8 +266,66 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     }
 
     setIsProcessing(true);
+
+    const queueOfflineSale = async (details?: string) => {
+      try {
+        if (!window.posApi?.saveSale) {
+          throw new Error("Desktop local database bridge unavailable");
+        }
+
+        await window.posApi.saveSale({
+          ...savedSalePayload,
+          _authToken: user?.token,
+          queuedAt: new Date().toISOString(),
+        });
+
+        try {
+          await window.posApi.runSyncNow?.();
+        } catch {
+          // queue persisted; sync will retry later
+        }
+
+        try {
+          const rawItems = Array.isArray(savedSalePayload.items)
+            ? savedSalePayload.items
+            : [];
+          const soldItems = rawItems
+            .map((item) => {
+              const row = (item || {}) as Record<string, unknown>;
+              return {
+                productId: String(row.productId || ""),
+                quantity: Number(row.quantity || 0),
+              };
+            })
+            .filter((item) => item.productId && item.quantity > 0);
+          await useProductStore.getState().applyLocalSale?.(soldItems);
+        } catch (localApplyErr) {
+          console.warn("failed to apply local stock deduction", localApplyErr);
+        }
+
+        toast({
+          title: t("sale_complete"),
+          description:
+            details ||
+            "Sale saved locally and queued for sync when internet is available.",
+        });
+
+        setShowReceipt(false);
+        setCurrentReceipt(null);
+        setSavedSalePayload(null);
+        clearCart();
+      } catch (queueErr) {
+        console.error("Failed to queue sale locally", queueErr);
+        toast({
+          title: "Failed to save sale",
+          description: String(queueErr),
+          variant: "destructive",
+        });
+      }
+    };
+
     try {
-      const API_BASE = import.meta.env.VITE_API_URL || "";
+      const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
       const token = user?.token;
       const res = await fetch(`${API_BASE}/api/sales`, {
         method: "POST",
@@ -261,12 +338,11 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         console.warn("Failed to record sale", err);
-        toast({
-          title: "Failed to save sale",
-          description: (err && err.message) || "Server error",
-          variant: "destructive",
-        });
-        setIsProcessing(false);
+        await queueOfflineSale(
+          (err && err.message
+            ? `${err.message}. Saved locally for sync.`
+            : "Server unavailable. Sale saved locally for sync.") as string,
+        );
         return;
       }
 
@@ -277,6 +353,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
       // refresh products so UI reflects updated quantities
       try {
         await useProductStore.getState().fetchProducts?.();
+        await window.posApi?.runSyncNow?.();
       } catch (e) {
         // ignore refresh errors
       }
@@ -287,11 +364,9 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
       clearCart();
     } catch (err) {
       console.error("Record sale error", err);
-      toast({
-        title: "Failed to save sale",
-        description: String(err),
-        variant: "destructive",
-      });
+      await queueOfflineSale(
+        "Network unavailable. Sale saved locally for sync.",
+      );
     } finally {
       setIsProcessing(false);
     }
@@ -303,7 +378,8 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
 
     const fetchMart = async () => {
       try {
-        const API_BASE = import.meta.env.VITE_API_URL || "";
+        const API_BASE =
+          import.meta.env.VITE_API_URL || "http://localhost:4000";
         const martId = user?.martId;
         const token = user?.token;
         if (!martId) return;
