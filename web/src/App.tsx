@@ -13,6 +13,12 @@ import { useEffect } from "react";
 import { useAuthStore } from "./stores/authStore";
 import { initSocket, disconnectSocket } from "./utils/socket";
 import "@/i18n";
+import AutoCompleteExample from "@/components/examples/AutoCompleteExample";
+import AdvancedFiltersExample from "@/components/examples/AdvancedFiltersExample";
+import DataTableExample from "@/components/examples/DataTableExample";
+import ModalExample from "@/components/examples/ModalExample";
+import SuccessModalExample from "@/components/examples/SuccessModalExample";
+import ThreeDotActionMenuExample from "@/components/examples/ThreeDotActionMenuExample";
 
 // Pages
 import Login from "./pages/Login";
@@ -77,6 +83,12 @@ const App = () => {
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/examples/advanced-filters" element={<AdvancedFiltersExample />} />
+            <Route path="/examples/auto-complete" element={<AutoCompleteExample />} />
+            <Route path="/examples/data-table" element={<DataTableExample />} />
+            <Route path="/examples/modal" element={<ModalExample />} />
+            <Route path="/examples/success-modal" element={<SuccessModalExample />} />
+            <Route path="/examples/three-dot-menu" element={<ThreeDotActionMenuExample />} />
 
             {/* Cashier Routes */}
             <Route path="/cashier" element={<CashierPOS />} />

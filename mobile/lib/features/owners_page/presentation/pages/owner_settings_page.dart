@@ -20,17 +20,17 @@ class _OwnerSettingsPageState extends State<OwnerSettingsPage> {
       TextEditingController();
   final TextEditingController _sloganController = TextEditingController();
 
-  String _currency = 'USD';
-    String _paymentSystem = 'Telebirr';
+  String _currency = 'ETB';
+  String _paymentSystem = 'Telebirr';
   final TextEditingController _paymentIdentifierController =
       TextEditingController();
 
-    final TextEditingController _otherPaymentSystemController =
+  final TextEditingController _otherPaymentSystemController =
       TextEditingController();
 
-    bool _isLoadingPayments = true;
-    bool _isSavingPayments = false;
-    List<MapEntry<String, String>> _savedAccounts = const [];
+  bool _isLoadingPayments = true;
+  bool _isSavingPayments = false;
+  List<MapEntry<String, String>> _savedAccounts = const [];
 
   final TextEditingController _taxPercentController = TextEditingController();
 
@@ -210,13 +210,16 @@ class _OwnerSettingsPageState extends State<OwnerSettingsPage> {
     setState(() => _isSavingPayments = true);
 
     try {
-      await _martRepository.updateMart(martId, updates: {
-        'currency': _currency,
-        'paymentSystem': key,
-        'customPaymentFields': nextAccounts
-            .map((e) => {'key': e.key, 'value': e.value})
-            .toList(),
-      });
+      await _martRepository.updateMart(
+        martId,
+        updates: {
+          'currency': _currency,
+          'paymentSystem': key,
+          'customPaymentFields': nextAccounts
+              .map((e) => {'key': e.key, 'value': e.value})
+              .toList(),
+        },
+      );
 
       if (!mounted) return;
       setState(() {
@@ -302,9 +305,9 @@ class _OwnerSettingsPageState extends State<OwnerSettingsPage> {
   }
 
   void _showSaved(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -326,8 +329,9 @@ class _OwnerSettingsPageState extends State<OwnerSettingsPage> {
                 children: [
                   Text(
                     'Settings',
-                    style: theme.textTheme.headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.w800),
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   _SettingsCard(
@@ -381,9 +385,12 @@ class _OwnerSettingsPageState extends State<OwnerSettingsPage> {
                                 backgroundColor: Colors.blue.shade900,
                                 foregroundColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 14),
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
                                 shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(14)),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
                               ),
                               child: const Text('Save Branding'),
                             ),
@@ -406,13 +413,17 @@ class _OwnerSettingsPageState extends State<OwnerSettingsPage> {
                             // initialValue: _currency,
                             items: const [
                               DropdownMenuItem(
-                                  value: 'USD', child: Text('USD')),
+                                value: 'USD',
+                                child: Text('USD'),
+                              ),
                               DropdownMenuItem(
-                                  value: 'ETB', child: Text('ETB')),
+                                value: 'ETB',
+                                child: Text('ETB'),
+                              ),
                             ],
                             onChanged: (_isLoadingPayments || _isSavingPayments)
                                 ? null
-                                : (v) => setState(() => _currency = v ?? 'USD'),
+                                : (v) => setState(() => _currency = v ?? 'ETB'),
                             decoration: const InputDecoration(),
                           ),
                           const SizedBox(height: 14),
@@ -422,23 +433,36 @@ class _OwnerSettingsPageState extends State<OwnerSettingsPage> {
                             value: _paymentSystem,
                             items: const [
                               DropdownMenuItem(
-                                value: 'Cash', child: Text('Cash')),
+                                value: 'Cash',
+                                child: Text('Cash'),
+                              ),
                               DropdownMenuItem(
-                                  value: 'Telebirr', child: Text('Telebirr')),
+                                value: 'Telebirr',
+                                child: Text('Telebirr'),
+                              ),
                               DropdownMenuItem(
-                                  value: 'CBE Bank', child: Text('CBE Bank')),
+                                value: 'CBE Bank',
+                                child: Text('CBE Bank'),
+                              ),
                               DropdownMenuItem(
-                                value: 'Card', child: Text('Card')),
+                                value: 'Card',
+                                child: Text('Card'),
+                              ),
                               DropdownMenuItem(
-                                value: 'Wallet', child: Text('Wallet')),
+                                value: 'Wallet',
+                                child: Text('Wallet'),
+                              ),
                               DropdownMenuItem(
-                                  value: 'Other', child: Text('Other')),
+                                value: 'Other',
+                                child: Text('Other'),
+                              ),
                             ],
                             onChanged: (_isLoadingPayments || _isSavingPayments)
                                 ? null
                                 : (v) {
-                                    setState(() =>
-                                        _paymentSystem = v ?? 'Telebirr');
+                                    setState(
+                                      () => _paymentSystem = v ?? 'Telebirr',
+                                    );
                                     _prefillIdentifierForSelection();
                                   },
                             decoration: const InputDecoration(),
@@ -455,7 +479,8 @@ class _OwnerSettingsPageState extends State<OwnerSettingsPage> {
                             const SizedBox(height: 8),
                             TextFormField(
                               controller: _otherPaymentSystemController,
-                              enabled: !_isLoadingPayments && !_isSavingPayments,
+                              enabled:
+                                  !_isLoadingPayments && !_isSavingPayments,
                               decoration: const InputDecoration(
                                 hintText: 'Bank name (e.g. Abyssinia Bank)',
                               ),
@@ -463,7 +488,8 @@ class _OwnerSettingsPageState extends State<OwnerSettingsPage> {
                             const SizedBox(height: 10),
                             TextFormField(
                               controller: _paymentIdentifierController,
-                              enabled: !_isLoadingPayments && !_isSavingPayments,
+                              enabled:
+                                  !_isLoadingPayments && !_isSavingPayments,
                               decoration: const InputDecoration(
                                 hintText: 'Account identifier / number',
                               ),
@@ -474,25 +500,29 @@ class _OwnerSettingsPageState extends State<OwnerSettingsPage> {
                             const SizedBox(height: 8),
                             TextFormField(
                               controller: _paymentIdentifierController,
-                              enabled: !_isLoadingPayments && !_isSavingPayments,
+                              enabled:
+                                  !_isLoadingPayments && !_isSavingPayments,
                               decoration: InputDecoration(
                                 hintText: _paymentSystem == 'Telebirr'
                                     ? 'Enter Telebirr number'
                                     : (_paymentSystem == 'CBE Bank'
-                                        ? 'Enter CBE account number'
-                                        : (_paymentSystem == 'Card'
-                                            ? 'Enter card number'
-                                            : 'Enter wallet identifier')),
+                                          ? 'Enter CBE account number'
+                                          : (_paymentSystem == 'Card'
+                                                ? 'Enter card number'
+                                                : 'Enter wallet identifier')),
                               ),
                             ),
                           ],
 
                           const SizedBox(height: 14),
-                          Text('Saved Accounts',
-                              style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey.shade700,
-                                  fontWeight: FontWeight.w700)),
+                          Text(
+                            'Saved Accounts',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade700,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                           const SizedBox(height: 8),
                           Container(
                             padding: const EdgeInsets.all(12),
@@ -504,44 +534,50 @@ class _OwnerSettingsPageState extends State<OwnerSettingsPage> {
                             child: _isLoadingPayments
                                 ? const Text('Loading...')
                                 : (_savedAccounts.isEmpty
-                                    ? Text('No saved accounts',
-                                        style: TextStyle(
-                                            color: Colors.grey.shade700))
-                                    : Column(
-                                        children: _savedAccounts
-                                            .map((e) => Padding(
+                                      ? Text(
+                                          'No saved accounts',
+                                          style: TextStyle(
+                                            color: Colors.grey.shade700,
+                                          ),
+                                        )
+                                      : Column(
+                                          children: _savedAccounts
+                                              .map(
+                                                (e) => Padding(
                                                   padding:
                                                       const EdgeInsets.only(
-                                                          bottom: 8),
+                                                        bottom: 8,
+                                                      ),
                                                   child: Row(
                                                     children: [
                                                       Expanded(
                                                         child: Text(
                                                           e.key,
                                                           style: TextStyle(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w700,
-                                                              color: Colors
-                                                                  .grey
-                                                                  .shade800),
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                            color: Colors
+                                                                .grey
+                                                                .shade800,
+                                                          ),
                                                         ),
                                                       ),
                                                       Text(
                                                         e.value,
                                                         style: TextStyle(
-                                                            fontWeight:
-                                                                FontWeight
-                                                                    .w700,
-                                                            color: Colors
-                                                                .grey
-                                                                .shade800),
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          color: Colors
+                                                              .grey
+                                                              .shade800,
+                                                        ),
                                                       ),
                                                     ],
                                                   ),
-                                                ))
-                                            .toList(),
-                                      )),
+                                                ),
+                                              )
+                                              .toList(),
+                                        )),
                           ),
                           const SizedBox(height: 16),
                           Align(
@@ -549,19 +585,24 @@ class _OwnerSettingsPageState extends State<OwnerSettingsPage> {
                             child: ElevatedButton(
                               onPressed:
                                   (_isLoadingPayments || _isSavingPayments)
-                                      ? null
-                                      : _savePaymentSettings,
+                                  ? null
+                                  : _savePaymentSettings,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.blue.shade900,
                                 foregroundColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 14),
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
                                 shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(14)),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
                               ),
-                              child: Text(_isSavingPayments
-                                  ? 'Saving...'
-                                  : 'Save Payment Settings'),
+                              child: Text(
+                                _isSavingPayments
+                                    ? 'Saving...'
+                                    : 'Save Payment Settings',
+                              ),
                             ),
                           ),
                         ],
@@ -585,8 +626,8 @@ class _OwnerSettingsPageState extends State<OwnerSettingsPage> {
                               hintText: _isLoadingTax
                                   ? 'Loading current tax...'
                                   : (_currentTaxRate != null
-                                      ? _currentTaxRate!.toStringAsFixed(0)
-                                      : 'Enter tax rate'),
+                                        ? _currentTaxRate!.toStringAsFixed(0)
+                                        : 'Enter tax rate'),
                             ),
                             enabled: !_isLoadingTax && !_isSavingTax,
                             validator: (v) {
@@ -611,11 +652,16 @@ class _OwnerSettingsPageState extends State<OwnerSettingsPage> {
                                 backgroundColor: Colors.blue.shade900,
                                 foregroundColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 14),
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
                                 shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(14)),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
                               ),
-                              child: Text(_isSavingTax ? 'Saving...' : 'Save Tax'),
+                              child: Text(
+                                _isSavingTax ? 'Saving...' : 'Save Tax',
+                              ),
                             ),
                           ),
                         ],
@@ -636,10 +682,7 @@ class _SettingsCard extends StatelessWidget {
   final String title;
   final Widget child;
 
-  const _SettingsCard({
-    required this.title,
-    required this.child,
-  });
+  const _SettingsCard({required this.title, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -663,8 +706,10 @@ class _SettingsCard extends StatelessWidget {
               inputDecorationTheme: InputDecorationTheme(
                 filled: true,
                 fillColor: Colors.grey.shade50,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 14,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(color: Colors.grey.shade300),
@@ -675,8 +720,10 @@ class _SettingsCard extends StatelessWidget {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide:
-                      BorderSide(color: Colors.blue.shade900, width: 1.3),
+                  borderSide: BorderSide(
+                    color: Colors.blue.shade900,
+                    width: 1.3,
+                  ),
                 ),
               ),
             ),
@@ -737,7 +784,8 @@ class _FakeFilePickerState extends State<_FakeFilePicker> {
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             child: const Text('Choose File'),
           ),

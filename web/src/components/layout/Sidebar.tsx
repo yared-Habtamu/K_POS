@@ -37,6 +37,58 @@ interface NavItem {
   label: string;
   icon: React.ElementType;
   path: string;
+  activePaths?: string[];
+}
+
+function normalizePath(path: string) {
+  if (!path) {
+    return "/";
+  }
+
+  const normalized = path.endsWith("/") && path !== "/" ? path.slice(0, -1) : path;
+  return normalized || "/";
+}
+
+function getNavItemMatchScore(pathname: string, item: NavItem) {
+  const currentPath = normalizePath(pathname);
+  const candidatePaths = [item.path, ...(item.activePaths ?? [])].map(normalizePath);
+
+  let bestScore = -1;
+
+  candidatePaths.forEach((candidatePath) => {
+    if (currentPath === candidatePath) {
+      bestScore = Math.max(bestScore, candidatePath.length + 1000);
+      return;
+    }
+
+    if (candidatePath === "/") {
+      if (currentPath === "/") {
+        bestScore = Math.max(bestScore, 1000);
+      }
+      return;
+    }
+
+    if (currentPath.startsWith(`${candidatePath}/`)) {
+      bestScore = Math.max(bestScore, candidatePath.length);
+    }
+  });
+
+  return bestScore;
+}
+
+function getActiveNavPath(pathname: string, items: NavItem[]) {
+  let activePath: string | null = null;
+  let bestScore = -1;
+
+  items.forEach((item) => {
+    const score = getNavItemMatchScore(pathname, item);
+    if (score > bestScore) {
+      bestScore = score;
+      activePath = item.path;
+    }
+  });
+
+  return activePath;
 }
 
 const roleNavItems: Record<UserRole, NavItem[]> = {
@@ -63,28 +115,28 @@ const roleNavItems: Record<UserRole, NavItem[]> = {
   owner: [
     { label: 'dashboard', icon: LayoutDashboard, path: '/owner' },
     { label: 'pos', icon: ShoppingCart, path: '/owner/pos' },
-    { label: 'products', icon: Package, path: '/owner/products' },
+    { label: 'products', icon: Package, path: '/owner/products', activePaths: ['/owner/products/add'] },
     // inventory uses warehouse icon so it’s distinct from products
-    { label: 'inventory', icon: Warehouse, path: '/inventory' },
+    { label: 'inventory', icon: Warehouse, path: '/owner/inventory', activePaths: ['/inventory'] },
     { label: 'add_stock', icon: ClipboardList, path: '/store-keeper/add-stock' },
     { label: 'employees', icon: Users, path: '/owner/employees' },
     { label: 'customers', icon: Users, path: '/cashier/customers' },
     { label: 'expenses', icon: Wallet, path: '/owner/expenses' },
-    { label: 'alerts', icon: AlertTriangle, path: '/alerts' },
+    { label: 'alerts', icon: AlertTriangle, path: '/owner/alerts', activePaths: ['/alerts'] },
     { label: 'reports', icon: BarChart3, path: '/owner/reports' },
     { label: 'today_sales', icon: Receipt, path: '/owner/today-sales' },
-    {label: 'assets', icon: Boxes, path: '/manager/assets'},
+    { label: 'assets', icon: Boxes, path: '/owner/assets', activePaths: ['/manager/assets'] },
     { label: 'settings', icon: Settings, path: '/owner/settings' },
   ],
   store_keeper: [
-    { label: 'inventory', icon: Package, path: '/store-keeper/inventory' },
+    { label: 'inventory', icon: Package, path: '/store-keeper', activePaths: ['/store-keeper/inventory'] },
     { label: 'add_stock', icon: ClipboardList, path: '/store-keeper/add-stock' },
     { label: 'barcode', icon: Barcode, path: '/store-keeper/barcode' },
     { label: 'products', icon: Image, path: '/store-keeper/pictures' },
     { label: 'alerts', icon: AlertTriangle, path: '/alerts' },
   ],
   system_admin: [
-    { label: 'dashboard', icon: BarChart3, path: '/admin/reports' },
+    { label: 'dashboard', icon: BarChart3, path: '/admin', activePaths: ['/admin/reports'] },
     { label: 'shop', icon: Building2, path: '/admin/shops' },
    
   ],
@@ -94,6 +146,7 @@ export function Sidebar({ role, mobileOpen, onClose }: SidebarPropsExtended) {
   const { t } = useTranslation();
   const location = useLocation();
   const navItems = roleNavItems[role];
+  const activeNavPath = getActiveNavPath(location.pathname, navItems);
 
   return (
     <>
@@ -114,8 +167,7 @@ export function Sidebar({ role, mobileOpen, onClose }: SidebarPropsExtended) {
       {/* Navigation */}
       <nav className="flex-1 min-h-0 py-4 px-3 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
-          // ✅ FIXED: Exact path match only
-          const isActive = location.pathname === item.path;
+          const isActive = activeNavPath === item.path;
           
           return (
             <NavLink
@@ -169,7 +221,7 @@ export function Sidebar({ role, mobileOpen, onClose }: SidebarPropsExtended) {
 
             <nav className="h-[calc(100vh-4rem)] py-4 px-3 space-y-1 overflow-y-auto">
               {navItems.map((item) => {
-                const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path + '/'));
+                const isActive = activeNavPath === item.path;
                 return (
                   <NavLink
                     key={item.path}

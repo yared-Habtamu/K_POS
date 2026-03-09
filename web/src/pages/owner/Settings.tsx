@@ -17,7 +17,7 @@ export default function OwnerSettings() {
   const [name, setName] = useState("");
   const [logo, setLogo] = useState<string | null>(null);
   const [slogan, setSlogan] = useState("");
-  const [currency, setCurrency] = useState("");
+  const [currency, setCurrency] = useState("ETB");
   const [paymentSystem, setPaymentSystem] = useState("");
   const [paymentAccounts, setPaymentAccounts] = useState<{
     [k: string]: string;
@@ -69,7 +69,7 @@ export default function OwnerSettings() {
         // This prevents overwriting values while the owner is typing before saving.
 
         // currency
-        setCurrency((prev) => (prev ? prev : json.currency || ""));
+        setCurrency((prev) => (prev ? prev : json.currency || "ETB"));
 
         // payment fields: prefer customPaymentFields array but accept legacy map
         if (Array.isArray(json.customPaymentFields)) {

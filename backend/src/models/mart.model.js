@@ -16,7 +16,7 @@ const MartSchema = new mongoose.Schema(
     shopLogoUrl: { type: String },
 
     // payments and currency
-    currency: { type: String },
+    currency: { type: String, default: "ETB" },
     paymentSystem: { type: String },
     // paymentAccounts: map of payment method key -> account identifier (string)
     paymentAccounts: { type: Map, of: String },

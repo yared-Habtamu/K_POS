@@ -412,9 +412,10 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
         if (import.meta.env.DEV)
           console.debug("Normalized payment accounts:", accounts);
 
-        setMartCurrency((prev) =>
-          prev === (json.currency || null) ? prev : json.currency || null,
-        );
+        setMartCurrency((prev) => {
+          const nextCurrency = json.currency || "ETB";
+          return prev === nextCurrency ? prev : nextCurrency;
+        });
 
         const incomingRate = Number(json.taxRate) || 0;
         if (typeof setTaxRate === "function") {
