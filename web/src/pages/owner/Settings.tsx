@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function OwnerSettings() {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [logo, setLogo] = useState<string | null>(null);
   const [slogan, setSlogan] = useState("");
@@ -138,7 +140,7 @@ export default function OwnerSettings() {
   }, [auth?.martId, auth?.token, API_BASE]);
 
   const saveBranding = () => {
-    toast({ title: "Branding saved" });
+    toast({ title: t("branding_saved") });
   };
 
   const savePayments = () => {
@@ -146,7 +148,7 @@ export default function OwnerSettings() {
       try {
         const martId = auth?.martId;
         const token = auth?.token;
-        if (!martId) return toast({ title: "No martId" });
+        if (!martId) return toast({ title: t("mart_not_found") });
         const normalizedFields = (customPaymentFields || []).map((f) => ({
           key: String(f.key || "")
             .trim()
@@ -169,10 +171,10 @@ export default function OwnerSettings() {
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           return toast({
-            title: err.message || "Failed to save payment settings",
+            title: err.message || t("failed_save_payment_settings"),
           });
         }
-        toast({ title: "Payment settings saved" });
+        toast({ title: t("payment_settings_saved") });
         try {
           // notify other windows/components that mart settings changed so they can refresh
           window.dispatchEvent(
@@ -183,7 +185,7 @@ export default function OwnerSettings() {
         }
       } catch (err) {
         console.error("savePayments error", err);
-        toast({ title: "Failed to save payment settings" });
+        toast({ title: t("failed_save_payment_settings") });
       }
     })();
   };
@@ -210,7 +212,7 @@ export default function OwnerSettings() {
       try {
         const martId = auth?.martId;
         const token = auth?.token;
-        if (!martId) return toast({ title: "No martId" });
+        if (!martId) return toast({ title: t("mart_not_found") });
         const payload = { taxRate: Number(tax) };
         const res = await fetch(`${API_BASE}/api/marts/${martId}`, {
           method: "PUT",
@@ -222,12 +224,12 @@ export default function OwnerSettings() {
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          return toast({ title: err.message || "Failed to save tax settings" });
+          return toast({ title: err.message || t("failed_save_tax_settings") });
         }
-        toast({ title: "Tax settings saved" });
+        toast({ title: t("tax_settings_saved") });
       } catch (err) {
         console.error("saveTax error", err);
-        toast({ title: "Failed to save tax settings" });
+        toast({ title: t("failed_save_tax_settings") });
       }
     })();
   };
@@ -238,43 +240,47 @@ export default function OwnerSettings() {
         {/* Branding Section */}
         <Card>
           <CardHeader>
-            <CardTitle>Branding</CardTitle>
+            <CardTitle>{t("branding")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-4">
               <div>
-                <p className="text-sm font-medium">Supermarket Name</p>
+                <p className="text-sm font-medium">{t("supermarket_name")}</p>
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter name"
+                  placeholder={t("enter_name")}
                   className="mt-2"
                 />
               </div>
 
               <div>
-                <p className="text-sm font-medium">Logo</p>
+                <p className="text-sm font-medium">{t("logo")}</p>
                 <Input
                   type="file"
                   accept="image/*"
                   onChange={(e) => setLogo(e.target.files?.[0]?.name ?? null)}
                   className="mt-2"
                 />
-                {logo && <div className="mt-2 text-xs">Selected: {logo}</div>}
+                {logo && (
+                  <div className="mt-2 text-xs">
+                    {t("selected")}: {logo}
+                  </div>
+                )}
               </div>
 
               <div>
-                <p className="text-sm font-medium">Slogan</p>
+                <p className="text-sm font-medium">{t("slogan")}</p>
                 <Input
                   value={slogan}
                   onChange={(e) => setSlogan(e.target.value)}
-                  placeholder="Enter slogan"
+                  placeholder={t("enter_slogan")}
                   className="mt-2"
                 />
               </div>
 
               <div className="flex justify-end pt-2">
-                <Button onClick={saveBranding}>Save Branding</Button>
+                <Button onClick={saveBranding}>{t("save_branding")}</Button>
               </div>
             </div>
           </CardContent>
@@ -283,12 +289,12 @@ export default function OwnerSettings() {
         {/* Payments & Currency Section */}
         <Card>
           <CardHeader>
-            <CardTitle>Payments & Currency</CardTitle>
+            <CardTitle>{t("payments_and_currency")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-4">
               <div>
-                <p className="text-sm font-medium">Currency</p>
+                <p className="text-sm font-medium">{t("currency")}</p>
                 <Select value={currency} onValueChange={(v) => setCurrency(v)}>
                   <SelectTrigger className="mt-2 w-44">
                     <SelectValue />
@@ -296,13 +302,13 @@ export default function OwnerSettings() {
                   <SelectContent>
                     <SelectItem value="ETB">ETB</SelectItem>
                     <SelectItem value="USD">USD</SelectItem>
-                    <SelectItem value="Shilling">Shilling</SelectItem>
+                    <SelectItem value="Shilling">{t("shilling")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div>
-                <p className="text-sm font-medium">Payment System</p>
+                <p className="text-sm font-medium">{t("payment_system")}</p>
                 <Select
                   value={paymentSystem || ""}
                   onValueChange={(v) => setPaymentSystem(v)}
@@ -311,19 +317,19 @@ export default function OwnerSettings() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="cash">Cash</SelectItem>
-                    <SelectItem value="telebirr">Telebirr</SelectItem>
-                    <SelectItem value="cbe_bank">CBE Bank</SelectItem>
-                    <SelectItem value="card">Card</SelectItem>
-                    <SelectItem value="wallet">Credit</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
+                    <SelectItem value="cash">{t("cash")}</SelectItem>
+                    <SelectItem value="telebirr">{t("telebirr")}</SelectItem>
+                    <SelectItem value="cbe_bank">{t("cbe_bank")}</SelectItem>
+                    <SelectItem value="card">{t("card")}</SelectItem>
+                    <SelectItem value="wallet">{t("credit")}</SelectItem>
+                    <SelectItem value="other">{t("other")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div>
                 <p className="text-sm font-medium">
-                  Payment Account / Identifier
+                  {t("payment_account_identifier")}
                 </p>
                 {paymentSystem !== "other" ? (
                   <Input
@@ -336,14 +342,14 @@ export default function OwnerSettings() {
                     }
                     placeholder={
                       paymentSystem === "telebirr"
-                        ? "Enter Telebirr number"
+                        ? t("enter_telebirr_number")
                         : paymentSystem === "cbe_bank"
-                          ? "Enter CBE account number"
+                          ? t("enter_cbe_account_number")
                           : paymentSystem === "card"
-                            ? "Enter card/merchant account"
+                            ? t("enter_card_merchant_account")
                             : paymentSystem === "wallet"
-                              ? "Enter credit number"
-                              : "Enter account identifier"
+                              ? t("enter_credit_number")
+                              : t("enter_account_identifier")
                     }
                     className="mt-2"
                   />
@@ -355,7 +361,7 @@ export default function OwnerSettings() {
                           ?.value || ""
                       }
                       onChange={(e) => setOtherBankName(e.target.value)}
-                      placeholder="Bank name (e.g. Abyssinia Bank)"
+                      placeholder={t("bank_name_example")}
                       className="mt-2"
                     />
                     <Input
@@ -364,7 +370,7 @@ export default function OwnerSettings() {
                           ?.value || ""
                       }
                       onChange={(e) => setOtherBankIdentifier(e.target.value)}
-                      placeholder="Account identifier / number"
+                      placeholder={t("account_identifier_number")}
                       className="mt-2"
                     />
                   </div>
@@ -374,7 +380,7 @@ export default function OwnerSettings() {
               {/* Show quick list of saved accounts */}
               {displayPaymentFields && displayPaymentFields.length > 0 && (
                 <div>
-                  <p className="text-sm font-medium">Saved Accounts</p>
+                  <p className="text-sm font-medium">{t("saved_accounts")}</p>
                   <div className="mt-2 space-y-2">
                     {displayPaymentFields.map((f) => (
                       <div
@@ -392,7 +398,9 @@ export default function OwnerSettings() {
               )}
 
               <div className="flex justify-end pt-2">
-                <Button onClick={savePayments}>Save Payment Settings</Button>
+                <Button onClick={savePayments}>
+                  {t("save_payment_settings")}
+                </Button>
               </div>
             </div>
           </CardContent>
@@ -401,23 +409,25 @@ export default function OwnerSettings() {
         {/* Tax Section */}
         <Card>
           <CardHeader>
-            <CardTitle>Tax</CardTitle>
+            <CardTitle>{t("tax")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-4">
               <div>
-                <p className="text-sm font-medium">Tax Setting (%)</p>
+                <p className="text-sm font-medium">
+                  {t("tax_setting_percent")}
+                </p>
                 <Input
                   type="number"
                   value={tax}
                   onChange={(e) => setTax(e.target.value)}
-                  placeholder="Enter tax rate"
+                  placeholder={t("enter_tax_rate")}
                   className="mt-2 w-44"
                 />
               </div>
 
               <div className="flex justify-end pt-2">
-                <Button onClick={saveTax}>Save Tax</Button>
+                <Button onClick={saveTax}>{t("save_tax")}</Button>
               </div>
             </div>
           </CardContent>

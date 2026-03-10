@@ -42,6 +42,7 @@ import {
   Barcode,
   Image as ImageIcon,
   Loader2,
+  RotateCw,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -128,6 +129,7 @@ export default function ProductManagement() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [soldMap, setSoldMap] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -183,7 +185,10 @@ export default function ProductManagement() {
   const generateUniqueBarcode = async () => {
     const candidate = () => `${Date.now()}`.slice(-12);
     for (let i = 0; i < 6; i++) {
-      const code = i === 0 ? candidate() : `${candidate()}${Math.floor(Math.random() * 9)}`.slice(0, 12);
+      const code =
+        i === 0
+          ? candidate()
+          : `${candidate()}${Math.floor(Math.random() * 9)}`.slice(0, 12);
       const existing = await findProductByBarcode(code);
       if (!existing) return code;
     }
@@ -330,7 +335,9 @@ export default function ProductManagement() {
     void (async () => {
       try {
         const b = await generateUniqueBarcode();
-        const existing = Array.isArray(form.barcodes) ? form.barcodes.slice() : [];
+        const existing = Array.isArray(form.barcodes)
+          ? form.barcodes.slice()
+          : [];
         setForm({ ...form, barcodes: [...existing, b], barcodeInput: "" });
       } catch (e) {
         console.error("generate barcode failed", e);
@@ -358,6 +365,19 @@ export default function ProductManagement() {
     }
   };
 
+  const refreshProducts = async () => {
+    setIsRefreshing(true);
+    try {
+      await (useProductStore
+        .getState()
+        .fetchProducts?.(currentPage, ITEMS_PER_PAGE) as Promise<void>);
+    } catch (e) {
+      // ignore
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <RoleLayout allowedRoles={["owner"]}>
       <div className="space-y-6">
@@ -366,11 +386,23 @@ export default function ProductManagement() {
           <div>
             <h1 className="text-2xl font-bold">{t("products")}</h1>
             <p className="text-muted-foreground">
-              Manage your product inventory
+              {t("manage_product_inventory")}
             </p>
           </div>
 
-          <div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => void refreshProducts()}
+              disabled={isRefreshing}
+              aria-label="Refresh products"
+              title="Refresh products"
+            >
+              <RotateCw
+                className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+              />
+            </Button>
             <Button onClick={() => navigate("/owner/products/add")}>
               <Plus className="mr-2 h-4 w-4" />
               {t("add_product")}
@@ -539,7 +571,11 @@ export default function ProductManagement() {
                                     "",
                                 );
                                 // allow adding the barcode if it belongs to the same product being edited
-                                if (editingProduct && currentEditingId && foundId === currentEditingId) {
+                                if (
+                                  editingProduct &&
+                                  currentEditingId &&
+                                  foundId === currentEditingId
+                                ) {
                                   const existing = Array.isArray(form.barcodes)
                                     ? form.barcodes.slice()
                                     : [];
@@ -555,7 +591,9 @@ export default function ProductManagement() {
                                   code: val,
                                   productId: foundId,
                                   productName: String(found.name || "Product"),
-                                  storeQuantity: Number(found.storeQuantity || 0),
+                                  storeQuantity: Number(
+                                    found.storeQuantity || 0,
+                                  ),
                                 });
                                 setBarcodeConflictOpen(true);
                                 return;
@@ -657,7 +695,8 @@ export default function ProductManagement() {
                                         : undefined,
                                     },
                                   );
-                                  if (!res.ok) throw new Error(await res.text());
+                                  if (!res.ok)
+                                    throw new Error(await res.text());
                                   const p = await res.json();
                                   const normalized: any = {
                                     ...p,
@@ -666,34 +705,41 @@ export default function ProductManagement() {
 
                                   setEditingProduct(normalized);
                                   setForm({
-                                    name: String(normalized.name || ''),
-                                    category: String(normalized.category || ''),
-                                    unit: (normalized.unit as any) || 'pcs',
-                                    purchasePrice: String(normalized.purchasePrice ?? 0),
-                                    sellingPrice: String(normalized.sellingPrice ?? 0),
+                                    name: String(normalized.name || ""),
+                                    category: String(normalized.category || ""),
+                                    unit: (normalized.unit as any) || "pcs",
+                                    purchasePrice: String(
+                                      normalized.purchasePrice ?? 0,
+                                    ),
+                                    sellingPrice: String(
+                                      normalized.sellingPrice ?? 0,
+                                    ),
                                     quantity: String(
                                       normalized.storeQuantity ??
                                         normalized.quantity ??
                                         normalized.supermarketQuantity ??
                                         0,
                                     ),
-                                    lowStockThreshold: String(normalized.lowStockThreshold ?? 10),
+                                    lowStockThreshold: String(
+                                      normalized.lowStockThreshold ?? 10,
+                                    ),
                                     expiryDate: normalized.expiryDate
                                       ? new Date(normalized.expiryDate)
                                           .toISOString()
-                                          .split('T')[0]
-                                      : '',
+                                          .split("T")[0]
+                                      : "",
                                     barcodes: Array.isArray(normalized.barcodes)
                                       ? normalized.barcodes.map(String)
                                       : normalized.barcode
                                         ? [String(normalized.barcode)]
                                         : [],
-                                    barcodeInput: '',
+                                    barcodeInput: "",
                                   });
 
                                   toast({
-                                    title: 'Product loaded',
-                                    description: 'Update quantity and press Save.',
+                                    title: "Product loaded",
+                                    description:
+                                      "Update quantity and press Save.",
                                   });
 
                                   setBarcodeConflictOpen(false);
@@ -787,7 +833,7 @@ export default function ProductManagement() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-12">Image</TableHead>
+                    <TableHead className="w-12">{t("image")}</TableHead>
                     <TableHead>{t("product_name")}</TableHead>
                     <TableHead>{t("category")}</TableHead>
                     <TableHead className="text-right">
@@ -797,7 +843,9 @@ export default function ProductManagement() {
                       {t("selling_price")}
                     </TableHead>
                     <TableHead className="text-right">{t("stock")}</TableHead>
-                    <TableHead className="text-right">Mart Qty</TableHead>
+                    <TableHead className="text-right">
+                      {t("mart_qty")}
+                    </TableHead>
                     <TableHead className="text-right">{t("actions")}</TableHead>
                   </TableRow>
                 </TableHeader>

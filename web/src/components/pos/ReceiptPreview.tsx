@@ -1,15 +1,21 @@
-import { useTranslation } from 'react-i18next';
-import { useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { useAuthStore } from '@/stores/authStore';
-import { toast } from '@/hooks/use-toast';
-import { Separator } from '@/components/ui/separator';
-import type { Receipt } from '@/types';
-import { Printer, Download, MessageSquare } from 'lucide-react';
-import { format } from 'date-fns';
+import { useTranslation } from "react-i18next";
+import { useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { useAuthStore } from "@/stores/authStore";
+import { toast } from "@/hooks/use-toast";
+import { Separator } from "@/components/ui/separator";
+import type { Receipt } from "@/types";
+import { Printer, Download, MessageSquare } from "lucide-react";
+import { format } from "date-fns";
 
 interface ReceiptPreviewProps {
   receipt: Receipt;
@@ -32,64 +38,89 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
   const handleEmail = () => {
     // Build a simple email body with receipt summary
     const lines = [] as string[];
-    lines.push(`Receipt: ${receipt.id}`);
-    lines.push(`Shop: ${receipt.shopName}`);
-    lines.push(`Total: ${receipt.total.toFixed(2)} ETB`);
+    lines.push(`${t("receipt_label")}: ${receipt.id}`);
+    lines.push(`${t("shop")}: ${receipt.shopName}`);
+    lines.push(`${t("total")}: ${receipt.total.toFixed(2)} ETB`);
     lines.push("");
-    lines.push("Items:");
+    lines.push(`${t("items")}:`);
     for (const it of receipt.items) {
-      const name = it.product?.name || it.name || "Item";
+      const name = it.product?.name || t("item");
       const qty = it.quantity || 0;
       const subtotal =
         it.subtotal != null
           ? it.subtotal
-          : (it.price || 0) * (it.quantity || 0);
+          : (it.product?.sellingPrice || 0) * qty;
       lines.push(`${name} x${qty} — ${Number(subtotal).toFixed(2)} ETB`);
     }
     const body = encodeURIComponent(lines.join("\n"));
     const subject = encodeURIComponent(
-      `Receipt ${receipt.id} from ${receipt.shopName}`
+      `${t("receipt_label")} ${receipt.id} ${t("from")} ${receipt.shopName}`,
     );
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
 
   // SMS dialog state
   const [smsOpen, setSmsOpen] = useState(false);
-  const [smsName, setSmsName] = useState('');
-  const [smsPhone, setSmsPhone] = useState('');
+  const [smsName, setSmsName] = useState("");
+  const [smsPhone, setSmsPhone] = useState("");
   const [sendingSms, setSendingSms] = useState(false);
   const [smsResult, setSmsResult] = useState<string | null>(null);
 
   const sendSms = async () => {
-    if (!smsPhone) { setSmsResult('Phone number required'); return; }
+    if (!smsPhone) {
+      setSmsResult(t("phone_required"));
+      return;
+    }
     const token = useAuthStore.getState().user?.token;
-    if (!token) { setSmsResult('Not authenticated'); return; }
+    if (!token) {
+      setSmsResult(t("not_authenticated"));
+      return;
+    }
     setSendingSms(true);
     setSmsResult(null);
     try {
-      const payload = { saleId: receipt.saleId || receipt.id, phone: smsPhone, name: smsName };
-      const res = await fetch((import.meta.env.VITE_API_URL || import.meta.env.NEXT_PUBLIC_API_URL || '') + '/api/notifications/sms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(payload),
-      });
+      const payload = {
+        saleId: receipt.saleId || receipt.id,
+        phone: smsPhone,
+        name: smsName,
+      };
+      const res = await fetch(
+        (import.meta.env.VITE_API_URL ||
+          import.meta.env.NEXT_PUBLIC_API_URL ||
+          "") + "/api/notifications/sms",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        },
+      );
       const data = await res.json();
       if (!res.ok) {
-        console.error('SMS send failed', res.status, data);
-        let detail = data?.message || 'Failed to send SMS';
+        console.error("SMS send failed", res.status, data);
+        let detail = data?.message || t("sms_send_failed");
         if (data?.error) {
-          try { detail += `: ${typeof data.error === 'string' ? data.error : JSON.stringify(data.error)}`; } catch(e) { detail += ': (error details)'; }
+          try {
+            detail += `: ${typeof data.error === "string" ? data.error : JSON.stringify(data.error)}`;
+          } catch (e) {
+            detail += ": (error details)";
+          }
         }
         setSmsResult(detail);
-        toast({ title: 'SMS failed', description: detail });
+        toast({ title: t("sms_failed"), description: detail });
       } else {
-        setSmsResult('SMS sent');
-        toast({ title: 'SMS sent', description: `Receipt sent to ${smsPhone}` });
+        setSmsResult(t("sms_sent"));
+        toast({
+          title: t("sms_sent"),
+          description: `${t("receipt_sent_to")} ${smsPhone}`,
+        });
         // close dialog after a short delay
         setTimeout(() => setSmsOpen(false), 800);
       }
     } catch (err: any) {
-      console.error('SMS send exception', err);
+      console.error("SMS send exception", err);
       setSmsResult(String(err?.message || err));
     } finally {
       setSendingSms(false);
@@ -116,8 +147,12 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
         {/* Receipt info */}
         <div className="flex justify-between text-xs mb-3">
           <div>
-            <p>Receipt: {receipt.id}</p>
-            <p>Cashier: {receipt.cashierName}</p>
+            <p>
+              {t("receipt_label")}: {receipt.id}
+            </p>
+            <p>
+              {t("cashier")}: {receipt.cashierName}
+            </p>
           </div>
           <div className="text-right">
             <p>{format(new Date(receipt.date), "MMM dd, yyyy")}</p>
@@ -130,10 +165,10 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
         {/* Items */}
         <div className="space-y-2 mb-3">
           <div className="flex justify-between text-xs font-bold">
-            <span className="flex-1">Item</span>
-            <span className="w-12 text-center">Qty</span>
-            <span className="w-16 text-right">Price</span>
-            <span className="w-20 text-right">Total</span>
+            <span className="flex-1">{t("item")}</span>
+            <span className="w-12 text-center">{t("quantity_short")}</span>
+            <span className="w-16 text-right">{t("price")}</span>
+            <span className="w-20 text-right">{t("total")}</span>
           </div>
           {receipt.items.map((item, idx) => (
             <div key={idx} className="flex justify-between text-xs">
@@ -154,12 +189,12 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
         {/* Totals */}
         <div className="space-y-1 text-sm">
           <div className="flex justify-between">
-            <span>Subtotal:</span>
+            <span>{t("subtotal")}:</span>
             <span>{receipt.subtotal.toFixed(2)} ETB</span>
           </div>
           {receipt.discount && (
             <div className="flex justify-between text-green-600">
-              <span>Discount:</span>
+              <span>{t("discount")}:</span>
               <span>-{receipt.discount.amount.toFixed(2)} ETB</span>
             </div>
           )}
@@ -170,15 +205,17 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
             </div>
           ))}
           <div className="flex justify-between">
-            <span>VAT ({(receipt.taxRate || 15).toFixed(2)}%):</span>
+            <span>
+              {t("vat")} ({(receipt.taxRate || 15).toFixed(2)}%):
+            </span>
             <span>{receipt.tax.toFixed(2)} ETB</span>
           </div>
           <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-400">
-            <span>TOTAL:</span>
+            <span>{t("total").toUpperCase()}:</span>
             <span>{receipt.total.toFixed(2)} ETB</span>
           </div>
           <div className="flex justify-between text-xs pt-1">
-            <span>Payment Method:</span>
+            <span>{t("payment_method")}:</span>
             <span className="uppercase">
               {receipt.paymentMethod.replace("_", " ")}
             </span>
@@ -195,7 +232,9 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
             level="M"
             includeMargin={false}
           />
-          <p className="text-xs mt-2 text-gray-500">Scan for digital receipt</p>
+          <p className="text-xs mt-2 text-gray-500">
+            {t("scan_for_digital_receipt")}
+          </p>
         </div>
 
         {/* Footer */}
@@ -205,7 +244,7 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
           </p>
         )}
         <p className="text-center text-xs mt-2 text-gray-500">
-          Powered by Smart POS
+          {t("powered_by_smart_pos")}
         </p>
       </div>
 
@@ -223,7 +262,11 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
           <Download className="mr-2 h-4 w-4" />
           PDF
         </Button>
-        <Button variant="outline" onClick={() => setSmsOpen(true)} className="flex-1">
+        <Button
+          variant="outline"
+          onClick={() => setSmsOpen(true)}
+          className="flex-1"
+        >
           <MessageSquare className="mr-2 h-4 w-4" />
           SMS
         </Button>
@@ -231,27 +274,44 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
           {t("done") || "Done"}
         </Button>
       </div>
-      
+
       {/* SMS Dialog */}
       <Dialog open={smsOpen} onOpenChange={setSmsOpen}>
         <DialogContent>
-          <DialogTitle>Send Receipt via SMS</DialogTitle>
-          <DialogDescription>Enter customer name and phone number to send the receipt.</DialogDescription>
+          <DialogTitle>{t("send_receipt_via_sms")}</DialogTitle>
+          <DialogDescription>
+            {t("enter_customer_name_and_phone")}
+          </DialogDescription>
           <div className="space-y-2 mt-4">
             <div>
-              <label className="text-sm">Name</label>
-              <Input value={smsName} onChange={(e) => setSmsName((e.target as HTMLInputElement).value)} />
+              <label className="text-sm">{t("name")}</label>
+              <Input
+                value={smsName}
+                onChange={(e) =>
+                  setSmsName((e.target as HTMLInputElement).value)
+                }
+              />
             </div>
             <div>
-              <label className="text-sm">Phone</label>
-              <Input value={smsPhone} onChange={(e) => setSmsPhone((e.target as HTMLInputElement).value)} placeholder="e.g. +251912345678" />
+              <label className="text-sm">{t("phone")}</label>
+              <Input
+                value={smsPhone}
+                onChange={(e) =>
+                  setSmsPhone((e.target as HTMLInputElement).value)
+                }
+                placeholder={t("phone_example")}
+              />
             </div>
-            {smsResult && <div className="text-sm text-muted-foreground">{smsResult}</div>}
+            {smsResult && (
+              <div className="text-sm text-muted-foreground">{smsResult}</div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSmsOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setSmsOpen(false)}>
+              {t("cancel")}
+            </Button>
             <Button onClick={sendSms} disabled={sendingSms}>
-              {sendingSms ? 'Sending...' : 'Send SMS'}
+              {sendingSms ? t("sending") : t("send_sms")}
             </Button>
           </DialogFooter>
         </DialogContent>

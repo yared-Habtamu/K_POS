@@ -16,7 +16,13 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { useProductStore } from "@/stores/productStore";
 import type { ProductUnit } from "@/types";
-import { Barcode, Loader2, Image as ImageIcon, Trash2 } from "lucide-react";
+import {
+  Barcode,
+  Loader2,
+  Image as ImageIcon,
+  Trash2,
+  RotateCw,
+} from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   AlertDialog,
@@ -40,12 +46,15 @@ export default function ProductAdd() {
   const fetchProducts = useProductStore((s) => s.fetchProducts);
   // Determine where to return after add based on current user role
   const role = useAuthStore((s) => s.user?.role) || "owner";
-  const productsRoute = role === "manager" ? "/manager/products" : "/owner/products";
+  const productsRoute =
+    role === "manager" ? "/manager/products" : "/owner/products";
   // Permissions
   const user = useAuthStore((s) => s.user);
-  const canSetPurchase = user?.role === 'owner' || (user?.permissions || []).includes('addItem');
+  const canSetPurchase =
+    user?.role === "owner" || (user?.permissions || []).includes("addItem");
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -70,7 +79,9 @@ export default function ProductAdd() {
     productName: string;
     storeQuantity?: number;
   }>(null);
-  const [barcodeConflictProduct, setBarcodeConflictProduct] = useState<any | null>(null);
+  const [barcodeConflictProduct, setBarcodeConflictProduct] = useState<
+    any | null
+  >(null);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
 
   const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -96,7 +107,10 @@ export default function ProductAdd() {
   const generateUniqueBarcode = async () => {
     const candidate = () => `${Date.now()}`.slice(-12);
     for (let i = 0; i < 6; i++) {
-      const code = i === 0 ? candidate() : `${candidate()}${Math.floor(Math.random() * 9)}`.slice(0, 12);
+      const code =
+        i === 0
+          ? candidate()
+          : `${candidate()}${Math.floor(Math.random() * 9)}`.slice(0, 12);
       const existing = await findProductByBarcode(code);
       if (!existing) return code;
     }
@@ -161,7 +175,6 @@ export default function ProductAdd() {
     e.preventDefault();
     setIsLoading(true);
 
-
     const formData = new FormData();
     formData.append("name", form.name);
     formData.append("category", form.category || "");
@@ -169,7 +182,7 @@ export default function ProductAdd() {
     if (canSetPurchase) {
       formData.append(
         "purchasePrice",
-        String(parseFloat(form.purchasePrice || "0"))
+        String(parseFloat(form.purchasePrice || "0")),
       );
     } else {
       // Manager without permission: send 0 as purchase price (owner controls actual purchase price)
@@ -177,12 +190,12 @@ export default function ProductAdd() {
     }
     formData.append(
       "sellingPrice",
-      String(parseFloat(form.sellingPrice || "0"))
+      String(parseFloat(form.sellingPrice || "0")),
     );
     formData.append("quantity", String(parseInt(form.quantity || "0")));
     formData.append(
       "lowStockThreshold",
-      String(parseInt(form.lowStockThreshold || "10"))
+      String(parseInt(form.lowStockThreshold || "10")),
     );
     if (form.expiryDate) formData.append("expiryDate", form.expiryDate);
     // barcodes: send as repeated form fields; prefer explicit array from UI
@@ -193,11 +206,11 @@ export default function ProductAdd() {
       try {
         barcodesArr.push(await generateUniqueBarcode());
       } catch (e) {
-        console.error('generate unique barcode failed', e);
+        console.error("generate unique barcode failed", e);
         barcodesArr.push(`${Date.now()}`.slice(-12));
       }
     }
-    for (const b of barcodesArr) formData.append('barcodes', b);
+    for (const b of barcodesArr) formData.append("barcodes", b);
     if (imageFile) formData.append("image", imageFile, imageFile.name);
 
     try {
@@ -212,13 +225,15 @@ export default function ProductAdd() {
             },
           })
         : await axios.post(url, formData, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : "",
-        },
-      });
+            headers: {
+              Authorization: token ? `Bearer ${token}` : "",
+            },
+          });
 
       if (res && (res.status === 200 || res.status === 201)) {
-        toast({ title: editingProductId ? t("product_updated") : t("product_added") });
+        toast({
+          title: editingProductId ? t("product_updated") : t("product_added"),
+        });
         resetForm();
         try {
           await fetchProducts?.();
@@ -228,16 +243,16 @@ export default function ProductAdd() {
         navigate(productsRoute);
       } else if (res && res.status === 202) {
         toast({
-          title: "Sent for manager approval",
+          title: t("sent_for_manager_approval"),
           description: editingProductId
-            ? "Your changes will apply after approval."
-            : "Your product will appear after approval.",
+            ? t("changes_apply_after_approval")
+            : t("product_appear_after_approval"),
         });
         resetForm();
         navigate(productsRoute);
       } else {
         console.warn("Unexpected response creating product", res);
-        toast({ title: "Failed to add product" });
+        toast({ title: t("failed_add_product") });
       }
     } catch (err: unknown) {
       console.error("Create product error", err);
@@ -254,15 +269,15 @@ export default function ProductAdd() {
           backendMessage ||
           "Please check the product fields (name, category, quantity) and try again.";
         toast({
-          title: "Invalid product data",
+          title: t("invalid_product_data"),
           description: String(friendly),
           variant: "destructive",
         });
       } else {
         // Other errors
-        const desc = backendMessage || "Failed to add product";
+        const desc = backendMessage || t("failed_add_product");
         toast({
-          title: "Failed to add product",
+          title: t("failed_add_product"),
           description: String(desc),
           variant: "destructive",
         });
@@ -276,24 +291,51 @@ export default function ProductAdd() {
     void (async () => {
       try {
         const b = await generateUniqueBarcode();
-        const existing = Array.isArray(form.barcodes) ? form.barcodes.slice() : [];
-        setForm({ ...form, barcodes: [...existing, b], barcodeInput: '' });
+        const existing = Array.isArray(form.barcodes)
+          ? form.barcodes.slice()
+          : [];
+        setForm({ ...form, barcodes: [...existing, b], barcodeInput: "" });
       } catch (e) {
-        console.error('generate barcode failed', e);
-        toast({ title: 'Failed to generate barcode', variant: 'destructive' });
+        console.error("generate barcode failed", e);
+        toast({ title: t("failed_generate_barcode"), variant: "destructive" });
       }
     })();
+  };
+
+  const refreshProductsNow = async () => {
+    setIsRefreshing(true);
+    try {
+      await fetchProducts?.();
+    } catch (err) {
+      console.error("Failed to refresh products", err);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   return (
     // Product creation allowed for owners and managers.
     <RoleLayout allowedRoles={["owner", "manager"]}>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">{t("add_product")}</h1>
-          <p className="text-muted-foreground">
-            {t("product_add_description") || "Add a new product to the shop"}
-          </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">{t("add_product")}</h1>
+            <p className="text-muted-foreground">
+              {t("product_add_description") || t("add_new_product_to_shop")}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => void refreshProductsNow()}
+            disabled={isRefreshing}
+            aria-label={t("refresh_products")}
+            title={t("refresh_products")}
+          >
+            <RotateCw
+              className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+            />
+          </Button>
         </div>
 
         <Card>
@@ -330,9 +372,9 @@ export default function ProductAdd() {
                 </div>
 
                 <div className="flex-1">
-                  <p className="font-medium">Product Image</p>
+                  <p className="font-medium">{t("product_image")}</p>
                   <p className="text-sm text-muted-foreground">
-                    Drag & drop an image, pick from device, or take a photo.
+                    {t("drag_drop_or_take_photo")}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <Button
@@ -340,14 +382,14 @@ export default function ProductAdd() {
                       onClick={() => openFilePicker(false)}
                       variant="outline"
                     >
-                      Choose Image
+                      {t("choose_image")}
                     </Button>
                     <Button
                       type="button"
                       onClick={() => openFilePicker(true)}
                       variant="outline"
                     >
-                      Take Photo
+                      {t("take_photo")}
                     </Button>
                     {imagePreview && (
                       <Button
@@ -356,7 +398,7 @@ export default function ProductAdd() {
                         variant="ghost"
                         className="text-destructive"
                       >
-                        <Trash2 className="mr-2 h-4 w-4" /> Remove
+                        <Trash2 className="mr-2 h-4 w-4" /> {t("remove")}
                       </Button>
                     )}
                   </div>
@@ -381,7 +423,7 @@ export default function ProductAdd() {
                     onValueChange={(v) => setForm({ ...form, category: v })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
+                      <SelectValue placeholder={t("select_category")} />
                     </SelectTrigger>
                     <SelectContent>
                       {categories.map((cat) => (
@@ -429,7 +471,7 @@ export default function ProductAdd() {
 
                 <div className="space-y-2">
                   <Label htmlFor="purchasePrice">
-                    {t("purchase_price")} (ETB){canSetPurchase ? ' *' : ''}
+                    {t("purchase_price")} (ETB){canSetPurchase ? " *" : ""}
                   </Label>
                   {canSetPurchase ? (
                     <Input
@@ -443,7 +485,9 @@ export default function ProductAdd() {
                       required
                     />
                   ) : (
-                    <div className="text-sm text-muted-foreground">(Owner-only)</div>
+                    <div className="text-sm text-muted-foreground">
+                      {t("owner_only")}
+                    </div>
                   )}
                 </div>
 
@@ -464,7 +508,7 @@ export default function ProductAdd() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="lowStock">Low Stock Threshold</Label>
+                  <Label htmlFor="lowStock">{t("low_stock_threshold")}</Label>
                   <Input
                     id="lowStock"
                     type="number"
@@ -493,15 +537,17 @@ export default function ProductAdd() {
                     <Input
                       id="barcodeInput"
                       value={form.barcodeInput}
-                      onChange={(e) => setForm({ ...form, barcodeInput: e.target.value })}
-                      placeholder="Enter barcode to add"
+                      onChange={(e) =>
+                        setForm({ ...form, barcodeInput: e.target.value })
+                      }
+                      placeholder={t("enter_barcode_to_add")}
                     />
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => {
                         void (async () => {
-                          const val = (form.barcodeInput || '').trim();
+                          const val = (form.barcodeInput || "").trim();
                           if (!val) return;
                           try {
                             const found = await findProductByBarcode(val);
@@ -509,27 +555,33 @@ export default function ProductAdd() {
                               setBarcodeConflict({
                                 code: val,
                                 productId: String(found._id || found.id),
-                                productName: String(found.name || 'Product'),
+                                productName: String(found.name || t("product")),
                                 storeQuantity: Number(found.storeQuantity || 0),
                               });
                               setBarcodeConflictProduct(found);
                               setBarcodeConflictOpen(true);
                               return;
                             }
-                            const existing = Array.isArray(form.barcodes) ? form.barcodes.slice() : [];
-                            setForm({ ...form, barcodes: [...existing, val], barcodeInput: '' });
+                            const existing = Array.isArray(form.barcodes)
+                              ? form.barcodes.slice()
+                              : [];
+                            setForm({
+                              ...form,
+                              barcodes: [...existing, val],
+                              barcodeInput: "",
+                            });
                           } catch (e: any) {
-                            console.error('barcode lookup failed', e);
+                            console.error("barcode lookup failed", e);
                             toast({
-                              title: 'Failed to check barcode',
-                              description: e?.message || 'Server error',
-                              variant: 'destructive',
+                              title: t("failed_check_barcode"),
+                              description: e?.message || t("server_error"),
+                              variant: "destructive",
                             });
                           }
                         })();
                       }}
                     >
-                      Add
+                      {t("add")}
                     </Button>
                     <Button
                       type="button"
@@ -537,42 +589,57 @@ export default function ProductAdd() {
                       onClick={generateBarcode}
                     >
                       <Barcode className="mr-2 h-4 w-4" />
-                      Generate
+                      {t("generate")}
                     </Button>
                   </div>
 
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {(Array.isArray(form.barcodes) ? form.barcodes : []).map((b, idx) => (
-                      <div key={b + '-' + idx} className="inline-flex items-center gap-2 px-2 py-1 rounded border">
-                        <span className="font-mono text-sm">{b}</span>
-                        <Button type="button" variant="ghost" className="text-destructive p-1" onClick={() => {
-                          const arr = (form.barcodes || []).slice();
-                          arr.splice(idx, 1);
-                          setForm({ ...form, barcodes: arr });
-                        }}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
+                    {(Array.isArray(form.barcodes) ? form.barcodes : []).map(
+                      (b, idx) => (
+                        <div
+                          key={b + "-" + idx}
+                          className="inline-flex items-center gap-2 px-2 py-1 rounded border"
+                        >
+                          <span className="font-mono text-sm">{b}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="text-destructive p-1"
+                            onClick={() => {
+                              const arr = (form.barcodes || []).slice();
+                              arr.splice(idx, 1);
+                              setForm({ ...form, barcodes: arr });
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ),
+                    )}
                   </div>
 
                   <div className="text-xs text-muted-foreground">
-                    Previously registered barcodes are shown above. Add or generate new ones.
+                    {t("previously_registered_barcodes_hint")}
                   </div>
                 </div>
 
-                <AlertDialog open={barcodeConflictOpen} onOpenChange={setBarcodeConflictOpen}>
+                <AlertDialog
+                  open={barcodeConflictOpen}
+                  onOpenChange={setBarcodeConflictOpen}
+                >
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Barcode already registered</AlertDialogTitle>
+                      <AlertDialogTitle>
+                        {t("barcode_already_registered")}
+                      </AlertDialogTitle>
                       <AlertDialogDescription>
                         {barcodeConflict
-                          ? `This barcode is already registered for ${barcodeConflict.productName}. Do you want to increase its quantity instead?`
-                          : 'This barcode is already registered. Do you want to increase its quantity instead?'}
+                          ? `${t("barcode_registered_for")} ${barcodeConflict.productName}. ${t("increase_quantity_instead")}`
+                          : t("barcode_already_registered_increase_instead")}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
                       <AlertDialogAction
                         onClick={() => {
                           void (async () => {
@@ -581,10 +648,12 @@ export default function ProductAdd() {
                               // Load existing product info into the form so user can update quantity and save.
                               const p =
                                 barcodeConflictProduct &&
-                                String(barcodeConflictProduct._id || barcodeConflictProduct.id) ===
-                                  String(barcodeConflict.productId)
+                                String(
+                                  barcodeConflictProduct._id ||
+                                    barcodeConflictProduct.id,
+                                ) === String(barcodeConflict.productId)
                                   ? barcodeConflictProduct
-                                  : (await axios
+                                  : await axios
                                       .get(
                                         `${API_BASE}/api/products/${encodeURIComponent(
                                           barcodeConflict.productId,
@@ -597,13 +666,17 @@ export default function ProductAdd() {
                                           },
                                         },
                                       )
-                                      .then((r) => r.data));
+                                      .then((r) => r.data);
 
-                              setEditingProductId(String(p?._id || p?.id || barcodeConflict.productId));
+                              setEditingProductId(
+                                String(
+                                  p?._id || p?.id || barcodeConflict.productId,
+                                ),
+                              );
                               setForm({
-                                name: String(p?.name || ''),
-                                category: String(p?.category || ''),
-                                unit: (p?.unit as ProductUnit) || 'pcs',
+                                name: String(p?.name || ""),
+                                category: String(p?.category || ""),
+                                unit: (p?.unit as ProductUnit) || "pcs",
                                 purchasePrice: String(p?.purchasePrice ?? 0),
                                 sellingPrice: String(p?.sellingPrice ?? 0),
                                 quantity: String(
@@ -612,39 +685,50 @@ export default function ProductAdd() {
                                     p?.supermarketQuantity ??
                                     0,
                                 ),
-                                lowStockThreshold: String(p?.lowStockThreshold ?? 10),
+                                lowStockThreshold: String(
+                                  p?.lowStockThreshold ?? 10,
+                                ),
                                 expiryDate: p?.expiryDate
-                                  ? new Date(p.expiryDate).toISOString().split('T')[0]
-                                  : '',
+                                  ? new Date(p.expiryDate)
+                                      .toISOString()
+                                      .split("T")[0]
+                                  : "",
                                 barcodes: Array.isArray(p?.barcodes)
                                   ? p.barcodes.map(String)
                                   : p?.barcode
                                     ? [String(p.barcode)]
                                     : [],
-                                barcodeInput: '',
+                                barcodeInput: "",
                               });
                               setImageFile(null);
                               setImagePreview(
-                                (p?.imageUrl || p?.pictureUrl || '')
+                                p?.imageUrl || p?.pictureUrl || ""
                                   ? String(p?.imageUrl || p?.pictureUrl)
                                   : null,
                               );
 
                               toast({
-                                title: 'Product loaded',
-                                description: 'Update quantity and save to apply changes.',
+                                title: t("product_loaded"),
+                                description: t("update_quantity_and_save"),
                               });
 
                               setBarcodeConflictOpen(false);
                             } catch (e: any) {
-                              console.error('increase quantity failed', e);
-                              const msg = e?.response?.data?.message || e?.message || 'Server error';
-                              toast({ title: 'Failed to load product', description: String(msg), variant: 'destructive' });
+                              console.error("increase quantity failed", e);
+                              const msg =
+                                e?.response?.data?.message ||
+                                e?.message ||
+                                t("server_error");
+                              toast({
+                                title: t("failed_load_product"),
+                                description: String(msg),
+                                variant: "destructive",
+                              });
                             }
                           })();
                         }}
                       >
-                        Increase quantity
+                        {t("increase_quantity")}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
@@ -663,7 +747,7 @@ export default function ProductAdd() {
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
+                      {t("saving")}
                     </>
                   ) : (
                     t("save")

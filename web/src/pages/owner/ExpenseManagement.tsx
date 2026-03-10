@@ -109,7 +109,7 @@ export default function ExpenseManagement() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   // month filter formatted as YYYY-MM; empty = all
   const [monthFilter, setMonthFilter] = useState<string>(() =>
-    new Date().toISOString().slice(0, 7)
+    new Date().toISOString().slice(0, 7),
   );
 
   // compute unique month options: include last 12 calendar months plus any months actually present
@@ -152,9 +152,7 @@ export default function ExpenseManagement() {
   const totalExpensesThisMonth = expenses
     .filter((e) => {
       if (!monthFilter) return true;
-      return (
-        new Date(e.date).toISOString().slice(0, 7) === monthFilter
-      );
+      return new Date(e.date).toISOString().slice(0, 7) === monthFilter;
     })
     .reduce((sum, e) => sum + e.amount, 0);
 
@@ -175,7 +173,7 @@ export default function ExpenseManagement() {
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedExpenses = filteredExpenses.slice(
     startIndex,
-    startIndex + ITEMS_PER_PAGE
+    startIndex + ITEMS_PER_PAGE,
   );
 
   const handleDelete = (id: string) => {
@@ -188,14 +186,14 @@ export default function ExpenseManagement() {
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          toast({ title: err.message || "Failed to delete expense" });
+          toast({ title: err.message || t("failed_delete_expense") });
           return;
         }
         setExpenses((prev) => prev.filter((e) => e.id !== id));
-        toast({ title: "Expense deleted" });
+        toast({ title: t("expense_deleted") });
       } catch (err) {
         console.error(err);
-        toast({ title: "Failed to delete expense" });
+        toast({ title: t("failed_delete_expense") });
       }
     })();
     // Reset to page 1 if current page becomes empty
@@ -231,17 +229,20 @@ export default function ExpenseManagement() {
     try {
       if (editingExpenseId) {
         // update existing
-        const res = await fetch(`${API_BASE}/api/expenses/${editingExpenseId}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        const res = await fetch(
+          `${API_BASE}/api/expenses/${editingExpenseId}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(payload),
           },
-          body: JSON.stringify(payload),
-        });
+        );
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          toast({ title: err.message || "Failed to update expense" });
+          toast({ title: err.message || t("failed_update_expense") });
           return;
         }
         const saved = await res.json();
@@ -255,8 +256,8 @@ export default function ExpenseManagement() {
                   amount: saved.amount,
                   date: new Date(saved.date),
                 }
-              : e
-          )
+              : e,
+          ),
         );
         toast({ title: t("expense_updated") });
       } else {
@@ -271,7 +272,7 @@ export default function ExpenseManagement() {
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          toast({ title: err.message || "Failed to add expense" });
+          toast({ title: err.message || t("failed_add_expense") });
           return;
         }
         const saved = await res.json();
@@ -300,7 +301,11 @@ export default function ExpenseManagement() {
       setCurrentPage(1);
     } catch (err) {
       console.error(err);
-      toast({ title: editingExpenseId ? "Failed to update expense" : "Failed to add expense" });
+      toast({
+        title: editingExpenseId
+          ? t("failed_update_expense")
+          : t("failed_add_expense"),
+      });
     }
   };
 
@@ -400,7 +405,7 @@ export default function ExpenseManagement() {
           <div>
             <h1 className="text-2xl font-bold">{t("expenses")}</h1>
             <p className="text-muted-foreground">
-              Track and manage your business expenses
+              {t("track_manage_business_expenses")}
             </p>
           </div>
 
@@ -413,7 +418,9 @@ export default function ExpenseManagement() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{editingExpenseId ? t("edit_expense") : t("add_expense")}</DialogTitle>
+                <DialogTitle>
+                  {editingExpenseId ? t("edit_expense") : t("add_expense")}
+                </DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
@@ -440,7 +447,7 @@ export default function ExpenseManagement() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="description">Description *</Label>
+                  <Label htmlFor="description">{t("description")} *</Label>
                   <Input
                     id="description"
                     value={form.description}
@@ -463,7 +470,7 @@ export default function ExpenseManagement() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="date">Date *</Label>
+                  <Label htmlFor="date">{t("date")} *</Label>
                   <Input
                     id="date"
                     type="date"
@@ -503,7 +510,10 @@ export default function ExpenseManagement() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">
-                      Total Expenses{monthFilter ? ` (${format(new Date(monthFilter + "-01"), "MMMM yyyy")})` : ""}
+                      {t("total_expenses")}
+                      {monthFilter
+                        ? ` (${format(new Date(monthFilter + "-01"), "MMMM yyyy")})`
+                        : ""}
                     </p>
                     <p className="text-2xl font-bold">
                       {totalExpensesThisMonth.toLocaleString()} ETB
@@ -527,8 +537,8 @@ export default function ExpenseManagement() {
                   <div>
                     <p className="text-sm text-muted-foreground">
                       {monthFilter
-                        ? `${format(new Date(monthFilter + "-01"), "MMMM yyyy")} Revenue`
-                        : "This Month Revenue"}
+                        ? `${format(new Date(monthFilter + "-01"), "MMMM yyyy")} ${t("revenue")}`
+                        : t("this_month_revenue")}
                     </p>
                     <p className="text-2xl font-bold">
                       {(monthRevenue ?? 0).toLocaleString()} ETB
@@ -553,7 +563,7 @@ export default function ExpenseManagement() {
           >
             <Card className="h-full">
               <CardHeader>
-                <CardTitle>Expenses by Category</CardTitle>
+                <CardTitle>{t("expenses_by_category")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="h-[250px]">
@@ -597,13 +607,13 @@ export default function ExpenseManagement() {
                 <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                   <CardTitle className="flex items-center gap-2 flex-1">
                     <Wallet className="h-5 w-5" />
-                    Recent Expenses
+                    {t("recent_expenses")}
                   </CardTitle>
                   <div className="flex gap-2">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
-                        placeholder="Search..."
+                        placeholder={t("search") + "..."}
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         className="pl-10 w-40"
@@ -614,10 +624,10 @@ export default function ExpenseManagement() {
                       onValueChange={setCategoryFilter}
                     >
                       <SelectTrigger className="w-36">
-                        <SelectValue placeholder="Category" />
+                        <SelectValue placeholder={t("category")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="all">{t("all")}</SelectItem>
                         {expenseCategories.map((cat) => (
                           <SelectItem key={cat.value} value={cat.value}>
                             {t(cat.label)}
@@ -637,13 +647,16 @@ export default function ExpenseManagement() {
                         <SelectValue
                           placeholder={
                             monthFilter
-                              ? format(new Date(monthFilter + "-01"), "MMM yyyy")
-                              : "All months"
+                              ? format(
+                                  new Date(monthFilter + "-01"),
+                                  "MMM yyyy",
+                                )
+                              : t("all_months")
                           }
                         />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All months</SelectItem>
+                        <SelectItem value="all">{t("all_months")}</SelectItem>
                         {monthOptions.map((m) => (
                           <SelectItem key={m} value={m}>
                             {format(new Date(m + "-01"), "MMM yyyy")}
@@ -660,11 +673,11 @@ export default function ExpenseManagement() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>{t("expense_category")}</TableHead>
-                        <TableHead>Description</TableHead>
+                        <TableHead>{t("description")}</TableHead>
                         <TableHead className="text-right">
                           {t("amount")}
                         </TableHead>
-                        <TableHead>Date</TableHead>
+                        <TableHead>{t("date")}</TableHead>
                         <TableHead className="text-right">
                           {t("actions")}
                         </TableHead>
@@ -683,7 +696,7 @@ export default function ExpenseManagement() {
                                     {t(
                                       expense.category === "salary"
                                         ? "salary_expense"
-                                        : expense.category
+                                        : expense.category,
                                     )}
                                   </Badge>
                                 </div>
@@ -722,8 +735,8 @@ export default function ExpenseManagement() {
                             className="text-center py-4 text-muted-foreground"
                           >
                             {search || categoryFilter !== "all"
-                              ? "No expenses found"
-                              : "No expenses recorded yet."}
+                              ? t("no_expenses_found")
+                              : t("no_expenses_recorded_yet")}
                           </TableCell>
                         </TableRow>
                       )}
@@ -735,20 +748,20 @@ export default function ExpenseManagement() {
                 {totalPages > 1 && (
                   <div className="flex flex-col sm:flex-row items-center justify-between px-2 py-3 border-t border-border mt-4">
                     <div className="text-xs text-muted-foreground mb-2 sm:mb-0">
-                      Showing{" "}
+                      {t("showing")}{" "}
                       <span className="font-medium">{startIndex + 1}</span>–
                       <span className="font-medium">
                         {Math.min(
                           startIndex + ITEMS_PER_PAGE,
-                          filteredExpenses.length
+                          filteredExpenses.length,
                         )}
                       </span>{" "}
-                      of
+                      {t("of")}
                       <span className="font-medium">
                         {" "}
                         {filteredExpenses.length}
                       </span>{" "}
-                      expenses
+                      {t("expenses")}
                     </div>
 
                     <div className="flex items-center gap-1">
@@ -758,7 +771,7 @@ export default function ExpenseManagement() {
                         onClick={prevPage}
                         disabled={currentPage === 1}
                       >
-                        Prev
+                        {t("prev")}
                       </Button>
 
                       {Array.from({ length: totalPages }, (_, i) => i + 1).map(
@@ -774,7 +787,7 @@ export default function ExpenseManagement() {
                           >
                             {page}
                           </Button>
-                        )
+                        ),
                       )}
 
                       <Button
@@ -783,7 +796,7 @@ export default function ExpenseManagement() {
                         onClick={nextPage}
                         disabled={currentPage === totalPages}
                       >
-                        Next
+                        {t("next")}
                       </Button>
                     </div>
                   </div>

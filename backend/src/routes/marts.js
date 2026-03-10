@@ -6,6 +6,9 @@ const Mart = require("../models/mart.model");
 const User = require("../models/user.model");
 const { authenticate } = require("../middleware/auth");
 
+const escapeRegex = (value = "") =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 // Register a new mart and owner user
 router.post("/register", async (req, res) => {
   try {
@@ -44,7 +47,55 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ message: "Owner passwords do not match" });
     }
 
-    // create owner user - generate username since owner doesn't enter one in the registration form
+    const normalizedOwnerName = ownerName.trim();
+    const normalizedOwnerPhone = (ownerPhone || phone || "").trim();
+    const normalizedMartName = martName.trim();
+    const normalizedEmail = (email || "").trim();
+
+    const duplicateMessages = [];
+
+    const [
+      existingOwnerName,
+      existingPhoneInUsers,
+      existingPhoneInMarts,
+      existingMartName,
+      existingEmail,
+    ] = await Promise.all([
+      User.findOne({
+        name: {
+          $regex: `^${escapeRegex(normalizedOwnerName)}$`,
+          $options: "i",
+        },
+      }).lean(),
+      normalizedOwnerPhone
+        ? User.findOne({ phone: normalizedOwnerPhone }).lean()
+        : null,
+      normalizedOwnerPhone
+        ? Mart.findOne({ phone: normalizedOwnerPhone }).lean()
+        : null,
+      Mart.findOne({
+        martName: {
+          $regex: `^${escapeRegex(normalizedMartName)}$`,
+          $options: "i",
+        },
+      }).lean(),
+      normalizedEmail
+        ? Mart.findOne({
+            email: {
+              $regex: `^${escapeRegex(normalizedEmail)}$`,
+              $options: "i",
+            },
+          }).lean()
+        : null,
+    ]);
+
+    if (existingOwnerName) duplicateMessages.push("Owner Name already exists");
+    if (existingPhoneInUsers || existingPhoneInMarts)
+      duplicateMessages.push("Phone already exists");
+    if (existingMartName) duplicateMessages.push("Mart Name already exists");
+    if (existingEmail) duplicateMessages.push("Email already exists");
+
+    // create owner user
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(ownerPassword, salt);
 
@@ -58,27 +109,17 @@ router.post("/register", async (req, res) => {
 
     let username = "";
     if (ownerUsername) {
-      // owner provided a username — sanitize and try to ensure uniqueness
+      // owner provided a username — sanitize and reject duplicates
       const proposed = sanitize(ownerUsername);
       if (!proposed)
         return res.status(400).json({ message: "Invalid owner username" });
 
-      // If proposed username exists, generate a unique alternative instead of failing
-      let finalUsername = proposed;
-      if (await User.findOne({ username: finalUsername })) {
-        let suffix = 1;
-        while (await User.findOne({ username: `${proposed}${suffix}` })) {
-          suffix += 1;
-          if (suffix > 1000) {
-            finalUsername = `${proposed}${Date.now() % 100000}`;
-            break;
-          }
-        }
-        if (suffix <= 1000) finalUsername = `${proposed}${suffix}`;
-      }
+      const existingUsername = await User.findOne({
+        username: proposed,
+      }).lean();
+      if (existingUsername) duplicateMessages.push("Username already exists");
 
-      username = finalUsername;
-      // if username differs from proposed we will include it in the response so the client can inform the user
+      username = proposed;
     } else {
       // fallback to generating username from owner's name, ensure uniqueness
       let baseUsername = sanitize(ownerName) || `owner${Date.now() % 10000}`;
@@ -95,10 +136,17 @@ router.post("/register", async (req, res) => {
       }
     }
 
+    if (duplicateMessages.length > 0) {
+      return res.status(409).json({
+        message: `Duplicate registration data found: ${duplicateMessages.join(", ")}. Please change and try again.`,
+        duplicates: duplicateMessages,
+      });
+    }
+
     const owner = new User({
-      name: ownerName,
+      name: normalizedOwnerName,
       username,
-      phone: ownerPhone,
+      phone: normalizedOwnerPhone,
       passwordHash,
       role: "owner",
     });
@@ -106,9 +154,9 @@ router.post("/register", async (req, res) => {
 
     const mart = new Mart({
       ownerId: owner._id,
-      martName,
-      phone,
-      email,
+      martName: normalizedMartName,
+      phone: normalizedOwnerPhone,
+      email: normalizedEmail,
       country,
       region,
       city,
@@ -156,11 +204,11 @@ router.post("/register", async (req, res) => {
 // List pending marts (for admin)
 router.get("/pending", authenticate, async (req, res) => {
   try {
-    if (req.user.role !== 'systemAdmin') return res.status(403).json({ message: 'Insufficient permissions' });
-    const list = await Mart.find({ status: "pending" }).sort({ createdAt: -1 }).populate(
-      "ownerId",
-      "name phone"
-    );
+    if (req.user.role !== "systemAdmin")
+      return res.status(403).json({ message: "Insufficient permissions" });
+    const list = await Mart.find({ status: "pending" })
+      .sort({ createdAt: -1 })
+      .populate("ownerId", "name phone");
     res.json(list);
   } catch (err) {
     console.error(err);
@@ -171,13 +219,14 @@ router.get("/pending", authenticate, async (req, res) => {
 // Approve a mart
 router.put("/:id/approve", authenticate, async (req, res) => {
   try {
-    if (req.user.role !== 'systemAdmin') return res.status(403).json({ message: 'Insufficient permissions' });
+    if (req.user.role !== "systemAdmin")
+      return res.status(403).json({ message: "Insufficient permissions" });
 
     const { id } = req.params;
     const mart = await Mart.findByIdAndUpdate(
       id,
       { status: "approved" },
-      { new: true }
+      { new: true },
     );
     if (!mart) return res.status(404).json({ message: "Mart not found" });
 
@@ -185,14 +234,17 @@ router.put("/:id/approve", authenticate, async (req, res) => {
     try {
       if (mart.ownerId) {
         const owner = await User.findById(mart.ownerId);
-        if (owner && (!owner.martId || String(owner.martId) !== String(mart._id))) {
+        if (
+          owner &&
+          (!owner.martId || String(owner.martId) !== String(mart._id))
+        ) {
           owner.martId = mart._id;
           await owner.save();
-          console.log('Assigned mart to owner after approval', owner.username);
+          console.log("Assigned mart to owner after approval", owner.username);
         }
       }
     } catch (e) {
-      console.error('Failed to assign mart to owner after approval', e);
+      console.error("Failed to assign mart to owner after approval", e);
     }
 
     res.json(mart);
@@ -205,12 +257,13 @@ router.put("/:id/approve", authenticate, async (req, res) => {
 // Disable a mart
 router.put("/:id/disable", authenticate, async (req, res) => {
   try {
-    if (req.user.role !== 'systemAdmin') return res.status(403).json({ message: 'Insufficient permissions' });
+    if (req.user.role !== "systemAdmin")
+      return res.status(403).json({ message: "Insufficient permissions" });
     const { id } = req.params;
     const mart = await Mart.findByIdAndUpdate(
       id,
       { status: "disabled" },
-      { new: true }
+      { new: true },
     );
     if (!mart) return res.status(404).json({ message: "Mart not found" });
     res.json(mart);
@@ -280,7 +333,9 @@ router.get("/", async (req, res) => {
     const { status } = req.query; // optional: pending, approved, disabled, rejected
     const filter = {};
     if (status) filter.status = status;
-    const list = await Mart.find(filter).populate("ownerId", "name phone");
+    const list = await Mart.find(filter)
+      .sort({ createdAt: -1 })
+      .populate("ownerId", "name phone");
     res.json(list);
   } catch (err) {
     console.error(err);
@@ -291,13 +346,14 @@ router.get("/", async (req, res) => {
 // Reject a mart
 router.put("/:id/reject", authenticate, async (req, res) => {
   try {
-    if (req.user.role !== 'systemAdmin') return res.status(403).json({ message: 'Insufficient permissions' });
+    if (req.user.role !== "systemAdmin")
+      return res.status(403).json({ message: "Insufficient permissions" });
 
     const { id } = req.params;
     const mart = await Mart.findByIdAndUpdate(
       id,
       { status: "rejected" },
-      { new: true }
+      { new: true },
     );
     if (!mart) return res.status(404).json({ message: "Mart not found" });
     res.json(mart);
@@ -306,5 +362,7 @@ router.put("/:id/reject", authenticate, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
+module.exports = router;
 
 module.exports = router;

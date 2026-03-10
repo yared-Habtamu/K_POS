@@ -43,7 +43,7 @@ export default function DailyReport() {
       const day = new Date().toISOString().slice(0, 10);
       const res = await fetch(
         `${API_BASE}/api/reports/daily?martId=${martId}&date=${day}`,
-        { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } }
+        { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } },
       );
       if (!res.ok) return;
       const data = await res.json();
@@ -51,13 +51,13 @@ export default function DailyReport() {
         totalSales: (data.totalSales || 0).toString(),
         cashReceived: String(
           (data.salesByPaymentMethod || []).find(
-            (m: any) => m.method === "cash"
-          )?.total || 0
+            (m: any) => m.method === "cash",
+          )?.total || 0,
         ),
         bankTransfer: String(
           (data.salesByPaymentMethod || []).find(
-            (m: any) => m.method === "cbe_bank"
-          )?.total || 0
+            (m: any) => m.method === "cbe_bank",
+          )?.total || 0,
         ),
         discountsGiven: String(data.discountsTotal || 0),
         notes: "",
@@ -75,7 +75,7 @@ export default function DailyReport() {
       const day = new Date().toISOString().slice(0, 10);
       const res = await fetch(
         `${API_BASE}/api/reports/daily?martId=${martId}&date=${day}`,
-        { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } }
+        { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } },
       );
       if (!res.ok) return;
       const data = await res.json();
@@ -112,13 +112,13 @@ export default function DailyReport() {
                   {t("daily_report")}
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Today's live financial summary •{" "}
+                  {t("todays_live_financial_summary")} •{" "}
                   {format(new Date(), "EEEE, MMMM dd, yyyy")}
                 </p>
               </div>
               <div className="flex items-center gap-2 px-3 py-1 bg-green-500/10 text-green-500 rounded-full text-xs font-medium animate-pulse">
                 <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                Live
+                {t("live")}
               </div>
             </div>
           </CardHeader>
@@ -127,11 +127,13 @@ export default function DailyReport() {
               {/* Report Info */}
               <div className="p-4 rounded-xl bg-accent/50 border border-border">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Active User:</span>
+                  <span className="text-muted-foreground">
+                    {t("active_user")}:
+                  </span>
                   <span className="font-medium">{user?.username}</span>
                 </div>
                 <div className="flex justify-between text-sm mt-1">
-                  <span className="text-muted-foreground">Role:</span>
+                  <span className="text-muted-foreground">{t("role")}:</span>
                   <span className="font-medium capitalize">{user?.role}</span>
                 </div>
               </div>
@@ -195,7 +197,7 @@ export default function DailyReport() {
                     className="flex items-center gap-2"
                   >
                     <Percent className="h-4 w-4 text-warning" />
-                    {t("discount")} Given (ETB)
+                    {t("discount_given")} (ETB)
                   </Label>
                   <Input
                     id="discounts"
@@ -217,7 +219,7 @@ export default function DailyReport() {
                     fetchReportsList();
                   }}
                 >
-                  <RefreshCw className="mr-2 h-4 w-4" /> Sync Now
+                  <RefreshCw className="mr-2 h-4 w-4" /> {t("sync_now")}
                 </Button>
               </div>
             </div>
@@ -234,29 +236,36 @@ export default function DailyReport() {
           >
             <Card>
               <CardHeader>
-                <CardTitle>Cashier Performance</CardTitle>
+                <CardTitle>{t("cashier_performance")}</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Today's active sales breakdown by cashier
+                  {t("active_sales_breakdown_by_cashier")}
                 </p>
               </CardHeader>
               <CardContent>
                 {reportsList.length === 0 ? (
                   <div className="text-sm text-muted-foreground py-4 text-center">
-                    No active sales sessions today.
+                    {t("no_active_sales_sessions_today")}
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="text-left text-xs text-muted-foreground">
                         <tr className="border-b">
-                          <th className="pb-3 px-2">Cashier</th>
-                          <th className="pb-3 px-2 text-right">Total Sales (ETB)</th>
+                          <th className="pb-3 px-2">{t("cashier")}</th>
+                          <th className="pb-3 px-2 text-right">
+                            {t("total_sales")} (ETB)
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
                         {reportsList.map((r, i) => (
-                          <tr key={i} className="border-b last:border-0 hover:bg-accent/30 transition-colors">
-                            <td className="py-3 px-2 font-medium">{r.cashierName}</td>
+                          <tr
+                            key={i}
+                            className="border-b last:border-0 hover:bg-accent/30 transition-colors"
+                          >
+                            <td className="py-3 px-2 font-medium">
+                              {r.cashierName}
+                            </td>
                             <td className="py-3 px-2 text-right font-bold text-primary">
                               {Number(r.sales || 0).toLocaleString()}
                             </td>

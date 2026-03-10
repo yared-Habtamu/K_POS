@@ -1,5 +1,6 @@
 // src/pages/manager/Assets.tsx
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@/stores/authStore";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 export default function ManagerAssets() {
+  const { t } = useTranslation();
   const [assets, setAssets] = useState<
     { id: string; name: string; quantity: number }[]
   >([]);
@@ -83,7 +85,10 @@ export default function ManagerAssets() {
         }
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          console.warn(editingId ? "Failed to update asset" : "Failed to add asset", err);
+          console.warn(
+            editingId ? "Failed to update asset" : "Failed to add asset",
+            err,
+          );
           return;
         }
         const saved = await res.json();
@@ -91,9 +96,13 @@ export default function ManagerAssets() {
           setAssets((a) =>
             a.map((x) =>
               x.id === editingId
-                ? { id: saved._id || saved.id, name: saved.name, quantity: saved.quantity }
-                : x
-            )
+                ? {
+                    id: saved._id || saved.id,
+                    name: saved.name,
+                    quantity: saved.quantity,
+                  }
+                : x,
+            ),
           );
         } else {
           setAssets((a) => [
@@ -111,7 +120,10 @@ export default function ManagerAssets() {
         setQty("");
         setEditingId(null);
       } catch (err) {
-        console.error(editingId ? "Update asset error" : "Add asset error", err);
+        console.error(
+          editingId ? "Update asset error" : "Add asset error",
+          err,
+        );
       }
     })();
   };
@@ -139,17 +151,15 @@ export default function ManagerAssets() {
   };
 
   const printList = () => {
+    const printTitle = t("supermarket_asset");
     // build page with title and centered header
-    const html = `<!DOCTYPE html><html><head><title>SuperMarket's Asset</title><style>body{font-family:sans-serif;}h1{text-align:center;}</style></head><body><h1>SuperMarket's Asset</h1><table border="1" cellpadding="8" style="margin:auto"><tr><th>Name</th><th>Quantity</th></tr>${assets
-      .map(
-        (a) =>
-          `<tr><td>${a.name}</td><td>${a.quantity}</td></tr>`
-      )
+    const html = `<!DOCTYPE html><html><head><title>${printTitle}</title><style>body{font-family:sans-serif;}h1{text-align:center;}</style></head><body><h1>${printTitle}</h1><table border="1" cellpadding="8" style="margin:auto"><tr><th>${t("name")}</th><th>${t("quantity")}</th></tr>${assets
+      .map((a) => `<tr><td>${a.name}</td><td>${a.quantity}</td></tr>`)
       .join("")}</table></body></html>`;
     const w = window.open("", "_blank");
     if (!w) return;
     // set title explicitly in case print header uses it
-    w.document.title = "SuperMarket's Asset";
+    w.document.title = printTitle;
     w.document.write(html);
     w.document.close();
     w.print();
@@ -185,47 +195,49 @@ export default function ManagerAssets() {
       <div className="space-y-6 p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Asset Registration</h1>
+            <h1 className="text-2xl font-bold">{t("asset_registration")}</h1>
             <p className="text-muted-foreground">
-              Register company assets quickly
+              {t("register_company_assets_quickly")}
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Button onClick={exportCSV} size="sm">
-              Export CSV
+              {t("export_csv")}
             </Button>
             <Button variant="outline" onClick={printList} size="sm">
-              Print
+              {t("print")}
             </Button>
           </div>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>{editingId ? "Edit Asset" : "Add Asset"}</CardTitle>
+            <CardTitle>
+              {editingId ? t("edit_asset") : t("add_asset")}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex gap-2">
               <Input
-                placeholder="Asset name"
+                placeholder={t("asset_name")}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
               <Input
-                placeholder="Quantity"
+                placeholder={t("quantity")}
                 value={qty === "" ? "" : String(qty)}
                 onChange={(e) =>
                   setQty(
                     e.target.value.replace(/[^0-9]/g, "") === ""
                       ? ""
-                      : Number(e.target.value.replace(/[^0-9]/g, ""))
+                      : Number(e.target.value.replace(/[^0-9]/g, "")),
                   )
                 }
               />
-              <Button onClick={add}>{editingId ? "Save" : "Add"}</Button>
+              <Button onClick={add}>{editingId ? t("save") : t("add")}</Button>
               {editingId && (
                 <Button variant="outline" onClick={cancelEdit}>
-                  Cancel
+                  {t("cancel")}
                 </Button>
               )}
             </div>
@@ -233,7 +245,7 @@ export default function ManagerAssets() {
             <div className="mt-4 space-y-2">
               {paginatedAssets.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No assets registered
+                  {t("no_assets_registered")}
                 </p>
               ) : (
                 paginatedAssets.map((a) => (
@@ -244,7 +256,7 @@ export default function ManagerAssets() {
                     <div>
                       <p className="font-medium">{a.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        Qty: {a.quantity}
+                        {t("quantity_short")}: {a.quantity}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -257,7 +269,7 @@ export default function ManagerAssets() {
                           setQty(a.quantity);
                         }}
                       >
-                        Edit
+                        {t("edit")}
                       </Button>
                       <Button
                         variant="destructive"
@@ -274,7 +286,7 @@ export default function ManagerAssets() {
                                     ? { Authorization: `Bearer ${token}` }
                                     : {}),
                                 },
-                              }
+                              },
                             );
                             if (!res.ok) {
                               const err = await res.json().catch(() => ({}));
@@ -287,7 +299,7 @@ export default function ManagerAssets() {
                           }
                         }}
                       >
-                        Remove
+                        {t("remove")}
                       </Button>
                     </div>
                   </div>
@@ -299,12 +311,14 @@ export default function ManagerAssets() {
             {totalPages > 1 && (
               <div className="flex flex-col sm:flex-row items-center justify-between px-2 py-3 border-t border-border mt-4">
                 <div className="text-xs text-muted-foreground mb-2 sm:mb-0">
-                  Showing <span className="font-medium">{startIndex + 1}</span>–
+                  {t("showing")}{" "}
+                  <span className="font-medium">{startIndex + 1}</span>–
                   <span className="font-medium">
                     {Math.min(startIndex + ITEMS_PER_PAGE, assets.length)}
                   </span>{" "}
-                  of
-                  <span className="font-medium"> {assets.length}</span> assets
+                  {t("of")}
+                  <span className="font-medium"> {assets.length}</span>{" "}
+                  {t("assets")}
                 </div>
 
                 <div className="flex items-center gap-1">
@@ -314,7 +328,7 @@ export default function ManagerAssets() {
                     onClick={prevPage}
                     disabled={currentPage === 1}
                   >
-                    Prev
+                    {t("prev")}
                   </Button>
 
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map(
@@ -328,7 +342,7 @@ export default function ManagerAssets() {
                       >
                         {page}
                       </Button>
-                    )
+                    ),
                   )}
 
                   <Button
@@ -337,7 +351,7 @@ export default function ManagerAssets() {
                     onClick={nextPage}
                     disabled={currentPage === totalPages}
                   >
-                    Next
+                    {t("next")}
                   </Button>
                 </div>
               </div>

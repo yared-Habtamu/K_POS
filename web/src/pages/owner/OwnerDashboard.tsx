@@ -42,7 +42,13 @@ export default function OwnerDashboard() {
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const API_BASE =
     import.meta.env.VITE_API_URL || import.meta.env.NEXT_PUBLIC_API_URL || "";
-  const { products, getAlertProducts, searchProducts, isLoading: productsLoading, fetchError } = useProductStore();
+  const {
+    products,
+    getAlertProducts,
+    searchProducts,
+    isLoading: productsLoading,
+    fetchError,
+  } = useProductStore();
   const [search, setSearch] = useState("");
 
   const filteredProducts = search ? searchProducts(search) : products;
@@ -128,7 +134,7 @@ export default function OwnerDashboard() {
       color: "text-primary",
     },
     {
-      title: "Transactions",
+      title: t("transactions"),
       value: metrics ? String(metrics.transactions || 0) : "—",
       change: "+8.2%",
       trend: "up",
@@ -137,7 +143,11 @@ export default function OwnerDashboard() {
     },
     {
       title: t("products"),
-      value: fetchError ? "Failed" : productsLoading ? "Loading..." : products.length.toString(),
+      value: fetchError
+        ? "Failed"
+        : productsLoading
+          ? "Loading..."
+          : products.length.toString(),
       change: fetchError ? "Failed to load" : `${alerts.length} low/exp`,
       trend: "down",
       icon: Package,
@@ -161,9 +171,7 @@ export default function OwnerDashboard() {
           <div className="flex items-start justify-between">
             <div>
               <h1 className="text-2xl font-bold">{t("dashboard")}</h1>
-              <p className="text-muted-foreground">
-                Welcome back! Here's what's happening today.
-              </p>
+              <p className="text-muted-foreground">{t("welcome_back_today")}</p>
               {fetchError && (
                 <div className="mt-2 text-sm text-destructive">
                   Failed to load products: {fetchError}
@@ -236,10 +244,10 @@ export default function OwnerDashboard() {
               <CardHeader className="flex items-center justify-between">
                 <CardTitle>
                   {(range === "daily"
-                    ? "Daily"
+                    ? t("daily")
                     : range === "monthly"
-                    ? "Monthly"
-                    : "Weekly") + " Sales"}
+                      ? t("monthly")
+                      : t("weekly")) + ` ${t("sales")}`}
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <Button
@@ -251,7 +259,7 @@ export default function OwnerDashboard() {
                     } h-8 px-3`}
                     onClick={() => setRange("daily")}
                   >
-                    Daily
+                    {t("daily")}
                   </Button>
                   <Button
                     size="sm"
@@ -262,7 +270,7 @@ export default function OwnerDashboard() {
                     } h-8 px-3`}
                     onClick={() => setRange("weekly")}
                   >
-                    Weekly
+                    {t("weekly")}
                   </Button>
                   <Button
                     size="sm"
@@ -273,7 +281,7 @@ export default function OwnerDashboard() {
                     } h-8 px-3`}
                     onClick={() => setRange("monthly")}
                   >
-                    Monthly
+                    {t("monthly")}
                   </Button>
                 </div>
               </CardHeader>

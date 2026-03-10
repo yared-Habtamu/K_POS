@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { AutoComplete } from "@/components/ui/AutoComplete";
 import {
   Select,
   SelectTrigger,
@@ -11,12 +12,31 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { SuccessModal } from "@/components/ui/SuccessModal";
 import { toast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/stores/authStore";
+import { defaultPhoneCountries } from "@/lib/input-formatting";
+import { Loader2 } from "lucide-react";
+
+type CountryOption = {
+  id: string;
+  name: string;
+};
 
 export default function RegisterMart() {
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
+  const [countryOptions, setCountryOptions] = React.useState<CountryOption[]>(
+    () => {
+      const names = Array.from(
+        new Set(defaultPhoneCountries.map((country) => country.name.trim())),
+      );
+      return names.map((name) => ({
+        id: name.toLowerCase().replace(/\s+/g, "-"),
+        name,
+      }));
+    },
+  );
   const [form, setForm] = React.useState({
     martName: "",
     email: "",
@@ -31,11 +51,16 @@ export default function RegisterMart() {
     ownerPassword: "",
     ownerConfirmPassword: "",
   });
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [successOpen, setSuccessOpen] = React.useState(false);
 
   const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const submit = async (e) => {
     e.preventDefault();
+
+    if (isSubmitting) return;
+
     try {
       // validate confirm password on client
       if (form.ownerPassword !== form.ownerConfirmPassword) {
@@ -46,6 +71,8 @@ export default function RegisterMart() {
         });
         return;
       }
+
+      setIsSubmitting(true);
       const payload = { ...form, phone: form.ownerPhone };
       const res = await fetch(
         (import.meta.env.VITE_API_URL || "") + "/api/marts/register",
@@ -53,14 +80,30 @@ export default function RegisterMart() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
-        }
+        },
       );
       if (!res.ok) {
         let msg = "Failed to submit registration.";
+        let parsedBody: any = null;
         try {
-          const body = await res.json();
-          if (body && body.message) msg = body.message;
+          parsedBody = await res.json();
+          if (parsedBody && parsedBody.message) msg = parsedBody.message;
         } catch {}
+
+        // Duplicate values should be handled as a validation notifier, not a scary error.
+        if (res.status === 409) {
+          const duplicates = Array.isArray(parsedBody?.duplicates)
+            ? parsedBody.duplicates.join(", ")
+            : "one or more fields";
+
+          toast({
+            title: "Please update duplicate fields",
+            description: `This registration already uses: ${duplicates}. Change them and try again.`,
+            duration: 6000,
+          });
+          return;
+        }
+
         // helpful hint when backend not configured
         if (res.status === 404)
           msg += " (backend not found). Check VITE_API_URL or run the backend.";
@@ -68,10 +111,6 @@ export default function RegisterMart() {
       }
       const body = await res.json();
       const martId = body?.mart?._id || body?.mart?.id;
-      toast({
-        title: "Request sent",
-        description: "Registration request submitted to system admin.",
-      });
       // auto-login the owner so their martId is in the auth store and they can manage employees
       try {
         // try to log in automatically using username (from response) or the username owner typed
@@ -83,13 +122,19 @@ export default function RegisterMart() {
         // ignore login error — owner can still login manually
         console.warn("Auto-login failed", err);
       }
-      if (martId) navigate(`/owner/register/waiting/${martId}`);
-      else navigate("/");
+      setSuccessOpen(true);
     } catch (err) {
       console.error(err);
       const message = err?.message || "Failed to submit registration.";
-      toast({ title: "Error", description: message });
+      toast({ title: "Registration not submitted", description: message });
+    } finally {
+      setIsSubmitting(false);
     }
+  };
+
+  const handleCloseSuccess = () => {
+    setSuccessOpen(false);
+    navigate("/");
   };
 
   return (
@@ -125,12 +170,48 @@ export default function RegisterMart() {
             </div>
             <div>
               <Label>Country</Label>
-              <Input
-                name="country"
+              <AutoComplete<CountryOption>
+                id="country-autocomplete"
+                items={countryOptions}
+                getItemLabel={(item) => item.name}
+                getItemValue={(item) => item.id}
                 value={form.country}
-                onChange={onChange}
-                placeholder="Ethiopia"
-                aria-label="Country"
+                onValueChange={(value) =>
+                  setForm((prev) => ({ ...prev, country: value }))
+                }
+                onSelect={(item) =>
+                  setForm((prev) => ({ ...prev, country: item.name }))
+                }
+                placeholder="Select or type country"
+                allowCreate
+                onCreateOption={(query) => {
+                  const trimmed = query.trim();
+                  if (!trimmed) return null;
+
+                  const created = {
+                    id: trimmed.toLowerCase().replace(/\s+/g, "-"),
+                    name: trimmed,
+                  };
+
+                  setCountryOptions((current) => {
+                    if (
+                      current.some(
+                        (item) =>
+                          item.name.toLowerCase() === trimmed.toLowerCase(),
+                      )
+                    ) {
+                      return current;
+                    }
+                    return [...current, created];
+                  });
+
+                  return created;
+                }}
+                createOptionLabel={(query) => `Use "${query}"`}
+                noResultsMessage="No country found"
+                emptyQueryMessage="Type to search countries"
+                name="country"
+                inputClassName="h-10"
               />
             </div>
             <div>
@@ -245,8 +326,8 @@ export default function RegisterMart() {
                   form.ownerConfirmPassword.length === 0
                     ? ""
                     : form.ownerPassword === form.ownerConfirmPassword
-                    ? "ring-2 ring-green-400/60 border-green-400"
-                    : "ring-2 ring-red-400/60 border-red-400"
+                      ? "ring-2 ring-green-400/60 border-green-400"
+                      : "ring-2 ring-red-400/60 border-red-400"
                 }
               />
               {form.ownerConfirmPassword.length > 0 && (
@@ -269,13 +350,39 @@ export default function RegisterMart() {
                 type="submit"
                 title="Send Registration"
                 aria-label="Send Registration"
+                disabled={isSubmitting}
               >
-                Send Registration
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  "Send Registration"
+                )}
               </Button>
             </div>
           </form>
         </CardContent>
       </Card>
+
+      <SuccessModal
+        isOpen={successOpen}
+        onClose={handleCloseSuccess}
+        title="Registration Submitted"
+        message="Your registration request was sent successfully."
+        details={
+          <div className="space-y-3 text-left">
+            <p>It is now under system admin review.</p>
+            <div>
+              <p className="font-medium">Need help?</p>
+              <p>Email: support@smartpos.example</p>
+              <p>Phone: +251-936-092-577</p>
+            </div>
+          </div>
+        }
+        confirmLabel="Back to Home"
+      />
     </div>
   );
 }

@@ -3,8 +3,10 @@ import * as React from "react";
 import type { ToastActionElement, ToastProps } from "@/components/ui/toast";
 
 const TOAST_LIMIT = 1;
+// default visible toast duration (ms)
+const DEFAULT_TOAST_DURATION = 2000;
 // maximum visible toast duration (ms)
-const MAX_TOAST_DURATION = 2000;
+const MAX_TOAST_DURATION = 8000;
 // keep a small buffer before removing from state so exit animations complete
 const TOAST_REMOVE_DELAY = MAX_TOAST_DURATION + 1000;
 
@@ -146,7 +148,7 @@ function toast({ ...props }: Toast & { duration?: number }) {
   const duration =
     typeof props.duration === "number"
       ? Math.min(props.duration, MAX_TOAST_DURATION)
-      : MAX_TOAST_DURATION;
+      : DEFAULT_TOAST_DURATION;
 
   const update = (props: ToasterToast) =>
     dispatch({

@@ -1,5 +1,6 @@
 // src/pages/ReportPage.tsx
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@/stores/authStore";
 import { RoleLayout } from "@/components/layout/RoleLayout"; // ✅ Added
 import {
@@ -18,11 +19,12 @@ import {
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import useReports from '@/hooks/useReports';
+import useReports from "@/hooks/useReports";
 
 // Report data is provided by backend; hook `useReports` will fetch and map it
 
 const ReportPage: React.FC = () => {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<
     "daily" | "weekly" | "monthly" | "custom"
   >("monthly");
@@ -46,44 +48,53 @@ const ReportPage: React.FC = () => {
       start.setDate(today.getDate() - 6);
       return `${start.toLocaleDateString(
         undefined,
-        options
+        options,
       )} – ${today.toLocaleDateString(undefined, options)}`;
     } else if (period === "monthly") {
       const start = new Date(today.getFullYear(), today.getMonth(), 1);
       const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
       return `${start.toLocaleDateString(
         undefined,
-        options
+        options,
       )} – ${end.toLocaleDateString(undefined, options)}`;
     } else {
       return `${new Date(customDates.start).toLocaleDateString(
         undefined,
-        options
+        options,
       )} – ${new Date(customDates.end).toLocaleDateString(undefined, options)}`;
     }
   };
 
-  const auth = useAuthStore((s) => s.user);
-  const { data: reportsData, loading: reportsLoading, error: reportsError, refetch } = useReports({ period, start: customDates.start, end: customDates.end });
+  const {
+    data: reportsData,
+    loading: reportsLoading,
+    error: reportsError,
+    refetch,
+  } = useReports({ period, start: customDates.start, end: customDates.end });
 
   const [localData, setLocalData] = useState(() => ({
-    totalSales: '0.00',
+    totalSales: "0.00",
     totalOrders: 0,
     totalItemsSold: 0,
-    avgOrderValue: '0.00',
-    grossSales: '0.00',
-    netSales: '0.00',
-    discounts: '0.00',
-    refunds: '0.00',
-    taxes: '0.00',
-    paymentMethods: { cash: '0.00', card: '0.00', mobile: '0.00', credit: '0.00' },
+    avgOrderValue: "0.00",
+    grossSales: "0.00",
+    netSales: "0.00",
+    discounts: "0.00",
+    refunds: "0.00",
+    taxes: "0.00",
+    paymentMethods: {
+      cash: "0.00",
+      card: "0.00",
+      mobile: "0.00",
+      credit: "0.00",
+    },
     topProducts: [] as any[],
-    revenue: '0.00',
-    cogs: '0.00',
-    grossProfit: '0.00',
+    revenue: "0.00",
+    cogs: "0.00",
+    grossProfit: "0.00",
     grossMargin: 0,
-    netProfit: '0.00',
-    totalTax: '0.00',
+    netProfit: "0.00",
+    totalTax: "0.00",
     taxByCategory: [] as any[],
     products: [] as any[],
   }));
@@ -95,13 +106,18 @@ const ReportPage: React.FC = () => {
   const paymentTotal = React.useMemo(() => {
     try {
       const pm = localData.paymentMethods || {};
-      return ['cash','card','mobile','credit'].reduce((s, k) => s + Number(pm[k] || 0), 0);
+      return ["cash", "card", "mobile", "credit"].reduce(
+        (s, k) => s + Number(pm[k] || 0),
+        0,
+      );
     } catch {
       return 0;
     }
   }, [localData.paymentMethods]);
 
-  const hasTopProducts = !!(localData.topProducts && localData.topProducts.length > 0);
+  const hasTopProducts = !!(
+    localData.topProducts && localData.topProducts.length > 0
+  );
 
   // ===== EXPORTS =====
   const exportToExcel = () => {
@@ -109,83 +125,88 @@ const ReportPage: React.FC = () => {
     const dateLabel = getDateRangeLabel();
 
     const businessInfo = [
-      ["SMART SUPERMARKET"],
+      [t("smart_supermarket")],
       ["Bole Road, Addis Ababa, Ethiopia"],
       ["Phone: +251 911 234 567"],
       ["Email: info@smartsupermarket.et"],
       ["VAT: ET-123456789"],
       [""],
-      ["Report Period:", dateLabel],
+      [t("report_period"), dateLabel],
     ];
     const infoWS = XLSX.utils.aoa_to_sheet(businessInfo);
-    XLSX.utils.book_append_sheet(wb, infoWS, "Business Info");
+    XLSX.utils.book_append_sheet(wb, infoWS, t("business_info"));
 
     const salesData = [
-      { Metric: "Report Period", Value: dateLabel },
-      { Metric: "Total Sales", Value: `$${localData.totalSales}` },
-      { Metric: "Total Orders", Value: localData.totalOrders },
-      { Metric: "Total Items Sold", Value: localData.totalItemsSold },
-      { Metric: "Avg Order Value", Value: `$${localData.avgOrderValue}` },
-      { Metric: "Gross Sales", Value: `$${localData.grossSales}` },
-      { Metric: "Net Sales", Value: `$${localData.netSales}` },
-      { Metric: "Discounts", Value: `$${localData.discounts}` },
-      { Metric: "Refunds", Value: `$${localData.refunds}` },
-      { Metric: "Taxes", Value: `$${localData.taxes}` },
+      { Metric: t("report_period"), Value: dateLabel },
+      { Metric: t("total_sales"), Value: `$${localData.totalSales}` },
+      { Metric: t("total_orders"), Value: localData.totalOrders },
+      { Metric: t("total_items_sold"), Value: localData.totalItemsSold },
+      { Metric: t("avg_order_value"), Value: `$${localData.avgOrderValue}` },
+      { Metric: t("gross_sales"), Value: `$${localData.grossSales}` },
+      { Metric: t("net_sales"), Value: `$${localData.netSales}` },
+      { Metric: t("discounts"), Value: `$${localData.discounts}` },
+      { Metric: t("refunds"), Value: `$${localData.refunds}` },
+      { Metric: t("taxes"), Value: `$${localData.taxes}` },
     ];
     const salesWS = XLSX.utils.json_to_sheet(salesData);
-    XLSX.utils.book_append_sheet(wb, salesWS, "1. Sales Summary");
+    XLSX.utils.book_append_sheet(wb, salesWS, `1. ${t("sales_summary")}`);
 
     const paymentsWS = XLSX.utils.json_to_sheet([
-      { Method: "Cash", Amount: `$${localData.paymentMethods.cash}` },
-      { Method: "Card", Amount: `$${localData.paymentMethods.card}` },
-      { Method: "Mobile", Amount: `$${localData.paymentMethods.mobile}` },
-      { Method: "Credit", Amount: `$${localData.paymentMethods.credit}` },
+      { Method: t("cash"), Amount: `$${localData.paymentMethods.cash}` },
+      { Method: t("card"), Amount: `$${localData.paymentMethods.card}` },
+      { Method: t("mobile"), Amount: `$${localData.paymentMethods.mobile}` },
+      { Method: t("credit"), Amount: `$${localData.paymentMethods.credit}` },
     ]);
-    XLSX.utils.book_append_sheet(wb, paymentsWS, "1b. Payment Methods");
+    XLSX.utils.book_append_sheet(wb, paymentsWS, `1b. ${t("payment_methods")}`);
 
     const productsWS = XLSX.utils.json_to_sheet(
       localData.topProducts.map((p) => ({
-        Product: p.name,
-        "Units Sold": p.sold,
-        Revenue: `$${p.revenue}`,
-      }))
+        [t("product")]: p.name,
+        [t("units_sold")]: p.sold,
+        [t("revenue")]: `$${p.revenue}`,
+      })),
     );
-    XLSX.utils.book_append_sheet(wb, productsWS, "2. Top Products");
+    XLSX.utils.book_append_sheet(wb, productsWS, `2. ${t("top_products")}`);
 
     const inventoryWS = XLSX.utils.json_to_sheet(
       localData.products.map((p) => ({
-        "Product Name": p.name,
-        Category: p.category,
+        [t("product_name")]: p.name,
+        [t("category")]: p.category,
         SKU: p.sku,
-        "Purchase Price (ETB)": p.purchasePrice,
-        "Selling Price (ETB)": p.sellingPrice,
-        "Current Quantity": p.quantity,
-        "Low Stock Threshold": p.lowStockThreshold,
-        "Stock Status": p.quantity <= p.lowStockThreshold ? "LOW STOCK" : "OK",
-      }))
+        [`${t("purchase_price")} (ETB)`]: p.purchasePrice,
+        [`${t("selling_price")} (ETB)`]: p.sellingPrice,
+        [t("current_quantity")]: p.quantity,
+        [t("low_stock_threshold")]: p.lowStockThreshold,
+        [t("stock_status")]:
+          p.quantity <= p.lowStockThreshold ? t("low_stock_upper") : t("ok"),
+      })),
     );
-    XLSX.utils.book_append_sheet(wb, inventoryWS, "3. Detailed Inventory");
+    XLSX.utils.book_append_sheet(
+      wb,
+      inventoryWS,
+      `3. ${t("detailed_inventory")}`,
+    );
 
     const financialWS = XLSX.utils.json_to_sheet([
-      { Metric: "Revenue", Value: `$${localData.revenue}` },
-      { Metric: "COGS", Value: `$${localData.cogs}` },
-      { Metric: "Gross Profit", Value: `$${localData.grossProfit}` },
-      { Metric: "Gross Margin %", Value: `${localData.grossMargin}%` },
-      { Metric: "Net Profit", Value: `$${localData.netProfit}` },
+      { Metric: t("revenue"), Value: `$${localData.revenue}` },
+      { Metric: t("cogs"), Value: `$${localData.cogs}` },
+      { Metric: t("gross_profit"), Value: `$${localData.grossProfit}` },
+      { Metric: t("gross_margin_percent"), Value: `${localData.grossMargin}%` },
+      { Metric: t("net_profit"), Value: `$${localData.netProfit}` },
     ]);
-    XLSX.utils.book_append_sheet(wb, financialWS, "4. Financial");
+    XLSX.utils.book_append_sheet(wb, financialWS, `4. ${t("financial")}`);
 
     const taxWS = XLSX.utils.json_to_sheet([
-      { Metric: "Total Tax Collected", Value: `$${localData.totalTax}` },
+      { Metric: t("total_tax_collected"), Value: `$${localData.totalTax}` },
     ]);
     const taxCatWS = XLSX.utils.json_to_sheet(
-      localData.taxByCategory.map((t) => ({
-        Category: t.category,
-        Tax: `$${t.tax}`,
-      }))
+      localData.taxByCategory.map((entry) => ({
+        [t("category")]: entry.category,
+        [t("tax")]: `$${entry.tax}`,
+      })),
     );
-    XLSX.utils.book_append_sheet(wb, taxWS, "7. Tax Summary");
-    XLSX.utils.book_append_sheet(wb, taxCatWS, "7b. Tax by Category");
+    XLSX.utils.book_append_sheet(wb, taxWS, `7. ${t("tax_summary")}`);
+    XLSX.utils.book_append_sheet(wb, taxCatWS, `7b. ${t("tax_by_category")}`);
 
     XLSX.writeFile(wb, `SmartPOS_Report_${period}.xlsx`);
   };
@@ -196,7 +217,7 @@ const ReportPage: React.FC = () => {
     const pageWidth = doc.internal.pageSize.width;
 
     const businessInfo = {
-      name: "SMART SUPERMARKET",
+      name: t("smart_supermarket"),
       address: "Bole Road, Addis Ababa, Ethiopia",
       phone: "+251 911 234 567",
       email: "info@smartsupermarket.et",
@@ -236,17 +257,22 @@ const ReportPage: React.FC = () => {
 
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.text("SALES REPORT", pageWidth / 2, detailsY + lineHeight * 6, {
-      align: "center",
-    });
+    doc.text(
+      t("sales_report_upper"),
+      pageWidth / 2,
+      detailsY + lineHeight * 6,
+      {
+        align: "center",
+      },
+    );
 
     doc.setFontSize(11);
     doc.setFont("helvetica", "normal");
     doc.text(
-      `Period: ${dateLabel}`,
+      `${t("period")}: ${dateLabel}`,
       pageWidth / 2,
       detailsY + lineHeight * 7.5,
-      { align: "center" }
+      { align: "center" },
     );
 
     doc.setDrawColor(32, 191, 107);
@@ -255,24 +281,24 @@ const ReportPage: React.FC = () => {
       leftMargin,
       detailsY + lineHeight * 8.5,
       pageWidth - leftMargin,
-      detailsY + lineHeight * 8.5
+      detailsY + lineHeight * 8.5,
     );
 
     const contentStartY = detailsY + lineHeight * 9.5;
 
     autoTable(doc, {
       startY: contentStartY,
-      head: [["Metric", "Value"]],
+      head: [[t("metric"), t("value")]],
       body: [
-        ["Total Sales", `$${localData.totalSales}`],
-        ["Total Orders", localData.totalOrders.toString()],
-        ["Total Items Sold", localData.totalItemsSold.toString()],
-        ["Avg Order Value", `$${localData.avgOrderValue}`],
-        ["Gross Sales", `$${localData.grossSales}`],
-        ["Net Sales", `$${localData.netSales}`],
-        ["Discounts", `$${localData.discounts}`],
-        ["Refunds", `$${localData.refunds}`],
-        ["Taxes", `$${localData.taxes}`],
+        [t("total_sales"), `$${localData.totalSales}`],
+        [t("total_orders"), localData.totalOrders.toString()],
+        [t("total_items_sold"), localData.totalItemsSold.toString()],
+        [t("avg_order_value"), `$${localData.avgOrderValue}`],
+        [t("gross_sales"), `$${localData.grossSales}`],
+        [t("net_sales"), `$${localData.netSales}`],
+        [t("discounts"), `$${localData.discounts}`],
+        [t("refunds"), `$${localData.refunds}`],
+        [t("taxes"), `$${localData.taxes}`],
       ],
       theme: "grid",
       headStyles: {
@@ -292,7 +318,7 @@ const ReportPage: React.FC = () => {
 
     autoTable(doc, {
       startY: (doc as any).lastAutoTable.finalY + 10,
-      head: [["Product", "Units Sold", "Revenue"]],
+      head: [[t("product"), t("units_sold"), t("revenue")]],
       body: localData.topProducts.map((p) => [
         p.name,
         p.sold.toString(),
@@ -312,10 +338,10 @@ const ReportPage: React.FC = () => {
 
     autoTable(doc, {
       startY: (doc as any).lastAutoTable.finalY + 10,
-      head: [["Category", "Tax Amount"]],
+      head: [[t("category"), t("tax_amount")]],
       body: [
         ...localData.taxByCategory.map((t) => [t.category, `$${t.tax}`]),
-        ["Total", `$${localData.totalTax}`],
+        [t("total"), `$${localData.totalTax}`],
       ],
       theme: "grid",
       headStyles: {
@@ -344,28 +370,28 @@ const ReportPage: React.FC = () => {
         leftMargin,
         pageHeight - 20,
         pageWidth - leftMargin,
-        pageHeight - 20
+        pageHeight - 20,
       );
 
       doc.setFontSize(8);
       doc.setTextColor(100, 100, 100);
       doc.text(
-        "Smart POS System • Generated automatically",
+        t("smart_pos_generated_automatically"),
         leftMargin,
-        pageHeight - 15
+        pageHeight - 15,
       );
       doc.text(
-        `Page ${i} of ${pageCount}`,
+        `${t("page")} ${i} ${t("of")} ${pageCount}`,
         pageWidth - leftMargin,
         pageHeight - 15,
-        { align: "right" }
+        { align: "right" },
       );
 
       doc.text(
         `${businessInfo.phone} • ${businessInfo.email}`,
         pageWidth / 2,
         pageHeight - 15,
-        { align: "center" }
+        { align: "center" },
       );
     }
 
@@ -384,10 +410,10 @@ const ReportPage: React.FC = () => {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground">
-              Sales Reports
+              {t("sales_reports")}
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Period: {getDateRangeLabel()}
+              {t("period")}: {getDateRangeLabel()}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -395,13 +421,13 @@ const ReportPage: React.FC = () => {
               onClick={exportToExcel}
               className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition text-sm"
             >
-              Export to Excel
+              {t("export_to_excel")}
             </button>
             <button
               onClick={exportToPDF}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition text-sm"
             >
-              Export to PDF
+              {t("export_to_pdf")}
             </button>
           </div>
         </div>
@@ -410,7 +436,7 @@ const ReportPage: React.FC = () => {
         <div className="bg-card p-4 rounded-xl border">
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm font-medium text-foreground">
-              Report Period:
+              {t("report_period")}:
             </span>
 
             {(["daily", "weekly", "monthly", "custom"] as const).map((p) => (
@@ -423,7 +449,13 @@ const ReportPage: React.FC = () => {
                     : "bg-secondary text-secondary-foreground hover:bg-accent"
                 }`}
               >
-                {p.charAt(0).toUpperCase() + p.slice(1)}
+                {p === "daily"
+                  ? t("daily")
+                  : p === "weekly"
+                    ? t("weekly")
+                    : p === "monthly"
+                      ? t("monthly")
+                      : t("custom")}
               </button>
             ))}
 
@@ -437,7 +469,7 @@ const ReportPage: React.FC = () => {
                   }
                   className="border rounded px-2 py-1 text-sm bg-background"
                 />
-                <span className="text-muted-foreground">to</span>
+                <span className="text-muted-foreground">{t("to")}</span>
                 <input
                   type="date"
                   value={customDates.end}
@@ -454,10 +486,10 @@ const ReportPage: React.FC = () => {
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { title: "Total Sales", value: `$${localData.totalSales}` },
-            { title: "Total Orders", value: localData.totalOrders },
-            { title: "Avg Order", value: `$${localData.avgOrderValue}` },
-            { title: "Gross Profit", value: `$${localData.grossProfit}` },
+            { title: t("total_sales"), value: `$${localData.totalSales}` },
+            { title: t("total_orders"), value: localData.totalOrders },
+            { title: t("avg_order"), value: `$${localData.avgOrderValue}` },
+            { title: t("gross_profit"), value: `$${localData.grossProfit}` },
           ].map((item, i) => (
             <div key={i} className="bg-card p-4 rounded-xl border">
               <p className="text-muted-foreground text-sm">{item.title}</p>
@@ -471,35 +503,49 @@ const ReportPage: React.FC = () => {
           {/* Payment Methods */}
           <div className="bg-card p-4 rounded-xl border">
             <h2 className="text-lg font-semibold mb-4 text-foreground">
-              Payment Methods
+              {t("payment_methods")}
             </h2>
             {paymentTotal > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
                     data={[
-                      { name: 'Cash', value: parseFloat(localData.paymentMethods.cash) || 0 },
-                      { name: 'Card', value: parseFloat(localData.paymentMethods.card) || 0 },
-                      { name: 'Mobile', value: parseFloat(localData.paymentMethods.mobile) || 0 },
-                      { name: 'Credit', value: parseFloat(localData.paymentMethods.credit) || 0 },
+                      {
+                        name: t("cash"),
+                        value: parseFloat(localData.paymentMethods.cash) || 0,
+                      },
+                      {
+                        name: t("card"),
+                        value: parseFloat(localData.paymentMethods.card) || 0,
+                      },
+                      {
+                        name: t("mobile"),
+                        value: parseFloat(localData.paymentMethods.mobile) || 0,
+                      },
+                      {
+                        name: t("credit"),
+                        value: parseFloat(localData.paymentMethods.credit) || 0,
+                      },
                     ]}
                     cx="50%"
                     cy="50%"
                     outerRadius={80}
                     dataKey="value"
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }) =>
+                      `${name}: ${(percent * 100).toFixed(0)}%`
+                    }
                   >
                     {COLORS.map((color, i) => (
                       <Cell key={`cell-${i}`} fill={color} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value) => [`$${value}`, 'Amount']} />
+                  <Tooltip formatter={(value) => [`$${value}`, t("amount")]} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
               <div className="flex items-center justify-center h-64 text-muted-foreground">
-                No payment methods yet
+                {t("no_payment_methods_yet")}
               </div>
             )}
           </div>
@@ -507,7 +553,7 @@ const ReportPage: React.FC = () => {
           {/* Top Products */}
           <div className="bg-card p-4 rounded-xl border">
             <h2 className="text-lg font-semibold mb-4 text-foreground">
-              Top Selling Products
+              {t("top_selling_products")}
             </h2>
             {hasTopProducts ? (
               <ResponsiveContainer width="100%" height={300}>
@@ -515,14 +561,19 @@ const ReportPage: React.FC = () => {
                   <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
                   <XAxis dataKey="name" stroke="#666" />
                   <YAxis stroke="#666" />
-                  <Tooltip formatter={(value) => [`$${value}`, 'Revenue']} />
+                  <Tooltip formatter={(value) => [`$${value}`, t("revenue")]} />
                   <Legend />
-                  <Bar dataKey="revenue" fill="#10b981" name="Revenue ($)" radius={[4, 4, 0, 0]} />
+                  <Bar
+                    dataKey="revenue"
+                    fill="#10b981"
+                    name={`${t("revenue")} ($)`}
+                    radius={[4, 4, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
               <div className="flex items-center justify-center h-64 text-muted-foreground">
-                No top selling products yet
+                {t("no_top_selling_products_yet")}
               </div>
             )}
           </div>
@@ -531,17 +582,17 @@ const ReportPage: React.FC = () => {
         {/* Tax Table */}
         <div className="bg-card p-4 rounded-xl border">
           <h2 className="text-lg font-semibold mb-4 text-foreground">
-            Tax Summary
+            {t("tax_summary")}
           </h2>
           <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead>
                 <tr className="border-b">
                   <th className="text-left py-2 text-muted-foreground">
-                    Category
+                    {t("category")}
                   </th>
                   <th className="text-right py-2 text-muted-foreground">
-                    Tax Amount
+                    {t("tax_amount")}
                   </th>
                 </tr>
               </thead>
@@ -556,7 +607,7 @@ const ReportPage: React.FC = () => {
                   </tr>
                 ))}
                 <tr className="font-bold bg-accent/20">
-                  <td className="py-3">Total</td>
+                  <td className="py-3">{t("total")}</td>
                   <td className="py-3 text-right">${localData.totalTax}</td>
                 </tr>
               </tbody>

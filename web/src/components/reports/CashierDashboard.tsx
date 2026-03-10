@@ -1,5 +1,17 @@
-import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import React from "react";
+import { useTranslation } from "react-i18next";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from "recharts";
 
 type Item = {
   id: string | number;
@@ -8,9 +20,23 @@ type Item = {
   total: number;
 };
 
-const COLORS = ['#4f46e5', '#06b6d4', '#f97316', '#10b981', '#ef4444', '#a78bfa'];
+const COLORS = [
+  "#4f46e5",
+  "#06b6d4",
+  "#f97316",
+  "#10b981",
+  "#ef4444",
+  "#a78bfa",
+];
 
-export default function CashierDashboard({ items, totals }: { items: Item[]; totals: { totalItemsSold: number; totalPurchasingCost: number } }) {
+export default function CashierDashboard({
+  items,
+  totals,
+}: {
+  items: Item[];
+  totals: { totalItemsSold: number; totalPurchasingCost: number };
+}) {
+  const { t } = useTranslation();
   const topItems = [...(items || [])]
     .sort((a, b) => (b.total || 0) - (a.total || 0))
     .slice(0, 6)
@@ -28,21 +54,33 @@ export default function CashierDashboard({ items, totals }: { items: Item[]; tot
         <div className="absolute -left-10 -bottom-10 h-36 w-36 rounded-full bg-emerald-400/20 blur-3xl" />
         <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-semibold">Cashier Dashboard</h1>
-            <p className="text-sm text-slate-300">Quick overview for today</p>
+            <h1 className="text-3xl font-semibold">{t("cashier_dashboard")}</h1>
+            <p className="text-sm text-slate-300">
+              {t("quick_overview_today")}
+            </p>
           </div>
           <div className="flex gap-3">
             <div className="bg-white/10 backdrop-blur px-4 py-3 rounded-xl border border-white/10 text-center">
-              <p className="text-xs text-slate-300">Items Sold</p>
+              <p className="text-xs text-slate-300">{t("items_sold")}</p>
               <p className="text-xl font-semibold">{totalItems}</p>
             </div>
             <div className="bg-white/10 backdrop-blur px-4 py-3 rounded-xl border border-white/10 text-center">
-              <p className="text-xs text-slate-300">Total Cost</p>
-              <p className="text-xl font-semibold">{totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-xs text-slate-300">{t("total_cost")}</p>
+              <p className="text-xl font-semibold">
+                {totalCost.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </p>
             </div>
             <div className="bg-white/10 backdrop-blur px-4 py-3 rounded-xl border border-white/10 text-center">
-              <p className="text-xs text-slate-300">Avg / Item</p>
-              <p className="text-xl font-semibold">{avgPerItem.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-xs text-slate-300">{t("avg_per_item")}</p>
+              <p className="text-xl font-semibold">
+                {avgPerItem.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </p>
             </div>
           </div>
         </div>
@@ -51,14 +89,17 @@ export default function CashierDashboard({ items, totals }: { items: Item[]; tot
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="md:col-span-2 bg-card p-4 rounded-2xl border h-56">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold">Top items (by sales)</h3>
-            <span className="text-xs text-muted-foreground">top 6</span>
+            <h3 className="text-sm font-semibold">{t("top_items_by_sales")}</h3>
+            <span className="text-xs text-muted-foreground">{t("top_6")}</span>
           </div>
           {topItems.length === 0 ? (
-            <div className="text-muted-foreground">No sales yet</div>
+            <div className="text-muted-foreground">{t("no_sales_yet")}</div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={topItems} margin={{ top: 8, right: 8, left: -16, bottom: 8 }}>
+              <BarChart
+                data={topItems}
+                margin={{ top: 8, right: 8, left: -16, bottom: 8 }}
+              >
                 <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                 <YAxis />
                 <Tooltip />
@@ -70,15 +111,24 @@ export default function CashierDashboard({ items, totals }: { items: Item[]; tot
 
         <div className="bg-card p-4 rounded-2xl border h-56">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold">Sales share</h3>
-            <span className="text-xs text-muted-foreground">distribution</span>
+            <h3 className="text-sm font-semibold">{t("sales_share")}</h3>
+            <span className="text-xs text-muted-foreground">
+              {t("distribution")}
+            </span>
           </div>
           {pieData.length === 0 ? (
-            <div className="text-muted-foreground">No data</div>
+            <div className="text-muted-foreground">{t("no_data")}</div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={28} outerRadius={56} paddingAngle={4}>
+                <Pie
+                  data={pieData}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={28}
+                  outerRadius={56}
+                  paddingAngle={4}
+                >
                   {pieData.map((_, i) => (
                     <Cell key={i} fill={COLORS[i % COLORS.length]} />
                   ))}

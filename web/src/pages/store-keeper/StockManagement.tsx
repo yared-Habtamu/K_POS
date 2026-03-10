@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useLocation } from 'react-router-dom';
+import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
@@ -42,7 +42,7 @@ export default function StockManagement() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
   const location = useLocation();
-  const isAddStockPage = location.pathname.includes('/add-stock');
+  const isAddStockPage = location.pathname.includes("/add-stock");
   const token = user?.token;
   const { products, isLoading, fetchProducts, fetchError, updateProduct } =
     useProductStore();
@@ -98,34 +98,34 @@ export default function StockManagement() {
         },
         body: JSON.stringify({ productId: selectedProduct.id, quantity: qty }),
       });
-        const body = await res.json().catch(() => null);
-        console.debug("stock transfer response", res.status, body);
+      const body = await res.json().catch(() => null);
+      console.debug("stock transfer response", res.status, body);
 
-        if (!res.ok) {
-          throw new Error(body?.message || `Request failed ${res.status}`);
-        }
+      if (!res.ok) {
+        throw new Error(body?.message || `Request failed ${res.status}`);
+      }
 
-        // If backend applied transfer immediately it returns 201; otherwise 202 pending
-        if (res.status === 201) {
-          toast({
-            title: "Transfer completed",
-            description: `Transferred ${qty} units of ${selectedProduct.name}.`,
-          });
-        } else {
-          toast({
-            title: "Transfer submitted",
-            description: `Request sent for ${qty} units of ${selectedProduct.name}. Awaiting manager approval.`,
-          });
-        }
+      // If backend applied transfer immediately it returns 201; otherwise 202 pending
+      if (res.status === 201) {
+        toast({
+          title: t("transfer_completed"),
+          description: `${qty} ${t("units_of")} ${selectedProduct.name}.`,
+        });
+      } else {
+        toast({
+          title: t("transfer_submitted"),
+          description: `${t("request_sent_for")} ${qty} ${t("units_of")} ${selectedProduct.name}. ${t("awaiting_manager_approval")}`,
+        });
+      }
       setIsDialogOpen(false);
       setSelectedProduct(null);
       setAddQuantity("");
     } catch (err: unknown) {
-      let msg = "Please try again";
+      let msg = t("please_try_again");
       if (err instanceof Error && err.message) msg = err.message;
       else if (typeof err === "string") msg = err;
       toast({
-        title: "Could not submit transfer",
+        title: t("could_not_submit_transfer"),
         description: msg,
         variant: "destructive",
       });
@@ -144,11 +144,15 @@ export default function StockManagement() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-              <h1 className="text-2xl font-bold">{isAddStockPage ? 'Add Stock' : t("inventory")}</h1>
-              <p className="text-muted-foreground">
-                {isAddStockPage ? 'Transfering from warehouse stock to supermarket/mart quantity' : 'Manage store and supermarket stock levels'}
-              </p>
-            </div>
+            <h1 className="text-2xl font-bold">
+              {isAddStockPage ? t("add_stock") : t("inventory")}
+            </h1>
+            <p className="text-muted-foreground">
+              {isAddStockPage
+                ? t("add_stock_subtitle")
+                : t("inventory_subtitle")}
+            </p>
+          </div>
 
           <div>
             {/* Add product is owner-only. Store-keeper should not see Add Product here. */}
@@ -163,7 +167,7 @@ export default function StockManagement() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by name or barcode..."
+                placeholder={t("search_by_name_or_barcode")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
@@ -177,7 +181,7 @@ export default function StockManagement() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Package className="h-5 w-5" />
-              {isAddStockPage ? 'Add Stock' : 'Inventory'}
+              {isAddStockPage ? t("add_stock") : t("inventory")}
               <Badge variant="secondary" className="ml-2">
                 {filteredProducts.length}
               </Badge>
@@ -185,7 +189,7 @@ export default function StockManagement() {
           </CardHeader>
           <CardContent>
             {isLoading && (
-              <p className="py-6 text-center">Loading products...</p>
+              <p className="py-6 text-center">{t("loading_products")}</p>
             )}
             {error && (
               <p className="py-6 text-center text-destructive">{error}</p>
@@ -193,7 +197,7 @@ export default function StockManagement() {
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {filteredProducts.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-6 col-span-full">
-                  No products found
+                  {t("no_products_found")}
                 </p>
               )}
 
@@ -231,9 +235,11 @@ export default function StockManagement() {
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-medium">Sold</p>
+                        <p className="text-sm font-medium">{t("sold")}</p>
                         <p className="text-xs text-muted-foreground">{sold}</p>
-                        <p className="text-sm font-medium mt-2">Remaining</p>
+                        <p className="text-sm font-medium mt-2">
+                          {t("remaining")}
+                        </p>
                         <p className="text-xs text-muted-foreground">
                           {remaining}
                         </p>
@@ -261,18 +267,19 @@ export default function StockManagement() {
                                 barcodes: arr,
                               })
                                 .then(() =>
-                                  toast({ title: "Barcodes updated" }),
+                                  toast({ title: t("barcodes_updated") }),
                                 )
                                 .catch(() =>
                                   toast({
-                                    title: "Failed to update barcodes",
+                                    title: t("failed_update_barcodes"),
                                     variant: "destructive",
                                   }),
                                 );
                             }
                           }}
                         >
-                          <Barcode className="mr-2 h-3 w-3" /> Edit Barcodes
+                          <Barcode className="mr-2 h-3 w-3" />{" "}
+                          {t("edit_barcodes")}
                         </Button>
 
                         <input
@@ -287,10 +294,10 @@ export default function StockManagement() {
                             fd.append("image", f, f.name);
                             try {
                               await updateProduct(imageUploadFor, fd);
-                              toast({ title: "Image uploaded" });
+                              toast({ title: t("image_uploaded") });
                             } catch (err) {
                               toast({
-                                title: "Failed to upload image",
+                                title: t("failed_upload_image"),
                                 variant: "destructive",
                               });
                             } finally {
@@ -309,7 +316,8 @@ export default function StockManagement() {
                             imageInputRef.current?.click();
                           }}
                         >
-                          <ImageIcon className="mr-2 h-3 w-3" /> Add Image
+                          <ImageIcon className="mr-2 h-3 w-3" />{" "}
+                          {t("add_image")}
                         </Button>
                       </div>
                     </div>
@@ -370,7 +378,7 @@ export default function StockManagement() {
                   <div className="p-4 rounded-xl bg-warning/10 border border-warning/20">
                     <p className="text-sm text-muted-foreground flex items-center gap-1">
                       <Warehouse className="w-4 h-4" />
-                      Warehouse Stock
+                      {t("warehouse_stock")}
                     </p>
                     <p className="text-2xl font-bold text-warning">
                       {selectedProduct.storeQuantity}
@@ -379,7 +387,7 @@ export default function StockManagement() {
                   <div className="p-4 rounded-xl bg-success/10 border border-success/20">
                     <p className="text-sm text-muted-foreground flex items-center gap-1">
                       <Store className="w-4 h-4" />
-                      Supermarket Stock
+                      {t("supermarket_stock")}
                     </p>
                     <p className="text-2xl font-bold text-success">
                       {selectedProduct.supermarketQuantity}
@@ -389,13 +397,11 @@ export default function StockManagement() {
 
                 {/* Add Quantity */}
                 <div className="space-y-2">
-                  <Label htmlFor="addQty">
-                    Quantity to Transfer (Warehouse → Supermarket)
-                  </Label>
+                  <Label htmlFor="addQty">{t("quantity_to_transfer")}</Label>
                   <Input
                     id="addQty"
                     type="number"
-                    placeholder="Enter quantity"
+                    placeholder={t("enter_quantity")}
                     value={addQuantity}
                     onChange={(e) => setAddQuantity(e.target.value)}
                     max={selectedProduct.storeQuantity}
@@ -403,7 +409,8 @@ export default function StockManagement() {
                   />
                   {selectedProduct.storeQuantity > 0 && (
                     <p className="text-xs text-muted-foreground">
-                      Max available: {selectedProduct.storeQuantity} units
+                      {t("max_available")}: {selectedProduct.storeQuantity}{" "}
+                      {t("units")}
                     </p>
                   )}
                 </div>
@@ -411,10 +418,12 @@ export default function StockManagement() {
                 {/* Preview */}
                 {addQuantity && parseInt(addQuantity) > 0 && (
                   <div className="p-4 rounded-xl bg-accent border border-border">
-                    <p className="text-sm font-medium mb-2">After Transfer:</p>
+                    <p className="text-sm font-medium mb-2">
+                      {t("after_transfer")}
+                    </p>
                     <div className="flex items-center justify-between text-sm">
                       <span>
-                        Warehouse:{" "}
+                        {t("warehouse")}:{" "}
                         {Math.max(
                           0,
                           selectedProduct.storeQuantity - parseInt(addQuantity),
@@ -422,7 +431,7 @@ export default function StockManagement() {
                       </span>
                       <ArrowRight className="w-4 h-4" />
                       <span>
-                        Supermarket:{" "}
+                        {t("supermarket")}:{" "}
                         {selectedProduct.supermarketQuantity +
                           parseInt(addQuantity)}
                       </span>
@@ -452,7 +461,7 @@ export default function StockManagement() {
                     }
                   >
                     <Plus className="mr-2 h-4 w-4" />
-                    Transfer Stock
+                    {t("transfer_stock")}
                   </Button>
                 </div>
               </div>

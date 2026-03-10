@@ -99,25 +99,6 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
   >({});
   const [martCurrency, setMartCurrency] = useState<string | null>(null);
 
-  useEffect(() => {
-    const runSync = async () => {
-      try {
-        await window.posApi?.runSyncNow?.();
-      } catch (err) {
-        // ignore sync errors here, periodic retries continue
-      }
-    };
-
-    runSync();
-    window.addEventListener("online", runSync);
-    const intervalId = window.setInterval(runSync, 30_000);
-
-    return () => {
-      window.removeEventListener("online", runSync);
-      window.clearInterval(intervalId);
-    };
-  }, []);
-
   const handleApplyDiscount = () => {
     const value = parseFloat(discountValue);
     if (!(value > 0)) return;
@@ -178,8 +159,8 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
   const handleCompleteSale = async () => {
     if (items.length === 0) {
       toast({
-        title: "Empty Cart",
-        description: "Add items to complete a sale",
+        title: t("empty_cart"),
+        description: t("add_items_to_complete_sale"),
         variant: "destructive",
       });
       return;
@@ -268,40 +249,24 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     setIsProcessing(true);
 
     const queueOfflineSale = async (details?: string) => {
+      const desktopApi = (
+        window as Window & {
+          posApi?: {
+            saveSale?: (sale: Record<string, unknown>) => Promise<unknown>;
+          };
+        }
+      ).posApi;
+
       try {
-        if (!window.posApi?.saveSale) {
+        if (!desktopApi?.saveSale) {
           throw new Error("Desktop local database bridge unavailable");
         }
 
-        await window.posApi.saveSale({
+        await desktopApi.saveSale({
           ...savedSalePayload,
           _authToken: user?.token,
           queuedAt: new Date().toISOString(),
         });
-
-        try {
-          await window.posApi.runSyncNow?.();
-        } catch {
-          // queue persisted; sync will retry later
-        }
-
-        try {
-          const rawItems = Array.isArray(savedSalePayload.items)
-            ? savedSalePayload.items
-            : [];
-          const soldItems = rawItems
-            .map((item) => {
-              const row = (item || {}) as Record<string, unknown>;
-              return {
-                productId: String(row.productId || ""),
-                quantity: Number(row.quantity || 0),
-              };
-            })
-            .filter((item) => item.productId && item.quantity > 0);
-          await useProductStore.getState().applyLocalSale?.(soldItems);
-        } catch (localApplyErr) {
-          console.warn("failed to apply local stock deduction", localApplyErr);
-        }
 
         toast({
           title: t("sale_complete"),
@@ -317,7 +282,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
       } catch (queueErr) {
         console.error("Failed to queue sale locally", queueErr);
         toast({
-          title: "Failed to save sale",
+          title: t("failed_to_save_sale"),
           description: String(queueErr),
           variant: "destructive",
         });
@@ -325,7 +290,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     };
 
     try {
-      const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+      const API_BASE = import.meta.env.VITE_API_URL || "";
       const token = user?.token;
       const res = await fetch(`${API_BASE}/api/sales`, {
         method: "POST",
@@ -339,21 +304,20 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
         const err = await res.json().catch(() => ({}));
         console.warn("Failed to record sale", err);
         await queueOfflineSale(
-          (err && err.message
+          err && err.message
             ? `${err.message}. Saved locally for sync.`
-            : "Server unavailable. Sale saved locally for sync.") as string,
+            : "Server unavailable. Sale saved locally for sync.",
         );
         return;
       }
 
       toast({
         title: t("sale_complete"),
-        description: `Receipt: ${savedSalePayload.receiptId}`,
+        description: `${t("receipt_label")}: ${savedSalePayload.receiptId}`,
       });
       // refresh products so UI reflects updated quantities
       try {
         await useProductStore.getState().fetchProducts?.();
-        await window.posApi?.runSyncNow?.();
       } catch (e) {
         // ignore refresh errors
       }
@@ -378,8 +342,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
 
     const fetchMart = async () => {
       try {
-        const API_BASE =
-          import.meta.env.VITE_API_URL || "http://localhost:4000";
+        const API_BASE = import.meta.env.VITE_API_URL || "";
         const martId = user?.martId;
         const token = user?.token;
         if (!martId) return;
@@ -625,7 +588,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
                 {discount.type === "percentage"
                   ? `${discount.value}%`
                   : `${discount.value} ETB`}{" "}
-                off
+                {t("off")}
               </span>
               <Button variant="ghost" size="sm" onClick={removeCartDiscount}>
                 <X className="h-4 w-4" />
@@ -656,7 +619,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
               </Select>
               <Input
                 type="number"
-                placeholder="Value"
+                placeholder={t("value")}
                 value={discountValue}
                 onChange={(e) => setDiscountValue(e.target.value)}
                 className="flex-1"
@@ -697,16 +660,22 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="service_charge">Service Charge</SelectItem>
-              <SelectItem value="delivery_charge">Delivery Charge</SelectItem>
-              <SelectItem value="packaging_charge">Packaging Charge</SelectItem>
-              <SelectItem value="others">Others</SelectItem>
+              <SelectItem value="service_charge">
+                {t("service_charge")}
+              </SelectItem>
+              <SelectItem value="delivery_charge">
+                {t("delivery_charge")}
+              </SelectItem>
+              <SelectItem value="packaging_charge">
+                {t("packaging_charge")}
+              </SelectItem>
+              <SelectItem value="others">{t("others")}</SelectItem>
             </SelectContent>
           </Select>
 
           {newChargeType === "others" && (
             <Input
-              placeholder="Custom name"
+              placeholder={t("custom_name")}
               value={newChargeCustomName}
               onChange={(e) => setNewChargeCustomName(e.target.value)}
               className="flex-1"
@@ -715,7 +684,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
 
           <Input
             type="number"
-            placeholder="Amount"
+            placeholder={t("amount")}
             value={newChargeAmount}
             onChange={(e) => setNewChargeAmount(e.target.value)}
             className="w-24"
@@ -736,7 +705,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
           {isProcessing ? (
             <>
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              Processing...
+              {t("processing")}
             </>
           ) : (
             <>

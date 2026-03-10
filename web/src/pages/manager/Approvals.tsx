@@ -5,22 +5,60 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/stores/authStore";
-import type { ProductAddRequest, ProductEditRequest, StockTransferRequest } from "@/types";
-import { Loader2, Check, X } from "lucide-react";
+import type {
+  ProductAddRequest,
+  ProductEditRequest,
+  StockTransferRequest,
+} from "@/types";
+import { Loader2, Check, X, RotateCw } from "lucide-react";
+
+type ApprovalDecision = {
+  type: "add" | "transfer" | "edit";
+  id: string;
+  action: "approve" | "reject";
+  itemLabel: string;
+};
 
 export default function Approvals() {
   const token = useAuthStore.getState().user?.token;
   const [addRequests, setAddRequests] = useState<ProductAddRequest[]>([]);
   const [editRequests, setEditRequests] = useState<ProductEditRequest[]>([]);
-  const [transferRequests, setTransferRequests] = useState<StockTransferRequest[]>([]);
+  const [transferRequests, setTransferRequests] = useState<
+    StockTransferRequest[]
+  >([]);
   const [loading, setLoading] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
-  const [typeFilter, setTypeFilter] = useState({ add: true, edit: true, transfer: true });
+  const [statusFilter, setStatusFilter] = useState<
+    "pending" | "approved" | "rejected" | "all"
+  >("pending");
+  const [typeFilter, setTypeFilter] = useState({
+    add: true,
+    edit: true,
+    transfer: true,
+  });
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  const [pendingDecision, setPendingDecision] =
+    useState<ApprovalDecision | null>(null);
 
   const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -54,7 +92,11 @@ export default function Approvals() {
 
       const addJson = addRes ? (addRes.ok ? await addRes.json() : []) : [];
       const editJson = editRes ? (editRes.ok ? await editRes.json() : []) : [];
-      const transferJson = transferRes ? (transferRes.ok ? await transferRes.json() : []) : [];
+      const transferJson = transferRes
+        ? transferRes.ok
+          ? await transferRes.json()
+          : []
+        : [];
 
       setAddRequests(Array.isArray(addJson) ? addJson : []);
       setEditRequests(Array.isArray(editJson) ? editJson : []);
@@ -70,20 +112,27 @@ export default function Approvals() {
   useEffect(() => {
     fetchAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, startDate, endDate, typeFilter.add, typeFilter.edit, typeFilter.transfer]);
+  }, [
+    statusFilter,
+    startDate,
+    endDate,
+    typeFilter.add,
+    typeFilter.edit,
+    typeFilter.transfer,
+  ]);
 
   const actOnRequest = async (
     type: "add" | "transfer" | "edit",
     id: string,
     action: "approve" | "reject",
-    reason?: string
+    reason?: string,
   ) => {
     const path =
       type === "add"
         ? `${API_BASE}/api/product-add-requests/${id}/${action}`
         : type === "edit"
-        ? `${API_BASE}/api/product-edit-requests/${id}/${action}`
-        : `${API_BASE}/api/stock-transfer-requests/${id}/${action}`;
+          ? `${API_BASE}/api/product-edit-requests/${id}/${action}`
+          : `${API_BASE}/api/stock-transfer-requests/${id}/${action}`;
 
     try {
       const res = await fetch(path, {
@@ -100,11 +149,24 @@ export default function Approvals() {
         throw new Error(errJson.message || `Failed with ${res.status}`);
       }
 
-      toast({ title: `${action === "approve" ? "Approved" : "Rejected"} successfully` });
-      fetchAll();
+      toast({
+        title: `${action === "approve" ? "Approved" : "Rejected"} successfully`,
+      });
+      await fetchAll();
     } catch (err: any) {
-      toast({ title: "Action failed", description: err?.message, variant: "destructive" });
+      toast({
+        title: "Action failed",
+        description: err?.message,
+        variant: "destructive",
+      });
     }
+  };
+
+  const confirmDecision = async () => {
+    if (!pendingDecision) return;
+    const { type, id, action } = pendingDecision;
+    setPendingDecision(null);
+    await actOnRequest(type, id, action);
   };
 
   return (
@@ -113,9 +175,27 @@ export default function Approvals() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Approvals</h1>
-            <p className="text-muted-foreground">Review product creations and stock transfers</p>
+            <p className="text-muted-foreground">
+              Review product creations and stock transfers
+            </p>
           </div>
-          {loading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
+          <div className="flex items-center gap-2">
+            {loading && (
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            )}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => void fetchAll()}
+              disabled={loading}
+              aria-label="Refresh approvals"
+              title="Refresh approvals"
+            >
+              <RotateCw
+                className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
+              />
+            </Button>
+          </div>
         </div>
 
         <Card>
@@ -135,11 +215,19 @@ export default function Approvals() {
             </div>
             <div className="space-y-2">
               <Label>From</Label>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label>To</Label>
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label>Types</Label>
@@ -150,10 +238,17 @@ export default function Approvals() {
                       type="checkbox"
                       checked={typeFilter[k]}
                       onChange={(e) =>
-                        setTypeFilter((cur) => ({ ...cur, [k]: e.target.checked }))
+                        setTypeFilter((cur) => ({
+                          ...cur,
+                          [k]: e.target.checked,
+                        }))
                       }
                     />
-                    {k === "add" ? "Product Add" : k === "edit" ? "Product Edit" : "Stock Transfer"}
+                    {k === "add"
+                      ? "Product Add"
+                      : k === "edit"
+                        ? "Product Edit"
+                        : "Stock Transfer"}
                   </label>
                 ))}
               </div>
@@ -170,7 +265,9 @@ export default function Approvals() {
           </CardHeader>
           <CardContent>
             {addRequests.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No requests found for this filter.</p>
+              <p className="text-sm text-muted-foreground">
+                No requests found for this filter.
+              </p>
             ) : (
               <Table>
                 <TableHeader>
@@ -193,8 +290,8 @@ export default function Approvals() {
                           r.status === "approved"
                             ? "default"
                             : r.status === "rejected"
-                            ? "destructive"
-                            : "secondary"
+                              ? "destructive"
+                              : "secondary"
                         }
                       >
                         {r.status}
@@ -202,30 +299,65 @@ export default function Approvals() {
                     );
                     return (
                       <TableRow key={r._id || r.id}>
-                          <TableCell>
+                        <TableCell>
                           {r.decidedAt ? (
                             <span className="text-xs text-muted-foreground">
-                              {new Date(r.decidedAt as any).toLocaleDateString()}
+                              {new Date(
+                                r.decidedAt as any,
+                              ).toLocaleDateString()}
                             </span>
-                          ) : '-'}
+                          ) : (
+                            "-"
+                          )}
                         </TableCell>
                         <TableCell>
-                          <div className="font-medium">{payload.name || "Unnamed"}</div>
-                          <div className="text-xs text-muted-foreground">{payload.category || ""}</div>
+                          <div className="font-medium">
+                            {payload.name || "Unnamed"}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {payload.category || ""}
+                          </div>
                         </TableCell>
                         <TableCell>{r.requesterName || "Owner"}</TableCell>
-                        <TableCell>{payload.storeQuantity ?? payload.quantity ?? 0}</TableCell>
-                        <TableCell>{payload.supermarketQuantity ?? 0}</TableCell>
+                        <TableCell>
+                          {payload.storeQuantity ?? payload.quantity ?? 0}
+                        </TableCell>
+                        <TableCell>
+                          {payload.supermarketQuantity ?? 0}
+                        </TableCell>
                         <TableCell className="space-x-2 flex items-center">
                           {statusBadge}
                         </TableCell>
                         <TableCell className="text-right space-x-2">
                           {r.status === "pending" && (
                             <>
-                              <Button size="sm" variant="outline" onClick={() => actOnRequest("add", String(r._id || r.id), "reject")}>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  setPendingDecision({
+                                    type: "add",
+                                    id: String(r._id || r.id),
+                                    action: "reject",
+                                    itemLabel:
+                                      payload.name || "product add request",
+                                  })
+                                }
+                              >
                                 <X className="h-4 w-4" />
                               </Button>
-                              <Button size="sm" onClick={() => actOnRequest("add", String(r._id || r.id), "approve")}>
+                              <Button
+                                size="sm"
+                                onClick={() =>
+                                  setPendingDecision({
+                                    type: "add",
+                                    id: String(r._id || r.id),
+                                    action: "approve",
+                                    itemLabel:
+                                      payload.name || "product add request",
+                                  })
+                                }
+                              >
                                 <Check className="h-4 w-4" />
                               </Button>
                             </>
@@ -275,8 +407,8 @@ export default function Approvals() {
                           r.status === "approved"
                             ? "default"
                             : r.status === "rejected"
-                            ? "destructive"
-                            : "secondary"
+                              ? "destructive"
+                              : "secondary"
                         }
                       >
                         {r.status}
@@ -287,11 +419,17 @@ export default function Approvals() {
                         <TableCell>
                           {r.decidedAt ? (
                             <span className="text-xs text-muted-foreground">
-                              {new Date(r.decidedAt as any).toLocaleDateString()}
+                              {new Date(
+                                r.decidedAt as any,
+                              ).toLocaleDateString()}
                             </span>
-                          ) : '-'}
+                          ) : (
+                            "-"
+                          )}
                         </TableCell>
-                        <TableCell>{(r as any).productId?.name || r.productId}</TableCell>
+                        <TableCell>
+                          {(r as any).productId?.name || r.productId}
+                        </TableCell>
                         <TableCell>{r.requesterName || "Owner"}</TableCell>
                         <TableCell>{qty}</TableCell>
                         <TableCell className="space-x-2 flex items-center">
@@ -300,10 +438,39 @@ export default function Approvals() {
                         <TableCell className="text-right space-x-2">
                           {r.status === "pending" && (
                             <>
-                              <Button size="sm" variant="outline" onClick={() => actOnRequest("edit", String(r._id || r.id), "reject")}>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  setPendingDecision({
+                                    type: "edit",
+                                    id: String(r._id || r.id),
+                                    action: "reject",
+                                    itemLabel: String(
+                                      (r as any).productId?.name ||
+                                        r.productId ||
+                                        "product edit request",
+                                    ),
+                                  })
+                                }
+                              >
                                 <X className="h-4 w-4" />
                               </Button>
-                              <Button size="sm" onClick={() => actOnRequest("edit", String(r._id || r.id), "approve")}>
+                              <Button
+                                size="sm"
+                                onClick={() =>
+                                  setPendingDecision({
+                                    type: "edit",
+                                    id: String(r._id || r.id),
+                                    action: "approve",
+                                    itemLabel: String(
+                                      (r as any).productId?.name ||
+                                        r.productId ||
+                                        "product edit request",
+                                    ),
+                                  })
+                                }
+                              >
                                 <Check className="h-4 w-4" />
                               </Button>
                             </>
@@ -327,7 +494,9 @@ export default function Approvals() {
           </CardHeader>
           <CardContent>
             {transferRequests.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No requests found for this filter.</p>
+              <p className="text-sm text-muted-foreground">
+                No requests found for this filter.
+              </p>
             ) : (
               <Table>
                 <TableHeader>
@@ -348,8 +517,8 @@ export default function Approvals() {
                           r.status === "approved"
                             ? "default"
                             : r.status === "rejected"
-                            ? "destructive"
-                            : "secondary"
+                              ? "destructive"
+                              : "secondary"
                         }
                       >
                         {r.status}
@@ -360,23 +529,60 @@ export default function Approvals() {
                         <TableCell>
                           {r.decidedAt ? (
                             <span className="text-xs text-muted-foreground">
-                              {new Date(r.decidedAt as any).toLocaleDateString()}
+                              {new Date(
+                                r.decidedAt as any,
+                              ).toLocaleDateString()}
                             </span>
-                          ) : '-'}
+                          ) : (
+                            "-"
+                          )}
                         </TableCell>
-                        <TableCell>{(r as any).productId?.name || r.productId}</TableCell>
+                        <TableCell>
+                          {(r as any).productId?.name || r.productId}
+                        </TableCell>
                         <TableCell>{r.quantity}</TableCell>
-                        <TableCell>{r.requesterName || "Store Keeper"}</TableCell>
+                        <TableCell>
+                          {r.requesterName || "Store Keeper"}
+                        </TableCell>
                         <TableCell className="space-x-2 flex items-center">
                           {statusBadge}
                         </TableCell>
                         <TableCell className="text-right space-x-2">
                           {r.status === "pending" && (
                             <>
-                              <Button size="sm" variant="outline" onClick={() => actOnRequest("transfer", String(r._id || r.id), "reject")}>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  setPendingDecision({
+                                    type: "transfer",
+                                    id: String(r._id || r.id),
+                                    action: "reject",
+                                    itemLabel: String(
+                                      (r as any).productId?.name ||
+                                        r.productId ||
+                                        "stock transfer request",
+                                    ),
+                                  })
+                                }
+                              >
                                 <X className="h-4 w-4" />
                               </Button>
-                              <Button size="sm" onClick={() => actOnRequest("transfer", String(r._id || r.id), "approve")}>
+                              <Button
+                                size="sm"
+                                onClick={() =>
+                                  setPendingDecision({
+                                    type: "transfer",
+                                    id: String(r._id || r.id),
+                                    action: "approve",
+                                    itemLabel: String(
+                                      (r as any).productId?.name ||
+                                        r.productId ||
+                                        "stock transfer request",
+                                    ),
+                                  })
+                                }
+                              >
                                 <Check className="h-4 w-4" />
                               </Button>
                             </>
@@ -390,6 +596,43 @@ export default function Approvals() {
             )}
           </CardContent>
         </Card>
+
+        <AlertDialog
+          open={Boolean(pendingDecision)}
+          onOpenChange={(open) => !open && setPendingDecision(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {pendingDecision?.action === "approve"
+                  ? "Are you sure you want to approve this request?"
+                  : "Are you sure you want to reject this request?"}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {pendingDecision
+                  ? `${pendingDecision.action === "approve" ? "Approving" : "Rejecting"} ${pendingDecision.itemLabel} will update this request immediately.`
+                  : "This action will update the request immediately."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className={
+                  pendingDecision?.action === "reject"
+                    ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    : undefined
+                }
+                onClick={() => {
+                  void confirmDecision();
+                }}
+              >
+                {pendingDecision?.action === "approve"
+                  ? "Yes, approve"
+                  : "Yes, reject"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </RoleLayout>
   );

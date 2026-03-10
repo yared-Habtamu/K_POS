@@ -42,6 +42,7 @@ import {
   Barcode,
   Image as ImageIcon,
   Loader2,
+  RotateCw,
 } from "lucide-react";
 
 const units: ProductUnit[] = ["pcs", "kg", "g", "l", "ml", "box"];
@@ -52,11 +53,16 @@ export default function ManagerProductManagement() {
   const { products, categories, addProduct, updateProduct, deleteProduct } =
     useProductStore();
   const { user, isAuthenticated } = useAuthStore();
-  const canSetPurchase = user?.role === 'owner' || (user?.permissions || []).includes('addItem');
+  const canSetPurchase =
+    user?.role === "owner" || (user?.permissions || []).includes("addItem");
   // Debug: confirm this page is rendered and show user role
   // Remove after debugging
   // eslint-disable-next-line no-console
-  console.debug('ManagerProductManagement render', { role: user?.role, isAuthenticated, canSetPurchase });
+  console.debug("ManagerProductManagement render", {
+    role: user?.role,
+    isAuthenticated,
+    canSetPurchase,
+  });
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -119,6 +125,7 @@ export default function ManagerProductManagement() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [soldMap, setSoldMap] = useState<Record<string, number>>({});
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -182,7 +189,10 @@ export default function ManagerProductManagement() {
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
     const remaining = Number(
-      product.quantity ?? product.supermarketQuantity ?? product.storeQuantity ?? 0,
+      product.quantity ??
+        product.supermarketQuantity ??
+        product.storeQuantity ??
+        0,
     );
 
     setForm({
@@ -199,8 +209,8 @@ export default function ManagerProductManagement() {
       barcodes: Array.isArray(product.barcodes)
         ? product.barcodes.slice()
         : product.barcode
-        ? [product.barcode]
-        : [],
+          ? [product.barcode]
+          : [],
       barcodeInput: "",
     });
     setIsDialogOpen(true);
@@ -234,7 +244,10 @@ export default function ManagerProductManagement() {
       name: form.name,
       category: form.category,
       unit: form.unit,
-      purchasePrice: editingProduct && !canSetPurchase ? editingProduct.purchasePrice : parseFloat(form.purchasePrice),
+      purchasePrice:
+        editingProduct && !canSetPurchase
+          ? editingProduct.purchasePrice
+          : parseFloat(form.purchasePrice),
       sellingPrice: parseFloat(form.sellingPrice),
       quantity: parseInt(form.quantity),
       storeQuantity: parseInt(form.quantity),
@@ -260,7 +273,10 @@ export default function ManagerProductManagement() {
         }
       } else {
         // prevent manager from creating new products from this page; redirect to owner flow if needed
-        toast({ title: "Only owners can add products" , variant: "destructive" });
+        toast({
+          title: "Only owners can add products",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error("Save failed:", error);
@@ -296,6 +312,19 @@ export default function ManagerProductManagement() {
     }
   };
 
+  const refreshProducts = async () => {
+    setIsRefreshing(true);
+    try {
+      await (useProductStore
+        .getState()
+        .fetchProducts?.(currentPage, ITEMS_PER_PAGE) as Promise<void>);
+    } catch (e) {
+      // ignore
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     // Manager and owner can access this page
     <RoleLayout allowedRoles={["manager", "owner"]}>
@@ -304,10 +333,24 @@ export default function ManagerProductManagement() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">{t("products")}</h1>
-            <p className="text-muted-foreground">View product inventory</p>
+            <p className="text-muted-foreground">
+              {t("view_product_inventory")}
+            </p>
           </div>
 
-          <div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => void refreshProducts()}
+              disabled={isRefreshing}
+              aria-label="Refresh products"
+              title="Refresh products"
+            >
+              <RotateCw
+                className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+              />
+            </Button>
             <Button onClick={() => navigate("/manager/products/add")}>
               <Plus className="mr-2 h-4 w-4" />
               {t("add_product")}
@@ -399,23 +442,27 @@ export default function ManagerProductManagement() {
                   </div>
                   <div className="space-y-2">
                     {canSetPurchase && (
-                    <div className="space-y-2">
-                      <Label htmlFor="purchasePrice">{t("purchase_price")} (ETB) *</Label>
-                      <Input
-                        id="purchasePrice"
-                        type="number"
-                        step="0.01"
-                        value={form.purchasePrice}
-                        onChange={(e) =>
-                          setForm({ ...form, purchasePrice: e.target.value })
-                        }
-                        required
-                      />
-                    </div>
-                  )}
+                      <div className="space-y-2">
+                        <Label htmlFor="purchasePrice">
+                          {t("purchase_price")} (ETB) *
+                        </Label>
+                        <Input
+                          id="purchasePrice"
+                          type="number"
+                          step="0.01"
+                          value={form.purchasePrice}
+                          onChange={(e) =>
+                            setForm({ ...form, purchasePrice: e.target.value })
+                          }
+                          required
+                        />
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="sellingPrice">{t("selling_price")} (ETB) *</Label>
+                    <Label htmlFor="sellingPrice">
+                      {t("selling_price")} (ETB) *
+                    </Label>
                     <Input
                       id="sellingPrice"
                       type="number"
@@ -592,13 +639,19 @@ export default function ManagerProductManagement() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-12">Image</TableHead>
+                    <TableHead className="w-12">{t("image")}</TableHead>
                     <TableHead>{t("product_name")}</TableHead>
                     <TableHead>{t("category")}</TableHead>
-                    <TableHead className="text-right">{t("purchase_price")}</TableHead>
-                    <TableHead className="text-right">{t("selling_price")}</TableHead>
+                    <TableHead className="text-right">
+                      {t("purchase_price")}
+                    </TableHead>
+                    <TableHead className="text-right">
+                      {t("selling_price")}
+                    </TableHead>
                     <TableHead className="text-right">{t("stock")}</TableHead>
-                    <TableHead className="text-right">Mart Qty</TableHead>
+                    <TableHead className="text-right">
+                      {t("mart_qty")}
+                    </TableHead>
                     <TableHead className="text-right">{t("actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -619,29 +672,49 @@ export default function ManagerProductManagement() {
                             </div>
                           )}
                         </TableCell>
-                        <TableCell className="font-medium">{product.name}</TableCell>
+                        <TableCell className="font-medium">
+                          {product.name}
+                        </TableCell>
                         <TableCell>
                           <Badge variant="outline">{product.category}</Badge>
                         </TableCell>
-                        <TableCell className="text-right">{product.purchasePrice} ETB</TableCell>
-                        <TableCell className="text-right">{product.sellingPrice} ETB</TableCell>
-                        <TableCell className="text-right">{(() => {
-                          const storeQty = Number(product.storeQuantity ?? 0);
-                          return (
-                            <Badge variant="secondary">{storeQty} {product.unit}</Badge>
-                          );
-                        })()}</TableCell>
-                        <TableCell className="text-right">{(() => {
-                          const martQty = Number(
-                            product.quantity ?? product.supermarketQuantity ?? 0,
-                          );
-                          const lowThreshold = Number(product.lowStockThreshold || 0);
-                          const variant =
-                            martQty <= lowThreshold ? "destructive" : "secondary";
-                          return (
-                            <Badge variant={variant}>{martQty} {product.unit}</Badge>
-                          );
-                        })()}</TableCell>
+                        <TableCell className="text-right">
+                          {product.purchasePrice} ETB
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {product.sellingPrice} ETB
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {(() => {
+                            const storeQty = Number(product.storeQuantity ?? 0);
+                            return (
+                              <Badge variant="secondary">
+                                {storeQty} {product.unit}
+                              </Badge>
+                            );
+                          })()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {(() => {
+                            const martQty = Number(
+                              product.quantity ??
+                                product.supermarketQuantity ??
+                                0,
+                            );
+                            const lowThreshold = Number(
+                              product.lowStockThreshold || 0,
+                            );
+                            const variant =
+                              martQty <= lowThreshold
+                                ? "destructive"
+                                : "secondary";
+                            return (
+                              <Badge variant={variant}>
+                                {martQty} {product.unit}
+                              </Badge>
+                            );
+                          })()}
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             <Button
@@ -665,7 +738,10 @@ export default function ManagerProductManagement() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-4 text-muted-foreground">
+                      <TableCell
+                        colSpan={8}
+                        className="text-center py-4 text-muted-foreground"
+                      >
                         {search || categoryFilter !== "all"
                           ? "No products found"
                           : "No products yet."}
@@ -678,17 +754,50 @@ export default function ManagerProductManagement() {
 
             <div className="flex flex-col sm:flex-row items-center justify-between px-2 py-3 border-t border-border">
               <div className="text-xs text-muted-foreground mb-2 sm:mb-0">
-                Showing <span className="font-medium">{startIndex + 1}</span>–<span className="font-medium">{startIndex + filteredProducts.length}</span> of <span className="font-medium">{useProductStore.getState().totalProducts || filteredProducts.length}</span> products
+                Showing <span className="font-medium">{startIndex + 1}</span>–
+                <span className="font-medium">
+                  {startIndex + filteredProducts.length}
+                </span>{" "}
+                of{" "}
+                <span className="font-medium">
+                  {useProductStore.getState().totalProducts ||
+                    filteredProducts.length}
+                </span>{" "}
+                products
               </div>
 
               <div className="flex items-center gap-1">
-                <Button variant="outline" size="sm" onClick={prevPage} disabled={currentPage === 1}>Prev</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={prevPage}
+                  disabled={currentPage === 1}
+                >
+                  Prev
+                </Button>
 
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <Button key={page} variant={currentPage === page ? "default" : "outline"} size="sm" className="h-8 w-8 p-0" onClick={() => goToPage(page)}>{page}</Button>
-                ))}
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                  (page) => (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? "default" : "outline"}
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => goToPage(page)}
+                    >
+                      {page}
+                    </Button>
+                  ),
+                )}
 
-                <Button variant="outline" size="sm" onClick={nextPage} disabled={currentPage === totalPages}>Next</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={nextPage}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </Button>
               </div>
             </div>
           </CardContent>
