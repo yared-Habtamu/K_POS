@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { CheckCircle2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Modal, type ModalSize } from "@/components/ui/Modal";
@@ -25,10 +26,10 @@ export interface SuccessModalProps {
 export function SuccessModal({
   isOpen,
   onClose,
-  title = "Success",
+  title,
   message,
   details,
-  confirmLabel = "Done",
+  confirmLabel,
   onConfirm,
   secondaryLabel,
   onSecondaryAction,
@@ -36,6 +37,7 @@ export function SuccessModal({
   children,
   iconClassName,
 }: SuccessModalProps) {
+  const { t } = useTranslation();
   const handleConfirm = () => {
     onConfirm?.();
     onClose();
@@ -46,7 +48,7 @@ export function SuccessModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} type="success" size={size}>
+    <Modal isOpen={isOpen} onClose={onClose} title={title ?? t("success")} type="success" size={size}>
       <div className="space-y-6">
         <div className="flex flex-col items-center text-center">
           <div className={cn("mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-success/10 text-success", iconClassName)}>
@@ -69,7 +71,7 @@ export function SuccessModal({
           ) : null}
 
           <Button type="button" onClick={handleConfirm}>
-            {confirmLabel}
+            {confirmLabel ?? t("done")}
           </Button>
         </div>
       </div>

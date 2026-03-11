@@ -1,36 +1,269 @@
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { RoleLayout } from '@/components/layout/RoleLayout';
 import { ProductSearch } from '@/components/pos/ProductSearch';
 import { Cart } from '@/components/pos/Cart';
 import { PaymentPanel } from '@/components/pos/PaymentPanel';
+import { AdvancedFilters, type AdvancedFilterValues } from '@/components/ui/AdvancedFilters';
+import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { toast } from '@/hooks/use-toast';
 import { useCartStore } from '@/stores/cartStore';
 import { useProductStore } from '@/stores/productStore';
-import { ShoppingCart, Package, AlertTriangle, Clock } from 'lucide-react';
+import { ShoppingCart, Package, AlertTriangle, Clock, Plus } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
+import type { Product } from '@/types';
+
+const defaultFilterValues: AdvancedFilterValues = {
+  query: '',
+  category: '',
+  stockStatus: '',
+  sortBy: 'name_asc',
+};
+
+function getPrimaryBarcode(product: Product) {
+  return product.barcode || product.barcodes?.[0] || '';
+}
+
+function getAvailableQuantity(product: Product) {
+  return Number(product.quantity ?? product.supermarketQuantity ?? product.storeQuantity ?? 0);
+}
+
+function getWarehouseQuantity(product: Product) {
+  return Number(product.storeQuantity ?? 0);
+}
+
+function getMartQuantity(product: Product) {
+  return Number(product.supermarketQuantity ?? product.quantity ?? 0);
+}
+
+function getStockStatus(product: Product) {
+  const quantity = getAvailableQuantity(product);
+  const threshold = Number(product.lowStockThreshold || 0);
+
+  if (quantity <= 0) {
+    return 'out_of_stock';
+  }
+
+  if (quantity <= threshold) {
+    return 'low_stock';
+  }
+
+  return 'in_stock';
+}
 
 export default function CashierPOS() {
   const { t } = useTranslation();
-  const { items } = useCartStore();
-  const { getLowStockProducts, getExpiringProducts } = useProductStore();
+  const { items, addItem } = useCartStore();
+  const { products, isLoading, fetchError, fetchProducts, getLowStockProducts, getExpiringProducts } = useProductStore();
   const { user } = useAuthStore();
+  const isOwner = user?.role === 'owner';
+  const [filterValues, setFilterValues] = useState<AdvancedFilterValues>(defaultFilterValues);
+
+  useEffect(() => {
+    const refreshProducts = async () => {
+      try {
+        if (!navigator.onLine) return;
+        await fetchProducts();
+      } catch (err) {
+        console.warn('Product fetch failed to start:', err);
+      }
+    };
+
+    refreshProducts();
+    const intervalId = window.setInterval(refreshProducts, 60_000);
+    window.addEventListener('online', refreshProducts);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('online', refreshProducts);
+    };
+  }, [fetchProducts]);
 
   const lowStock = getLowStockProducts();
   const expiring = getExpiringProducts(7);
+  const categoryOptions = useMemo(() => {
+    const categories = Array.from(
+      new Set(products.map((product) => String(product.category || '').trim()).filter(Boolean)),
+    ).sort((left, right) => left.localeCompare(right));
+
+    return categories.map((category) => ({ label: category, value: category }));
+  }, [products]);
+
+  const filteredProducts = useMemo(() => {
+    const query = String(filterValues.query || '').trim().toLowerCase();
+    const category = String(filterValues.category || '').trim().toLowerCase();
+    const stockStatus = String(filterValues.stockStatus || '').trim();
+    const sortBy = String(filterValues.sortBy || 'name_asc');
+
+    const filtered = products.filter((product) => {
+      const name = String(product.name || '').toLowerCase();
+      const altName = String(product.nameAm || '').toLowerCase();
+      const productCategory = String(product.category || '').trim().toLowerCase();
+      const barcode = getPrimaryBarcode(product).toLowerCase();
+      const currentStatus = getStockStatus(product);
+
+      const matchesQuery =
+        !query ||
+        name.includes(query) ||
+        altName.includes(query) ||
+        barcode.includes(query) ||
+        productCategory.includes(query);
+      const matchesCategory = !category || productCategory === category;
+      const matchesStockStatus = !stockStatus || currentStatus === stockStatus;
+
+      return matchesQuery && matchesCategory && matchesStockStatus;
+    });
+
+    return filtered.sort((left, right) => {
+      switch (sortBy) {
+        case 'name_desc':
+          return String(right.name || '').localeCompare(String(left.name || ''));
+        case 'price_asc':
+          return Number(left.sellingPrice || 0) - Number(right.sellingPrice || 0);
+        case 'price_desc':
+          return Number(right.sellingPrice || 0) - Number(left.sellingPrice || 0);
+        case 'stock_asc':
+          return getAvailableQuantity(left) - getAvailableQuantity(right);
+        case 'stock_desc':
+          return getAvailableQuantity(right) - getAvailableQuantity(left);
+        case 'category_asc':
+          return String(left.category || '').localeCompare(String(right.category || ''));
+        case 'name_asc':
+        default:
+          return String(left.name || '').localeCompare(String(right.name || ''));
+      }
+    });
+  }, [filterValues, products]);
+
+  const handleAddToCart = (product: Product) => {
+    addItem(product, 1);
+    toast({
+      title: t('product_added'),
+      description: `${product.name} added to cart`,
+    });
+  };
+
+  const productColumns: DataTableColumn<Product>[] = [
+    {
+      key: 'image',
+      header: t('image'),
+      cell: (product) => (
+        product.pictureUrl ? (
+          <img
+            src={product.pictureUrl}
+            alt={product.name}
+            className="h-10 w-10 rounded object-cover"
+          />
+        ) : (
+          <div className="flex h-10 w-10 items-center justify-center rounded bg-muted">
+            <Package className="h-5 w-5 text-muted-foreground" />
+          </div>
+        )
+      ),
+    },
+    {
+      key: 'name',
+      header: t('product_name'),
+      accessor: (product) => product.name,
+      searchable: true,
+    },
+    {
+      key: 'category',
+      header: t('category'),
+      accessor: (product) => product.category,
+      cell: (product) => <Badge variant="outline">{product.category || '-'}</Badge>,
+      searchable: true,
+    },
+    ...(isOwner
+      ? [
+          {
+            key: 'purchasePrice',
+            header: t('purchase_price'),
+            accessor: (product: Product) => Number(product.purchasePrice || 0),
+            cell: (product: Product) => `${Number(product.purchasePrice || 0).toLocaleString()} ETB`,
+          } satisfies DataTableColumn<Product>,
+        ]
+      : []),
+    {
+      key: 'sellingPrice',
+      header: t('selling_price'),
+      accessor: (product) => Number(product.sellingPrice || 0),
+      cell: (product) => `${Number(product.sellingPrice || 0).toLocaleString()} ETB`,
+    },
+    {
+      key: 'stock',
+      header: t('stock'),
+      accessor: (product) => getWarehouseQuantity(product),
+      cell: (product) => {
+        return (
+          <Badge variant={getWarehouseQuantity(product) > 0 ? 'secondary' : 'destructive'}>
+            {getWarehouseQuantity(product)} pcs
+          </Badge>
+        );
+      },
+    },
+    {
+      key: 'martQty',
+      header: 'Mart Qty',
+      accessor: (product) => getMartQuantity(product),
+      cell: (product) => {
+        const martQty = getMartQuantity(product);
+
+        return (
+          <Badge variant={martQty > 0 ? 'secondary' : 'destructive'}>
+            {martQty} pcs
+          </Badge>
+        );
+      },
+    },
+  ];
 
   return (
     <RoleLayout allowedRoles={['cashier', 'owner', 'manager']}>
-      <div className="h-full flex flex-col lg:flex-row gap-4">
+      <div className="flex h-full min-h-0 flex-col gap-4 xl:flex-row">
         {/* Left Panel - Products & Cart */}
-        <div className="flex-1 flex flex-col gap-4 min-h-0">
+        <div className="flex-1 space-y-4 overflow-y-auto pr-1">
           {/* Search */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <ProductSearch />
+            <ProductSearch
+              value={String(filterValues.query || '')}
+              onValueChange={(value) =>
+                setFilterValues((current) => ({
+                  ...current,
+                  query: value,
+                }))
+              }
+            />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className="min-h-[320px]"
+          >
+            <Card className="flex h-full flex-col">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShoppingCart className="h-5 w-5" />
+                    {t('cart')}
+                  </div>
+                  {items.length > 0 && (
+                    <Badge>{items.length} {t('items')}</Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-1 flex-col min-h-0 pb-4">
+                <Cart />
+              </CardContent>
+            </Card>
           </motion.div>
 
           {/* Quick Alerts */}
@@ -56,29 +289,101 @@ export default function CashierPOS() {
             </motion.div>
           )}
 
-          {/* Cart */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 0 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="flex-1 min-h-0"
+            transition={{ delay: 0.1 }}
           >
-            <Card className="h-full flex flex-col">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <ShoppingCart className="h-5 w-5" />
-                    {t('cart')}
-                  </div>
-                  {items.length > 0 && (
-                    <Badge>{items.length} {t('items')}</Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex-1 flex flex-col min-h-0 pb-4">
-                <Cart />
-              </CardContent>
-            </Card>
+            <AdvancedFilters
+              title="Product filters"
+              description="Search the product catalog, narrow by category or stock state, and control the POS list sort order."
+              fields={[
+                {
+                  key: 'query',
+                  label: 'Search products',
+                  type: 'search',
+                  placeholder: 'Search by name, category, or barcode',
+                },
+                {
+                  key: 'category',
+                  label: t('category'),
+                  type: 'select',
+                  placeholder: 'All categories',
+                  options: [{ label: 'All categories', value: 'all' }, ...categoryOptions],
+                },
+                {
+                  key: 'stockStatus',
+                  label: 'Stock status',
+                  type: 'select',
+                  placeholder: 'All stock states',
+                  options: [
+                    { label: 'All stock states', value: 'all' },
+                    { label: 'In stock', value: 'in_stock' },
+                    { label: 'Low stock', value: 'low_stock' },
+                    { label: 'Out of stock', value: 'out_of_stock' },
+                  ],
+                },
+                {
+                  key: 'sortBy',
+                  label: 'Sort by',
+                  type: 'select',
+                  placeholder: 'Select sort',
+                  options: [
+                    { label: 'Name A-Z', value: 'name_asc' },
+                    { label: 'Name Z-A', value: 'name_desc' },
+                    { label: 'Category', value: 'category_asc' },
+                    { label: 'Price low-high', value: 'price_asc' },
+                    { label: 'Price high-low', value: 'price_desc' },
+                    { label: 'Stock low-high', value: 'stock_asc' },
+                    { label: 'Stock high-low', value: 'stock_desc' },
+                  ],
+                },
+              ]}
+              values={filterValues}
+              onValuesChange={(nextValues) =>
+                setFilterValues({
+                  ...nextValues,
+                  category: nextValues.category === 'all' ? '' : nextValues.category,
+                  stockStatus: nextValues.stockStatus === 'all' ? '' : nextValues.stockStatus,
+                })
+              }
+              onReset={() => setFilterValues(defaultFilterValues)}
+              applyLabel="Apply"
+              resetLabel="Clear"
+            />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+          >
+            <DataTable
+              columns={productColumns}
+              data={filteredProducts}
+              rowKey="id"
+              title="Detailed product list"
+              description="Add products to the cart from the same detailed inventory table layout used elsewhere in the app."
+              isLoading={isLoading}
+              loadingMessage="Loading products..."
+              emptyMessage={fetchError ? fetchError : 'No products match the selected filters.'}
+              pagination
+              initialPageSize={8}
+              pageSizeOptions={[8, 12, 20]}
+              customRowActions={[
+                {
+                  label: 'Add',
+                  icon: Plus,
+                  onClick: handleAddToCart,
+                },
+              ]}
+              toolbarContent={
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline">{filteredProducts.length} products</Badge>
+                  <Badge variant="secondary">{items.length} {t('items')} in cart</Badge>
+                </div>
+              }
+            />
           </motion.div>
         </div>
 
@@ -87,7 +392,7 @@ export default function CashierPOS() {
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.3 }}
-          className="lg:w-96"
+          className="xl:w-96"
         >
           <Card className="h-full">
             <CardHeader className="pb-3">

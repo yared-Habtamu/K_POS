@@ -44,32 +44,47 @@ router.post('/login', async (req, res) => {
   }
 
   const token = jwt.sign({ id: user._id, username: user.username, role: user.role, martId: user.martId, permissions: user.permissions || [] }, JWT_SECRET, { expiresIn: '7d' });
-  res.json({ token, user: { id: user._id, username: user.username, name: user.name, role: user.role, martId: user.martId, permissions: user.permissions || [] } });
+  res.json({ token, user: { id: user._id, username: user.username, name: user.name, email: user.email || '', phone: user.phone || '', profilePictureUrl: user.profilePictureUrl || '', role: user.role, martId: user.martId, permissions: user.permissions || [] } });
 });
 
-// Register endpoint (owner creates manager/cashier/storeKeeper)
-// Protected: owner or systemAdmin
+// Register endpoint
+// systemAdmin and owner can create manager/cashier/storeKeeper
+// manager can create cashier/storeKeeper inside their own mart
 router.post('/register', authenticate, async (req, res) => {
-  const { name, username, password, confirmPassword, role, martId, phone, salary } = req.body;
-  if (!name || !username || !password || !confirmPassword || !role) return res.status(400).json({ message: 'Missing required fields' });
+  const { name, username, password, confirmPassword, role, martId, phone, email, salary, profilePictureUrl } = req.body;
+  const requesterRole = String(req.user.role || '').trim().toLowerCase();
+  const normalizedRoleInput = String(role || '').trim();
+  const normalizedTargetRole =
+    normalizedRoleInput === 'store_keeper' || normalizedRoleInput === 'storekeeper'
+      ? 'storeKeeper'
+      : normalizedRoleInput === 'system_admin'
+        ? 'systemAdmin'
+        : normalizedRoleInput;
+
+  if (!name || !username || !password || !confirmPassword || !normalizedTargetRole) return res.status(400).json({ message: 'Missing required fields' });
   if (password !== confirmPassword) return res.status(400).json({ message: 'Passwords do not match' });
-  if (!['manager','cashier','storeKeeper'].includes(role)) return res.status(400).json({ message: 'Invalid role' });
-  // only systemAdmin or owner allowed to register employees
-  if (req.user.role !== 'systemAdmin' && req.user.role !== 'owner') {
+  if (!['manager','cashier','storeKeeper'].includes(normalizedTargetRole)) return res.status(400).json({ message: 'Invalid role' });
+  // only systemAdmin, owner, or manager are allowed to register employees
+  if (!['systemadmin', 'owner', 'manager'].includes(requesterRole)) {
     return res.status(403).json({ message: 'Insufficient permissions to create users' });
   }
 
-  // owners can only create within their mart
-  if (req.user.role === 'owner' && String(req.user.martId) !== String(martId)) {
-    return res.status(403).json({ message: 'Owner cannot create user outside their mart' });
+  // owners and managers can only create users within their mart
+  if ((requesterRole === 'owner' || requesterRole === 'manager') && String(req.user.martId) !== String(martId)) {
+    return res.status(403).json({ message: 'Cannot create user outside your mart' });
+  }
+
+  // managers may only create cashiers and store keepers
+  if (requesterRole === 'manager' && !['cashier', 'storeKeeper'].includes(normalizedTargetRole)) {
+    return res.status(403).json({ message: 'Managers can only create cashier or store keeper accounts' });
   }
 
   const exists = await User.findOne({ username });
   if (exists) return res.status(409).json({ message: 'Username already exists' });
   const passwordHash = await bcrypt.hash(password, 10);
-  const user = new User({ name, username, passwordHash, role, martId, phone, salary });
+  const user = new User({ name, username, passwordHash, role: normalizedTargetRole, martId, phone, email, salary, profilePictureUrl });
   await user.save();
-  res.status(201).json({ user: { id: user._id, username: user.username, name: user.name, role: user.role, martId: user.martId } });
+  res.status(201).json({ user: { id: user._id, username: user.username, name: user.name, email: user.email || '', phone: user.phone || '', profilePictureUrl: user.profilePictureUrl || '', role: user.role, martId: user.martId } });
 });
 
 // List users by martId (owner/manager/systemAdmin)
@@ -99,7 +114,7 @@ router.put('/users/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const update = {};
-    const allowed = ['name', 'phone', 'role', 'salary', 'martId', 'username', 'permissions'];
+    const allowed = ['name', 'phone', 'role', 'salary', 'martId', 'username', 'permissions', 'email', 'profilePictureUrl'];
     for (const k of allowed) if (req.body[k] !== undefined) update[k] = req.body[k];
     if (req.body.password) {
       const hash = await bcrypt.hash(req.body.password, 10);
@@ -199,6 +214,42 @@ router.put('/users/:id', authenticate, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.put('/change-password', authenticate, async (req, res) => {
+  try {
+    const { currentPassword, newPassword, confirmPassword } = req.body || {};
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ message: 'Current password, new password, and confirmation are required' });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ message: 'Passwords do not match' });
+    }
+
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters long' });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const valid = await bcrypt.compare(String(currentPassword), user.passwordHash || '');
+    if (!valid) {
+      return res.status(400).json({ message: 'Current password is incorrect' });
+    }
+
+    user.passwordHash = await bcrypt.hash(String(newPassword), 10);
+    await user.save();
+
+    return res.json({ message: 'Password updated successfully' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error' });
   }
 });
 

@@ -42,6 +42,7 @@ const customersRouter = require("./routes/customers");
 const employeesRouter = require("./routes/employees");
 const attendanceRouter = require("./routes/attendance");
 const notificationsRouter = require("./routes/notifications");
+const categoryRouter = require("./routes/categories");
 
 app.use("/api/expenses", expensesRouter);
 app.use("/api/assets", assetsRouter);
@@ -60,6 +61,7 @@ try {
   console.log('Debug routes not available');
 }
 app.use("/api/products", productsRouter);
+app.use("/api/categories", categoryRouter);
 app.use("/api/employees", employeesRouter);
 app.use("/api/attendance", attendanceRouter);
 app.use("/api/product-edit-requests", productEditRequestsRouter);

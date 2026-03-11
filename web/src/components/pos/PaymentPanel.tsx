@@ -60,6 +60,24 @@ interface PaymentPanelProps {
   canApplyDiscount?: boolean;
 }
 
+type MartBranding = {
+  shopName: string;
+  shopAddress?: string;
+  shopPhone?: string;
+  receiptHeader?: string;
+  receiptSlogan?: string;
+};
+
+function buildMartAddress(mart: Record<string, unknown>) {
+  const directAddress = String(mart.address || "").trim();
+  if (directAddress) return directAddress;
+
+  return [mart.city, mart.region, mart.country]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
 export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
   const { t } = useTranslation();
   const { user } = useAuthStore();
@@ -89,6 +107,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
   const [newChargeCustomName, setNewChargeCustomName] = useState("");
   const [newChargeAmount, setNewChargeAmount] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isFinalizingReceipt, setIsFinalizingReceipt] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [currentReceipt, setCurrentReceipt] = useState<Receipt | null>(null);
   const [savedSalePayload, setSavedSalePayload] = useState<SaleRequest | null>(
@@ -98,6 +117,48 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     Record<string, string>
   >({});
   const [martCurrency, setMartCurrency] = useState<string | null>(null);
+  const [martBranding, setMartBranding] = useState<MartBranding>({
+    shopName: "Shop",
+  });
+
+  const normalizeMartBranding = (json: Record<string, unknown>): MartBranding => ({
+    shopName: String(json.martName || "").trim() || "Shop",
+    shopAddress: buildMartAddress(json) || undefined,
+    shopPhone: String(json.phone || (json.ownerId as { phone?: string } | undefined)?.phone || "")
+      .trim() || undefined,
+    receiptHeader: String(json.receiptHeader || "").trim() || undefined,
+    receiptSlogan:
+      String(json.receiptMessage || json.receiptHeader || "").trim() || undefined,
+  });
+
+  const fetchMartBranding = async (force = false) => {
+    const API_BASE = import.meta.env.VITE_API_URL || "";
+    const martId = user?.martId;
+    const token = user?.token;
+    if (!martId) return martBranding;
+    if (!force && paymentPanelCachedMartId === martId && martBranding.shopName !== "Shop") {
+      return martBranding;
+    }
+
+    const res = await fetch(`${API_BASE}/api/marts/${martId}`, {
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+    if (!res.ok) return martBranding;
+
+    const json = await res.json();
+    const nextBranding = normalizeMartBranding(json as Record<string, unknown>);
+    setMartBranding((prev) => {
+      try {
+        return JSON.stringify(prev) === JSON.stringify(nextBranding)
+          ? prev
+          : nextBranding;
+      } catch {
+        return nextBranding;
+      }
+    });
+    paymentPanelCachedMartId = martId;
+    return nextBranding;
+  };
 
   const handleApplyDiscount = () => {
     const value = parseFloat(discountValue);
@@ -171,6 +232,8 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     // Simulate processing
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
+    const latestBranding = await fetchMartBranding(true);
+
     const saleId = `SALE-${Date.now()}`;
     const receiptId = `RCP-${Date.now().toString(36).toUpperCase()}`;
 
@@ -182,11 +245,11 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
         receiptId,
         total: getTotal(),
         date: new Date().toISOString(),
-        shop: "Kiya Supermarket",
+        shop: latestBranding.shopName || "Shop",
       }),
-      shopName: "Kiya Supermarket",
-      shopAddress: "Addis Ababa, Ethiopia",
-      shopPhone: "+251 911 234 567",
+      shopName: latestBranding.shopName || "Shop",
+      shopAddress: latestBranding.shopAddress,
+      shopPhone: latestBranding.shopPhone,
       items,
       subtotal: getSubtotal(),
       discount: discount
@@ -202,8 +265,8 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
       paymentMethod,
       cashierName: user?.name || "Unknown",
       date: new Date(),
-      receiptHeader: "Thank you for shopping with us!",
-      receiptSlogan: "Quality products at affordable prices",
+      receiptHeader: latestBranding.receiptHeader,
+      receiptSlogan: latestBranding.receiptSlogan,
     };
 
     // prepare sale payload but do NOT send it yet; save when user presses Done on the receipt
@@ -238,6 +301,8 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
   };
 
   const handleDoneReceipt = async () => {
+    if (isFinalizingReceipt) return;
+
     // Save the sale to backend when Done is pressed on the receipt.
     if (!savedSalePayload) {
       // nothing to save, just close
@@ -246,6 +311,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
       return;
     }
 
+    setIsFinalizingReceipt(true);
     setIsProcessing(true);
 
     const queueOfflineSale = async (details?: string) => {
@@ -267,6 +333,15 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
           _authToken: user?.token,
           queuedAt: new Date().toISOString(),
         });
+
+        await useProductStore.getState().applyLocalSale?.(
+          Array.isArray(savedSalePayload.items)
+            ? (savedSalePayload.items as Array<{ productId: string; quantity: number }>).map((item) => ({
+                productId: String(item.productId || ''),
+                quantity: Number(item.quantity || 0),
+              }))
+            : [],
+        );
 
         toast({
           title: t("sale_complete"),
@@ -315,6 +390,14 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
         title: t("sale_complete"),
         description: `${t("receipt_label")}: ${savedSalePayload.receiptId}`,
       });
+      await useProductStore.getState().applyLocalSale?.(
+        Array.isArray(savedSalePayload.items)
+          ? (savedSalePayload.items as Array<{ productId: string; quantity: number }>).map((item) => ({
+              productId: String(item.productId || ''),
+              quantity: Number(item.quantity || 0),
+            }))
+          : [],
+      );
       // refresh products so UI reflects updated quantities
       try {
         await useProductStore.getState().fetchProducts?.();
@@ -332,6 +415,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
         "Network unavailable. Sale saved locally for sync.",
       );
     } finally {
+      setIsFinalizingReceipt(false);
       setIsProcessing(false);
     }
   };
@@ -454,6 +538,17 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
         setMartCurrency((prev) => {
           const nextCurrency = json.currency || "ETB";
           return prev === nextCurrency ? prev : nextCurrency;
+        });
+
+        setMartBranding((prev) => {
+          const nextBranding = normalizeMartBranding(json as Record<string, unknown>);
+          try {
+            return JSON.stringify(prev) === JSON.stringify(nextBranding)
+              ? prev
+              : nextBranding;
+          } catch {
+            return nextBranding;
+          }
         });
 
         const incomingRate = Number(json.taxRate) || 0;
@@ -725,7 +820,17 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
       </div>
 
       {/* Receipt Dialog */}
-      <Dialog open={showReceipt} onOpenChange={setShowReceipt}>
+      <Dialog
+        open={showReceipt}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCloseReceipt();
+            return;
+          }
+
+          setShowReceipt(open);
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{t("receipt_preview")}</DialogTitle>

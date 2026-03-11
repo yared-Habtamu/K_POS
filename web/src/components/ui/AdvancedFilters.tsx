@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { Filter, RotateCcw, Search, SlidersHorizontal, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -142,23 +143,28 @@ function getFieldBadgeLabel(field: AdvancedFilterField, value: AdvancedFilterFie
 }
 
 export function AdvancedFilters({
-  title = "Advanced filters",
-  description = "Refine the dataset with reusable search, select, and date filters.",
+  title,
+  description,
   fields,
   values,
   defaultValues = {},
   onValuesChange,
   onApply,
   onReset,
-  applyLabel = "Apply filters",
-  resetLabel = "Reset",
+  applyLabel,
+  resetLabel,
   defaultExpanded = true,
   collapsible = true,
   showActiveBadges = true,
   className,
 }: AdvancedFiltersProps) {
+  const { t } = useTranslation();
   const [internalValues, setInternalValues] = React.useState<AdvancedFilterValues>(defaultValues);
   const [isExpanded, setIsExpanded] = React.useState(defaultExpanded);
+  const resolvedTitle = title ?? t("advanced_filters");
+  const resolvedDescription = description ?? t("advanced_filters_description");
+  const resolvedApplyLabel = applyLabel ?? t("apply_filters");
+  const resolvedResetLabel = resetLabel ?? t("reset");
 
   const filterValues = values ?? internalValues;
 
@@ -202,17 +208,17 @@ export function AdvancedFilters({
           <div className="space-y-1">
             <CardTitle className="flex items-center gap-2 text-xl">
               <SlidersHorizontal className="h-5 w-5" />
-              {title}
+              {resolvedTitle}
             </CardTitle>
-            {description ? <CardDescription>{description}</CardDescription> : null}
+            {resolvedDescription ? <CardDescription>{resolvedDescription}</CardDescription> : null}
           </div>
 
           <div className="flex items-center gap-2">
-            {activeFields.length > 0 ? <Badge variant="secondary">{activeFields.length} active</Badge> : null}
+            {activeFields.length > 0 ? <Badge variant="secondary">{t("active_filters_count", { count: activeFields.length })}</Badge> : null}
             {collapsible ? (
               <Button type="button" variant="outline" size="sm" onClick={() => setIsExpanded((current) => !current)}>
                 <Filter className="h-4 w-4" />
-                {isExpanded ? "Hide" : "Show"}
+                {isExpanded ? t("hide") : t("show")}
               </Button>
             ) : null}
           </div>
@@ -227,7 +233,7 @@ export function AdvancedFilters({
                   type="button"
                   className="inline-flex items-center"
                   onClick={() => setFieldValue(field.key, getEmptyValue(field))}
-                  aria-label={`Clear ${String(field.label)} filter`}
+                  aria-label={t("clear_filter")}
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -262,7 +268,7 @@ export function AdvancedFilters({
                   {field.type === "select" ? (
                     <Select value={typeof value === "string" ? value : ""} onValueChange={(nextValue) => setFieldValue(field.key, nextValue)}>
                       <SelectTrigger>
-                        <SelectValue placeholder={field.placeholder ?? "Select option"} />
+                        <SelectValue placeholder={field.placeholder ?? t("select_option")} />
                       </SelectTrigger>
                       <SelectContent>
                         {field.options.map((option) => (
@@ -285,7 +291,7 @@ export function AdvancedFilters({
                   {field.type === "date-range" ? (
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <p className="text-xs text-muted-foreground">{field.fromLabel ?? "From"}</p>
+                        <p className="text-xs text-muted-foreground">{field.fromLabel ?? t("from")}</p>
                         <Input
                           type="date"
                           value={isDateRangeValue(value) ? value.from ?? "" : ""}
@@ -298,7 +304,7 @@ export function AdvancedFilters({
                         />
                       </div>
                       <div className="space-y-2">
-                        <p className="text-xs text-muted-foreground">{field.toLabel ?? "To"}</p>
+                        <p className="text-xs text-muted-foreground">{field.toLabel ?? t("to")}</p>
                         <Input
                           type="date"
                           value={isDateRangeValue(value) ? value.to ?? "" : ""}
@@ -330,11 +336,11 @@ export function AdvancedFilters({
           <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
             <Button type="button" variant="outline" onClick={handleReset}>
               <RotateCcw className="h-4 w-4" />
-              {resetLabel}
+              {resolvedResetLabel}
             </Button>
             <Button type="button" onClick={() => onApply?.(filterValues)}>
               <Filter className="h-4 w-4" />
-              {applyLabel}
+              {resolvedApplyLabel}
             </Button>
           </div>
         </CardContent>

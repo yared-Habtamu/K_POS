@@ -38,4 +38,8 @@ export async function fetchCustomers(params: { martId?: string } = {}, token?: s
   return request(`/api/customers${suffix}`, token);
 }
 
-export default { createCustomer, updateCustomer, fetchCustomers };
+export async function deleteCustomer(id: string, token?: string) {
+  return request(`/api/customers/${id}`, token, { method: 'DELETE' });
+}
+
+export default { createCustomer, updateCustomer, fetchCustomers, deleteCustomer };

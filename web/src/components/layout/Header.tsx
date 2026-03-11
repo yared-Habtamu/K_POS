@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
+import { useTheme } from 'next-themes';
 import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import {
   LogOut,
@@ -17,6 +18,9 @@ import {
   Bell,
   Globe,
   Menu,
+  Moon,
+  Sun,
+  User,
   Wifi,
   WifiOff,
 } from 'lucide-react';
@@ -30,6 +34,7 @@ interface HeaderProps {
 
 export function Header({ onToggleSidebar }: HeaderProps) {
   const { t, i18n } = useTranslation();
+  const { theme, setTheme } = useTheme();
   const { user, logout } = useAuthStore();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const role = user?.role;
@@ -53,8 +58,12 @@ export function Header({ onToggleSidebar }: HeaderProps) {
     i18n.changeLanguage(i18n.language === 'en' ? 'am' : 'en');
   };
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  const toggleTheme = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  };
+
+  const getInitials = (name?: string) => {
+    return String(name || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
   return (
@@ -73,12 +82,12 @@ export function Header({ onToggleSidebar }: HeaderProps) {
           {isOnline ? (
             <Badge variant="secondary" className="gap-1.5 bg-success/10 text-success border-success/20">
               <Wifi className="h-3 w-3" />
-              <span className="hidden sm:inline">Online</span>
+              <span className="hidden sm:inline">{t('online')}</span>
             </Badge>
           ) : (
             <Badge variant="secondary" className="gap-1.5 bg-warning/10 text-warning border-warning/20">
               <WifiOff className="h-3 w-3" />
-              <span className="hidden sm:inline">Offline</span>
+              <span className="hidden sm:inline">{t('offline')}</span>
             </Badge>
           )}
         </motion.div>
@@ -97,6 +106,16 @@ export function Header({ onToggleSidebar }: HeaderProps) {
           <span className="hidden sm:inline">{i18n.language === 'en' ? 'EN' : 'አማ'}</span>
         </Button>
 
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleTheme}
+          aria-label={theme === 'dark' ? t('switch_to_light_mode') : t('switch_to_dark_mode')}
+          title={theme === 'dark' ? t('light_mode') : t('dark_mode')}
+        >
+          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </Button>
+
         {/* Notifications */}
         <NotificationBell />
 
@@ -105,6 +124,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="gap-2 pl-2 pr-3">
               <Avatar className="h-8 w-8">
+                {user?.profilePictureUrl ? <AvatarImage src={user.profilePictureUrl} alt={user?.name || user?.username} /> : null}
                 <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                   {user ? getInitials(user.name) : 'U'}
                 </AvatarFallback>
@@ -121,10 +141,14 @@ export function Header({ onToggleSidebar }: HeaderProps) {
               <p className="text-xs text-muted-foreground">{user?.email || user?.phone}</p>
             </div>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate('/profile')}>
+              <User className="mr-2 h-4 w-4" />
+              {t('profile')}
+            </DropdownMenuItem>
             {user?.role === 'owner' && (
               <DropdownMenuItem onClick={() => navigate('/owner/settings')}>
                 <Settings className="mr-2 h-4 w-4" />
-                Settings
+                {t('settings')}
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { Check, ChevronDown, Loader2, Plus, Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -77,18 +78,18 @@ export function AutoComplete<TItem>({
   defaultValue = "",
   onValueChange,
   onSelect,
-  placeholder = "Search...",
+  placeholder,
   disabled = false,
   minQueryLength = 0,
   debounceMs = 250,
   maxResults = 8,
-  noResultsMessage = "No results found.",
-  loadingMessage = "Loading suggestions...",
-  emptyQueryMessage = "Start typing to see suggestions.",
+  noResultsMessage,
+  loadingMessage,
+  emptyQueryMessage,
   allowCreate = false,
   onCreateOption,
   createOptionLabel,
-  creatingMessage = "Adding option...",
+  creatingMessage,
   label,
   helperText,
   className,
@@ -97,6 +98,7 @@ export function AutoComplete<TItem>({
   name,
   id,
 }: AutoCompleteProps<TItem>) {
+  const { t } = useTranslation();
   const [internalValue, setInternalValue] = React.useState(defaultValue);
   const [suggestions, setSuggestions] = React.useState<TItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -110,6 +112,11 @@ export function AutoComplete<TItem>({
 
   const inputValue = value ?? internalValue;
   const shouldUseRemote = Boolean(fetchSuggestions);
+  const resolvedPlaceholder = placeholder ?? `${t("search")}...`;
+  const resolvedNoResultsMessage = noResultsMessage ?? t("no_results_found");
+  const resolvedLoadingMessage = loadingMessage ?? t("loading_suggestions");
+  const resolvedEmptyQueryMessage = emptyQueryMessage ?? t("start_typing_to_see_suggestions");
+  const resolvedCreatingMessage = creatingMessage ?? t("adding_option");
 
   const localItems = React.useMemo(
     () => dedupeItems([...items, ...registeredItems], getItemLabel, getItemValue),
@@ -303,7 +310,7 @@ export function AutoComplete<TItem>({
           onChange={handleInputChange}
           onFocus={() => setIsOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder={placeholder}
+          placeholder={resolvedPlaceholder}
           disabled={disabled}
           autoComplete="off"
           role="combobox"
@@ -328,11 +335,11 @@ export function AutoComplete<TItem>({
           >
             <div className="max-h-72 overflow-y-auto p-2">
               {showEmptyQueryState ? (
-                <div className="px-3 py-6 text-center text-sm text-muted-foreground">{emptyQueryMessage}</div>
+                <div className="px-3 py-6 text-center text-sm text-muted-foreground">{resolvedEmptyQueryMessage}</div>
               ) : isLoading || isCreating ? (
                 <div className="flex items-center justify-center gap-2 px-3 py-6 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>{isCreating ? creatingMessage : loadingMessage}</span>
+                  <span>{isCreating ? resolvedCreatingMessage : resolvedLoadingMessage}</span>
                 </div>
               ) : (
                 <>
@@ -383,13 +390,13 @@ export function AutoComplete<TItem>({
                     >
                       <Plus className="h-4 w-4 shrink-0 text-primary" />
                       <span className="truncate">
-                        {createOptionLabel ? createOptionLabel(inputValue.trim()) : `Add "${inputValue.trim()}"`}
+                        {createOptionLabel ? createOptionLabel(inputValue.trim()) : t("add_option", { query: inputValue.trim() })}
                       </span>
                     </button>
                   ) : null}
 
                   {visibleSuggestions.length === 0 && !canCreateOption ? (
-                    <div className="px-3 py-6 text-center text-sm text-muted-foreground">{noResultsMessage}</div>
+                    <div className="px-3 py-6 text-center text-sm text-muted-foreground">{resolvedNoResultsMessage}</div>
                   ) : null}
                 </>
               )}

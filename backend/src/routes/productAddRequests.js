@@ -12,6 +12,34 @@ function isManager(user) {
   return r === 'manager' || r === 'systemadmin' || r === 'systemadmin';
 }
 
+async function ensurePayloadBarcodes(payload, martId) {
+  const incomingBarcodes = (Array.isArray(payload?.barcodes) ? payload.barcodes : [])
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+
+  if (incomingBarcodes.length > 0) {
+    payload.barcodes = Array.from(new Set(incomingBarcodes));
+    return payload.barcodes;
+  }
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const candidate = String(Math.floor(Math.random() * 1e12)).padStart(12, '0');
+    const existing = await Product.findOne({
+      martId,
+      $or: [{ barcodes: candidate }, { barcode: candidate }],
+    })
+      .select('_id')
+      .lean();
+
+    if (!existing) {
+      payload.barcodes = [candidate];
+      return payload.barcodes;
+    }
+  }
+
+  throw new Error('Failed to generate a unique barcode');
+}
+
 // List requests for a mart
 router.get('/', authenticate, async (req, res) => {
   try {
@@ -68,6 +96,8 @@ router.put('/:id/approve', authenticate, async (req, res) => {
     if (!payload.name || !reqDoc.martId) {
       return res.status(400).json({ message: 'Request payload missing required fields' });
     }
+
+    await ensurePayloadBarcodes(payload, reqDoc.martId);
 
     // Normalize quantities: store quantity holds warehouse stock; supermarket/sellable starts at provided or zero
     const storeQty = payload.storeQuantity != null ? Number(payload.storeQuantity) : Number(payload.quantity || 0);

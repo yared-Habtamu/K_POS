@@ -204,7 +204,7 @@
 
   /* Receipt styling for print */
   .receipt-preview {
-    font-family: 'Courier New', monospace;
+    font-family: 'Inter', system-ui, sans-serif;
     @apply text-sm leading-tight;
   }
 

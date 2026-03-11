@@ -131,8 +131,13 @@ router.get("/summary", authenticate, async (req, res) => {
     for (const p of products) productMap[String(p._id)] = p;
 
     const taxByCategoryMap = {};
+    const categorySalesMap = {};
+    const paymentMethodsMap = {};
     for (const s of sales) {
       const saleTax = Number(s.tax || 0);
+      const paymentMethod = String(s.paymentMethod || "unknown");
+      paymentMethodsMap[paymentMethod] =
+        (paymentMethodsMap[paymentMethod] || 0) + Number(s.total || 0);
       if (!saleTax) continue;
 
       const items = s.items || [];
@@ -153,20 +158,28 @@ router.get("/summary", authenticate, async (req, res) => {
           : "Uncategorized";
         const itemTotal = itemTotals[i] || 0;
         if (!itemTotal) continue;
+        categorySalesMap[category] = (categorySalesMap[category] || 0) + itemTotal;
         const itemTax = (itemTotal / saleSubtotal) * saleTax;
         taxByCategoryMap[category] = (taxByCategoryMap[category] || 0) + itemTax;
       }
     }
-    const taxByCategory = Object.entries(taxByCategoryMap)
-      .map(([category, tax]) => ({ category, tax: Number(tax || 0) }))
-      .sort((a, b) => b.tax - a.tax);
-
     const totalSales = sales.reduce((s, x) => s + (x.total || 0), 0);
     const grossSales = sales.reduce((s, x) => s + (x.subtotal || 0), 0);
     const discountsTotal = sales.reduce(
       (s, x) => s + ((x.discount && x.discount.amount) || 0),
       0
     );
+    const taxByCategory = Object.entries(taxByCategoryMap)
+      .map(([category, tax]) => ({ category, tax: Number(tax || 0) }))
+      .sort((a, b) => b.tax - a.tax);
+    const categorySales = Object.entries(categorySalesMap)
+      .map(([category, total]) => ({
+        category,
+        total: Number(total || 0),
+        percentage: totalSales > 0 ? (Number(total || 0) / totalSales) * 100 : 0,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
 
     const salesByPaymentMethod = {};
     const salesByCashier = {};
@@ -281,8 +294,13 @@ router.get("/mart", authenticate, async (req, res) => {
     for (const p of products) productMap[String(p._id)] = p;
 
     const taxByCategoryMap = {};
+    const categorySalesMap = {};
+    const paymentMethodsMap = {};
     for (const s of sales) {
       const saleTax = Number(s.tax || 0);
+      const paymentMethod = String(s.paymentMethod || "unknown");
+      paymentMethodsMap[paymentMethod] =
+        (paymentMethodsMap[paymentMethod] || 0) + Number(s.total || 0);
       if (!saleTax) continue;
 
       const items = s.items || [];
@@ -303,6 +321,7 @@ router.get("/mart", authenticate, async (req, res) => {
           : "Uncategorized";
         const itemTotal = itemTotals[i] || 0;
         if (!itemTotal) continue;
+        categorySalesMap[category] = (categorySalesMap[category] || 0) + itemTotal;
         const itemTax = (itemTotal / saleSubtotal) * saleTax;
         taxByCategoryMap[category] = (taxByCategoryMap[category] || 0) + itemTax;
       }
@@ -310,6 +329,14 @@ router.get("/mart", authenticate, async (req, res) => {
     const taxByCategory = Object.entries(taxByCategoryMap)
       .map(([category, tax]) => ({ category, tax: Number(tax || 0) }))
       .sort((a, b) => b.tax - a.tax);
+    const categorySales = Object.entries(categorySalesMap)
+      .map(([category, total]) => ({
+        category,
+        total: Number(total || 0),
+        percentage: totalSales > 0 ? (Number(total || 0) / totalSales) * 100 : 0,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
 
     let cogs = 0;
     for (const s of sales) {
@@ -414,6 +441,10 @@ router.get("/mart", authenticate, async (req, res) => {
       profit,
       totalTax,
       taxByCategory,
+      categorySales,
+      salesByPaymentMethod: Object.entries(paymentMethodsMap)
+        .map(([method, total]) => ({ method, total: Number(total || 0) }))
+        .sort((a, b) => b.total - a.total),
       topProducts,
       series,
     });

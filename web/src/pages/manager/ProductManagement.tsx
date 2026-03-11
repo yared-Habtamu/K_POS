@@ -1,5 +1,5 @@
 // src/pages/manager/ProductManagement.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation } from "react-router-dom";
 import { RoleLayout } from "@/components/layout/RoleLayout";
@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  AdvancedFilters,
+  type AdvancedFilterValues,
+} from "@/components/ui/AdvancedFilters";
 import {
   Select,
   SelectContent,
@@ -32,6 +36,7 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { useProductStore } from "@/stores/productStore";
 import { useAuthStore } from "@/stores/authStore";
+import { generateUniqueBarcode } from "@/utils/barcodes";
 import type { Product, ProductUnit } from "@/types";
 import {
   Package,
@@ -47,12 +52,19 @@ import {
 
 const units: ProductUnit[] = ["pcs", "kg", "g", "l", "ml", "box"];
 const ITEMS_PER_PAGE = 7; // match owner
+const defaultFilterValues: AdvancedFilterValues = {
+  query: "",
+  category: "",
+  stockStatus: "",
+  sortBy: "name_asc",
+};
 
 export default function ManagerProductManagement() {
   const { t } = useTranslation();
   const { products, categories, addProduct, updateProduct, deleteProduct } =
     useProductStore();
   const { user, isAuthenticated } = useAuthStore();
+  const isOwner = user?.role === "owner";
   const canSetPurchase =
     user?.role === "owner" || (user?.permissions || []).includes("addItem");
   // Debug: confirm this page is rendered and show user role
@@ -118,8 +130,9 @@ export default function ManagerProductManagement() {
     };
   }, [useProductStore.getState().products]);
 
-  const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [filterValues, setFilterValues] = useState<AdvancedFilterValues>(
+    defaultFilterValues,
+  );
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -152,14 +165,58 @@ export default function ManagerProductManagement() {
     barcodeInput: "",
   });
 
-  const filteredProducts = products.filter((p) => {
-    const matchSearch =
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.barcode?.includes(search);
-    const matchCategory =
-      categoryFilter === "all" || p.category === categoryFilter;
-    return matchSearch && matchCategory;
-  });
+  const categoryOptions = useMemo(
+    () =>
+      categories.map((category) => ({
+        label: category.name,
+        value: category.name,
+      })),
+    [categories],
+  );
+
+  const filteredProducts = useMemo(() => {
+    const query = String(filterValues.query || "").trim().toLowerCase();
+    const category = String(filterValues.category || "").trim().toLowerCase();
+    const stockStatus = String(filterValues.stockStatus || "").trim();
+    const sortBy = String(filterValues.sortBy || "name_asc");
+
+    const filtered = products.filter((product) => {
+      const name = String(product.name || "").toLowerCase();
+      const barcode = String(product.barcode || product.barcodes?.[0] || "").toLowerCase();
+      const productCategory = String(product.category || "").trim().toLowerCase();
+      const martQty = Number(product.quantity ?? product.supermarketQuantity ?? 0);
+
+      const matchesQuery = !query || name.includes(query) || barcode.includes(query) || productCategory.includes(query);
+      const matchesCategory = !category || productCategory === category;
+      const matchesStockStatus =
+        !stockStatus ||
+        (stockStatus === "in_stock" && martQty > 10) ||
+        (stockStatus === "low_stock" && martQty > 0 && martQty <= 10) ||
+        (stockStatus === "out_of_stock" && martQty <= 0);
+
+      return matchesQuery && matchesCategory && matchesStockStatus;
+    });
+
+    return filtered.sort((left, right) => {
+      switch (sortBy) {
+        case "name_desc":
+          return String(right.name || "").localeCompare(String(left.name || ""));
+        case "category_asc":
+          return String(left.category || "").localeCompare(String(right.category || ""));
+        case "price_asc":
+          return Number(left.sellingPrice || 0) - Number(right.sellingPrice || 0);
+        case "price_desc":
+          return Number(right.sellingPrice || 0) - Number(left.sellingPrice || 0);
+        case "stock_asc":
+          return Number(left.quantity ?? left.supermarketQuantity ?? 0) - Number(right.quantity ?? right.supermarketQuantity ?? 0);
+        case "stock_desc":
+          return Number(right.quantity ?? right.supermarketQuantity ?? 0) - Number(left.quantity ?? left.supermarketQuantity ?? 0);
+        case "name_asc":
+        default:
+          return String(left.name || "").localeCompare(String(right.name || ""));
+      }
+    });
+  }, [categories, filterValues, products]);
 
   const totalPages = Math.max(
     1,
@@ -240,6 +297,24 @@ export default function ManagerProductManagement() {
     e.preventDefault();
     setIsLoading(true);
 
+    if (form.category && !categories.find((c) => c.name === form.category)) {
+      try {
+        const API_BASE = import.meta.env.VITE_API_URL || "";
+        const token = useAuthStore.getState().user?.token;
+        await fetch(`${API_BASE}/api/categories`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ name: form.category, martId: useAuthStore.getState().user?.martId }),
+        });
+      } catch (err) {
+        console.error("failed to create category", err);
+      }
+    }
+
+    const pendingBarcode = (form.barcodeInput || "").trim();
     const productData = {
       name: form.name,
       category: form.category,
@@ -254,9 +329,14 @@ export default function ManagerProductManagement() {
       supermarketQuantity: parseInt(form.quantity),
       lowStockThreshold: parseInt(form.lowStockThreshold),
       expiryDate: form.expiryDate ? new Date(form.expiryDate) : undefined,
-      barcodes: Array.isArray(form.barcodes)
-        ? form.barcodes.filter(Boolean)
-        : [],
+      barcodes: Array.from(
+        new Set(
+          [
+            ...(Array.isArray(form.barcodes) ? form.barcodes : []),
+            pendingBarcode,
+          ].filter(Boolean),
+        ),
+      ),
       shopId: "shop-001",
     };
 
@@ -278,6 +358,10 @@ export default function ManagerProductManagement() {
           variant: "destructive",
         });
       }
+      // refresh categories list if a new one was typed
+      if (form.category && !categories.find((c) => c.name === form.category)) {
+        await useProductStore.getState().fetchCategories?.();
+      }
     } catch (error) {
       console.error("Save failed:", error);
       toast({ title: "Error saving product", variant: "destructive" });
@@ -289,9 +373,32 @@ export default function ManagerProductManagement() {
   };
 
   const generateBarcode = () => {
-    const b = `${Date.now()}`.slice(-12);
-    const existing = Array.isArray(form.barcodes) ? form.barcodes.slice() : [];
-    setForm({ ...form, barcodes: [...existing, b], barcodeInput: "" });
+    void (async () => {
+      try {
+        const API_BASE = import.meta.env.VITE_API_URL || "";
+        const token = useAuthStore.getState().user?.token;
+        const findProductByBarcode = async (code: string) => {
+          const trimmed = (code || "").trim();
+          if (!trimmed) return null;
+          const res = await fetch(
+            `${API_BASE}/api/products/by-barcode/${encodeURIComponent(trimmed)}`,
+            {
+              headers: token
+                ? { Authorization: `Bearer ${token}` }
+                : undefined,
+            },
+          );
+          if (res.status === 404) return null;
+          if (!res.ok) throw new Error(await res.text());
+          return await res.json();
+        };
+        const b = await generateUniqueBarcode(findProductByBarcode);
+        setForm((prev) => ({ ...prev, barcodeInput: b }));
+      } catch (e) {
+        console.error("generate barcode failed", e);
+        toast({ title: "Failed to generate barcode", variant: "destructive" });
+      }
+    })();
   };
 
   const goToPage = (page: number) => {
@@ -385,21 +492,19 @@ export default function ManagerProductManagement() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="category">{t("category")} *</Label>
-                    <Select
+                    <Input
+                      id="category"
+                      list="category-list"
                       value={form.category}
-                      onValueChange={(v) => setForm({ ...form, category: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((cat) => (
-                          <SelectItem key={cat.id} value={cat.name}>
-                            {cat.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      onChange={(e) => setForm({ ...form, category: e.target.value })}
+                      placeholder="Enter or select category"
+                      required
+                    />
+                    <datalist id="category-list">
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.name} />
+                      ))}
+                    </datalist>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="unit">{t("unit")} *</Label>
@@ -593,35 +698,55 @@ export default function ManagerProductManagement() {
           </Dialog>
         </div>
 
-        {/* Filters */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search products..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-full sm:w-48">
-                  <SelectValue placeholder="Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.name}>
-                      {cat.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
+        <AdvancedFilters
+          title="Search and filter products"
+          description="Find products by name, barcode, category, stock state, or sort order."
+          fields={[
+            {
+              key: "query",
+              label: t("search"),
+              type: "search",
+              placeholder: "Search products...",
+            },
+            {
+              key: "category",
+              label: t("category"),
+              type: "select",
+              placeholder: "All categories",
+              options: categoryOptions,
+            },
+            {
+              key: "stockStatus",
+              label: "Stock status",
+              type: "select",
+              placeholder: "All stock levels",
+              options: [
+                { label: "In Stock", value: "in_stock" },
+                { label: "Low Stock", value: "low_stock" },
+                { label: "Out of Stock", value: "out_of_stock" },
+              ],
+            },
+            {
+              key: "sortBy",
+              label: "Sort by",
+              type: "select",
+              placeholder: "Name A -> Z",
+              options: [
+                { label: "Name A -> Z", value: "name_asc" },
+                { label: "Name Z -> A", value: "name_desc" },
+                { label: "Category A -> Z", value: "category_asc" },
+                { label: "Price Low -> High", value: "price_asc" },
+                { label: "Price High -> Low", value: "price_desc" },
+                { label: "Stock Low -> High", value: "stock_asc" },
+                { label: "Stock High -> Low", value: "stock_desc" },
+              ],
+            },
+          ]}
+          values={filterValues}
+          onValuesChange={setFilterValues}
+          onReset={() => setFilterValues(defaultFilterValues)}
+          showActiveBadges={false}
+        />
 
         {/* Products Table */}
         <Card>
@@ -642,9 +767,11 @@ export default function ManagerProductManagement() {
                     <TableHead className="w-12">{t("image")}</TableHead>
                     <TableHead>{t("product_name")}</TableHead>
                     <TableHead>{t("category")}</TableHead>
-                    <TableHead className="text-right">
-                      {t("purchase_price")}
-                    </TableHead>
+                    {isOwner ? (
+                      <TableHead className="text-right">
+                        {t("purchase_price")}
+                      </TableHead>
+                    ) : null}
                     <TableHead className="text-right">
                       {t("selling_price")}
                     </TableHead>
@@ -678,9 +805,11 @@ export default function ManagerProductManagement() {
                         <TableCell>
                           <Badge variant="outline">{product.category}</Badge>
                         </TableCell>
-                        <TableCell className="text-right">
-                          {product.purchasePrice} ETB
-                        </TableCell>
+                        {isOwner ? (
+                          <TableCell className="text-right">
+                            {product.purchasePrice} ETB
+                          </TableCell>
+                        ) : null}
                         <TableCell className="text-right">
                           {product.sellingPrice} ETB
                         </TableCell>
@@ -742,7 +871,7 @@ export default function ManagerProductManagement() {
                         colSpan={8}
                         className="text-center py-4 text-muted-foreground"
                       >
-                        {search || categoryFilter !== "all"
+                        {Object.values(filterValues).some((value) => Boolean(value))
                           ? "No products found"
                           : "No products yet."}
                       </TableCell>

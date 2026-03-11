@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { RoleLayout } from "@/components/layout/RoleLayout";
@@ -26,6 +26,7 @@ import {
   Image as ImageIcon,
   QrCode,
 } from "lucide-react";
+import { generateUniqueBarcode } from "@/utils/barcodes";
 
 export default function BarcodeManagement() {
   const { t } = useTranslation();
@@ -34,10 +35,17 @@ export default function BarcodeManagement() {
   const [search, setSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const barcodeRef = useRef<SVGSVGElement>(null);
+  const [barcodeImage, setBarcodeImage] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const getActiveBarcode = (product: Partial<Product> | any) => {
+    if (Array.isArray(product?.barcodes) && product.barcodes.length > 0) {
+      return String(product.barcodes[0]);
+    }
+    return product?.barcode ? String(product.barcode) : "";
+  };
 
   useEffect(() => {
     const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
@@ -56,6 +64,8 @@ export default function BarcodeManagement() {
           ? data.map((p: any) => ({
               ...p,
               id: p.id || p._id,
+              barcode:
+                (Array.isArray(p.barcodes) && p.barcodes[0]) || p.barcode || "",
               pictureUrl:
                 p.pictureUrl || p.imageUrl || p.secure_url || p.url || "",
             }))
@@ -108,29 +118,50 @@ export default function BarcodeManagement() {
   const filteredProducts = products.filter(
     (p) =>
       (p.name || "").toLowerCase().includes(search.toLowerCase()) ||
-      (p.barcode || "").includes(search),
+      getActiveBarcode(p).includes(search),
   );
 
   useEffect(() => {
-    const code =
-      (selectedProduct?.barcodes && selectedProduct.barcodes[0]) ||
-      selectedProduct?.barcode;
-    if (code && barcodeRef.current) {
-      JsBarcode(barcodeRef.current, code, {
+    const code = getActiveBarcode(selectedProduct);
+    if (!isDialogOpen) return;
+
+    if (!code) {
+      setBarcodeImage("");
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const canvas = document.createElement("canvas");
+      JsBarcode(canvas, code, {
         format: "CODE128",
         width: 2,
         height: 80,
         displayValue: true,
         fontSize: 14,
         margin: 10,
+        background: "#ffffff",
+        lineColor: "#111111",
       });
-    }
-  }, [selectedProduct]);
+      setBarcodeImage(canvas.toDataURL("image/png"));
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [isDialogOpen, selectedProduct]);
 
   const generateBarcode = async (product: Product) => {
-    const newBarcode = `${Date.now()}`.slice(-12);
-    await updateProduct(product.id, { barcode: newBarcode });
-    setSelectedProduct({ ...product, barcode: newBarcode });
+    const newBarcode = await generateUniqueBarcode(async (code) =>
+      getProductByBarcode(code) || null,
+    );
+    const existingBarcodes = Array.isArray((product as any).barcodes)
+      ? (product as any).barcodes.map(String).filter(Boolean)
+      : [];
+    const mergedBarcodes = Array.from(new Set([newBarcode, ...existingBarcodes]));
+    await updateProduct(product.id, { barcodes: mergedBarcodes });
+    setSelectedProduct({
+      ...product,
+      barcode: newBarcode,
+      barcodes: mergedBarcodes,
+    });
     toast({
       title: t("barcode_generated"),
       description: `${t("new_barcode")}: ${newBarcode}`,
@@ -141,7 +172,7 @@ export default function BarcodeManagement() {
     const printWindow = window.open("", "_blank");
     if (!printWindow || !selectedProduct) return;
 
-    const barcodeHtml = barcodeRef.current?.outerHTML || "";
+    const barcodeDataUrl = barcodeImage;
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -162,13 +193,13 @@ export default function BarcodeManagement() {
             .shop-name { font-size: 10pt; font-weight: bold; margin-bottom: 2mm; }
             .item-name { font-size: 8pt; margin: 2mm 0; }
             .price { font-size: 10pt; font-weight: bold; }
-            svg { max-width: 100%; height: auto; }
+            img.barcode { max-width: 100%; height: auto; }
           </style>
         </head>
         <body>
           <div class="label">
             <div class="shop-name">${t("smart_supermarket")}</div>
-            ${barcodeHtml}
+            ${barcodeDataUrl ? `<img class="barcode" src="${barcodeDataUrl}" alt="Barcode" />` : ""}
             <div class="item-name">${selectedProduct.name}</div>
             <div class="price">${selectedProduct.sellingPrice} ETB</div>
           </div>
@@ -267,8 +298,7 @@ export default function BarcodeManagement() {
                       <Package className="w-16 h-16 text-muted-foreground/50" />
                     </div>
                   )}
-                  {!(product.barcodes && product.barcodes.length > 0) &&
-                    !product.barcode && (
+                  {!getActiveBarcode(product) && (
                       <Badge
                         variant="destructive"
                         className="absolute top-2 right-2"
@@ -290,9 +320,9 @@ export default function BarcodeManagement() {
                       <div className="text-xs font-mono text-muted-foreground">
                         {(product.barcodes || []).join(", ")}
                       </div>
-                    ) : product.barcode ? (
+                    ) : getActiveBarcode(product) ? (
                       <span className="text-xs font-mono text-muted-foreground">
-                        {product.barcode}
+                        {getActiveBarcode(product)}
                       </span>
                     ) : null}
                   </div>
@@ -303,7 +333,13 @@ export default function BarcodeManagement() {
         </div>
 
         {/* Barcode Dialog */}
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog
+          open={isDialogOpen}
+          onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) setBarcodeImage("");
+          }}
+        >
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>{t("barcode_management")}</DialogTitle>
@@ -335,12 +371,23 @@ export default function BarcodeManagement() {
                 </div>
 
                 {/* Barcode Preview */}
-                {selectedProduct.barcode ? (
+                {getActiveBarcode(selectedProduct) ? (
                   <div className="barcode-label text-center">
                     <p className="font-bold text-sm mb-2">
                       {t("smart_supermarket")}
                     </p>
-                    <svg ref={barcodeRef} className="mx-auto"></svg>
+                    {barcodeImage ? (
+                      <img
+                        src={barcodeImage}
+                        alt="Barcode"
+                        className="mx-auto max-w-full"
+                      />
+                    ) : (
+                      <div className="h-[132px] rounded bg-white" />
+                    )}
+                    <p className="text-xs mt-2 font-mono tracking-wide">
+                      {getActiveBarcode(selectedProduct)}
+                    </p>
                     <p className="text-xs mt-1">{selectedProduct.name}</p>
                     <p className="font-bold">
                       {selectedProduct.sellingPrice} ETB
@@ -363,9 +410,11 @@ export default function BarcodeManagement() {
                     onClick={() => generateBarcode(selectedProduct)}
                   >
                     <RefreshCw className="mr-2 h-4 w-4" />
-                    {selectedProduct.barcode ? t("regenerate") : t("generate")}
+                    {getActiveBarcode(selectedProduct)
+                      ? t("regenerate")
+                      : t("generate")}
                   </Button>
-                  {selectedProduct.barcode && (
+                  {getActiveBarcode(selectedProduct) && (
                     <Button className="flex-1" onClick={handlePrint}>
                       <Printer className="mr-2 h-4 w-4" />
                       {t("print_label")}

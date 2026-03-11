@@ -53,5 +53,11 @@ export default function useCustomers() {
     return res;
   };
 
-  return { customers, loading, error, fetch, create, update };
+  const remove = async (id: string) => {
+    const res = await customersApi.deleteCustomer(id, token);
+    setCustomers((s) => s.filter((c) => c._id !== id));
+    return res;
+  };
+
+  return { customers, loading, error, fetch, create, update, remove };
 }

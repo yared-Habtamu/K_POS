@@ -103,7 +103,7 @@ const roleNavItems: Record<UserRole, NavItem[]> = {
     { label: 'pos', icon: ShoppingCart, path: '/owner/pos' },
     { label: 'products', icon: Package, path: '/manager/products' },
     { label: 'employees', icon: Users, path: '/manager/employees' },
-    { label: 'customers', icon: Users, path: '/cashier/customers' },
+    { label: 'customers', icon: Users, path: '/manager/customers' },
     { label: 'approvals', icon: ClipboardList, path: '/manager/approvals' },
     // inventory uses warehouse icon to match design
     { label: 'inventory', icon: Warehouse, path: '/manager/inventory' },
@@ -120,7 +120,7 @@ const roleNavItems: Record<UserRole, NavItem[]> = {
     { label: 'inventory', icon: Warehouse, path: '/owner/inventory', activePaths: ['/inventory'] },
     { label: 'add_stock', icon: ClipboardList, path: '/store-keeper/add-stock' },
     { label: 'employees', icon: Users, path: '/owner/employees' },
-    { label: 'customers', icon: Users, path: '/cashier/customers' },
+    { label: 'customers', icon: Users, path: '/owner/customers' },
     { label: 'expenses', icon: Wallet, path: '/owner/expenses' },
     { label: 'alerts', icon: AlertTriangle, path: '/owner/alerts', activePaths: ['/alerts'] },
     { label: 'reports', icon: BarChart3, path: '/owner/reports' },
@@ -132,7 +132,7 @@ const roleNavItems: Record<UserRole, NavItem[]> = {
     { label: 'inventory', icon: Package, path: '/store-keeper', activePaths: ['/store-keeper/inventory'] },
     { label: 'add_stock', icon: ClipboardList, path: '/store-keeper/add-stock' },
     { label: 'barcode', icon: Barcode, path: '/store-keeper/barcode' },
-    { label: 'products', icon: Image, path: '/store-keeper/pictures' },
+    { label: 'products', icon: Image, path: '/store-keeper/products' },
     { label: 'alerts', icon: AlertTriangle, path: '/alerts' },
   ],
   system_admin: [

@@ -40,7 +40,7 @@ router.post('/', authenticate, async (req, res) => {
   }
 });
 
-// GET /api/customers - list customers for current cashier (cashier only sees their customers)
+// GET /api/customers - list customers for current mart
 router.get('/', authenticate, async (req, res) => {
   try {
     const { martId } = req.query;
@@ -61,11 +61,8 @@ router.get('/', authenticate, async (req, res) => {
         if (!m) return res.status(404).json({ message: `martId not found: ${martId}` });
         filter.martId = martId;
       }
-    } else if (req.user.role === 'cashier') {
-      filter.createdBy = req.user.id || req.user._id;
-      filter.martId = req.user.martId;
     } else {
-      // owner/manager can see all customers in their mart
+      // cashier/owner/manager can see all customers in their mart
       filter.martId = req.user.martId;
     }
 
@@ -108,6 +105,29 @@ router.patch('/:id', authenticate, async (req, res) => {
     res.json(customer);
   } catch (err) {
     console.error('update customer error', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// DELETE /api/customers/:id - remove customer
+router.delete('/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const customer = await Customer.findById(id);
+    if (!customer) return res.status(404).json({ message: 'Customer not found' });
+
+    if (
+      req.user.role !== 'systemAdmin' &&
+      String(customer.martId) !== String(req.user.martId)
+    ) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    await Customer.findByIdAndDelete(id);
+    res.json({ message: 'Customer deleted' });
+  } catch (err) {
+    console.error('delete customer error', err);
     res.status(500).json({ message: 'Server error' });
   }
 });

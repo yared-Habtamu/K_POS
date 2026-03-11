@@ -9,6 +9,7 @@ import { toast } from "@/hooks/use-toast";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { DashboardInsights } from "@/components/reports/DashboardInsights";
 import { useProductStore } from "@/stores/productStore";
 import { useAuthStore } from "@/stores/authStore";
 import {
@@ -109,7 +110,9 @@ export default function OwnerDashboard() {
         if (mounted) setIsLoadingMetrics(false);
       }
     };
-    fetchMetrics();
+    void fetchMetrics();
+    const intervalId = window.setInterval(fetchMetrics, 30_000);
+    window.addEventListener("focus", fetchMetrics);
 
     // ensure products are loaded for dashboard counts
     (async () => {
@@ -121,6 +124,8 @@ export default function OwnerDashboard() {
     })();
     return () => {
       mounted = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", fetchMetrics);
     };
   }, [range, API_BASE]);
 
@@ -386,6 +391,18 @@ export default function OwnerDashboard() {
             </Card>
           </motion.div>
         </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+        >
+          <DashboardInsights
+            metrics={metrics}
+            isLoadingMetrics={isLoadingMetrics}
+            metricsError={metricsError}
+          />
+        </motion.div>
       </div>
     </RoleLayout>
   );

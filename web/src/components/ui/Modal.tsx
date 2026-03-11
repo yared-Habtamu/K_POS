@@ -3,6 +3,7 @@
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cva } from "class-variance-authority";
+import { useTranslation } from "react-i18next";
 import {
   AlertCircle,
   AlertTriangle,
@@ -92,6 +93,7 @@ export function Modal({
   type = "info",
   children,
 }: ModalProps) {
+  const { t } = useTranslation();
   const { icon: Icon, iconClassName, chipClassName } = modalTypeConfig[type];
 
   return (
@@ -125,9 +127,7 @@ export function Modal({
                 <DialogPrimitive.Title className="text-lg font-semibold leading-tight text-foreground">
                   {title}
                 </DialogPrimitive.Title>
-                <p className="mt-1 text-sm capitalize text-muted-foreground">
-                  {type} modal
-                </p>
+                <p className="mt-1 text-sm capitalize text-muted-foreground">{t(type)}</p>
               </div>
             </div>
 
@@ -135,7 +135,7 @@ export function Modal({
               <button
                 type="button"
                 className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-background/80 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                aria-label="Close modal"
+                aria-label={t("close")}
               >
                 <X className="h-4 w-4" />
               </button>

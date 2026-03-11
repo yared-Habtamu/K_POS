@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { RoleLayout } from "@/components/layout/RoleLayout";
+import { DashboardInsights } from "@/components/reports/DashboardInsights";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useProductStore } from "@/stores/productStore";
@@ -99,9 +100,13 @@ export default function OwnerDashboard() {
         if (mounted) setIsLoadingMetrics(false);
       }
     };
-    fetchMetrics();
+    void fetchMetrics();
+    const intervalId = window.setInterval(fetchMetrics, 30_000);
+    window.addEventListener("focus", fetchMetrics);
     return () => {
       mounted = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", fetchMetrics);
     };
   }, [range, API_BASE]);
 
@@ -471,6 +476,18 @@ export default function OwnerDashboard() {
             </Card>
           </motion.div>
         </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+        >
+          <DashboardInsights
+            metrics={metrics}
+            isLoadingMetrics={isLoadingMetrics}
+            metricsError={metricsError}
+          />
+        </motion.div>
 
         {/* Debug panel removed for production */}
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import {
   ArrowUpDown,
   ChevronLeft,
@@ -138,10 +139,6 @@ function matchesSearch<TData>(
   });
 }
 
-function getSortDirectionLabel(direction: "asc" | "desc") {
-  return direction === "asc" ? "ascending" : "descending";
-}
-
 export function DataTable<TData>({
   columns,
   data,
@@ -149,10 +146,10 @@ export function DataTable<TData>({
   title,
   description,
   isLoading = false,
-  loadingMessage = "Loading data...",
-  emptyMessage = "No records found.",
+  loadingMessage,
+  emptyMessage,
   searchable = false,
-  searchPlaceholder = "Search records...",
+  searchPlaceholder,
   searchValue,
   onSearchChange,
   searchKeys,
@@ -169,6 +166,7 @@ export function DataTable<TData>({
   className,
   tableClassName,
 }: DataTableProps<TData>) {
+  const { t } = useTranslation();
   const [internalSearch, setInternalSearch] = React.useState("");
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(initialPageSize);
@@ -186,6 +184,9 @@ export function DataTable<TData>({
 
   const activeSearchValue = searchValue ?? internalSearch;
   const hasBuiltInActions = Boolean(onView || onEdit || onDelete || customRowActions?.length || renderRowActions);
+  const resolvedLoadingMessage = loadingMessage ?? t("loading_data");
+  const resolvedEmptyMessage = emptyMessage ?? t("no_records_found");
+  const resolvedSearchPlaceholder = searchPlaceholder ?? t("search_records");
 
   React.useEffect(() => {
     setPage(1);
@@ -260,6 +261,14 @@ export function DataTable<TData>({
     return row[rowKey] as React.Key;
   };
 
+  const getHeaderText = (header: React.ReactNode) => {
+    if (typeof header === "string" || typeof header === "number") {
+      return String(header);
+    }
+
+    return "";
+  };
+
   return (
     <Card className={cn("overflow-hidden", className)}>
       {(title || description || searchable || toolbarContent) && (
@@ -279,9 +288,9 @@ export function DataTable<TData>({
                   <Input
                     value={activeSearchValue}
                     onChange={(event) => updateSearch(event.target.value)}
-                    placeholder={searchPlaceholder}
+                    placeholder={resolvedSearchPlaceholder}
                     className="pl-10"
-                    aria-label="Search table rows"
+                    aria-label={t("search_table_rows")}
                   />
                 </div>
               ) : (
@@ -308,7 +317,10 @@ export function DataTable<TData>({
                         type="button"
                         className="inline-flex items-center gap-2 text-left font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         onClick={() => toggleSort(column)}
-                        aria-label={`Sort by ${String(column.header)} ${isSorted ? getSortDirectionLabel(sortState.direction) : ""}`.trim()}
+                        aria-label={t("sort_by_column", {
+                          column: getHeaderText(column.header),
+                          direction: isSorted ? t(sortState.direction === "asc" ? "ascending" : "descending") : "",
+                        }).trim()}
                       >
                         <span>{column.header}</span>
                         <ArrowUpDown className={cn("h-4 w-4", isSorted ? "text-foreground" : "text-muted-foreground/70")} />
@@ -320,7 +332,7 @@ export function DataTable<TData>({
                 );
               })}
 
-              {hasBuiltInActions ? <TableHead className="text-right">Actions</TableHead> : null}
+              {hasBuiltInActions ? <TableHead className="text-right">{t("actions")}</TableHead> : null}
             </TableRow>
           </TableHeader>
 
@@ -348,13 +360,13 @@ export function DataTable<TData>({
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         {onView ? (
-                          <Button type="button" variant="ghost" size="icon" onClick={() => onView(row)} aria-label="View row">
+                          <Button type="button" variant="ghost" size="icon" onClick={() => onView(row)} aria-label={t("view")}>
                             <Eye className="h-4 w-4" />
                           </Button>
                         ) : null}
 
                         {onEdit ? (
-                          <Button type="button" variant="ghost" size="icon" onClick={() => onEdit(row)} aria-label="Edit row">
+                          <Button type="button" variant="ghost" size="icon" onClick={() => onEdit(row)} aria-label={t("edit")}>
                             <Pencil className="h-4 w-4" />
                           </Button>
                         ) : null}
@@ -366,7 +378,7 @@ export function DataTable<TData>({
                             size="icon"
                             onClick={() => onDelete(row)}
                             className="text-destructive hover:text-destructive"
-                            aria-label="Delete row"
+                            aria-label={t("delete")}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -401,7 +413,7 @@ export function DataTable<TData>({
                 <TableCell colSpan={colSpan} className="py-12 text-center">
                   <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
                     <Loader2 className="h-5 w-5 opacity-0" />
-                    <p className="text-sm">{emptyMessage}</p>
+                    <p className="text-sm">{resolvedEmptyMessage}</p>
                   </div>
                 </TableCell>
               </TableRow>
@@ -412,17 +424,17 @@ export function DataTable<TData>({
         {isLoading ? (
           <div className="flex items-center justify-center gap-2 border-t px-4 py-3 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            <span>{loadingMessage}</span>
+            <span>{resolvedLoadingMessage}</span>
           </div>
         ) : pagination ? (
           <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-muted-foreground">
-              Showing <span className="font-medium text-foreground">{firstRowNumber}</span> to <span className="font-medium text-foreground">{lastRowNumber}</span> of <span className="font-medium text-foreground">{totalRows}</span> entries
+              {t("showing")} <span className="font-medium text-foreground">{firstRowNumber}</span> {t("to")} <span className="font-medium text-foreground">{lastRowNumber}</span> {t("of")} <span className="font-medium text-foreground">{totalRows}</span> {t("entries")}
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span>Rows</span>
+                <span>{t("rows")}</span>
                 <select
                   value={pageSize}
                   onChange={(event) => setPageSize(Number(event.target.value))}
@@ -437,14 +449,14 @@ export function DataTable<TData>({
               </label>
 
               <div className="flex items-center gap-1">
-                <Button type="button" variant="outline" size="icon" onClick={() => setPage(1)} disabled={currentPage === 1}>
+                <Button type="button" variant="outline" size="icon" onClick={() => setPage(1)} disabled={currentPage === 1} aria-label={t("first_page")}>
                   <ChevronsLeft className="h-4 w-4" />
                 </Button>
-                <Button type="button" variant="outline" size="icon" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={currentPage === 1}>
+                <Button type="button" variant="outline" size="icon" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={currentPage === 1} aria-label={t("previous_page")}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="px-3 text-sm text-muted-foreground">
-                  Page <span className="font-medium text-foreground">{currentPage}</span> of <span className="font-medium text-foreground">{totalPages}</span>
+                  {t("page")} <span className="font-medium text-foreground">{currentPage}</span> {t("of")} <span className="font-medium text-foreground">{totalPages}</span>
                 </span>
                 <Button
                   type="button"
@@ -452,10 +464,11 @@ export function DataTable<TData>({
                   size="icon"
                   onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
                   disabled={currentPage === totalPages}
+                  aria-label={t("next_page")}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
-                <Button type="button" variant="outline" size="icon" onClick={() => setPage(totalPages)} disabled={currentPage === totalPages}>
+                <Button type="button" variant="outline" size="icon" onClick={() => setPage(totalPages)} disabled={currentPage === totalPages} aria-label={t("last_page")}>
                   <ChevronsRight className="h-4 w-4" />
                 </Button>
               </div>

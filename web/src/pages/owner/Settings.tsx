@@ -17,8 +17,9 @@ import { useAuthStore } from "@/stores/authStore";
 export default function OwnerSettings() {
   const { t } = useTranslation();
   const [name, setName] = useState("");
-  const [logo, setLogo] = useState<string | null>(null);
   const [slogan, setSlogan] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
   const [currency, setCurrency] = useState("ETB");
   const [paymentSystem, setPaymentSystem] = useState("");
   const [paymentAccounts, setPaymentAccounts] = useState<{
@@ -69,6 +70,18 @@ export default function OwnerSettings() {
 
         // only set states if the user hasn't already started editing those fields
         // This prevents overwriting values while the owner is typing before saving.
+
+        setName((prev) => (prev ? prev : json.martName || ""));
+        setSlogan((prev) =>
+          prev ? prev : json.receiptHeader || json.receiptMessage || "",
+        );
+        setPhone((prev) => (prev ? prev : json.phone || json.ownerId?.phone || ""));
+        setAddress((prev) =>
+          prev
+            ? prev
+            : json.address ||
+              [json.city, json.region, json.country].filter(Boolean).join(", "),
+        );
 
         // currency
         setCurrency((prev) => (prev ? prev : json.currency || "ETB"));
@@ -140,7 +153,49 @@ export default function OwnerSettings() {
   }, [auth?.martId, auth?.token, API_BASE]);
 
   const saveBranding = () => {
-    toast({ title: t("branding_saved") });
+    (async () => {
+      try {
+        const martId = auth?.martId;
+        const token = auth?.token;
+        if (!martId) return toast({ title: t("mart_not_found") });
+
+        const payload = {
+          martName: name.trim(),
+          receiptHeader: slogan.trim(),
+          receiptMessage: slogan.trim(),
+          phone: phone.trim(),
+          address: address.trim(),
+        };
+
+        const res = await fetch(`${API_BASE}/api/marts/${martId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          return toast({
+            title: err.message || "Failed to save branding",
+            variant: "destructive",
+          });
+        }
+
+        toast({ title: t("branding_saved") });
+        try {
+          window.dispatchEvent(
+            new CustomEvent("mart-settings-updated", { detail: { martId } }),
+          );
+        } catch {
+          // ignore
+        }
+      } catch (err) {
+        console.error("saveBranding error", err);
+        toast({ title: "Failed to save branding", variant: "destructive" });
+      }
+    })();
   };
 
   const savePayments = () => {
@@ -255,26 +310,31 @@ export default function OwnerSettings() {
               </div>
 
               <div>
-                <p className="text-sm font-medium">{t("logo")}</p>
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setLogo(e.target.files?.[0]?.name ?? null)}
-                  className="mt-2"
-                />
-                {logo && (
-                  <div className="mt-2 text-xs">
-                    {t("selected")}: {logo}
-                  </div>
-                )}
-              </div>
-
-              <div>
                 <p className="text-sm font-medium">{t("slogan")}</p>
                 <Input
                   value={slogan}
                   onChange={(e) => setSlogan(e.target.value)}
                   placeholder={t("enter_slogan")}
+                  className="mt-2"
+                />
+              </div>
+
+              <div>
+                <p className="text-sm font-medium">{t("phone")}</p>
+                <Input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder={t("phone")}
+                  className="mt-2"
+                />
+              </div>
+
+              <div>
+                <p className="text-sm font-medium">Address</p>
+                <Input
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Enter receipt address"
                   className="mt-2"
                 />
               </div>

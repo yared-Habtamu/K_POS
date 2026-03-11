@@ -43,6 +43,7 @@ import Inventory from "./pages/Inventory";
 import OwnerAssets from "./pages/manager/Assets";
 import RegisterMart from "./pages/owner/RegisterMart";
 import RegisterWaiting from "./pages/owner/RegisterWaiting";
+import ProfilePage from "./pages/Profile";
 
 // Manager Pages
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
@@ -54,6 +55,7 @@ import ManagerApprovals from "./pages/manager/Approvals";
 import StockManagement from "./pages/store-keeper/StockManagement";
 import BarcodeManagement from "./pages/store-keeper/BarcodeManagement";
 import ProductAdd from "./pages/store-keeper/ProductAdd";
+import StoreKeeperProductManagement from "./pages/store-keeper/ProductManagement";
 
 // Admin Pages
 import MainAdmin from "./pages/admin/MainAdmin";
@@ -83,6 +85,7 @@ const App = () => {
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/profile" element={<ProfilePage />} />
             <Route path="/examples/advanced-filters" element={<AdvancedFiltersExample />} />
             <Route path="/examples/auto-complete" element={<AutoCompleteExample />} />
             <Route path="/examples/data-table" element={<DataTableExample />} />
@@ -107,6 +110,7 @@ const App = () => {
               element={<OwnerEmployeeManagement />}
             />
             <Route path="/owner/expenses" element={<ExpenseManagement />} />
+            <Route path="/owner/customers" element={<CustomerManagement />} />
             <Route path="/alerts" element={<OwnerAlerts />} />
             <Route path="/owner/alerts" element={<OwnerAlerts />} />
             <Route path="/owner/settings" element={<OwnerSettings />} />
@@ -130,6 +134,7 @@ const App = () => {
               path="/manager/employees"
               element={<MEmployeeManagement />}
             />
+            <Route path="/manager/customers" element={<CustomerManagement />} />
             <Route path="/manager/approvals" element={<ManagerApprovals />} />
             <Route path="/manager/inventory" element={<Inventory />} />
             <Route path="/manager/assets" element={<ManagerAssets />} />
@@ -137,7 +142,8 @@ const App = () => {
             <Route path="/manager/today-sales" element={<TodaysSales />} />
 
             {/* Store Keeper Routes */}
-            <Route path="/store-keeper" element={<StockManagement />} />
+            <Route path="/store-keeper" element={<Inventory />} />
+            <Route path="/store-keeper/inventory" element={<Inventory />} />
             <Route
               path="/store-keeper/add-stock"
               element={<StockManagement />}
@@ -149,6 +155,10 @@ const App = () => {
             <Route
               path="/store-keeper/pictures"
               element={<BarcodeManagement />}
+            />
+            <Route
+              path="/store-keeper/products"
+              element={<StoreKeeperProductManagement />}
             />
 
             {/* Generic Inventory route (top-level) */}

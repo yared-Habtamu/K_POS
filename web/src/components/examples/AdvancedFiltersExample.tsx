@@ -77,48 +77,57 @@ export function AdvancedFiltersExample() {
   const [appliedValues, setAppliedValues] = React.useState<AdvancedFilterValues>(values);
 
   return (
-    <div className="space-y-6">
-      <AdvancedFilters
-        title="Reusable advanced filters example"
-        description="This shared component supports search, select, date range, custom fields, active filter badges, and apply/reset actions."
-        fields={fields}
-        values={values}
-        onValuesChange={setValues}
-        onApply={setAppliedValues}
-      />
+    <div className="min-h-screen bg-slate-50 px-4 py-8 text-left text-slate-900">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h1 className="text-3xl font-bold">Advanced Filters Example</h1>
+          <p className="text-sm text-slate-600">
+            This page is rendering the shared AdvancedFilters component.
+          </p>
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Applied filter snapshot</CardTitle>
-          <CardDescription>
-            This preview shows the values currently applied through the reusable filters component.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(appliedValues).map(([key, value]) => {
-              const hasValue =
-                typeof value === "object" && value !== null
-                  ? Boolean((value as { from?: string; to?: string }).from || (value as { from?: string; to?: string }).to)
-                  : Boolean(value);
+        <AdvancedFilters
+          title="Reusable advanced filters example"
+          description="This shared component supports search, select, date range, custom fields, active filter badges, and apply/reset actions."
+          fields={fields}
+          values={values}
+          onValuesChange={setValues}
+          onApply={setAppliedValues}
+        />
 
-              if (!hasValue) {
-                return null;
-              }
+        <Card>
+          <CardHeader>
+            <CardTitle>Applied filter snapshot</CardTitle>
+            <CardDescription>
+              This preview shows the values currently applied through the reusable filters component.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(appliedValues).map(([key, value]) => {
+                const hasValue =
+                  typeof value === "object" && value !== null
+                    ? Boolean((value as { from?: string; to?: string }).from || (value as { from?: string; to?: string }).to)
+                    : Boolean(value);
 
-              return (
-                <Badge key={key} variant="outline">
-                  {key}: {typeof value === "object" && value !== null ? `${(value as { from?: string; to?: string }).from || "Any"} - ${(value as { from?: string; to?: string }).to || "Any"}` : String(value)}
-                </Badge>
-              );
-            })}
-          </div>
+                if (!hasValue) {
+                  return null;
+                }
 
-          <pre className="overflow-x-auto rounded-xl border bg-muted/20 p-4 text-xs text-muted-foreground">
+                return (
+                  <Badge key={key} variant="outline">
+                    {key}: {typeof value === "object" && value !== null ? `${(value as { from?: string; to?: string }).from || "Any"} - ${(value as { from?: string; to?: string }).to || "Any"}` : String(value)}
+                  </Badge>
+                );
+              })}
+            </div>
+
+            <pre className="overflow-x-auto rounded-xl border bg-muted/20 p-4 text-xs text-muted-foreground">
 {JSON.stringify(appliedValues, null, 2)}
-          </pre>
-        </CardContent>
-      </Card>
+            </pre>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

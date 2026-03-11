@@ -1,5 +1,5 @@
 // src/pages/owner/EmployeeManagement.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RoleLayout } from '@/components/layout/RoleLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,6 +41,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  AdvancedFilters,
+  type AdvancedFilterValues,
+} from '@/components/ui/AdvancedFilters';
 import { toast } from '@/hooks/use-toast';
 import { useAuthStore } from '@/stores/authStore';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -82,6 +86,21 @@ const toDateTimeLocal = (d: Date) => {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
+const TODAY_KEY = formatDateKey(new Date());
+
+const defaultEmployeeFilterValues: AdvancedFilterValues = {
+  query: '',
+  role: 'all',
+  sortBy: 'name_asc',
+};
+
+const defaultAttendanceFilterValues: AdvancedFilterValues = {
+  query: '',
+  employeeId: 'all',
+  dateRange: 'today',
+  customRange: { from: TODAY_KEY, to: TODAY_KEY },
+  sortBy: 'latest',
+};
 
 type AttendanceRecord = {
   id: string;
@@ -105,6 +124,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
   const [employees, setEmployees] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [employeeSortBy, setEmployeeSortBy] = useState('name_asc');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
 
@@ -115,6 +135,8 @@ export default function OwnerEmployeeManagement(): JSX.Element {
   // Attendance state
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [activeTab, setActiveTab] = useState<'employees' | 'attendance'>('employees');
+  const [attendanceSearch, setAttendanceSearch] = useState('');
+  const [attendanceSortBy, setAttendanceSortBy] = useState('latest');
 
   // Permission state
   const [permissions, setPermissions] = useState<Record<string, Record<string, boolean>>>({});
@@ -155,11 +177,35 @@ export default function OwnerEmployeeManagement(): JSX.Element {
     clockOut: '',
   });
 
-  const filteredEmployees = employees.filter((e) => {
-    const matchSearch = e.name.toLowerCase().includes(search.toLowerCase()) || e.phone.includes(search);
-    const matchRole = roleFilter === 'all' || e.role === roleFilter;
-    return matchSearch && matchRole;
-  });
+  const filteredEmployees = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    const filtered = employees.filter((employee) => {
+      const name = String(employee.name || '').toLowerCase();
+      const phone = String(employee.phone || '').toLowerCase();
+      const username = String(employee.username || '').toLowerCase();
+      const matchSearch =
+        !query || name.includes(query) || phone.includes(query) || username.includes(query);
+      const matchRole = roleFilter === 'all' || employee.role === roleFilter;
+      return matchSearch && matchRole;
+    });
+
+    return filtered.sort((left, right) => {
+      switch (employeeSortBy) {
+        case 'name_desc':
+          return String(right.name || '').localeCompare(String(left.name || ''));
+        case 'salary_asc':
+          return Number(left.salary || 0) - Number(right.salary || 0);
+        case 'salary_desc':
+          return Number(right.salary || 0) - Number(left.salary || 0);
+        case 'role_asc':
+          return String(left.role || '').localeCompare(String(right.role || ''));
+        case 'name_asc':
+        default:
+          return String(left.name || '').localeCompare(String(right.name || ''));
+      }
+    });
+  }, [employeeSortBy, employees, roleFilter, search]);
 
   // fetch employees for this mart
   useEffect(() => {
@@ -482,50 +528,82 @@ export default function OwnerEmployeeManagement(): JSX.Element {
     }
   };
 
+  useEffect(() => {
+    setEmployeePage(1);
+  }, [employeeSortBy, roleFilter, search]);
+
   // ===== ATTENDANCE FUNCTIONS =====
 
-  const filteredAttendance = attendance.filter(record => {
-    let include = true;
+  const filteredAttendance = useMemo(() => {
+    const query = attendanceSearch.trim().toLowerCase();
 
-    if (attendanceFilter.employeeId !== 'all') {
-      include = record.employeeId === attendanceFilter.employeeId;
-    }
+    const filtered = attendance.filter((record) => {
+      let include = true;
 
-    const start = new Date(attendanceFilter.startDate);
-    const end = new Date(attendanceFilter.endDate);
+      if (attendanceFilter.employeeId !== 'all') {
+        include = record.employeeId === attendanceFilter.employeeId;
+      }
 
-    switch (attendanceFilter.dateRange) {
-      case 'today': {
-        const todayStr = new Date().toISOString().split('T')[0];
-        include = record.date === todayStr;
-        break;
-      }
-      case 'this-week': {
-        const now = new Date();
-        const firstDayOfWeek = new Date(now);
-        firstDayOfWeek.setDate(now.getDate() - now.getDay());
-        const lastDayOfWeek = new Date(firstDayOfWeek);
-        lastDayOfWeek.setDate(firstDayOfWeek.getDate() + 6);
-        const recordDate = new Date(record.date);
-        include = recordDate >= firstDayOfWeek && recordDate <= lastDayOfWeek;
-        break;
-      }
-      case 'this-month': {
-        const year = new Date().getFullYear();
-        const month = new Date().getMonth();
-        const recordDate = new Date(record.date);
-        include = recordDate.getFullYear() === year && recordDate.getMonth() === month;
-        break;
-      }
-      case 'custom': {
-        const recordDate = new Date(record.date);
-        include = recordDate >= start && recordDate <= end;
-        break;
-      }
-    }
+      const start = new Date(attendanceFilter.startDate);
+      const end = new Date(attendanceFilter.endDate);
 
-    return include;
-  });
+      switch (attendanceFilter.dateRange) {
+        case 'today': {
+          include = record.date === formatDateKey(new Date());
+          break;
+        }
+        case 'this-week': {
+          const now = new Date();
+          const firstDayOfWeek = new Date(now);
+          firstDayOfWeek.setDate(now.getDate() - now.getDay());
+          const lastDayOfWeek = new Date(firstDayOfWeek);
+          lastDayOfWeek.setDate(firstDayOfWeek.getDate() + 6);
+          const recordDate = new Date(record.date);
+          include = recordDate >= firstDayOfWeek && recordDate <= lastDayOfWeek;
+          break;
+        }
+        case 'this-month': {
+          const year = new Date().getFullYear();
+          const month = new Date().getMonth();
+          const recordDate = new Date(record.date);
+          include = recordDate.getFullYear() === year && recordDate.getMonth() === month;
+          break;
+        }
+        case 'custom': {
+          const recordDate = new Date(record.date);
+          include = recordDate >= start && recordDate <= end;
+          break;
+        }
+      }
+
+      if (!include) return false;
+
+      const employee = employees.find((item) => item.id === record.employeeId);
+      const employeeName = String(employee?.name || record.employeeName || '').toLowerCase();
+      const employeePhone = String(employee?.phone || '').toLowerCase();
+
+      return (
+        !query ||
+        employeeName.includes(query) ||
+        employeePhone.includes(query) ||
+        String(record.date || '').toLowerCase().includes(query)
+      );
+    });
+
+    return filtered.sort((left, right) => {
+      switch (attendanceSortBy) {
+        case 'earliest':
+          return new Date(left.clockIn).getTime() - new Date(right.clockIn).getTime();
+        case 'duration_desc':
+          return Number(right.durationMinutes || 0) - Number(left.durationMinutes || 0);
+        case 'duration_asc':
+          return Number(left.durationMinutes || 0) - Number(right.durationMinutes || 0);
+        case 'latest':
+        default:
+          return new Date(right.clockIn).getTime() - new Date(left.clockIn).getTime();
+      }
+    });
+  }, [attendance, attendanceFilter, attendanceSearch, attendanceSortBy, employees]);
 
   const shiftAttendanceDay = (delta: number) => {
     const baseStr = attendanceFilter.dateRange === 'custom'
@@ -658,6 +736,10 @@ export default function OwnerEmployeeManagement(): JSX.Element {
       setAttendancePage(attendancePage - 1);
     }
   };
+
+  useEffect(() => {
+    setAttendancePage(1);
+  }, [attendanceFilter, attendanceSearch, attendanceSortBy]);
 
   const handleSaveManualAttendance = async () => {
     const { employeeId, date, clockIn, clockOut } = manualEntry;
@@ -1002,23 +1084,53 @@ export default function OwnerEmployeeManagement(): JSX.Element {
 
             <Card>
               <CardContent className="p-4">
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Search employees..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
-                  </div>
-                  <Select value={roleFilter} onValueChange={setRoleFilter}>
-                    <SelectTrigger className="w-full sm:w-48">
-                      <SelectValue placeholder="Role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Roles</SelectItem>
-                      {ALL_ROLES.map(role => (
-                        <SelectItem key={role} value={role}>{t(role)}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <AdvancedFilters
+                  title="Search and filter employees"
+                  description="Find employees by name, username, phone, role, or sort order."
+                  fields={[
+                    {
+                      key: 'query',
+                      label: 'Search',
+                      type: 'search',
+                      placeholder: 'Search by name, username, or phone',
+                    },
+                    {
+                      key: 'role',
+                      label: 'Role',
+                      type: 'select',
+                      placeholder: 'All roles',
+                      options: [
+                        { label: 'All Roles', value: 'all' },
+                        ...ALL_ROLES.map((role) => ({ label: t(role), value: role })),
+                      ],
+                    },
+                    {
+                      key: 'sortBy',
+                      label: 'Sort by',
+                      type: 'select',
+                      placeholder: 'Name A -> Z',
+                      options: [
+                        { label: 'Name A -> Z', value: 'name_asc' },
+                        { label: 'Name Z -> A', value: 'name_desc' },
+                        { label: 'Salary Low -> High', value: 'salary_asc' },
+                        { label: 'Salary High -> Low', value: 'salary_desc' },
+                        { label: 'Role A -> Z', value: 'role_asc' },
+                      ],
+                    },
+                  ]}
+                  values={{ query: search, role: roleFilter, sortBy: employeeSortBy }}
+                  onValuesChange={(values) => {
+                    setSearch(String(values.query || ''));
+                    setRoleFilter(String(values.role || 'all'));
+                    setEmployeeSortBy(String(values.sortBy || 'name_asc'));
+                  }}
+                  onReset={() => {
+                    setSearch(String(defaultEmployeeFilterValues.query));
+                    setRoleFilter(String(defaultEmployeeFilterValues.role));
+                    setEmployeeSortBy(String(defaultEmployeeFilterValues.sortBy));
+                  }}
+                  showActiveBadges={false}
+                />
               </CardContent>
             </Card>
 
@@ -1266,72 +1378,97 @@ export default function OwnerEmployeeManagement(): JSX.Element {
             {/* Filter Section */}
             <Card>
               <CardContent className="p-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Employee</Label>
-                    <Select
-                      value={attendanceFilter.employeeId}
-                      onValueChange={(v) => setAttendanceFilter(prev => ({ ...prev, employeeId: v }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="All Employees" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Employees</SelectItem>
-                        {filteredEmployees.map(emp => (
-                          <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Date Range</Label>
-                    <Select
-                      value={attendanceFilter.dateRange}
-                      onValueChange={(v) => setAttendanceFilter(prev => ({ ...prev, dateRange: v as any }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Today" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="today">Today</SelectItem>
-                        <SelectItem value="this-week">This Week</SelectItem>
-                        <SelectItem value="this-month">This Month</SelectItem>
-                        <SelectItem value="custom">Custom Range</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {attendanceFilter.dateRange === 'custom' && (
-                    <>
-                      <div>
-                        <Label>Start Date</Label>
-                        <Input
-                          type="date"
-                          max={new Date().toISOString().split('T')[0]}
-                          value={attendanceFilter.startDate}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            const today = new Date().toISOString().split('T')[0];
-                            setAttendanceFilter(prev => ({ ...prev, startDate: val > today ? today : val }));
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <Label>End Date</Label>
-                        <Input
-                          type="date"
-                          max={new Date().toISOString().split('T')[0]}
-                          value={attendanceFilter.endDate}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            const today = new Date().toISOString().split('T')[0];
-                            setAttendanceFilter(prev => ({ ...prev, endDate: val > today ? today : val }));
-                          }}
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
+                <AdvancedFilters
+                  title="Search and filter attendance"
+                  description="Search attendance by employee or date, refine the date window, and sort records."
+                  fields={[
+                    {
+                      key: 'query',
+                      label: 'Search',
+                      type: 'search',
+                      placeholder: 'Search by employee name, phone, or date',
+                    },
+                    {
+                      key: 'employeeId',
+                      label: 'Employee',
+                      type: 'select',
+                      placeholder: 'All employees',
+                      options: [
+                        { label: 'All Employees', value: 'all' },
+                        ...filteredEmployees.map((employee) => ({ label: employee.name, value: employee.id })),
+                      ],
+                    },
+                    {
+                      key: 'dateRange',
+                      label: 'Date range',
+                      type: 'select',
+                      placeholder: 'Today',
+                      options: [
+                        { label: 'Today', value: 'today' },
+                        { label: 'This Week', value: 'this-week' },
+                        { label: 'This Month', value: 'this-month' },
+                        { label: 'Custom Range', value: 'custom' },
+                      ],
+                    },
+                    {
+                      key: 'customRange',
+                      label: 'Custom range',
+                      type: 'date-range',
+                      fromLabel: 'Start date',
+                      toLabel: 'End date',
+                    },
+                    {
+                      key: 'sortBy',
+                      label: 'Sort by',
+                      type: 'select',
+                      placeholder: 'Latest first',
+                      options: [
+                        { label: 'Latest First', value: 'latest' },
+                        { label: 'Earliest First', value: 'earliest' },
+                        { label: 'Duration High -> Low', value: 'duration_desc' },
+                        { label: 'Duration Low -> High', value: 'duration_asc' },
+                      ],
+                    },
+                  ]}
+                  values={{
+                    query: attendanceSearch,
+                    employeeId: attendanceFilter.employeeId,
+                    dateRange: attendanceFilter.dateRange,
+                    customRange: {
+                      from: attendanceFilter.startDate,
+                      to: attendanceFilter.endDate,
+                    },
+                    sortBy: attendanceSortBy,
+                  }}
+                  onValuesChange={(values) => {
+                    const customRange = values.customRange as { from?: string; to?: string } | undefined;
+                    const today = formatDateKey(new Date());
+                    const nextDateRange = String(values.dateRange || 'today') as 'today' | 'this-week' | 'this-month' | 'custom';
+                    const from = customRange?.from && customRange.from <= today ? customRange.from : today;
+                    const to = customRange?.to && customRange.to <= today ? customRange.to : from;
+
+                    setAttendanceSearch(String(values.query || ''));
+                    setAttendanceSortBy(String(values.sortBy || 'latest'));
+                    setAttendanceFilter((prev) => ({
+                      ...prev,
+                      employeeId: String(values.employeeId || 'all'),
+                      dateRange: nextDateRange,
+                      startDate: nextDateRange === 'custom' ? from : prev.startDate,
+                      endDate: nextDateRange === 'custom' ? to : prev.endDate,
+                    }));
+                  }}
+                  onReset={() => {
+                    setAttendanceSearch(String(defaultAttendanceFilterValues.query));
+                    setAttendanceSortBy(String(defaultAttendanceFilterValues.sortBy));
+                    setAttendanceFilter({
+                      employeeId: 'all',
+                      dateRange: 'today',
+                      startDate: TODAY_KEY,
+                      endDate: TODAY_KEY,
+                    });
+                  }}
+                  showActiveBadges={false}
+                />
               </CardContent>
             </Card>
 

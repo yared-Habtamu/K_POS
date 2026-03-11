@@ -15,6 +15,36 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
+async function ensureProductPayloadBarcodes(productPayload) {
+  const incomingBarcodes = (Array.isArray(productPayload.barcodes)
+    ? productPayload.barcodes
+    : [])
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+
+  if (incomingBarcodes.length > 0) {
+    productPayload.barcodes = Array.from(new Set(incomingBarcodes));
+    return productPayload.barcodes;
+  }
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const candidate = String(Math.floor(Math.random() * 1e12)).padStart(12, "0");
+    const existing = await Product.findOne({
+      martId: productPayload.martId,
+      $or: [{ barcodes: candidate }, { barcode: candidate }],
+    })
+      .select("_id")
+      .lean();
+
+    if (!existing) {
+      productPayload.barcodes = [candidate];
+      return productPayload.barcodes;
+    }
+  }
+
+  throw new Error("Failed to generate a unique barcode");
+}
+
 // Create product
 router.post("/", authenticate, upload.single("image"), async (req, res) => {
   try {
@@ -110,12 +140,22 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
       createdBy: user.id,
     };
 
-    // Enforce barcode uniqueness within this mart
-    const incomingBarcodes = (Array.isArray(productPayload.barcodes)
-      ? productPayload.barcodes
-      : [])
-      .map((b) => String(b).trim())
-      .filter(Boolean);
+    // ensure category exists in database
+    if (productPayload.category) {
+      const Category = require('../models/category.model');
+      try {
+        await Category.findOneAndUpdate(
+          { name: productPayload.category.trim(), martId: finalMartId },
+          { name: productPayload.category.trim(), martId: finalMartId },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+      } catch (catErr) {
+        console.error('category upsert error', catErr);
+      }
+    }
+
+    // Ensure every created product has at least one barcode and enforce mart-level uniqueness.
+    const incomingBarcodes = await ensureProductPayloadBarcodes(productPayload);
     if (incomingBarcodes.length > 0) {
       const existing = await Product.findOne({
         martId: finalMartId,
@@ -343,6 +383,20 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
       return res
         .status(403)
         .json({ message: "Access denied for this product" });
+    }
+
+    // make sure updated category exists
+    if (update.category) {
+      const Category = require('../models/category.model');
+      try {
+        await Category.findOneAndUpdate(
+          { name: update.category.trim(), martId: product.martId },
+          { name: update.category.trim(), martId: product.martId },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+      } catch (catErr) {
+        console.error('category upsert error (update)', catErr);
+      }
     }
 
     // Handle barcode updates: support adding/removing barcodes + enforce per-mart uniqueness

@@ -292,6 +292,7 @@ router.put("/:id", authenticate, async (req, res) => {
     const { id } = req.params;
     const updates = {};
     const allowed = [
+      "martName",
       "currency",
       "paymentSystem",
       "paymentAccounts",

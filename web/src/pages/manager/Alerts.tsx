@@ -1,9 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RoleLayout } from '@/components/layout/RoleLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  AdvancedFilters,
+  type AdvancedFilterValues,
+} from '@/components/ui/AdvancedFilters';
 import { useProductStore } from '@/stores/productStore';
 import { AlertTriangle, Package, Trash2, Edit } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -20,6 +24,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+const defaultFilterValues: AdvancedFilterValues = {
+  query: '',
+  category: '',
+  alertType: '',
+  sortBy: '',
+};
+
 export default function OwnerAlerts() {
   const { t } = useTranslation();
   const { getLowStockProducts, getExpiringProducts, deleteProduct, fetchProducts } = useProductStore();
@@ -27,6 +38,7 @@ export default function OwnerAlerts() {
   const navigate = useNavigate();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [filterValues, setFilterValues] = useState<AdvancedFilterValues>(defaultFilterValues);
 
   const lowStock = getLowStockProducts();
   const expiring = getExpiringProducts(7);
@@ -40,6 +52,76 @@ export default function OwnerAlerts() {
       product?.quantity ?? product?.supermarketQuantity ?? product?.storeQuantity ?? 0,
     );
   };
+
+  const categoryOptions = useMemo(() => {
+    const categories = Array.from(
+      new Set(
+        [...lowStock, ...expiring]
+          .map((product) => String(product?.category || '').trim())
+          .filter(Boolean),
+      ),
+    ).sort((left, right) => left.localeCompare(right));
+
+    return categories.map((category) => ({ label: category, value: category }));
+  }, [expiring, lowStock]);
+
+  const filterProducts = (products: any[], type: 'low_stock' | 'expiring') => {
+    const query = String(filterValues.query || '').trim().toLowerCase();
+    const category = String(filterValues.category || '').trim().toLowerCase();
+    const alertType = String(filterValues.alertType || '').trim();
+    const sortBy = String(filterValues.sortBy || '');
+
+    if (alertType && alertType !== type) {
+      return [];
+    }
+
+    const filtered = products.filter((product) => {
+      const name = String(product?.name || '').toLowerCase();
+      const productCategory = String(product?.category || '').trim().toLowerCase();
+      const barcode = String(product?.barcode || product?.barcodes?.[0] || '').toLowerCase();
+
+      const matchesQuery =
+        !query ||
+        name.includes(query) ||
+        productCategory.includes(query) ||
+        barcode.includes(query);
+      const matchesCategory = !category || productCategory === category;
+
+      return matchesQuery && matchesCategory;
+    });
+
+    return filtered.sort((left, right) => {
+      switch (sortBy) {
+        case 'name_asc':
+          return String(left?.name || '').localeCompare(String(right?.name || ''));
+        case 'name_desc':
+          return String(right?.name || '').localeCompare(String(left?.name || ''));
+        case 'remaining_asc':
+          return getRemaining(left) - getRemaining(right);
+        case 'expiry_asc': {
+          const leftTime = left?.expiryDate ? new Date(left.expiryDate).getTime() : Number.MAX_SAFE_INTEGER;
+          const rightTime = right?.expiryDate ? new Date(right.expiryDate).getTime() : Number.MAX_SAFE_INTEGER;
+          return leftTime - rightTime;
+        }
+        default:
+          if (type === 'expiring') {
+            const leftTime = left?.expiryDate ? new Date(left.expiryDate).getTime() : Number.MAX_SAFE_INTEGER;
+            const rightTime = right?.expiryDate ? new Date(right.expiryDate).getTime() : Number.MAX_SAFE_INTEGER;
+            return leftTime - rightTime;
+          }
+          return getRemaining(left) - getRemaining(right);
+      }
+    });
+  };
+
+  const filteredLowStock = useMemo(
+    () => filterProducts(lowStock, 'low_stock'),
+    [filterValues, lowStock],
+  );
+  const filteredExpiring = useMemo(
+    () => filterProducts(expiring, 'expiring'),
+    [expiring, filterValues],
+  );
 
   const handleDelete = async (id?: string) => {
     if (!id) return;
@@ -66,18 +148,64 @@ export default function OwnerAlerts() {
           <p className="text-muted-foreground">{t('alerts_summary')}</p>
         </div>
 
+        <AdvancedFilters
+          title="Search and filter alerts"
+          description="Filter alerts by product, category, alert type, or urgency."
+          fields={[
+            {
+              key: 'query',
+              label: 'Search',
+              type: 'search',
+              placeholder: 'Search by name, category, or barcode',
+            },
+            {
+              key: 'category',
+              label: 'Category',
+              type: 'select',
+              placeholder: 'All categories',
+              options: categoryOptions,
+            },
+            {
+              key: 'alertType',
+              label: 'Alert type',
+              type: 'select',
+              placeholder: 'All alert types',
+              options: [
+                { label: 'Low Stock', value: 'low_stock' },
+                { label: 'Expiring Soon', value: 'expiring' },
+              ],
+            },
+            {
+              key: 'sortBy',
+              label: 'Sort by',
+              type: 'select',
+              placeholder: 'Name A -> Z',
+              options: [
+                { label: 'Name A -> Z', value: 'name_asc' },
+                { label: 'Name Z -> A', value: 'name_desc' },
+                { label: 'Remaining Low -> High', value: 'remaining_asc' },
+                { label: 'Expiry Soonest First', value: 'expiry_asc' },
+              ],
+            },
+          ]}
+          values={filterValues}
+          onValuesChange={setFilterValues}
+          onReset={() => setFilterValues(defaultFilterValues)}
+          showActiveBadges={false}
+        />
+
         <div className="grid gap-4 md:grid-cols-2">
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5 text-warning" />
-                  {t('low_stock')} <Badge variant="secondary" className="ml-auto">{lowStock.length}</Badge>
+                  {t('low_stock')} <Badge variant="secondary" className="ml-auto">{filteredLowStock.length}</Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {lowStock.slice(0, 10).map((product) => (
+                  {filteredLowStock.map((product) => (
                     <div key={product.id} className="flex items-center justify-between gap-3 p-2 rounded-lg bg-accent/50">
                       <div className="flex items-center gap-3">
                         {product.pictureUrl ? (
@@ -112,8 +240,8 @@ export default function OwnerAlerts() {
                       </div>
                     </div>
                   ))}
-                  {lowStock.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-4">No low stock alerts</p>
+                  {filteredLowStock.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">No low stock alerts match the current filters</p>
                   )}
                 </div>
               </CardContent>
@@ -125,12 +253,12 @@ export default function OwnerAlerts() {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5 text-destructive" />
-                  {t('expiring_soon')} <Badge variant="secondary" className="ml-auto">{expiring.length}</Badge>
+                  {t('expiring_soon')} <Badge variant="secondary" className="ml-auto">{filteredExpiring.length}</Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {expiring.slice(0, 10).map((product) => (
+                  {filteredExpiring.map((product) => (
                     <div key={product.id} className="flex items-center justify-between gap-3 p-2 rounded-lg bg-accent/50">
                       <div className="flex items-center gap-3">
                         {product.pictureUrl ? (
@@ -165,8 +293,8 @@ export default function OwnerAlerts() {
                       </div>
                     </div>
                   ))}
-                  {expiring.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-4">No expiring products</p>
+                  {filteredExpiring.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">No expiring products match the current filters</p>
                   )}
                 </div>
               </CardContent>

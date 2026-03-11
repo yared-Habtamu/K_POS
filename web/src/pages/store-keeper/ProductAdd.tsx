@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { RoleLayout } from "@/components/layout/RoleLayout";
@@ -20,6 +20,7 @@ import {
   Barcode,
   Loader2,
   Image as ImageIcon,
+  Printer,
   Trash2,
   RotateCw,
 } from "lucide-react";
@@ -36,14 +37,29 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const units: ProductUnit[] = ["pcs", "kg", "g", "l", "ml", "box"];
+const defaultCategories = [
+  "Beverages",
+  "Snacks",
+  "Dairy",
+  "Bread & Bakery",
+  "Canned Goods",
+  "Household",
+  "Personal Care",
+  "Fruits & Vegetables",
+  "Groceries",
+  "Drinks",
+];
 import axios from "axios";
 import { useAuthStore } from "@/stores/authStore";
+import { generateUniqueBarcode } from "@/utils/barcodes";
+import JsBarcode from "jsbarcode";
 
 export default function ProductAdd() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { categories } = useProductStore();
+  const { categories, products } = useProductStore();
   const fetchProducts = useProductStore((s) => s.fetchProducts);
+  const fetchCategories = useProductStore((s) => s.fetchCategories);
   // Determine where to return after add based on current user role
   const role = useAuthStore((s) => s.user?.role) || "owner";
   const productsRoute =
@@ -62,6 +78,7 @@ export default function ProductAdd() {
   const [form, setForm] = useState({
     name: "",
     category: "",
+    newCategory: "",
     unit: "pcs" as ProductUnit,
     purchasePrice: "",
     sellingPrice: "",
@@ -87,6 +104,48 @@ export default function ProductAdd() {
   const API_BASE = import.meta.env.VITE_API_URL || "";
   const token = useAuthStore.getState().user?.token;
 
+  const availableCategories = useMemo(() => {
+    const byName = new Map<string, { id: string; name: string }>();
+
+    for (const name of defaultCategories) {
+      const trimmed = String(name).trim();
+      if (!trimmed) continue;
+      byName.set(trimmed.toLowerCase(), {
+        id: `default-${trimmed.toLowerCase()}`,
+        name: trimmed,
+      });
+    }
+
+    for (const cat of categories || []) {
+      const name = String(cat?.name || "").trim();
+      if (!name) continue;
+      byName.set(name.toLowerCase(), {
+        id: String(cat.id || name),
+        name,
+      });
+    }
+
+    for (const product of products || []) {
+      const name = String(product?.category || "").trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (!byName.has(key)) {
+        byName.set(key, { id: `product-${key}`, name });
+      }
+    }
+
+    return Array.from(byName.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+  }, [categories, products]);
+
+  useEffect(() => {
+    void (async () => {
+      await fetchCategories?.();
+      await fetchProducts?.(1, 1000);
+    })();
+  }, [fetchCategories, fetchProducts]);
+
   const findProductByBarcode = async (code: string) => {
     const trimmed = (code || "").trim();
     if (!trimmed) return null;
@@ -104,24 +163,11 @@ export default function ProductAdd() {
     }
   };
 
-  const generateUniqueBarcode = async () => {
-    const candidate = () => `${Date.now()}`.slice(-12);
-    for (let i = 0; i < 6; i++) {
-      const code =
-        i === 0
-          ? candidate()
-          : `${candidate()}${Math.floor(Math.random() * 9)}`.slice(0, 12);
-      const existing = await findProductByBarcode(code);
-      if (!existing) return code;
-    }
-    // fallback: 12-digit random
-    return String(Math.floor(Math.random() * 1e12)).padStart(12, "0");
-  };
-
   const resetForm = () => {
     setForm({
       name: "",
       category: "",
+      newCategory: "",
       unit: "pcs",
       purchasePrice: "",
       sellingPrice: "",
@@ -175,9 +221,37 @@ export default function ProductAdd() {
     e.preventDefault();
     setIsLoading(true);
 
+    const trimmedCategory = (form.newCategory || form.category || "").trim();
+    if (!trimmedCategory) {
+      toast({
+        title: t("invalid_product_data"),
+        description: "Please select a category or add a new one.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    if (trimmedCategory && !availableCategories.find((c) => c.name === trimmedCategory)) {
+      try {
+        await axios.post(
+          `${API_BASE}/api/categories`,
+          { name: trimmedCategory, martId: useAuthStore.getState().user?.martId },
+          {
+            headers: {
+              Authorization: token ? `Bearer ${token}` : "",
+            },
+          },
+        );
+        await fetchCategories?.();
+      } catch (err) {
+        console.error("failed to create category", err);
+      }
+    }
+
     const formData = new FormData();
     formData.append("name", form.name);
-    formData.append("category", form.category || "");
+    formData.append("category", trimmedCategory);
     formData.append("unit", form.unit);
     if (canSetPurchase) {
       formData.append(
@@ -198,13 +272,19 @@ export default function ProductAdd() {
       String(parseInt(form.lowStockThreshold || "10")),
     );
     if (form.expiryDate) formData.append("expiryDate", form.expiryDate);
-    // barcodes: send as repeated form fields; prefer explicit array from UI
-    const barcodesArr = Array.isArray(form.barcodes)
-      ? form.barcodes.filter(Boolean)
-      : [];
+    // Treat the visible input as a pending barcode even if the user did not click Add.
+    const pendingBarcode = (form.barcodeInput || "").trim();
+    const barcodesArr = Array.from(
+      new Set(
+        [
+          ...(Array.isArray(form.barcodes) ? form.barcodes : []),
+          pendingBarcode,
+        ].filter(Boolean),
+      ),
+    );
     if (barcodesArr.length === 0) {
       try {
-        barcodesArr.push(await generateUniqueBarcode());
+        barcodesArr.push(await generateUniqueBarcode(findProductByBarcode));
       } catch (e) {
         console.error("generate unique barcode failed", e);
         barcodesArr.push(`${Date.now()}`.slice(-12));
@@ -290,11 +370,8 @@ export default function ProductAdd() {
   const generateBarcode = () => {
     void (async () => {
       try {
-        const b = await generateUniqueBarcode();
-        const existing = Array.isArray(form.barcodes)
-          ? form.barcodes.slice()
-          : [];
-        setForm({ ...form, barcodes: [...existing, b], barcodeInput: "" });
+        const b = await generateUniqueBarcode(findProductByBarcode);
+        setForm((prev) => ({ ...prev, barcodeInput: b }));
       } catch (e) {
         console.error("generate barcode failed", e);
         toast({ title: t("failed_generate_barcode"), variant: "destructive" });
@@ -311,6 +388,67 @@ export default function ProductAdd() {
     } finally {
       setIsRefreshing(false);
     }
+  };
+
+  const activeBarcode =
+    (form.barcodeInput || "").trim() ||
+    (Array.isArray(form.barcodes) && form.barcodes.length > 0
+      ? String(form.barcodes[0] || "").trim()
+      : "");
+
+  const handlePrintBarcode = () => {
+    if (!activeBarcode) return;
+
+    const canvas = document.createElement("canvas");
+    JsBarcode(canvas, activeBarcode, {
+      format: "CODE128",
+      width: 2,
+      height: 80,
+      displayValue: true,
+      fontSize: 14,
+      margin: 10,
+      background: "#ffffff",
+      lineColor: "#111111",
+    });
+
+    const barcodeDataUrl = canvas.toDataURL("image/png");
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Barcode - ${form.name || "Product"}</title>
+          <style>
+            @page { size: 50mm 30mm; margin: 2mm; }
+            body {
+              font-family: Arial, sans-serif;
+              text-align: center;
+              padding: 4mm;
+            }
+            .label {
+              border: 1px dashed #ccc;
+              padding: 2mm;
+            }
+            .shop-name { font-size: 10pt; font-weight: bold; margin-bottom: 2mm; }
+            .item-name { font-size: 8pt; margin: 2mm 0; }
+            .price { font-size: 10pt; font-weight: bold; }
+            img.barcode { max-width: 100%; height: auto; }
+          </style>
+        </head>
+        <body>
+          <div class="label">
+            <div class="shop-name">${t("smart_supermarket")}</div>
+            <img class="barcode" src="${barcodeDataUrl}" alt="Barcode" />
+            <div class="item-name">${form.name || t("product")}</div>
+            <div class="price">${form.sellingPrice || 0} ETB</div>
+          </div>
+          <script>window.onload = () => { window.print(); window.close(); }</script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   return (
@@ -426,13 +564,21 @@ export default function ProductAdd() {
                       <SelectValue placeholder={t("select_category")} />
                     </SelectTrigger>
                     <SelectContent>
-                      {categories.map((cat) => (
+                      {availableCategories.map((cat) => (
                         <SelectItem key={cat.id} value={cat.name}>
                           {cat.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  <Input
+                    id="newCategory"
+                    value={form.newCategory}
+                    onChange={(e) =>
+                      setForm({ ...form, newCategory: e.target.value })
+                    }
+                    placeholder="Add new category (optional)"
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -621,6 +767,15 @@ export default function ProductAdd() {
                   <div className="text-xs text-muted-foreground">
                     {t("previously_registered_barcodes_hint")}
                   </div>
+
+                  {activeBarcode ? (
+                    <div className="mt-3 flex justify-end">
+                      <Button type="button" onClick={handlePrintBarcode}>
+                        <Printer className="mr-2 h-4 w-4" />
+                        {t("print_label")}
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
 
                 <AlertDialog
@@ -676,6 +831,7 @@ export default function ProductAdd() {
                               setForm({
                                 name: String(p?.name || ""),
                                 category: String(p?.category || ""),
+                                newCategory: "",
                                 unit: (p?.unit as ProductUnit) || "pcs",
                                 purchasePrice: String(p?.purchasePrice ?? 0),
                                 sellingPrice: String(p?.sellingPrice ?? 0),

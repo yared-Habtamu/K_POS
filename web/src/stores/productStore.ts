@@ -2,17 +2,7 @@ import { create } from "zustand";
 import type { Product, Category } from "@/types";
 import { useAuthStore } from "./authStore";
 
-// Mock categories
-const mockCategories: Category[] = [
-  { id: "cat-1", name: "Beverages", nameAm: "መጠጦች" },
-  { id: "cat-2", name: "Snacks", nameAm: "መክሰስ" },
-  { id: "cat-3", name: "Dairy", nameAm: "የወተት ምርቶች" },
-  { id: "cat-4", name: "Bread & Bakery", nameAm: "ዳቦ እና ቤከሪ" },
-  { id: "cat-5", name: "Canned Goods", nameAm: "የታሸጉ ምግቦች" },
-  { id: "cat-6", name: "Household", nameAm: "የቤት ውስጥ ዕቃዎች" },
-  { id: "cat-7", name: "Personal Care", nameAm: "የግል እንክብካቤ" },
-  { id: "cat-8", name: "Fruits & Vegetables", nameAm: "ፍራፍሬ እና አትክልት" },
-];
+// categories will be fetched from server
 
 // Mock products
 const mockProducts: Product[] = [
@@ -175,6 +165,7 @@ const mockProducts: Product[] = [
 interface ProductState {
   products: Product[];
   categories: Category[];
+  fetchCategories: () => Promise<void>;
   isLoading: boolean;
   fetchError?: string | null;
   totalProducts: number;
@@ -224,11 +215,34 @@ const normalizeProducts = (items: any[]) => {
 
 export const useProductStore = create<ProductState>((set, get) => ({
   products: [],
-  categories: mockCategories,
+  categories: [],
   isLoading: false,
   fetchError: null,
-
   totalProducts: 0,
+  fetchCategories: async () => {
+    const auth = useAuthStore.getState().user;
+    const API_BASE = import.meta.env.VITE_API_URL || "";
+    const martId = auth?.martId;
+    if (!martId) return;
+    try {
+      const token = auth?.token;
+      const res = await fetch(`${API_BASE}/api/categories?martId=${martId}`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (!res.ok) return;
+      const list = await res.json();
+      if (Array.isArray(list)) {
+        const normalized: Category[] = list.map((c: any) => ({
+          id: String(c._id || c.id || ""),
+          name: c.name,
+          nameAm: c.nameAm || "",
+        }));
+        set({ categories: normalized });
+      }
+    } catch (err) {
+      console.error("fetchCategories error", err);
+    }
+  },
 
   fetchProducts: async (page = 1, limit = 1000) => {
     set({ isLoading: true });

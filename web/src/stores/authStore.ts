@@ -9,6 +9,7 @@ type AuthUser = {
   martId?: string;
   email?: string;
   phone?: string;
+  profilePictureUrl?: string;
   role: UserRole;
   token: string;
   permissions?: string[]; // optional permissions granted to the user
@@ -79,6 +80,7 @@ export const useAuthStore = create<AuthState>()(
                 name: data.user.name,
                 email: data.user.email,
                 phone: data.user.phone,
+                profilePictureUrl: data.user.profilePictureUrl,
                 role: normalizedRole,
                 token: data.token,
                 permissions: Array.isArray(data.user.permissions) ? data.user.permissions : [],

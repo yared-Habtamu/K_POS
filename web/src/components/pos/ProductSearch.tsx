@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import { useProductStore } from "@/stores/productStore";
@@ -10,39 +10,38 @@ import { toast } from "@/hooks/use-toast";
 import { Search, Barcode, X, Package } from "lucide-react";
 import type { Product } from "@/types";
 
-export function ProductSearch() {
+interface ProductSearchProps {
+  value?: string;
+  onValueChange?: (value: string) => void;
+  autoFocus?: boolean;
+  onProductAdded?: (product: Product) => void;
+}
+
+export function ProductSearch({
+  value,
+  onValueChange,
+  autoFocus = true,
+  onProductAdded,
+}: ProductSearchProps) {
   const { t } = useTranslation();
-  const [query, setQuery] = useState("");
+  const [internalQuery, setInternalQuery] = useState("");
   const [results, setResults] = useState<Product[]>([]);
   const [showResults, setShowResults] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const query = value ?? internalQuery;
 
   const searchProducts = useProductStore((s) => s.searchProducts);
   const getProductByBarcode = useProductStore((s) => s.getProductByBarcode);
   const { addItem } = useCartStore();
 
-  // Ensure we load real products from the API when the POS mounts.
-  // Use the store's getState() to avoid subscribing to the whole store
-  // which would change identity on updates and retrigger this effect.
-  useEffect(() => {
-    const refreshProducts = async () => {
-      try {
-        if (!navigator.onLine) return;
-        await useProductStore.getState().fetchProducts();
-      } catch (err) {
-        console.warn("Product fetch failed to start:", err);
-      }
-    };
+  const updateQuery = (nextValue: string) => {
+    if (onValueChange) {
+      onValueChange(nextValue);
+      return;
+    }
 
-    refreshProducts();
-    const intervalId = window.setInterval(refreshProducts, 60_000);
-    window.addEventListener("online", refreshProducts);
-
-    return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener("online", refreshProducts);
-    };
-  }, []);
+    setInternalQuery(nextValue);
+  };
 
   useEffect(() => {
     if (query.length >= 2) {
@@ -57,11 +56,12 @@ export function ProductSearch() {
 
   const handleSelect = (product: Product) => {
     addItem(product, 1);
+    onProductAdded?.(product);
     toast({
       title: t("product_added"),
       description: `${product.name} added to cart`,
     });
-    setQuery("");
+    updateQuery("");
     setShowResults(false);
     inputRef.current?.focus();
   };
@@ -93,16 +93,16 @@ export function ProductSearch() {
             ref={inputRef}
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => updateQuery(e.target.value)}
             placeholder={t("scan_barcode")}
             className="pl-12 pr-12 h-14 text-lg rounded-xl"
-            autoFocus
+            autoFocus={autoFocus}
           />
           {query && (
             <button
               type="button"
               onClick={() => {
-                setQuery("");
+                updateQuery("");
                 setShowResults(false);
               }}
               className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"

@@ -138,7 +138,7 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
           )}
           {receipt.shopPhone && <p className="text-xs">{receipt.shopPhone}</p>}
           {receipt.receiptHeader && (
-            <p className="text-xs mt-2 italic">{receipt.receiptHeader}</p>
+            <p className="text-xs mt-2">{receipt.receiptHeader}</p>
           )}
         </div>
 
@@ -239,7 +239,7 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
 
         {/* Footer */}
         {receipt.receiptSlogan && (
-          <p className="text-center text-xs mt-4 italic">
+          <p className="text-center text-xs mt-4">
             {receipt.receiptSlogan}
           </p>
         )}
