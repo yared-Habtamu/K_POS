@@ -28,7 +28,7 @@ router.get("/", authenticate, async (req, res) => {
 // Create asset
 router.post("/", authenticate, async (req, res) => {
   try {
-    const { name, quantity, description, martId } = req.body;
+    const { name, assetId, image, sizeOrType, purchaseDate, status, conditions, assignedTo, quantity, description, martId } = req.body;
     const targetMartId =
       req.user.role === "systemAdmin"
         ? martId || req.user.martId
@@ -41,6 +41,13 @@ router.post("/", authenticate, async (req, res) => {
     const asset = new Asset({
       martId: targetMartId,
       name,
+      assetId,
+      image,
+      sizeOrType,
+      purchaseDate,
+      status,
+      conditions,
+      assignedTo,
       quantity: Number(quantity),
       description,
       createdBy: req.user.id,
@@ -57,7 +64,7 @@ router.post("/", authenticate, async (req, res) => {
 router.put("/:id", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, quantity, description } = req.body;
+    const { name, assetId, image, sizeOrType, purchaseDate, status, conditions, assignedTo, quantity, description } = req.body;
     const asset = await Asset.findById(id);
     if (!asset) return res.status(404).json({ message: "Asset not found" });
     if (req.user.role !== "systemAdmin") {
@@ -68,6 +75,13 @@ router.put("/:id", authenticate, async (req, res) => {
     }
     // allow partial updates
     if (name != null) asset.name = name;
+    if (assetId != null) asset.assetId = assetId;
+    if (image != null) asset.image = image;
+    if (sizeOrType != null) asset.sizeOrType = sizeOrType;
+    if (purchaseDate != null) asset.purchaseDate = purchaseDate;
+    if (status != null) asset.status = status;
+    if (conditions != null) asset.conditions = conditions;
+    if (assignedTo != null) asset.assignedTo = assignedTo;
     if (quantity != null) asset.quantity = Number(quantity);
     if (description != null) asset.description = description;
     await asset.save();

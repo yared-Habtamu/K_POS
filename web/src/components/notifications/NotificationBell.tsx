@@ -56,12 +56,7 @@ export function NotificationBell() {
             </span>
           )}
 
-          {!isConnected && (
-            <span 
-              className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-yellow-500 border border-background" 
-              title="Reconnecting to real-time service..." 
-            />
-          )}
+
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80 md:w-96 p-0 glass-strong border-border/50 shadow-xl overflow-hidden">

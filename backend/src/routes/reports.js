@@ -212,15 +212,7 @@ router.get("/summary", authenticate, async (req, res) => {
       cur.setDate(cur.getDate() + 1);
     }
 
-    const dailyMap = {};
-    for (const d of days) dailyMap[d] = 0;
-    for (const s of sales) {
-      const k = (s.date || new Date()).toISOString().slice(0, 10);
-      dailyMap[k] = (dailyMap[k] || 0) + (s.total || 0);
-    }
-    for (let i = 0; i < series.length; i++) {
-      series[i].total = dailyMap[series[i].date] || 0;
-    }
+    const totalItemsSold = sales.reduce((s, x) => s + (x.items || []).reduce((acc, it) => acc + (it.quantity || 0), 0), 0);
 
     res.json({
       range: range || "monthly",
@@ -231,6 +223,7 @@ router.get("/summary", authenticate, async (req, res) => {
       discountsTotal,
       totalTax,
       taxByCategory,
+      totalItemsSold,
       salesByPaymentMethod: Object.entries(salesByPaymentMethod).map(
         ([method, total]) => ({ method, total })
       ),
@@ -431,6 +424,8 @@ router.get("/mart", authenticate, async (req, res) => {
       series[i].total = dailyMap[series[i].date] || 0;
     }
 
+    const totalItemsSold = sales.reduce((s, x) => s + (x.items || []).reduce((acc, it) => acc + (it.quantity || 0), 0), 0);
+
     res.json({
       start: startDate.toISOString(),
       end: endDate.toISOString(),
@@ -446,6 +441,7 @@ router.get("/mart", authenticate, async (req, res) => {
         .map(([method, total]) => ({ method, total: Number(total || 0) }))
         .sort((a, b) => b.total - a.total),
       topProducts,
+      totalItemsSold,
       series,
     });
   } catch (err) {

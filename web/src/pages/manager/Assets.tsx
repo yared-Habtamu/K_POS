@@ -6,15 +6,22 @@ import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export default function ManagerAssets() {
   const { t } = useTranslation();
-  const [assets, setAssets] = useState<
-    { id: string; name: string; quantity: number }[]
-  >([]);
+  const [assets, setAssets] = useState<any[]>([]);
   const auth = useAuthStore((s) => s.user);
   const API_BASE = import.meta.env.VITE_API_URL || "";
   const [name, setName] = useState("");
+  const [assetIdField, setAssetIdField] = useState("");
+  const [image, setImage] = useState("");
+  const [sizeOrType, setSizeOrType] = useState("");
+  const [purchaseDate, setPurchaseDate] = useState("");
+  const [status, setStatus] = useState("new");
+  const [conditions, setConditions] = useState("");
+  const [assignedTo, setAssignedTo] = useState("");
   const [qty, setQty] = useState<number | "">("");
   // when editing an existing asset we keep its id here
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -41,9 +48,8 @@ export default function ManagerAssets() {
         const list = await res.json();
         if (!mounted) return;
         const normalized = list.map((a: any) => ({
+          ...a,
           id: a._id || a.id,
-          name: a.name,
-          quantity: a.quantity,
         }));
         setAssets(normalized);
       } catch (err) {
@@ -60,7 +66,18 @@ export default function ManagerAssets() {
     (async () => {
       try {
         const token = auth?.token;
-        const payload = { name, quantity: Number(qty), martId: auth?.martId };
+        const payload = {
+          name,
+          assetId: assetIdField,
+          image,
+          sizeOrType,
+          purchaseDate,
+          status,
+          conditions,
+          assignedTo,
+          quantity: Number(qty),
+          martId: auth?.martId
+        };
         let res;
         if (editingId) {
           // update existing asset
@@ -92,31 +109,26 @@ export default function ManagerAssets() {
           return;
         }
         const saved = await res.json();
+        const normalizedSaved = { ...saved, id: saved._id || saved.id };
         if (editingId) {
           setAssets((a) =>
             a.map((x) =>
-              x.id === editingId
-                ? {
-                    id: saved._id || saved.id,
-                    name: saved.name,
-                    quantity: saved.quantity,
-                  }
-                : x,
-            ),
+              x.id === editingId ? normalizedSaved : x
+            )
           );
         } else {
-          setAssets((a) => [
-            {
-              id: saved._id || saved.id,
-              name: saved.name,
-              quantity: saved.quantity,
-            },
-            ...a,
-          ]);
+          setAssets((a) => [normalizedSaved, ...a]);
           setCurrentPage(1);
         }
         // reset form
         setName("");
+        setAssetIdField("");
+        setImage("");
+        setSizeOrType("");
+        setPurchaseDate("");
+        setStatus("new");
+        setConditions("");
+        setAssignedTo("");
         setQty("");
         setEditingId(null);
       } catch (err) {
@@ -130,10 +142,10 @@ export default function ManagerAssets() {
 
   const exportCSV = () => {
     if (!assets.length) return;
-    const keys = ["id", "name", "quantity"];
+    const keys = ["assetId", "name", "image", "sizeOrType", "purchaseDate", "status", "conditions", "assignedTo", "quantity"];
     const csv = [
       keys.join(","),
-      ...assets.map((a) => `${a.id},"${a.name}",${a.quantity}`),
+      ...assets.map((a) => `"${a.assetId || ""}","${a.name}","${a.image || ""}","${a.sizeOrType || ""}","${a.purchaseDate || ""}","${a.status || ""}","${a.conditions || ""}","${a.assignedTo || ""}",${a.quantity}`),
     ].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -144,9 +156,45 @@ export default function ManagerAssets() {
     URL.revokeObjectURL(url);
   };
 
+  const exportToPDF = () => {
+    const doc = new jsPDF("l", "mm", "a4");
+    const pageWidth = doc.internal.pageSize.width;
+    doc.setFontSize(18);
+    doc.text("Asset Inventory Report", pageWidth / 2, 15, { align: "center" });
+    doc.setFontSize(10);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2, 22, { align: "center" });
+
+    autoTable(doc, {
+      startY: 30,
+      head: [["Asset ID", "Name", "Image", "Size/Type", "Purchase Date", "Status", "Assigned To", "Conditions", "Qty"]],
+      body: assets.map((a) => [
+        a.assetId || "-",
+        a.name,
+        a.image ? "Yes" : "No",
+        a.sizeOrType || "-",
+        a.purchaseDate ? new Date(a.purchaseDate).toLocaleDateString() : "-",
+        a.status || "-",
+        a.assignedTo || "-",
+        a.conditions || "-",
+        a.quantity
+      ]),
+      theme: "grid",
+      headStyles: { fillColor: [66, 66, 66] },
+      styles: { fontSize: 8 }
+    });
+    doc.save("assets_report.pdf");
+  };
+
   const cancelEdit = () => {
     setEditingId(null);
     setName("");
+    setAssetIdField("");
+    setImage("");
+    setSizeOrType("");
+    setPurchaseDate("");
+    setStatus("new");
+    setConditions("");
+    setAssignedTo("");
     setQty("");
   };
 
@@ -204,6 +252,9 @@ export default function ManagerAssets() {
             <Button onClick={exportCSV} size="sm">
               {t("export_csv")}
             </Button>
+            <Button onClick={exportToPDF} size="sm" className="bg-red-600 hover:bg-red-700">
+              Export PDF
+            </Button>
             <Button variant="outline" onClick={printList} size="sm">
               {t("print")}
             </Button>
@@ -217,24 +268,93 @@ export default function ManagerAssets() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-2">
-              <Input
-                placeholder={t("asset_name")}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-              <Input
-                placeholder={t("quantity")}
-                value={qty === "" ? "" : String(qty)}
-                onChange={(e) =>
-                  setQty(
-                    e.target.value.replace(/[^0-9]/g, "") === ""
-                      ? ""
-                      : Number(e.target.value.replace(/[^0-9]/g, "")),
-                  )
-                }
-              />
-              <Button onClick={add}>{editingId ? t("save") : t("add")}</Button>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t("asset_name")} *</label>
+                <Input
+                  placeholder="e.g. Pips"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t("asset_id")}</label>
+                <Input
+                  placeholder="e.g. AST0001"
+                  value={assetIdField}
+                  onChange={(e) => setAssetIdField(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t("image_url")}</label>
+                <Input
+                  placeholder="https://..."
+                  value={image}
+                  onChange={(e) => setImage(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t("size_or_type")}</label>
+                <Input
+                  placeholder="e.g. Black XL"
+                  value={sizeOrType}
+                  onChange={(e) => setSizeOrType(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t("purchase_date")}</label>
+                <Input
+                  type="date"
+                  value={purchaseDate ? purchaseDate.split('T')[0] : ""}
+                  onChange={(e) => setPurchaseDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t("status")}</label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="new">{t("new")}</option>
+                  <option value="old">{t("old")}</option>
+                  <option value="damaged">{t("damaged")}</option>
+                  <option value="lost">{t("lost")}</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t("assigned_to")}</label>
+                <Input
+                  placeholder="Staff name"
+                  value={assignedTo}
+                  onChange={(e) => setAssignedTo(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t("conditions")}</label>
+                <Input
+                  placeholder="Good, needs repair, etc."
+                  value={conditions}
+                  onChange={(e) => setConditions(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t("quantity")} *</label>
+                <Input
+                  placeholder="Quantity"
+                  value={qty === "" ? "" : String(qty)}
+                  onChange={(e) =>
+                    setQty(
+                      e.target.value.replace(/[^0-9]/g, "") === ""
+                        ? ""
+                        : Number(e.target.value.replace(/[^0-9]/g, ""))
+                    )
+                  }
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <Button onClick={add} className="w-full md:w-auto">{editingId ? t("save_changes") : t("register_asset")}</Button>
               {editingId && (
                 <Button variant="outline" onClick={cancelEdit}>
                   {t("cancel")}
@@ -253,19 +373,39 @@ export default function ManagerAssets() {
                     key={a.id}
                     className="flex items-center justify-between p-2 rounded-md bg-accent/50"
                   >
-                    <div>
-                      <p className="font-medium">{a.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {t("quantity_short")}: {a.quantity}
-                      </p>
+                    <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-2">
+                      <div>
+                        <p className="font-bold text-sm">{a.name}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase">{a.assetId || t("no_id")}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium">{t("quantity_short")}: {a.quantity}</p>
+                        <p className="text-[10px] text-muted-foreground">{a.sizeOrType || t("no_size_type")}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium">{t("status")}: <span className={a.status === 'new' ? 'text-green-600' : 'text-orange-600'}>{t(a.status)}</span></p>
+                        <p className="text-[10px] text-muted-foreground">{t("to")}: {a.assignedTo || t("unassigned")}</p>
+                      </div>
+                      <div className="hidden md:block">
+                        <p className="text-xs font-medium">{t("purchased")}: {a.purchaseDate ? new Date(a.purchaseDate).toLocaleDateString() : 'N/A'}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{a.conditions || t("no_info")}</p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
                         size="sm"
+                        variant="secondary"
                         onClick={() => {
                           // populate form for editing
                           setEditingId(a.id);
-                          setName(a.name);
+                          setName(a.name || "");
+                          setAssetIdField(a.assetId || "");
+                          setImage(a.image || "");
+                          setSizeOrType(a.sizeOrType || "");
+                          setPurchaseDate(a.purchaseDate || "");
+                          setStatus(a.status || "new");
+                          setConditions(a.conditions || "");
+                          setAssignedTo(a.assignedTo || "");
                           setQty(a.quantity);
                         }}
                       >

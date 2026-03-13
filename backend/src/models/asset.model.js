@@ -9,6 +9,13 @@ const AssetSchema = new mongoose.Schema(
       required: true,
     },
     name: { type: String, required: true, index: true },
+    assetId: { type: String, index: true },
+    image: { type: String },
+    sizeOrType: { type: String },
+    purchaseDate: { type: Date },
+    status: { type: String }, // e.g. "new", "old"
+    conditions: { type: String },
+    assignedTo: { type: String },
     quantity: { type: Number, required: true, default: 0 },
     description: { type: String },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },

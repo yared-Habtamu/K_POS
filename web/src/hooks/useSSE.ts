@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useAuthStore } from '@/stores/authStore';
+import { useNotificationStore } from '@/stores/notificationStore';
 import { toast } from 'sonner';
 
 export interface Notification {
@@ -12,11 +13,22 @@ export interface Notification {
   createdAt: string;
 }
 
+// Module-level singleton to persist across hook instantiations
+let globalEventSource: EventSource | null = null;
+
 export function useSSE() {
   const { user } = useAuthStore();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [isConnected, setIsConnected] = useState(false);
+  const { 
+    notifications, 
+    unreadCount, 
+    isConnected, 
+    setNotifications, 
+    addNotification, 
+    setUnreadCount, 
+    setIsConnected,
+    markAsRead: storeMarkAsRead,
+    markAllAsRead: storeMarkAllAsRead
+  } = useNotificationStore();
 
   const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -33,18 +45,29 @@ export function useSSE() {
     } catch (err) {
       console.error('Failed to fetch notifications:', err);
     }
-  }, [user?.token, API_BASE]);
+  }, [user?.token, API_BASE, setNotifications]);
 
   useEffect(() => {
     if (!user?.token) {
       setIsConnected(false);
+      if (globalEventSource) {
+        globalEventSource.close();
+        globalEventSource = null;
+      }
       return;
     }
 
-    fetchNotifications();
+    // Only fetch if we don't have notifications yet or to refresh
+    if (notifications.length === 0) {
+      fetchNotifications();
+    }
+
+    // If already connected, don't open another one
+    if (globalEventSource) return;
 
     const url = `${API_BASE}/api/notifications/stream?token=${user.token}`;
     const eventSource = new EventSource(url);
+    globalEventSource = eventSource;
 
     eventSource.onopen = () => {
       setIsConnected(true);
@@ -55,20 +78,14 @@ export function useSSE() {
         const payload = JSON.parse(event.data);
         if (payload.type === 'notification') {
           const newNotif = payload.data;
-          setNotifications((prev) => [newNotif, ...prev]);
+          addNotification(newNotif);
           
-          // Show real-time toast
           toast.info(newNotif.title, {
             description: newNotif.message,
             duration: 5000,
           });
-          
-          // Unread count will be updated by a separate message from server usually,
-          // but if not, we could increment here. Our server sends unread_count update.
         } else if (payload.type === 'unread_count') {
           setUnreadCount(payload.count);
-        } else if (payload.type === 'connected') {
-          // Connected successfully
         }
       } catch (err) {
         console.error('[SSE] Error parsing message:', err);
@@ -79,14 +96,13 @@ export function useSSE() {
       console.error('[SSE] Connection error:', err);
       setIsConnected(false);
       eventSource.close();
-      // Browser usually auto-reconnects EventSource, but we might want to handle it explicitly if needed.
+      globalEventSource = null;
     };
 
     return () => {
-      eventSource.close();
-      setIsConnected(false);
+      // Keep globalEventSource alive across navigation
     };
-  }, [user?.token, API_BASE, fetchNotifications]);
+  }, [user?.token, API_BASE, fetchNotifications, addNotification, setNotifications, setUnreadCount, setIsConnected, notifications.length]);
 
   const markAsRead = async (id: string) => {
     if (!user?.token) return;
@@ -96,15 +112,13 @@ export function useSSE() {
         headers: { Authorization: `Bearer ${user.token}` },
       });
       if (res.ok) {
-        setNotifications((prev) =>
-          prev.map((n) => (n._id === id ? { ...n, read: true } : n))
-        );
-        // Server will broadcast new unread count, which will be caught by onmessage
+        storeMarkAsRead(id);
       }
     } catch (err) {
       console.error('Failed to mark notification as read:', err);
     }
   };
+
   const markAllAsRead = async () => {
     if (!user?.token) return;
     try {
@@ -113,10 +127,7 @@ export function useSSE() {
         headers: { Authorization: `Bearer ${user.token}` },
       });
       if (res.ok) {
-        setNotifications((prev) =>
-          prev.map((n) => ({ ...n, read: true }))
-        );
-        // Server will broadcast new unread count = 0
+        storeMarkAllAsRead();
       }
     } catch (err) {
       console.error('Failed to mark all notifications as read:', err);

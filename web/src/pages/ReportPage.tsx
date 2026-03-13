@@ -487,8 +487,8 @@ const ReportPage: React.FC = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { title: t("total_sales"), value: `$${localData.totalSales}` },
+            { title: t("total_items_sold"), value: localData.totalItemsSold },
             { title: t("total_orders"), value: localData.totalOrders },
-            { title: t("avg_order"), value: `$${localData.avgOrderValue}` },
             { title: t("gross_profit"), value: `$${localData.grossProfit}` },
           ].map((item, i) => (
             <div key={i} className="bg-card p-4 rounded-xl border">

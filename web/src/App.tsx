@@ -60,6 +60,7 @@ import StoreKeeperProductManagement from "./pages/store-keeper/ProductManagement
 // Admin Pages
 import MainAdmin from "./pages/admin/MainAdmin";
 import MartManagement from "./pages/admin/MartManagement";
+import { NotificationService } from "./components/notifications/NotificationService";
 
 const queryClient = new QueryClient();
 
@@ -79,6 +80,7 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        <NotificationService />
         <Toaster />
         <Sonner />
         <Router>
