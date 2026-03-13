@@ -95,7 +95,7 @@
     "typescript-eslint": "^8.38.0",
     "vite": "^5.4.21"
   },
-  "description": "React + TypeScript + Vite web application for the Smart POS & Inventory Management System.",
+  "description": "React + TypeScript + Vite web application for the Kiya Smart POS & Inventory Management System.",
   "main": "eslint.config.js",
   "keywords": [],
   "author": "",

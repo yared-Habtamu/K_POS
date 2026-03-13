@@ -1,6 +1,6 @@
-# 🌐 Smart POS System - Web Application
+# 🌐 Kiya Smart POS System - Web Application
 
-React + TypeScript + Vite web application for the Smart POS & Inventory Management System.
+React + TypeScript + Vite web application for the Kiya Smart POS & Inventory Management System.
 
 ## 🚀 Tech Stack
 

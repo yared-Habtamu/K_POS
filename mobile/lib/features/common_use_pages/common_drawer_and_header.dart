@@ -52,7 +52,7 @@ Widget CommonDrawer({
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "Smart POS",
+                              "Kiya Smart POS",
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 18.0.sp,

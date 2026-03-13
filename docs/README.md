@@ -1,6 +1,6 @@
-# Smart POS System - Documentation
+# Kiya Smart POS System - Documentation
 
-Welcome to the Smart POS & Inventory Management System documentation. This folder contains comprehensive documentation for developers, contributors, and users.
+Welcome to the Kiya Smart POS & Inventory Management System documentation. This folder contains comprehensive documentation for developers, contributors, and users.
 
 ## 📚 Documentation Index
 
@@ -25,7 +25,7 @@ Welcome to the Smart POS & Inventory Management System documentation. This folde
 
 ## 🏗️ Project Overview
 
-The Smart POS & Inventory Management System is a comprehensive point-of-sale solution designed for retail businesses. It consists of three main applications:
+The Kiya Smart POS & Inventory Management System is a comprehensive point-of-sale solution designed for retail businesses. It consists of three main applications:
 
 ### 1. Backend (Node.js + Express)
 

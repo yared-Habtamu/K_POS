@@ -141,7 +141,7 @@ export default function Index() {
       {/* Footer */}
       <footer className="border-t border-border py-8">
         <div className="container mx-auto px-4 text-center text-muted-foreground">
-          <p>Smart POS v2.1 • Built for Ethiopian Retail</p>
+          <p>Kiya Smart POS v2.1 • Built for Ethiopian Retail</p>
         </div>
       </footer>
     </div>

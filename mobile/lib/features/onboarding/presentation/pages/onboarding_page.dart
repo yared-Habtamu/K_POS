@@ -43,7 +43,7 @@ class _OnboardingScreen1State extends State<OnboardingScreen1> {
         backColor: Colors.white,
         imagePath: "assets/images/medi_connection.png",
         // Image of phone + device
-        title1: "Smart POS System",
+        title1: "Kiya Smart POS System",
         title2: "",
         subTitle:
             "Complete point-of-sale and inventory management solution for Ethiopian supermarkets and retail stores.",

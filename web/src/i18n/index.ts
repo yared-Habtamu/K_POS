@@ -5,7 +5,7 @@ const resources = {
   en: {
     translation: {
       // Common
-      app_name: "Smart POS",
+      app_name: "Kiya Smart POS",
       login: "Login",
       logout: "Logout",
       dashboard: "Dashboard",
@@ -209,7 +209,7 @@ const resources = {
         sms_sent: "SMS sent",
         receipt_sent_to: "Receipt sent to",
         scan_for_digital_receipt: "Scan for digital receipt",
-        powered_by_smart_pos: "Powered by Smart POS",
+        powered_by_smart_pos: "Powered by Kiya Smart POS",
         send_receipt_via_sms: "Send Receipt via SMS",
         enter_customer_name_and_phone:
           "Enter customer name and phone number to send the receipt.",
@@ -319,7 +319,7 @@ const resources = {
       no_product_found_barcode: "No product found with this barcode",
       logged_in_as: "Logged in as",
       login_failed: "Login Failed",
-      smart_pos_inventory_system: "Smart POS & Inventory System",
+      smart_pos_inventory_system: "Kiya Smart POS & Inventory System",
       enter_username: "Enter username",
       enter_password: "Enter password",
       logging_in: "Logging in...",
@@ -482,7 +482,7 @@ const resources = {
       sales_report_upper: "SALES REPORT",
       metric: "Metric",
       smart_pos_generated_automatically:
-        "Smart POS System • Generated automatically",
+        "Kiya Smart POS System • Generated automatically",
       page: "Page",
       add_new_product_to_shop: "Add a new product to the shop",
       refresh_products: "Refresh products",
@@ -522,7 +522,7 @@ const resources = {
   am: {
     translation: {
       // Common
-      app_name: "ስማርት POS",
+      app_name: "ኪያ ስማርት POS",
       login: "ግባ",
       logout: "ውጣ",
       dashboard: "ዳሽቦርድ",

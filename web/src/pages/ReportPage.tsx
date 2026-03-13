@@ -256,7 +256,7 @@ const ReportPage: React.FC = () => {
       doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.3);
       doc.line(lm, ph - 16, pageWidth - lm, ph - 16);
       doc.setFontSize(7); doc.setTextColor(150, 150, 150);
-      doc.text("Smart POS • Generated automatically", lm, ph - 10);
+      doc.text("Kiya Smart POS • Generated automatically", lm, ph - 10);
       doc.text(`Page ${i} / ${pageCount}`, pageWidth - lm, ph - 10, { align: "right" });
       doc.text(`${dl}`, pageWidth / 2, ph - 10, { align: "center" });
     }

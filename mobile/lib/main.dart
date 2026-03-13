@@ -80,7 +80,7 @@ class MyApp extends StatelessWidget {
             child: Consumer<ThemeManager>(
               builder: (context, themeManager, child) {
                 return GetMaterialApp(
-                  title: 'Smart POS',
+                  title: 'Kiya Smart POS',
                   debugShowCheckedModeBanner: false,
                   themeMode: themeManager.themeMode,
                   theme: ThemeData.light(),
