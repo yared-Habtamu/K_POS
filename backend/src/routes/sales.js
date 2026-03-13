@@ -3,6 +3,7 @@ const router = express.Router();
 const Sale = require("../models/sale.model");
 const Mart = require("../models/mart.model");
 const Product = require("../models/product.model");
+const Customer = require("../models/customer.model");
 const mongoose = require("mongoose");
 const { authenticate } = require("../middleware/auth");
 
@@ -36,7 +37,7 @@ router.post("/", authenticate, async (req, res) => {
     if ((!computedSubtotal || computedSubtotal === 0) && Array.isArray(items)) {
       computedSubtotal = items.reduce(
         (s, it) => s + (Number(it.total) || 0),
-        0
+        0,
       );
     }
 
@@ -50,9 +51,19 @@ router.post("/", authenticate, async (req, res) => {
 
     // enforce permission: applying a discount requires 'discount' permission
     if (discountAmt > 0) {
-      const userPerms = Array.isArray(req.user.permissions) ? req.user.permissions : [];
-      if (!(req.user.role === 'systemAdmin' || req.user.role === 'owner' || userPerms.includes('discount'))) {
-        return res.status(403).json({ message: 'Insufficient permissions to apply discount' });
+      const userPerms = Array.isArray(req.user.permissions)
+        ? req.user.permissions
+        : [];
+      if (
+        !(
+          req.user.role === "systemAdmin" ||
+          req.user.role === "owner" ||
+          userPerms.includes("discount")
+        )
+      ) {
+        return res
+          .status(403)
+          .json({ message: "Insufficient permissions to apply discount" });
       }
     }
 
@@ -84,8 +95,12 @@ router.post("/", authenticate, async (req, res) => {
         // check for missing products
         if (products.length !== productIds.length) {
           const foundIds = products.map((p) => String(p._id));
-          const missing = productIds.filter((id) => !foundIds.includes(String(id)));
-          return res.status(400).json({ message: "Some products not found in this mart", missing });
+          const missing = productIds.filter(
+            (id) => !foundIds.includes(String(id)),
+          );
+          return res
+            .status(400)
+            .json({ message: "Some products not found in this mart", missing });
         }
 
         const insufficient = products
@@ -98,7 +113,12 @@ router.post("/", authenticate, async (req, res) => {
           }));
 
         if (insufficient.length) {
-          return res.status(400).json({ message: "Insufficient stock for some products", insufficient });
+          return res
+            .status(400)
+            .json({
+              message: "Insufficient stock for some products",
+              insufficient,
+            });
         }
 
         // perform atomic decrement using transaction if available
@@ -123,17 +143,36 @@ router.post("/", authenticate, async (req, res) => {
 
           const savedSale = await sale.save({ session });
 
+          // If this was a credit sale, update the customer's totals within the same transaction
+          if (String(paymentMethod) === "wallet" && payload.customerId) {
+            const cust = await Customer.findById(payload.customerId).session(
+              session,
+            );
+            if (!cust) throw new Error("Customer not found for credit sale");
+            if (String(cust.martId) !== String(targetMartId)) {
+              throw new Error("Customer does not belong to this mart");
+            }
+            cust.totalCredit =
+              Number(cust.totalCredit || 0) + Number(computedTotal || 0);
+            // keep totalPaid as-is; recompute unpaid
+            cust.totalUnpaid =
+              Number(cust.totalCredit || 0) - Number(cust.totalPaid || 0);
+            await cust.save({ session });
+          }
+
           for (const pid of productIds) {
             const qty = qtyMap[pid];
             const upd = await Product.updateOne(
               { _id: pid, martId: targetMartId, quantity: { $gte: qty } },
               { $inc: { quantity: -qty } },
-              { session }
+              { session },
             );
-            const matched = (upd.matchedCount || upd.nMatched || 0);
-            const modified = (upd.modifiedCount || upd.nModified || 0);
+            const matched = upd.matchedCount || upd.nMatched || 0;
+            const modified = upd.modifiedCount || upd.nModified || 0;
             if (!matched || !modified) {
-              throw new Error(`Insufficient stock for product ${pid} during update`);
+              throw new Error(
+                `Insufficient stock for product ${pid} during update`,
+              );
             }
           }
 
@@ -145,7 +184,9 @@ router.post("/", authenticate, async (req, res) => {
           await session.abortTransaction();
           session.endSession();
           console.error(err);
-          return res.status(400).json({ message: err.message || "Stock update failed" });
+          return res
+            .status(400)
+            .json({ message: err.message || "Stock update failed" });
         }
       }
     }
@@ -168,6 +209,29 @@ router.post("/", authenticate, async (req, res) => {
     });
 
     await sale.save();
+    // If credit sale, update customer totals (non-transactional path)
+    if (String(paymentMethod) === "wallet" && payload.customerId) {
+      try {
+        const cust = await Customer.findById(payload.customerId);
+        if (!cust)
+          return res
+            .status(400)
+            .json({ message: "Customer not found for credit sale" });
+        if (String(cust.martId) !== String(targetMartId)) {
+          return res
+            .status(403)
+            .json({ message: "Customer does not belong to this mart" });
+        }
+        cust.totalCredit =
+          Number(cust.totalCredit || 0) + Number(computedTotal || 0);
+        cust.totalUnpaid =
+          Number(cust.totalCredit || 0) - Number(cust.totalPaid || 0);
+        await cust.save();
+      } catch (err) {
+        console.error("Failed to update customer credit", err);
+        // continue — the sale was recorded; inform client if desired
+      }
+    }
     res.status(201).json(sale);
   } catch (err) {
     console.error(err);

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { useCartStore } from "@/stores/cartStore";
+import { fetchCustomers } from "@/lib/api/customers";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,6 +88,8 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     discount,
     extraCharges,
     setPaymentMethod,
+    setCustomer,
+    customerId,
     setCartDiscount,
     removeCartDiscount,
     addExtraCharge,
@@ -121,14 +124,23 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     shopName: "Shop",
   });
 
-  const normalizeMartBranding = (json: Record<string, unknown>): MartBranding => ({
+  const [customers, setCustomers] = useState<Array<any>>([]);
+
+  const normalizeMartBranding = (
+    json: Record<string, unknown>,
+  ): MartBranding => ({
     shopName: String(json.martName || "").trim() || "Shop",
     shopAddress: buildMartAddress(json) || undefined,
-    shopPhone: String(json.phone || (json.ownerId as { phone?: string } | undefined)?.phone || "")
-      .trim() || undefined,
+    shopPhone:
+      String(
+        json.phone ||
+          (json.ownerId as { phone?: string } | undefined)?.phone ||
+          "",
+      ).trim() || undefined,
     receiptHeader: String(json.receiptHeader || "").trim() || undefined,
     receiptSlogan:
-      String(json.receiptMessage || json.receiptHeader || "").trim() || undefined,
+      String(json.receiptMessage || json.receiptHeader || "").trim() ||
+      undefined,
   });
 
   const fetchMartBranding = async (force = false) => {
@@ -136,7 +148,11 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     const martId = user?.martId;
     const token = user?.token;
     if (!martId) return martBranding;
-    if (!force && paymentPanelCachedMartId === martId && martBranding.shopName !== "Shop") {
+    if (
+      !force &&
+      paymentPanelCachedMartId === martId &&
+      martBranding.shopName !== "Shop"
+    ) {
       return martBranding;
     }
 
@@ -227,6 +243,18 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
       return;
     }
 
+    // require a customer for credit (wallet) payments
+    if (paymentMethod === "wallet" && !customerId) {
+      toast({
+        title: t("select_customer_for_credit") || "Select customer",
+        description:
+          t("select_customer_for_credit_desc") ||
+          "Please select a customer for credit sales",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsProcessing(true);
 
     // Simulate processing
@@ -272,6 +300,7 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     // prepare sale payload but do NOT send it yet; save when user presses Done on the receipt
     const salePayload: SaleRequest = {
       martId: user?.martId,
+      customerId: customerId || undefined,
       receiptId,
       items: items.map((it) => ({
         productId: it.product.id,
@@ -314,6 +343,12 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     setIsFinalizingReceipt(true);
     setIsProcessing(true);
 
+    // immediate feedback so cashier sees action started
+    toast({
+      title: t("saving_sale") || "Saving...",
+      description: t("saving_sale_desc") || "Recording sale, please wait...",
+    });
+
     const queueOfflineSale = async (details?: string) => {
       const desktopApi = (
         window as Window & {
@@ -336,8 +371,13 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
 
         await useProductStore.getState().applyLocalSale?.(
           Array.isArray(savedSalePayload.items)
-            ? (savedSalePayload.items as Array<{ productId: string; quantity: number }>).map((item) => ({
-                productId: String(item.productId || ''),
+            ? (
+                savedSalePayload.items as Array<{
+                  productId: string;
+                  quantity: number;
+                }>
+              ).map((item) => ({
+                productId: String(item.productId || ""),
                 quantity: Number(item.quantity || 0),
               }))
             : [],
@@ -392,8 +432,13 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
       });
       await useProductStore.getState().applyLocalSale?.(
         Array.isArray(savedSalePayload.items)
-          ? (savedSalePayload.items as Array<{ productId: string; quantity: number }>).map((item) => ({
-              productId: String(item.productId || ''),
+          ? (
+              savedSalePayload.items as Array<{
+                productId: string;
+                quantity: number;
+              }>
+            ).map((item) => ({
+              productId: String(item.productId || ""),
               quantity: Number(item.quantity || 0),
             }))
           : [],
@@ -541,7 +586,9 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
         });
 
         setMartBranding((prev) => {
-          const nextBranding = normalizeMartBranding(json as Record<string, unknown>);
+          const nextBranding = normalizeMartBranding(
+            json as Record<string, unknown>,
+          );
           try {
             return JSON.stringify(prev) === JSON.stringify(nextBranding)
               ? prev
@@ -597,6 +644,36 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     };
   }, [user?.martId, user?.token, setTaxRate, taxRate]);
 
+  // Fetch customers when credit (wallet) payment is selected
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        if (paymentMethod !== "wallet") return;
+        const martId = user?.martId;
+        if (!martId) return;
+        const list = await fetchCustomers({ martId }, user?.token);
+        if (!mounted) return;
+        if (!Array.isArray(list)) {
+          setCustomers([]);
+        } else {
+          const sorted = list.slice().sort((a: any, b: any) => {
+            const ua = Number(a?.totalUnpaid || 0);
+            const ub = Number(b?.totalUnpaid || 0);
+            return ub - ua; // descending: highest unpaid first
+          });
+          setCustomers(sorted);
+        }
+      } catch (err) {
+        console.warn("Failed to load customers for credit", err);
+      }
+    };
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, [paymentMethod, user?.martId, user?.token]);
+
   const handleCloseReceipt = () => {
     // Close the receipt preview without saving. Cart remains intact so the user can retry.
     setShowReceipt(false);
@@ -625,6 +702,35 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
           })}
         </div>
       </div>
+      {paymentMethod === "wallet" && (
+        <div className="space-y-2">
+          <Label>{t("customer") || "Customer"}</Label>
+          <Select
+            value={customerId || undefined}
+            onValueChange={(v) => setCustomer(v && v !== "__none" ? v : null)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {customers.length === 0 ? (
+                <SelectItem value="__none" disabled>
+                  {t("no_customers") || "No customers"}
+                </SelectItem>
+              ) : (
+                customers.map((c: any) => (
+                  <SelectItem
+                    key={String(c._id || c.id)}
+                    value={String(c._id || c.id)}
+                  >
+                    {String(c.name || c.phoneNumber || c._id)}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* Saved Accounts (show all configured payment accounts) */}
       {Object.keys(paymentAccounts || {}).length > 0 && (
