@@ -418,6 +418,19 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         console.warn("Failed to record sale", err);
+
+        if (res.status >= 400 && res.status < 500) {
+          toast({
+            title: t("failed_to_save_sale"),
+            description:
+              err && err.message
+                ? String(err.message)
+                : "Sale could not be recorded.",
+            variant: "destructive",
+          });
+          return;
+        }
+
         await queueOfflineSale(
           err && err.message
             ? `${err.message}. Saved locally for sync.`

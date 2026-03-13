@@ -36,7 +36,7 @@ function getWarehouseQuantity(product: Product) {
 }
 
 function getMartQuantity(product: Product) {
-  return Number(product.supermarketQuantity ?? product.quantity ?? 0);
+  return Number(product.quantity ?? product.supermarketQuantity ?? 0);
 }
 
 function getStockStatus(product: Product) {
@@ -223,48 +223,74 @@ export default function CashierPOS() {
 
   return (
     <RoleLayout allowedRoles={['cashier', 'owner', 'manager']}>
-      <div className="flex h-full min-h-0 flex-col gap-4 xl:flex-row">
-        {/* Left Panel - Products & Cart */}
-        <div className="flex-1 space-y-4 overflow-y-auto pr-1">
-          {/* Search */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <ProductSearch
-              value={String(filterValues.query || '')}
-              onValueChange={(value) =>
-                setFilterValues((current) => ({
-                  ...current,
-                  query: value,
-                }))
-              }
-            />
-          </motion.div>
+      <div className="flex h-full min-h-0 flex-col gap-4">
+        {/* Top row: left half Search + Cart, right half Payment */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="space-y-4 min-w-0">
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <ProductSearch
+                value={String(filterValues.query || '')}
+                onValueChange={(value) =>
+                  setFilterValues((current) => ({
+                    ...current,
+                    query: value,
+                  }))
+                }
+              />
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              className="min-h-[320px]"
+            >
+              <Card className="flex h-full flex-col">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ShoppingCart className="h-5 w-5" />
+                      {t('cart')}
+                    </div>
+                    {items.length > 0 && (
+                      <Badge>{items.length} {t('items')}</Badge>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-1 flex-col min-h-0 pb-4">
+                  <Cart />
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
 
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 }}
-            className="min-h-[320px]"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+            className="min-w-0"
           >
-            <Card className="flex h-full flex-col">
+            <Card className="h-full">
               <CardHeader className="pb-3">
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <ShoppingCart className="h-5 w-5" />
-                    {t('cart')}
-                  </div>
-                  {items.length > 0 && (
-                    <Badge>{items.length} {t('items')}</Badge>
-                  )}
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5" />
+                  {t('payment_method')}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex flex-1 flex-col min-h-0 pb-4">
-                <Cart />
+              <CardContent>
+                <PaymentPanel canApplyDiscount={
+                  user?.role === 'owner' || (Array.isArray(user?.permissions) && user!.permissions.includes('discount'))
+                } />
               </CardContent>
             </Card>
           </motion.div>
+        </div>
+
+        {/* Rest stays as before */}
+        <div className="space-y-4 overflow-y-auto pr-1">
 
           {/* Quick Alerts */}
           {(lowStock.length > 0 || expiring.length > 0) && (
@@ -386,28 +412,6 @@ export default function CashierPOS() {
             />
           </motion.div>
         </div>
-
-        {/* Right Panel - Payment */}
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.3 }}
-          className="xl:w-96"
-        >
-          <Card className="h-full">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                {t('payment_method')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <PaymentPanel canApplyDiscount={
-                user?.role === 'owner' || (Array.isArray(user?.permissions) && user!.permissions.includes('discount'))
-              } />
-            </CardContent>
-          </Card>
-        </motion.div>
       </div>
     </RoleLayout>
   );

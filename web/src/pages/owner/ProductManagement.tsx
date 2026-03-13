@@ -163,6 +163,7 @@ export default function ProductManagement() {
     purchasePrice: "",
     sellingPrice: "",
     quantity: "",
+    stockDestination: "warehouse" as "warehouse" | "mart",
     lowStockThreshold: "10",
     expiryDate: "",
     barcodes: [] as string[],
@@ -278,6 +279,7 @@ export default function ProductManagement() {
       purchasePrice: "",
       sellingPrice: "",
       quantity: "",
+      stockDestination: "warehouse",
       lowStockThreshold: "10",
       expiryDate: "",
       barcodes: [],
@@ -304,6 +306,7 @@ export default function ProductManagement() {
       sellingPrice: product.sellingPrice.toString(),
       // show remaining quantity in the edit form so owner edits the remaining amount
       quantity: String(remaining),
+      stockDestination: "warehouse",
       lowStockThreshold: product.lowStockThreshold.toString(),
       expiryDate: product.expiryDate
         ? new Date(product.expiryDate).toISOString().split("T")[0]
@@ -363,15 +366,25 @@ export default function ProductManagement() {
     }
 
     const pendingBarcode = (form.barcodeInput || "").trim();
+    const quantityValue = parseInt(form.quantity);
     const productData = {
       name: form.name,
       category: form.category,
       unit: form.unit,
       purchasePrice: parseFloat(form.purchasePrice),
       sellingPrice: parseFloat(form.sellingPrice),
-      quantity: parseInt(form.quantity),
-      storeQuantity: parseInt(form.quantity),
-      supermarketQuantity: parseInt(form.quantity),
+      quantity: quantityValue,
+      storeQuantity: editingProduct
+        ? quantityValue
+        : form.stockDestination === "warehouse"
+          ? quantityValue
+          : 0,
+      supermarketQuantity: editingProduct
+        ? quantityValue
+        : form.stockDestination === "mart"
+          ? quantityValue
+          : 0,
+      stockDestination: form.stockDestination,
       lowStockThreshold: parseInt(form.lowStockThreshold),
       expiryDate: form.expiryDate ? new Date(form.expiryDate) : undefined,
       barcodes: Array.from(
@@ -397,8 +410,15 @@ export default function ProductManagement() {
           toast({ title: t("product_updated") });
         }
       } else {
-        await addProduct(productData);
-        toast({ title: t("product_added") });
+        const result: any = await addProduct(productData as any);
+        if (result?.status === 202) {
+          toast({
+            title: "Sent for manager approval",
+            description: "Your new product will be created after approval.",
+          });
+        } else {
+          toast({ title: t("product_added") });
+        }
         setCurrentPage(1); // Reset to first page after adding
       }
     } catch (error) {
@@ -567,6 +587,33 @@ export default function ProductManagement() {
                       </div>
                     )}
                   </div>
+                  {!editingProduct && (
+                    <div className="space-y-2">
+                      <Label htmlFor="stockDestination">Initial stock location</Label>
+                      <Select
+                        value={form.stockDestination}
+                        onValueChange={(v) =>
+                          setForm({
+                            ...form,
+                            stockDestination: v as "warehouse" | "mart",
+                          })
+                        }
+                      >
+                        <SelectTrigger id="stockDestination">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="warehouse">Warehouse / store stock</SelectItem>
+                          <SelectItem value="mart">Direct to mart</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <div className="text-xs text-muted-foreground">
+                        {form.stockDestination === "mart"
+                          ? "New product stock will go straight to mart and be immediately sellable."
+                          : "New product stock will start in warehouse and can be transferred later."}
+                      </div>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label htmlFor="purchasePrice">
                       {t("purchase_price")} (ETB) *

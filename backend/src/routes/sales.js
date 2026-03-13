@@ -104,11 +104,18 @@ router.post("/", authenticate, async (req, res) => {
         }
 
         const insufficient = products
-          .filter((p) => (qtyMap[String(p._id)] || 0) > (p.quantity || 0))
+          .filter((p) => {
+            const available = Number(
+              p.quantity ?? p.supermarketQuantity ?? p.storeQuantity ?? 0,
+            );
+            return (qtyMap[String(p._id)] || 0) > available;
+          })
           .map((p) => ({
             productId: p._id,
             name: p.name,
-            available: p.quantity,
+            available: Number(
+              p.quantity ?? p.supermarketQuantity ?? p.storeQuantity ?? 0,
+            ),
             requested: qtyMap[String(p._id)],
           }));
 
@@ -162,18 +169,28 @@ router.post("/", authenticate, async (req, res) => {
 
           for (const pid of productIds) {
             const qty = qtyMap[pid];
-            const upd = await Product.updateOne(
-              { _id: pid, martId: targetMartId, quantity: { $gte: qty } },
-              { $inc: { quantity: -qty } },
-              { session },
+            const product = await Product.findOne({
+              _id: pid,
+              martId: targetMartId,
+            }).session(session);
+
+            if (!product) {
+              throw new Error(`Product ${pid} not found during sale update`);
+            }
+
+            const available = Number(
+              product.quantity ?? product.supermarketQuantity ?? 0,
             );
-            const matched = upd.matchedCount || upd.nMatched || 0;
-            const modified = upd.modifiedCount || upd.nModified || 0;
-            if (!matched || !modified) {
+            if (available < qty) {
               throw new Error(
-                `Insufficient stock for product ${pid} during update`,
+                `Insufficient stock for product ${product.name || pid} during update`,
               );
             }
+
+            const nextMartQuantity = Math.max(0, available - qty);
+            product.supermarketQuantity = nextMartQuantity;
+            product.quantity = nextMartQuantity;
+            await product.save({ session });
           }
 
           await session.commitTransaction();

@@ -17,6 +17,10 @@ interface ProductSearchProps {
   onProductAdded?: (product: Product) => void;
 }
 
+function getMartQuantity(product: Product) {
+  return Number(product.quantity ?? product.supermarketQuantity ?? 0);
+}
+
 export function ProductSearch({
   value,
   onValueChange,
@@ -167,13 +171,13 @@ export function ProductSearch({
                   </p>
                   <Badge
                     variant={
-                      product.supermarketQuantity > product.lowStockThreshold
+                      getMartQuantity(product) > product.lowStockThreshold
                         ? "secondary"
                         : "destructive"
                     }
                     className="text-xs"
                   >
-                    {product.supermarketQuantity} {t("stock")}
+                    {getMartQuantity(product)} {t("stock")}
                   </Badge>
                 </div>
               </button>

@@ -45,216 +45,238 @@ async function ensureProductPayloadBarcodes(productPayload) {
   throw new Error("Failed to generate a unique barcode");
 }
 
-// Create product
-router.post("/", authenticate, upload.single("image"), async (req, res) => {
-  try {
-    const user = req.user;
-    const {
-      name,
-      category,
-      unit,
-      purchasePrice,
-      sellingPrice,
-      quantity,
-      lowStockThreshold,
-      expiryDate,
-      barcode,
-      barcodes,
-      imageUrl,
-      martId,
-    } = req.body;
+async function createProductFromRequest(req, res, options = {}) {
+  const { initialStockTarget = "default" } = options;
+  const user = req.user;
+  const {
+    name,
+    category,
+    unit,
+    purchasePrice,
+    sellingPrice,
+    quantity,
+    lowStockThreshold,
+    expiryDate,
+    barcode,
+    barcodes,
+    imageUrl,
+    martId,
+  } = req.body;
 
-    // If an image file was uploaded, upload it to Cloudinary and use returned URL
-    let finalImageUrl = imageUrl || "";
-    if (req.file && req.file.buffer) {
-      try {
-        const uploaded = await uploadBuffer(
-          req.file.buffer,
-          req.file.originalname,
-        );
-        finalImageUrl = uploaded.secure_url || uploaded.url || finalImageUrl;
-      } catch (err) {
-        console.error(
-          "Cloudinary upload error:",
-          err && err.stack ? err.stack : err,
-        );
-        // Return a helpful message in dev for debugging
-        if (process.env.NODE_ENV !== "production") {
-          return res
-            .status(500)
-            .json({
-              message: "Image upload failed",
-              error: err && err.message ? err.message : String(err),
-            });
-        }
-        return res.status(500).json({ message: "Image upload failed" });
-      }
-    }
-
-    if (!name)
-      return res.status(400).json({ message: "Product name is required" });
-
-    // Determine martId: systemAdmin may supply martId, otherwise use requester's mart
-    const finalMartId =
-      user.role === "systemAdmin" ? martId || user.martId : user.martId;
-    if (!finalMartId) {
-      // Provide a clearer error for owners who do not have an assigned mart
-      if (user.role === 'owner') {
-        return res.status(400).json({ message: 'Owner account has no mart assigned. Create a mart first or contact an administrator.' });
-      }
-      return res.status(400).json({ message: "martId is required" });
-    }
-
-    const requestedQty = Number(quantity || 0);
-    const storeQty =
-      req.body.storeQuantity !== undefined
-        ? Number(req.body.storeQuantity)
-        : requestedQty;
-    const supermarketQty =
-      req.body.supermarketQuantity !== undefined
-        ? Number(req.body.supermarketQuantity)
-        : user.role === "owner"
-          ? 0
-          : requestedQty;
-
-    const productPayload = {
-      martId: finalMartId,
-      name,
-      category: category || "",
-      unit: unit || "pcs",
-      purchasePrice: Number(purchasePrice || 0),
-      sellingPrice: Number(sellingPrice || 0),
-      // sellable quantity equals supermarket quantity; warehouse quantity stored separately
-      quantity: Number(supermarketQty),
-      storeQuantity: Math.max(0, Number(storeQty)),
-      supermarketQuantity: Math.max(0, Number(supermarketQty)),
-      lowStockThreshold: Number(lowStockThreshold || 10),
-      expiryDate: expiryDate || null,
-      // accept either single `barcode` or array `barcodes`
-      barcodes: Array.isArray(barcodes)
-        ? barcodes
-        : barcode
-          ? [String(barcode)]
-          : [],
-      imageUrl: finalImageUrl || "",
-      createdBy: user.id,
-    };
-
-    // ensure category exists in database
-    if (productPayload.category) {
-      const Category = require('../models/category.model');
-      try {
-        await Category.findOneAndUpdate(
-          { name: productPayload.category.trim(), martId: finalMartId },
-          { name: productPayload.category.trim(), martId: finalMartId },
-          { upsert: true, new: true, setDefaultsOnInsert: true }
-        );
-      } catch (catErr) {
-        console.error('category upsert error', catErr);
-      }
-    }
-
-    // Ensure every created product has at least one barcode and enforce mart-level uniqueness.
-    const incomingBarcodes = await ensureProductPayloadBarcodes(productPayload);
-    if (incomingBarcodes.length > 0) {
-      const existing = await Product.findOne({
-        martId: finalMartId,
-        $or: [{ barcodes: { $in: incomingBarcodes } }, { barcode: { $in: incomingBarcodes } }],
-      })
-        .select('_id name barcodes')
-        .lean();
-
-      if (existing) {
-        return res.status(409).json({
-          message: `Barcode already registered for ${existing.name}`,
-          product: {
-            id: String(existing._id),
-            name: existing.name,
-            barcodes: existing.barcodes || [],
-          },
+  let finalImageUrl = imageUrl || "";
+  if (req.file && req.file.buffer) {
+    try {
+      const uploaded = await uploadBuffer(req.file.buffer, req.file.originalname);
+      finalImageUrl = uploaded.secure_url || uploaded.url || finalImageUrl;
+    } catch (err) {
+      console.error(
+        "Cloudinary upload error:",
+        err && err.stack ? err.stack : err,
+      );
+      if (process.env.NODE_ENV !== "production") {
+        return res.status(500).json({
+          message: "Image upload failed",
+          error: err && err.message ? err.message : String(err),
         });
       }
+      return res.status(500).json({ message: "Image upload failed" });
     }
+  }
 
-    // Owners normally require manager approval before product is created.
-    if (String(user.role || '').toLowerCase() === 'owner' && String(user.role || '').toLowerCase() !== 'systemadmin') {
-      const User = require('../models/user.model');
-      // Find managers case-insensitively
-      const managers = await User.find({ martId: finalMartId, role: { $regex: /^manager$/i } }).select('_id username name').lean();
+  if (!name) {
+    return res.status(400).json({ message: "Product name is required" });
+  }
 
-      // If there are no managers for this mart, auto-create the product and notify the requester
-      if (!managers || managers.length === 0) {
-        const product = new Product(productPayload);
-        await product.save();
-
-        await createNotification({
-          martId: finalMartId,
-          userId: user.id,
-          type: 'product_add_result',
-          title: 'Product created',
-          message: `Your product ${productPayload.name} was created`,
-          metadata: { productId: product._id, result: 'approved' },
-        });
-
-        return res.status(201).json(product);
-      }
-
-      // Otherwise, create a pending request and notify managers
-      const reqDoc = new ProductAddRequest({
-        martId: finalMartId,
-        requesterId: user.id,
-        requesterName: user.username || user.name,
-        payload: productPayload,
+  const finalMartId =
+    user.role === "systemAdmin" ? martId || user.martId : user.martId;
+  if (!finalMartId) {
+    if (user.role === "owner") {
+      return res.status(400).json({
+        message:
+          "Owner account has no mart assigned. Create a mart first or contact an administrator.",
       });
+    }
+    return res.status(400).json({ message: "martId is required" });
+  }
 
-      await reqDoc.save();
+  const requestedQty = Math.max(0, Number(quantity || 0));
+  let storeQty =
+    req.body.storeQuantity !== undefined
+      ? Number(req.body.storeQuantity)
+      : requestedQty;
+  let supermarketQty =
+    req.body.supermarketQuantity !== undefined
+      ? Number(req.body.supermarketQuantity)
+      : user.role === "owner"
+        ? 0
+        : requestedQty;
 
-      if (managers && managers.length > 0) {
-        for (const m of managers) {
-          await createNotification({
-            martId: finalMartId,
-            userId: m._id,
-            type: 'product_add_request',
-            title: 'Product creation requested',
-            message: `${reqDoc.requesterName || 'Owner'} requested to add product ${name}`,
-            metadata: { requestId: reqDoc._id, name },
-          });
-        }
-      } else {
-        await createNotification({
-          martId: finalMartId,
-          type: 'product_add_request',
-          title: 'Product creation requested',
-          message: `${reqDoc.requesterName || 'Owner'} requested to add product ${name}`,
-          metadata: { requestId: reqDoc._id, name },
-        });
-      }
+  if (initialStockTarget === "mart") {
+    storeQty = 0;
+    supermarketQty = requestedQty;
+  }
 
-      // Return pending payload so callers (mobile) can render a placeholder reliably
-      return res.status(202).json({
-        message: 'Product submitted for manager approval',
-        requestId: reqDoc._id,
-        pending: {
-          name: productPayload.name,
-          category: productPayload.category,
-          purchasePriceEtb: Number(productPayload.purchasePrice || 0),
-          sellingPriceEtb: Number(productPayload.sellingPrice || 0),
-          stockQty: Number(productPayload.quantity || 0),
-          martQty: Number(productPayload.storeQuantity || 0),
-          imageUrl: productPayload.imageUrl || '',
+  const productPayload = {
+    martId: finalMartId,
+    name,
+    category: category || "",
+    unit: unit || "pcs",
+    purchasePrice: Number(purchasePrice || 0),
+    sellingPrice: Number(sellingPrice || 0),
+    quantity: Math.max(0, Number(supermarketQty)),
+    storeQuantity: Math.max(0, Number(storeQty)),
+    supermarketQuantity: Math.max(0, Number(supermarketQty)),
+    lowStockThreshold: Number(lowStockThreshold || 10),
+    expiryDate: expiryDate || null,
+    barcodes: Array.isArray(barcodes)
+      ? barcodes
+      : barcode
+        ? [String(barcode)]
+        : [],
+    imageUrl: finalImageUrl || "",
+    createdBy: user.id,
+  };
+
+  if (productPayload.category) {
+    const Category = require("../models/category.model");
+    try {
+      await Category.findOneAndUpdate(
+        { name: productPayload.category.trim(), martId: finalMartId },
+        { name: productPayload.category.trim(), martId: finalMartId },
+        { upsert: true, new: true, setDefaultsOnInsert: true },
+      );
+    } catch (catErr) {
+      console.error("category upsert error", catErr);
+    }
+  }
+
+  const incomingBarcodes = await ensureProductPayloadBarcodes(productPayload);
+  if (incomingBarcodes.length > 0) {
+    const existing = await Product.findOne({
+      martId: finalMartId,
+      $or: [
+        { barcodes: { $in: incomingBarcodes } },
+        { barcode: { $in: incomingBarcodes } },
+      ],
+    })
+      .select("_id name barcodes")
+      .lean();
+
+    if (existing) {
+      return res.status(409).json({
+        message: `Barcode already registered for ${existing.name}`,
+        product: {
+          id: String(existing._id),
+          name: existing.name,
+          barcodes: existing.barcodes || [],
         },
       });
     }
+  }
 
-    const product = new Product(productPayload);
+  if (
+    String(user.role || "").toLowerCase() === "owner" &&
+    String(user.role || "").toLowerCase() !== "systemadmin"
+  ) {
+    const User = require("../models/user.model");
+    const managers = await User.find({
+      martId: finalMartId,
+      role: { $regex: /^manager$/i },
+    })
+      .select("_id username name")
+      .lean();
 
-    await product.save();
-    res.status(201).json(product);
+    if (!managers || managers.length === 0) {
+      const product = new Product(productPayload);
+      await product.save();
+
+      await createNotification({
+        martId: finalMartId,
+        userId: user.id,
+        type: "product_add_result",
+        title: "Product created",
+        message: `Your product ${productPayload.name} was created`,
+        metadata: { productId: product._id, result: "approved" },
+      });
+
+      return res.status(201).json(product);
+    }
+
+    const reqDoc = new ProductAddRequest({
+      martId: finalMartId,
+      requesterId: user.id,
+      requesterName: user.username || user.name,
+      payload: productPayload,
+    });
+
+    await reqDoc.save();
+
+    if (managers && managers.length > 0) {
+      for (const m of managers) {
+        await createNotification({
+          martId: finalMartId,
+          userId: m._id,
+          type: "product_add_request",
+          title: "Product creation requested",
+          message: `${reqDoc.requesterName || "Owner"} requested to add product ${name}`,
+          metadata: { requestId: reqDoc._id, name },
+        });
+      }
+    } else {
+      await createNotification({
+        martId: finalMartId,
+        type: "product_add_request",
+        title: "Product creation requested",
+        message: `${reqDoc.requesterName || "Owner"} requested to add product ${name}`,
+        metadata: { requestId: reqDoc._id, name },
+      });
+    }
+
+    return res.status(202).json({
+      message: "Product submitted for manager approval",
+      requestId: reqDoc._id,
+      pending: {
+        name: productPayload.name,
+        category: productPayload.category,
+        purchasePriceEtb: Number(productPayload.purchasePrice || 0),
+        sellingPriceEtb: Number(productPayload.sellingPrice || 0),
+        stockQty: Number(productPayload.storeQuantity || 0),
+        martQty: Number(productPayload.supermarketQuantity || 0),
+        imageUrl: productPayload.imageUrl || "",
+      },
+    });
+  }
+
+  const product = new Product(productPayload);
+  await product.save();
+  return res.status(201).json(product);
+}
+
+// Create product
+router.post("/", authenticate, upload.single("image"), async (req, res) => {
+  try {
+    return await createProductFromRequest(req, res);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 });
+
+router.post(
+  "/direct-to-mart",
+  authenticate,
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      return await createProductFromRequest(req, res, {
+        initialStockTarget: "mart",
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Server error" });
+    }
+  },
+);
 
 // List products (with optional filters)
 router.get("/", authenticate, async (req, res) => {

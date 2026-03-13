@@ -55,7 +55,8 @@ function getWarehouseQuantity(product: Product) {
 }
 
 function getMartQuantity(product: Product) {
-  return Number(product.supermarketQuantity ?? product.quantity ?? 0);
+  // Keep mart quantity display consistent with products page.
+  return Number(product.quantity ?? product.supermarketQuantity ?? 0);
 }
 
 function getSoldQuantity(product: Product) {
@@ -585,7 +586,7 @@ export default function StockManagement() {
                       {t("supermarket_stock")}
                     </p>
                     <p className="text-2xl font-bold text-success">
-                      {selectedProduct.supermarketQuantity}
+                      {getMartQuantity(selectedProduct)}
                     </p>
                   </div>
                 </div>
@@ -627,7 +628,7 @@ export default function StockManagement() {
                       <ArrowRight className="w-4 h-4" />
                       <span>
                         {t("supermarket")}:{" "}
-                        {selectedProduct.supermarketQuantity +
+                        {getMartQuantity(selectedProduct) +
                           parseInt(addQuantity)}
                       </span>
                     </div>

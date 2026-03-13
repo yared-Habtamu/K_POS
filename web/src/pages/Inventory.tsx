@@ -1,5 +1,6 @@
 // src/pages/Inventory.tsx
 import { useState, useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
@@ -26,6 +27,7 @@ const defaultFilterValues: AdvancedFilterValues = {
 };
 
 export default function Inventory() {
+  const { t } = useTranslation();
   const [filterValues, setFilterValues] = useState<AdvancedFilterValues>(defaultFilterValues);
   const [currentPage, setCurrentPage] = useState(1); // ✅ Pagination state
   const { products, isLoading, fetchProducts, fetchError } = useProductStore();

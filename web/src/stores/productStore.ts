@@ -173,8 +173,10 @@ interface ProductState {
   // Actions
   fetchProducts: (page?: number, limit?: number) => Promise<void>;
   addProduct: (
-    product: Omit<Product, "id" | "createdAt" | "updatedAt">,
-  ) => Promise<Product>;
+    product: Omit<Product, "id" | "createdAt" | "updatedAt"> & {
+      stockDestination?: "warehouse" | "mart";
+    },
+  ) => Promise<{ status: number; data: any }>;
   updateProduct: (
     id: string,
     updates: Partial<Product> | FormData,
@@ -347,16 +349,30 @@ export const useProductStore = create<ProductState>((set, get) => ({
     const token = useAuthStore.getState().user?.token;
     const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
     try {
-      const res = await fetch(`${API_BASE}/api/products`, {
+      const endpoint =
+        productData.stockDestination === "mart"
+          ? `${API_BASE}/api/products/direct-to-mart`
+          : `${API_BASE}/api/products`;
+      const requestBody = { ...productData } as Record<string, any>;
+      delete requestBody.stockDestination;
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...authHeader,
         },
-        body: JSON.stringify(productData),
+        body: JSON.stringify(requestBody),
       });
-      if (!res.ok) throw new Error("Failed to create product");
-      const created = await res.json();
+      const created = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(created?.message || "Failed to create product");
+      }
+
+      if (res.status === 202) {
+        return { status: res.status, data: created };
+      }
+
       const newProduct: Product = {
         ...created,
         id: created.id || created._id,
@@ -364,7 +380,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
         updatedAt: created.updatedAt ? new Date(created.updatedAt) : new Date(),
       };
       set((state) => ({ products: [...state.products, newProduct] }));
-      return newProduct;
+      return { status: res.status, data: newProduct };
     } catch (err) {
       console.warn("addProduct failed, falling back to mock add", err);
       const newProduct: Product = {
@@ -374,7 +390,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
         updatedAt: new Date(),
       } as Product;
       set((state) => ({ products: [...state.products, newProduct] }));
-      return newProduct;
+      return { status: 201, data: newProduct };
     }
   },
 

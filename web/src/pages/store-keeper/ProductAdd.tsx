@@ -83,6 +83,7 @@ export default function ProductAdd() {
     purchasePrice: "",
     sellingPrice: "",
     quantity: "",
+    stockDestination: "warehouse" as "warehouse" | "mart",
     lowStockThreshold: "10",
     expiryDate: "",
     barcodes: [] as string[], // store as array
@@ -172,6 +173,7 @@ export default function ProductAdd() {
       purchasePrice: "",
       sellingPrice: "",
       quantity: "",
+      stockDestination: "warehouse",
       lowStockThreshold: "10",
       expiryDate: "",
       barcodes: [],
@@ -267,6 +269,15 @@ export default function ProductAdd() {
       String(parseFloat(form.sellingPrice || "0")),
     );
     formData.append("quantity", String(parseInt(form.quantity || "0")));
+    if (!editingProductId) {
+      if (form.stockDestination === "mart") {
+        formData.append("storeQuantity", "0");
+        formData.append("supermarketQuantity", String(parseInt(form.quantity || "0")));
+      } else {
+        formData.append("storeQuantity", String(parseInt(form.quantity || "0")));
+        formData.append("supermarketQuantity", "0");
+      }
+    }
     formData.append(
       "lowStockThreshold",
       String(parseInt(form.lowStockThreshold || "10")),
@@ -296,7 +307,9 @@ export default function ProductAdd() {
     try {
       const url = editingProductId
         ? `${API_BASE}/api/products/${encodeURIComponent(editingProductId)}`
-        : `${API_BASE}/api/products`;
+        : form.stockDestination === "mart"
+          ? `${API_BASE}/api/products/direct-to-mart`
+          : `${API_BASE}/api/products`;
 
       const res = editingProductId
         ? await axios.put(url, formData, {
@@ -615,6 +628,34 @@ export default function ProductAdd() {
                   />
                 </div>
 
+                {!editingProductId && (
+                  <div className="space-y-2">
+                    <Label htmlFor="stockDestination">Initial stock location</Label>
+                    <Select
+                      value={form.stockDestination}
+                      onValueChange={(v) =>
+                        setForm({
+                          ...form,
+                          stockDestination: v as "warehouse" | "mart",
+                        })
+                      }
+                    >
+                      <SelectTrigger id="stockDestination">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="warehouse">Add to stock</SelectItem>
+                        <SelectItem value="mart">Add directly to mart</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <div className="text-xs text-muted-foreground">
+                      {form.stockDestination === "mart"
+                        ? "The starting quantity will go directly to mart and be sellable immediately."
+                        : "The starting quantity will go to stock first and can be transferred to mart later."}
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="purchasePrice">
                     {t("purchase_price")} (ETB){canSetPurchase ? " *" : ""}
@@ -841,6 +882,7 @@ export default function ProductAdd() {
                                     p?.supermarketQuantity ??
                                     0,
                                 ),
+                                stockDestination: "warehouse",
                                 lowStockThreshold: String(
                                   p?.lowStockThreshold ?? 10,
                                 ),
