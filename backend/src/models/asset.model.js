@@ -16,6 +16,7 @@ const AssetSchema = new mongoose.Schema(
     status: { type: String }, // e.g. "new", "old"
     conditions: { type: String },
     assignedTo: { type: String },
+    purchasePrice: { type: Number, default: 0 },
     quantity: { type: Number, required: true, default: 0 },
     description: { type: String },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },

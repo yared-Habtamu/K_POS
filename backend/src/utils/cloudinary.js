@@ -12,11 +12,12 @@ cloudinary.config({
 async function uploadBuffer(buffer, filename) {
   if (!buffer) throw new Error("No buffer provided");
 
-  // Fail fast with a clear error when Cloudinary env vars are missing
+  // Fail fast with a clear error when Cloudinary env vars are missing (ONLY in production)
   if (
-    !process.env.CLOUDINARY_CLOUD_NAME ||
-    !process.env.CLOUDINARY_API_KEY ||
-    !process.env.CLOUDINARY_API_SECRET
+    process.env.NODE_ENV === "production" &&
+    (!process.env.CLOUDINARY_CLOUD_NAME ||
+      !process.env.CLOUDINARY_API_KEY ||
+      !process.env.CLOUDINARY_API_SECRET)
   ) {
     const err = new Error(
       "Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET.",
@@ -34,6 +35,15 @@ async function uploadBuffer(buffer, filename) {
 
   // Upload to Cloudinary
   try {
+    // Check if we should even attempt Cloudinary
+    if (
+      !process.env.CLOUDINARY_CLOUD_NAME ||
+      !process.env.CLOUDINARY_API_KEY ||
+      !process.env.CLOUDINARY_API_SECRET
+    ) {
+      throw new Error("Cloudinary credentials missing, using fallback");
+    }
+
     const res = await cloudinary.uploader.upload(dataUri, {
       folder: "pos_products",
       use_filename: true,

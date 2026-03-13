@@ -76,6 +76,7 @@ export interface DataTableProps<TData> {
   onDelete?: (row: TData) => void;
   customRowActions?: Array<DataTableRowAction<TData>>;
   renderRowActions?: (row: TData) => React.ReactNode;
+  onRowClick?: (row: TData) => void;
   toolbarContent?: React.ReactNode;
   className?: string;
   tableClassName?: string;
@@ -163,6 +164,7 @@ export function DataTable<TData>({
   customRowActions,
   renderRowActions,
   toolbarContent,
+  onRowClick,
   className,
   tableClassName,
 }: DataTableProps<TData>) {
@@ -304,7 +306,8 @@ export function DataTable<TData>({
       )}
 
       <CardContent className="p-0">
-        <Table className={tableClassName}>
+        <div className="overflow-x-auto">
+          <Table className={cn("min-w-full", tableClassName)}>
           <TableHeader>
             <TableRow className="bg-muted/30 hover:bg-muted/30">
               {columns.map((column) => {
@@ -332,7 +335,11 @@ export function DataTable<TData>({
                 );
               })}
 
-              {hasBuiltInActions ? <TableHead className="text-right">{t("actions")}</TableHead> : null}
+              {hasBuiltInActions ? (
+                <TableHead className="sticky right-0 z-20 bg-muted text-center border-l border-b">
+                  {t("actions")}
+                </TableHead>
+              ) : null}
             </TableRow>
           </TableHeader>
 
@@ -349,7 +356,11 @@ export function DataTable<TData>({
               ))
             ) : pagedRows.length > 0 ? (
               pagedRows.map((row, index) => (
-                <TableRow key={resolveRowKey(row, index)}>
+                <TableRow 
+                  key={resolveRowKey(row, index)}
+                  className={cn("group", onRowClick && "cursor-pointer hover:bg-muted/50 transition-colors")}
+                  onClick={() => onRowClick?.(row)}
+                >
                   {columns.map((column) => (
                     <TableCell key={column.key} className={cn(column.className)}>
                       {column.cell ? column.cell(row) : String(getRowValue(row, column.accessor) ?? "—")}
@@ -357,16 +368,16 @@ export function DataTable<TData>({
                   ))}
 
                   {hasBuiltInActions ? (
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                    <TableCell className="sticky right-0 z-10 bg-background text-center border-l border-b transition-colors group-hover:bg-muted/50">
+                      <div className="flex justify-center gap-2">
                         {onView ? (
-                          <Button type="button" variant="ghost" size="icon" onClick={() => onView(row)} aria-label={t("view")}>
+                          <Button type="button" variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onView(row); }} aria-label={t("view")}>
                             <Eye className="h-4 w-4" />
                           </Button>
                         ) : null}
 
                         {onEdit ? (
-                          <Button type="button" variant="ghost" size="icon" onClick={() => onEdit(row)} aria-label={t("edit")}>
+                          <Button type="button" variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onEdit(row); }} aria-label={t("edit")}>
                             <Pencil className="h-4 w-4" />
                           </Button>
                         ) : null}
@@ -376,7 +387,7 @@ export function DataTable<TData>({
                             type="button"
                             variant="ghost"
                             size="icon"
-                            onClick={() => onDelete(row)}
+                            onClick={(e) => { e.stopPropagation(); onDelete(row); }}
                             className="text-destructive hover:text-destructive"
                             aria-label={t("delete")}
                           >
@@ -393,7 +404,7 @@ export function DataTable<TData>({
                               type="button"
                               variant={action.variant ?? "outline"}
                               size="sm"
-                              onClick={() => action.onClick(row)}
+                              onClick={(e) => { e.stopPropagation(); action.onClick(row); }}
                               className={action.className}
                             >
                               {ActionIcon ? <ActionIcon className="h-4 w-4" /> : null}
@@ -420,6 +431,7 @@ export function DataTable<TData>({
             )}
           </TableBody>
         </Table>
+      </div>
 
         {isLoading ? (
           <div className="flex items-center justify-center gap-2 border-t px-4 py-3 text-sm text-muted-foreground">
