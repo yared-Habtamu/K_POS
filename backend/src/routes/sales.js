@@ -30,7 +30,8 @@ router.post("/", authenticate, async (req, res) => {
       return res.status(400).json({ message: "martId required" });
     // fetch mart to get taxRate
     const mart = await Mart.findById(targetMartId).lean();
-    const taxRate = (mart && Number(mart.taxRate)) || 15;
+    const martTaxRate = Number(mart?.taxRate);
+    const taxRate = Number.isFinite(martTaxRate) ? martTaxRate : 0;
 
     // compute subtotal from items if not provided
     let computedSubtotal = Number(subtotal || 0);
@@ -120,12 +121,10 @@ router.post("/", authenticate, async (req, res) => {
           }));
 
         if (insufficient.length) {
-          return res
-            .status(400)
-            .json({
-              message: "Insufficient stock for some products",
-              insufficient,
-            });
+          return res.status(400).json({
+            message: "Insufficient stock for some products",
+            insufficient,
+          });
         }
 
         // perform atomic decrement using transaction if available

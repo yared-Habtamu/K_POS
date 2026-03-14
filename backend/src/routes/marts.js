@@ -152,6 +152,7 @@ router.post("/register", async (req, res) => {
     });
     await owner.save();
 
+    const parsedTaxRate = Number(taxRate);
     const mart = new Mart({
       ownerId: owner._id,
       martName: normalizedMartName,
@@ -164,7 +165,7 @@ router.post("/register", async (req, res) => {
       receiptHeader,
       receiptMessage,
       shopLogoUrl,
-      taxRate: Number(taxRate) || 15,
+      taxRate: Number.isFinite(parsedTaxRate) ? parsedTaxRate : 0,
       customPaymentFields: Array.isArray(req.body.customPaymentFields)
         ? req.body.customPaymentFields
         : [],

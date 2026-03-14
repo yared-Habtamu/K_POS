@@ -31,14 +31,14 @@ const MartSchema = new mongoose.Schema(
     ],
 
     // Tax / VAT settings (percentage). Owner can update this setting.
-    taxRate: { type: Number, default: 15 },
+    taxRate: { type: Number, default: 0 },
     status: {
       type: String,
       enum: ["pending", "approved", "disabled"],
       default: "pending",
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("Mart", MartSchema);
