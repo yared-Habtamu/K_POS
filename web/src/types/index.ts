@@ -205,6 +205,8 @@ export interface Expense {
   date: Date;
   shopId: string;
   createdBy: string;
+  createdByRole?: "owner" | "manager" | "other";
+  createdByName?: string;
   createdAt: Date;
 }
 

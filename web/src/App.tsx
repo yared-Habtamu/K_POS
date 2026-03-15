@@ -51,6 +51,7 @@ import ManagerAssets from "./pages/manager/Assets";
 import ManagerProductManagement from "./pages/manager/ProductManagement";
 import MEmployeeManagement from "./pages/manager/MEmployeeManagement";
 import ManagerApprovals from "./pages/manager/Approvals";
+import ManagerExpenseManagement from "./pages/manager/ExpenseManagement";
 // Store Keeper Pages
 import StockManagement from "./pages/store-keeper/StockManagement";
 import BarcodeManagement from "./pages/store-keeper/BarcodeManagement";
@@ -88,12 +89,24 @@ const App = () => {
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/examples/advanced-filters" element={<AdvancedFiltersExample />} />
-            <Route path="/examples/auto-complete" element={<AutoCompleteExample />} />
+            <Route
+              path="/examples/advanced-filters"
+              element={<AdvancedFiltersExample />}
+            />
+            <Route
+              path="/examples/auto-complete"
+              element={<AutoCompleteExample />}
+            />
             <Route path="/examples/data-table" element={<DataTableExample />} />
             <Route path="/examples/modal" element={<ModalExample />} />
-            <Route path="/examples/success-modal" element={<SuccessModalExample />} />
-            <Route path="/examples/three-dot-menu" element={<ThreeDotActionMenuExample />} />
+            <Route
+              path="/examples/success-modal"
+              element={<SuccessModalExample />}
+            />
+            <Route
+              path="/examples/three-dot-menu"
+              element={<ThreeDotActionMenuExample />}
+            />
 
             {/* Cashier Routes */}
             <Route path="/cashier" element={<CashierPOS />} />
@@ -142,6 +155,10 @@ const App = () => {
             <Route path="/manager/assets" element={<ManagerAssets />} />
             <Route path="/manager/reports" element={<ReportPage />} />
             <Route path="/manager/today-sales" element={<TodaysSales />} />
+            <Route
+              path="/manager/expenses"
+              element={<ManagerExpenseManagement />}
+            />
 
             {/* Store Keeper Routes */}
             <Route path="/store-keeper" element={<Inventory />} />

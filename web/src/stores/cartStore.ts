@@ -22,7 +22,7 @@ interface CartState {
   setItemDiscount: (
     productId: string,
     type: DiscountType,
-    value: number
+    value: number,
   ) => void;
   removeItemDiscount: (productId: string) => void;
   setCartDiscount: (type: DiscountType, value: number) => void;
@@ -42,7 +42,7 @@ interface CartState {
   getTotal: () => number;
 }
 
-const DEFAULT_TAX_RATE = 15; // percentage (15% VAT)
+const DEFAULT_TAX_RATE = 0; // percentage
 
 export const useCartStore = create<CartState>((set, get) => ({
   items: [],
@@ -55,7 +55,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   addItem: (product, quantity = 1) => {
     set((state) => {
       const existingIndex = state.items.findIndex(
-        (item) => item.product.id === product.id
+        (item) => item.product.id === product.id,
       );
 
       if (existingIndex >= 0) {
@@ -102,7 +102,7 @@ export const useCartStore = create<CartState>((set, get) => ({
               quantity,
               subtotal: quantity * item.product.sellingPrice,
             }
-          : item
+          : item,
       ),
     }));
   },
@@ -112,7 +112,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       items: state.items.map((item) =>
         item.product.id === productId
           ? { ...item, discount: { type, value } }
-          : item
+          : item,
       ),
     }));
   },
@@ -120,7 +120,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   removeItemDiscount: (productId) => {
     set((state) => ({
       items: state.items.map((item) =>
-        item.product.id === productId ? { ...item, discount: undefined } : item
+        item.product.id === productId ? { ...item, discount: undefined } : item,
       ),
     }));
   },
@@ -154,7 +154,10 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   setTaxRate: (rate) => {
-    set({ taxRate: Number(rate) || DEFAULT_TAX_RATE });
+    const parsedRate = Number(rate);
+    set({
+      taxRate: Number.isFinite(parsedRate) ? parsedRate : DEFAULT_TAX_RATE,
+    });
   },
 
   clearCart: () => {
@@ -201,7 +204,9 @@ export const useCartStore = create<CartState>((set, get) => ({
   getTax: () => {
     const subtotal = get().getSubtotal();
     const discountAmount = get().getDiscountAmount();
-    const rate = (get().taxRate || DEFAULT_TAX_RATE) / 100;
+    const currentRate = Number(get().taxRate);
+    const rate =
+      (Number.isFinite(currentRate) ? currentRate : DEFAULT_TAX_RATE) / 100;
     const taxable = subtotal - discountAmount + get().getExtraChargesTotal();
     return Math.round((taxable * rate + Number.EPSILON) * 100) / 100;
   },
@@ -213,7 +218,7 @@ export const useCartStore = create<CartState>((set, get) => ({
     const tax = get().getTax();
     return (
       Math.round(
-        (subtotal - discountAmount + extraCharges + tax + Number.EPSILON) * 100
+        (subtotal - discountAmount + extraCharges + tax + Number.EPSILON) * 100,
       ) / 100
     );
   },

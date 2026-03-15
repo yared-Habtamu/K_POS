@@ -206,7 +206,7 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
           ))}
           <div className="flex justify-between">
             <span>
-              {t("vat")} ({(receipt.taxRate || 15).toFixed(2)}%):
+              {t("vat")} ({Number(receipt.taxRate ?? 0).toFixed(2)}%):
             </span>
             <span>{receipt.tax.toFixed(2)} ETB</span>
           </div>
@@ -239,9 +239,7 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
 
         {/* Footer */}
         {receipt.receiptSlogan && (
-          <p className="text-center text-xs mt-4">
-            {receipt.receiptSlogan}
-          </p>
+          <p className="text-center text-xs mt-4">{receipt.receiptSlogan}</p>
         )}
         <p className="text-center text-xs mt-2 text-gray-500">
           {t("powered_by_smart_pos")}

@@ -75,7 +75,9 @@ export default function OwnerSettings() {
         setSlogan((prev) =>
           prev ? prev : json.receiptHeader || json.receiptMessage || "",
         );
-        setPhone((prev) => (prev ? prev : json.phone || json.ownerId?.phone || ""));
+        setPhone((prev) =>
+          prev ? prev : json.phone || json.ownerId?.phone || "",
+        );
         setAddress((prev) =>
           prev
             ? prev
@@ -139,7 +141,11 @@ export default function OwnerSettings() {
         }
 
         // tax: only set if owner hasn't changed the input yet
-        setTax((prev) => (prev ? prev : String(json.taxRate || 15)));
+        setTax((prev) => {
+          if (prev !== "") return prev;
+          const parsedTaxRate = Number(json.taxRate);
+          return String(Number.isFinite(parsedTaxRate) ? parsedTaxRate : 0);
+        });
       } catch (err) {
         console.error("Load settings error", err);
       }

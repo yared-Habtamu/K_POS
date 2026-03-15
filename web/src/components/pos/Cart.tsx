@@ -91,7 +91,7 @@ export function Cart() {
                   onChange={(e) =>
                     updateQuantity(
                       item.product.id,
-                      parseInt(e.target.value) || 0
+                      parseInt(e.target.value) || 0,
                     )
                   }
                   className="w-14 h-8 text-center px-1"
@@ -157,8 +157,8 @@ export function Cart() {
         )}
 
         <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">{`Tax (VAT ${(
-            taxRate || 15
+          <span className="text-muted-foreground">{`Tax (VAT ${Number(
+            taxRate ?? 0,
           ).toFixed(2)}%)`}</span>
           <span>
             {getTax().toFixed(2)} {t("etb")}

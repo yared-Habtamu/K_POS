@@ -1,4 +1,5 @@
-// src/pages/owner/ExpenseManagement.tsx
+// src/pages/manager/ExpenseManagement.tsx
+// Duplicate of owner expense management but for manager role
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
@@ -37,12 +38,12 @@ import {
   Search,
   Trash2,
   Edit,
+  Users,
   Home,
   Zap,
   Droplets,
   Sparkles,
   MoreHorizontal,
-  Users,
   TrendingDown,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -99,7 +100,7 @@ const expenseCategories: {
   },
 ];
 
-const ITEMS_PER_PAGE = 7; // ✅ 7 items per page
+const ITEMS_PER_PAGE = 7;
 
 const loadImageAsDataUrl = async (
   url?: string | null,
@@ -131,30 +132,22 @@ export default function ExpenseManagement() {
   const [creatorFilter, setCreatorFilter] = useState<
     "all" | "owner" | "manager"
   >("all");
-  const [managerFilter, setManagerFilter] = useState("all");
-  const [managers, setManagers] = useState<Array<{ id: string; name: string }>>(
-    [],
-  );
-  // month filter formatted as YYYY-MM; empty = all
   const [monthFilter, setMonthFilter] = useState<string>(() =>
     new Date().toISOString().slice(0, 7),
   );
 
-  // compute unique month options: include last 12 calendar months plus any months actually present
   const monthSet = new Set<string>();
-  // add recent 12 months
   for (let i = 0; i < 12; i++) {
     const d = new Date();
     d.setMonth(d.getMonth() - i);
     monthSet.add(d.toISOString().slice(0, 7));
   }
-  // also include any months that exist in data
   expenses.forEach((e) => {
     monthSet.add(new Date(e.date).toISOString().slice(0, 7));
   });
   const monthOptions = Array.from(monthSet).sort((a, b) => b.localeCompare(a));
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1); // ✅ Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
@@ -185,19 +178,12 @@ export default function ExpenseManagement() {
       categoryFilter === "all" || e.category === categoryFilter;
     const matchCreator =
       creatorFilter === "all" || (e.createdByRole || "other") === creatorFilter;
-    const matchManager =
-      creatorFilter !== "manager" ||
-      managerFilter === "all" ||
-      String(e.createdBy || "") === managerFilter;
     const matchMonth =
       !monthFilter ||
       new Date(e.date).toISOString().slice(0, 7) === monthFilter;
-    return (
-      matchSearch && matchCategory && matchMonth && matchCreator && matchManager
-    );
+    return matchSearch && matchCategory && matchMonth && matchCreator;
   });
 
-  // total expenses for the selected month (or current if not set)
   const totalExpensesThisMonth = expenses
     .filter((e) => {
       if (!monthFilter) return true;
@@ -215,7 +201,6 @@ export default function ExpenseManagement() {
     }))
     .filter((item) => item.value > 0);
 
-  // ✅ Pagination logic
   const totalPages = Math.ceil(filteredExpenses.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedExpenses = filteredExpenses.slice(
@@ -243,7 +228,6 @@ export default function ExpenseManagement() {
         toast({ title: t("failed_delete_expense") });
       }
     })();
-    // Reset to page 1 if current page becomes empty
     if (
       filteredExpenses.length <= (currentPage - 1) * ITEMS_PER_PAGE &&
       currentPage > 1
@@ -262,7 +246,12 @@ export default function ExpenseManagement() {
       name: (expense as any).name || "",
       reason: (expense as any).reason || "",
       screenshots: [],
+      paymentType: (expense as any).paymentType || "cash",
+      paymentScreenshot: null,
+      productPicture: null,
     });
+    setProductPicturePreview((expense as any).productPicture || null);
+    setPaymentScreenshotPreview((expense as any).paymentScreenshot || null);
     setIsDialogOpen(true);
   };
 
@@ -281,7 +270,6 @@ export default function ExpenseManagement() {
     try {
       if (editingExpenseId) {
         // update existing
-        // if files present send FormData
         let res;
         if (
           form.paymentScreenshot ||
@@ -340,7 +328,6 @@ export default function ExpenseManagement() {
         );
         toast({ title: t("expense_updated") });
       } else {
-        // create new
         let res;
         if (
           form.paymentScreenshot ||
@@ -411,7 +398,6 @@ export default function ExpenseManagement() {
         setExpenses((prev) => [newExpense, ...prev]);
         toast({ title: t("expense_added") });
       }
-      // reset dialog/form state
       setIsDialogOpen(false);
       setEditingExpenseId(null);
       setForm({
@@ -489,42 +475,11 @@ export default function ExpenseManagement() {
     };
   }, [auth]);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const token = auth?.token;
-        const martId = auth?.martId;
-        if (!martId) return;
-        const res = await fetch(`${API_BASE}/api/employees?martId=${martId}`, {
-          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        });
-        if (!res.ok) return;
-        const list = await res.json();
-        if (!mounted || !Array.isArray(list)) return;
-        const managerList = list
-          .filter((u: any) => u?.role === "manager")
-          .map((u: any) => ({
-            id: String(u._id || u.id || ""),
-            name: String(u.name || u.username || "Unnamed"),
-          }))
-          .filter((u: any) => u.id);
-        setManagers(managerList);
-      } catch (err) {
-        console.error("Load managers error", err);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [auth, API_BASE]);
-
   const getCategoryIcon = (category: ExpenseCategory) => {
     const cat = expenseCategories.find((c) => c.value === category);
     return cat?.icon || MoreHorizontal;
   };
 
-  // ✅ Pagination handlers
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
@@ -681,9 +636,8 @@ export default function ExpenseManagement() {
   };
 
   return (
-    <RoleLayout allowedRoles={["owner"]}>
+    <RoleLayout allowedRoles={["manager"]}>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">{t("expenses")}</h1>
@@ -886,9 +840,7 @@ export default function ExpenseManagement() {
           </Dialog>
         </div>
 
-        {/* Chart & Filters */}
         <div className="grid gap-6 lg:grid-cols-3">
-          {/* Chart */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -929,7 +881,6 @@ export default function ExpenseManagement() {
             </Card>
           </motion.div>
 
-          {/* Table */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -983,25 +934,6 @@ export default function ExpenseManagement() {
                         <SelectItem value="manager">Manager</SelectItem>
                       </SelectContent>
                     </Select>
-                    {creatorFilter === "manager" && (
-                      <Select
-                        value={managerFilter}
-                        onValueChange={setManagerFilter}
-                      >
-                        <SelectTrigger className="w-40">
-                          <SelectValue placeholder="Manager" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All managers</SelectItem>
-                          {managers.map((m) => (
-                            <SelectItem key={m.id} value={m.id}>
-                              {m.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                    {/* month filter dropdown */}
                     <Select
                       value={monthFilter || "all"}
                       onValueChange={(v) => {
@@ -1059,9 +991,9 @@ export default function ExpenseManagement() {
                           return (
                             <TableRow key={expense.id}>
                               <TableCell className="w-20">
-                                {expense.productPicture ? (
+                                {(expense as any).productPicture ? (
                                   <img
-                                    src={expense.productPicture}
+                                    src={(expense as any).productPicture}
                                     className="w-16 h-16 object-cover rounded"
                                     alt="product"
                                   />
@@ -1138,7 +1070,6 @@ export default function ExpenseManagement() {
                   </Table>
                 </div>
 
-                {/* ✅ PAGINATION CONTROLS */}
                 {totalPages > 1 && (
                   <div className="flex flex-col sm:flex-row items-center justify-between px-2 py-3 border-t border-border mt-4">
                     <div className="text-xs text-muted-foreground mb-2 sm:mb-0">
@@ -1150,7 +1081,7 @@ export default function ExpenseManagement() {
                           filteredExpenses.length,
                         )}
                       </span>{" "}
-                      {t("of")}
+                      {t("of")}{" "}
                       <span className="font-medium">
                         {" "}
                         {filteredExpenses.length}
@@ -1167,7 +1098,6 @@ export default function ExpenseManagement() {
                       >
                         {t("prev")}
                       </Button>
-
                       {Array.from({ length: totalPages }, (_, i) => i + 1).map(
                         (page) => (
                           <Button
@@ -1183,7 +1113,6 @@ export default function ExpenseManagement() {
                           </Button>
                         ),
                       )}
-
                       <Button
                         variant="outline"
                         size="sm"
