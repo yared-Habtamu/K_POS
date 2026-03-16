@@ -1806,6 +1806,32 @@ export default function OwnerEmployeeManagement(): JSX.Element {
             )}
           </>
         )}
+
+        <Dialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Change Password for {passwordTarget?.name}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handlePasswordChangeSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label>New Password</Label>
+                <Input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password (min. 6 characters)"
+                  minLength={6}
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setChangePasswordOpen(false)}>Cancel</Button>
+                <Button type="submit">Save Password</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
       </div>
     </RoleLayout>
   );

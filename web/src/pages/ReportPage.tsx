@@ -35,6 +35,7 @@ const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"
 
 const ReportPage: React.FC = () => {
   const { t } = useTranslation();
+  const user = useAuthStore((s) => s.user);
   const [period, setPeriod] = useState<"daily" | "weekly" | "monthly" | "custom">("monthly");
   const [customDates, setCustomDates] = useState({ start: "2025-11-01", end: "2025-11-30" });
 
@@ -123,9 +124,11 @@ const ReportPage: React.FC = () => {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
       { Metric: t("revenue"), Value: fmt(localData.revenue) },
       { Metric: t("cogs"), Value: fmt(localData.cogs) },
-      { Metric: t("gross_profit"), Value: fmt(derivedFinancials.grossProfit) },
-      { Metric: t("gross_margin_percent"), Value: `${derivedFinancials.grossMargin}%` },
-      { Metric: t("net_profit"), Value: fmt(derivedFinancials.netProfit) },
+      ...(user?.role === "owner" ? [
+        { Metric: t("gross_profit"), Value: fmt(derivedFinancials.grossProfit) },
+        { Metric: t("gross_margin_percent"), Value: `${derivedFinancials.grossMargin}%` },
+        { Metric: t("net_profit"), Value: fmt(derivedFinancials.netProfit) },
+      ] : []),
     ]), "4. Financial");
     XLSX.writeFile(wb, `SmartPOS_Report_${period}.xlsx`);
     toast.success("Excel exported");
@@ -204,9 +207,11 @@ const ReportPage: React.FC = () => {
       body: [
         [t("revenue"), fmt(localData.revenue)],
         [t("cogs"), fmt(localData.cogs)],
-        [t("gross_profit"), fmt(derivedFinancials.grossProfit)],
-        [t("gross_margin_percent"), `${derivedFinancials.grossMargin}%`],
-        [t("net_profit"), fmt(derivedFinancials.netProfit)],
+        ...(user?.role === "owner" ? [
+          [t("gross_profit"), fmt(derivedFinancials.grossProfit)],
+          [t("gross_margin_percent"), `${derivedFinancials.grossMargin}%`],
+          [t("net_profit"), fmt(derivedFinancials.netProfit)],
+        ] : []),
       ],
       theme: "grid", headStyles, styles,
       columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 50, halign: "right" } },
@@ -271,9 +276,9 @@ const ReportPage: React.FC = () => {
     { title: t("total_sales"), value: fmt(localData.totalSales), Icon: DollarSign, color: "text-emerald-500" },
     { title: t("total_orders"), value: fmtN(localData.totalOrders), Icon: ShoppingBag, color: "text-blue-500" },
     { title: t("total_items_sold"), value: fmtN(localData.totalItemsSold), Icon: Package, color: "text-purple-500" },
-    { title: t("gross_profit"), value: fmt(derivedFinancials.grossProfit), Icon: TrendingUp, color: "text-amber-500" },
+    ...(user?.role === "owner" ? [{ title: t("gross_profit"), value: fmt(derivedFinancials.grossProfit), Icon: TrendingUp, color: "text-amber-500" }] : []),
     { title: t("avg_order_value"), value: fmt(localData.avgOrderValue), Icon: CreditCard, color: "text-rose-500" },
-    { title: t("net_profit"), value: fmt(derivedFinancials.netProfit), Icon: Landmark, color: "text-teal-500" },
+    ...(user?.role === "owner" ? [{ title: t("net_profit"), value: fmt(derivedFinancials.netProfit), Icon: Landmark, color: "text-teal-500" }] : []),
   ];
 
   return (
@@ -415,9 +420,11 @@ const ReportPage: React.FC = () => {
               {[
                 { label: t("revenue"), value: fmt(localData.revenue) },
                 { label: t("cogs"), value: fmt(localData.cogs) },
-                { label: t("gross_profit"), value: fmt(derivedFinancials.grossProfit) },
-                { label: t("gross_margin_percent"), value: `${derivedFinancials.grossMargin}%` },
-                { label: t("net_profit"), value: fmt(derivedFinancials.netProfit) },
+                ...(user?.role === "owner" ? [
+                  { label: t("gross_profit"), value: fmt(derivedFinancials.grossProfit) },
+                  { label: t("gross_margin_percent"), value: `${derivedFinancials.grossMargin}%` },
+                  { label: t("net_profit"), value: fmt(derivedFinancials.netProfit) }
+                ] : []),
               ].map(({ label, value }, i) => (
                 <div key={i} className="bg-muted/40 rounded-lg p-3">
                   <p className="text-muted-foreground text-xs">{label}</p>

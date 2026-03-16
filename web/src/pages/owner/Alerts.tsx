@@ -23,6 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { useAuthStore } from '@/stores/authStore';
 
 const defaultFilterValues: AdvancedFilterValues = {
   query: '',
@@ -36,6 +37,7 @@ export default function OwnerAlerts() {
   const { getLowStockProducts, getExpiringProducts, deleteProduct, fetchProducts } = useProductStore();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
   const [filterValues, setFilterValues] = useState<AdvancedFilterValues>(defaultFilterValues);
@@ -137,7 +139,9 @@ export default function OwnerAlerts() {
   const goToEdit = (product: any) => {
     const id = product?.id || product?._id;
     if (!id) return;
-    navigate('/owner/products', { state: { editProductId: id } });
+    const roleStr = user?.role as string | undefined;
+    const basePath = roleStr === 'store_keeper' || roleStr === 'storeKeeper' ? '/store-keeper/products' : '/owner/products';
+    navigate(basePath, { state: { editProductId: id } });
   };
 
   return (

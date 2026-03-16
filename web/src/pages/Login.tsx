@@ -196,12 +196,14 @@ export default function Login() {
                 className="p-0 h-auto text-sm"
                 onClick={(e) => {
                   e.preventDefault();
-                  alert(
-                    t(
+                  toast({
+                    title: t("forgot_password", "Forgot password?"),
+                    description: t(
                       "forgot_password_msg",
                       "Please contact your system administrator or owner to reset your password.",
                     ),
-                  );
+                    duration: 5000,
+                  });
                 }}
               >
                 {t("forgot_password", "Forgot password?")}
