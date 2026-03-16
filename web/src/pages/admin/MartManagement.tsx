@@ -33,7 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { CheckCircle, XCircle, Trash, Edit2, RotateCw } from "lucide-react";
+import { CheckCircle, XCircle, Trash, Edit2, RotateCw, Key } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -41,6 +41,7 @@ type Shop = {
   id: string;
   name: string;
   owner: string;
+  ownerId?: string;
   status: "active" | "pending" | "suspended" | "rejected";
   sales: number;
   users: number;
@@ -280,6 +281,10 @@ export default function MartManagement() {
     React.useState<PendingMartAction | null>(null);
   const [editForm, setEditForm] = React.useState<EditShopForm | null>(null);
   const [shopToDelete, setShopToDelete] = React.useState<Shop | null>(null);
+  const [resetPasswordTarget, setResetPasswordTarget] = React.useState<Shop | null>(null);
+  const [newPassword, setNewPassword] = React.useState("");
+  const [confirmPassword, setConfirmPassword] = React.useState("");
+  const [isResettingPassword, setIsResettingPassword] = React.useState(false);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
 
   // ✅ Pagination state
@@ -318,6 +323,7 @@ export default function MartManagement() {
 
   const mapBackendToShop = (m: any): Shop => {
     const ownerName = (m.ownerId && (m.ownerId.name || m.ownerId)) || "Owner";
+    const ownerId = m.ownerId ? (m.ownerId._id || m.ownerId) : undefined;
     const statusMap: Record<string, Shop["status"]> = {
       pending: "pending",
       approved: "active",
@@ -328,6 +334,7 @@ export default function MartManagement() {
       id: m._id,
       name: m.martName || m.name || "Unnamed",
       owner: ownerName,
+      ownerId: ownerId,
       status: statusMap[m.status] || "pending",
       sales: 0,
       users: 1,
@@ -594,6 +601,82 @@ export default function MartManagement() {
     await rejectShop(shopId);
   };
 
+  const handleResetPassword = async () => {
+    if (!resetPasswordTarget?.ownerId) {
+      toast({
+        title: "Error",
+        description: "Cannot reset password: owner ID is missing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Error",
+        description: "Passwords do not match.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast({
+        title: "Error",
+        description: "Password must be at least 6 characters long.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!API_BASE) {
+      toast({
+        title: "Mock Success",
+        description: "Password updated successfully (mock).",
+      });
+      setResetPasswordTarget(null);
+      setNewPassword("");
+      setConfirmPassword("");
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/users/${resetPasswordTarget.ownerId}/reset-password`, {
+        method: "PUT",
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          newPassword,
+          confirmPassword,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to reset password");
+      }
+
+      toast({
+        title: "Success",
+        description: `Password for ${resetPasswordTarget.owner} has been reset successfully.`,
+      });
+      setResetPasswordTarget(null);
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "An error occurred while resetting the password.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
   const refreshMarts = async () => {
     setIsRefreshing(true);
     try {
@@ -815,6 +898,16 @@ export default function MartManagement() {
                                 }
                               >
                                 Unsuspend
+                              </Button>
+                            )}
+                            {shop.status === "active" && shop.ownerId && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setResetPasswordTarget(shop)}
+                                title="Reset Owner Password"
+                              >
+                                <Key className="w-4 h-4" />
                               </Button>
                             )}
                             <Button
@@ -1070,9 +1163,65 @@ export default function MartManagement() {
                 Yes, delete
               </AlertDialogAction>
             </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
-    </RoleLayout>
-  );
+      </AlertDialogContent>
+    </AlertDialog>
+
+    {/* Change Password Dialog */}
+    <Dialog open={!!resetPasswordTarget} onOpenChange={(open) => {
+      if (!open) {
+        setResetPasswordTarget(null);
+        setNewPassword("");
+        setConfirmPassword("");
+      }
+    }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Reset Password for {resetPasswordTarget?.owner}</DialogTitle>
+          <DialogDescription>
+            Enter a new password for this store owner. This will log them out of existing sessions.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="new-password">New Password</Label>
+            <Input
+              id="new-password"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="At least 6 characters"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="confirm-password">Confirm Password</Label>
+            <Input
+              id="confirm-password"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Re-enter new password"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setResetPasswordTarget(null);
+              setNewPassword("");
+              setConfirmPassword("");
+            }}
+            disabled={isResettingPassword}
+          >
+            Cancel
+          </Button>
+          <Button onClick={handleResetPassword} loading={isResettingPassword}>
+            Save Password
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </div>
+</RoleLayout>
+);
 }

@@ -253,6 +253,45 @@ router.put('/change-password', authenticate, async (req, res) => {
   }
 });
 
+// Admin reset user password
+router.put('/users/:id/reset-password', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newPassword, confirmPassword } = req.body || {};
+
+    // Only systemAdmin can reset any user's password
+    const requester = req.user;
+    if (requester.role !== 'systemAdmin') {
+      return res.status(403).json({ message: 'Insufficient permissions to reset passwords' });
+    }
+
+    if (!newPassword || !confirmPassword) {
+      return res.status(400).json({ message: 'New password and confirmation are required' });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ message: 'Passwords do not match' });
+    }
+
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters long' });
+    }
+
+    const targetUser = await User.findById(id);
+    if (!targetUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    targetUser.passwordHash = await bcrypt.hash(String(newPassword), 10);
+    await targetUser.save();
+
+    return res.json({ message: 'Password reset successfully' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Delete user
 router.delete('/users/:id', authenticate, async (req, res) => {
   try {

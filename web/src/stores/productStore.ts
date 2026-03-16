@@ -186,6 +186,7 @@ interface ProductState {
   getProductByBarcode: (barcode: string) => Product | undefined;
   getLowStockProducts: () => Product[];
   getExpiringProducts: (days?: number) => Product[];
+  getAlertProducts: (expiringWithinDays?: number) => any[];
   applyLocalSale: (
     soldItems: Array<{ productId: string; quantity: number }>,
   ) => Promise<void>;
