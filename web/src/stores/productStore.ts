@@ -259,6 +259,10 @@ export const useProductStore = create<ProductState>((set, get) => ({
           headers: authHeader,
         },
       );
+      if (res.status === 401) {
+        useAuthStore.getState().logout();
+        throw new Error("Unauthorized - Session expired");
+      }
       if (!res.ok) throw new Error("Failed to fetch products");
       const data = await res.json();
       // support paginated response { data, total } or legacy array response

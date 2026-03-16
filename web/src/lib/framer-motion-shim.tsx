@@ -19,6 +19,10 @@ function makeElement(tag: keyof JSX.IntrinsicElements) {
       whileTap,
       whileFocus,
       whileDrag,
+      whileInView,
+      viewport,
+      onViewportEnter,
+      onViewportLeave,
       ...domProps
     } = rest as any;
 

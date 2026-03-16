@@ -1,8 +1,8 @@
-# 📁 Kiya Smart POS System – Project Folder Structure & Architecture
+# 📁 Kiya POS System System – Project Folder Structure & Architecture
 
 ### *(Based on SRS Document & Team Collaboration Requirements)*
 
-This document defines the **scalable, modular, team-friendly folder structure** for the Kiya Smart POS & Inventory Management System. It covers:
+This document defines the **scalable, modular, team-friendly folder structure** for the Kiya POS System & Inventory Management System. It covers:
 
 * Backend structure
 * Web structure
@@ -296,7 +296,7 @@ Monorepo supports automated deployment for backend, web, mobile.
 
 This folder structure:
 
-* Fully aligns with your **Kiya Smart POS SRS V2**
+* Fully aligns with your **Kiya POS System SRS V2**
 * Supports clean, modular development
 * Works perfectly for a small team
 * Handles Web + Mobile + Backend + Future Desktop

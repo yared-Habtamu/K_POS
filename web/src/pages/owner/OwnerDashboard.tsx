@@ -98,6 +98,7 @@ export default function OwnerDashboard() {
           const msg = (json && json.message) || `status ${res.status}`;
           if (res.status === 401) {
             setMetricsError("Unauthorized: please login again");
+            useAuthStore.getState().logout();
           } else {
             setMetricsError(String(msg));
           }

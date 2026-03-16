@@ -107,9 +107,6 @@ export default function Index() {
       {/* Features Grid */}
       <div className="container mx-auto px-4 py-20">
         <motion.h2
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
           className="text-3xl font-bold text-center mb-12"
         >
           Everything you need to run your business
@@ -119,10 +116,6 @@ export default function Index() {
           {features.map((feature, index) => (
             <motion.div
               key={feature.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: index * 0.1 }}
             >
               <Card className="h-full hover:shadow-lg transition-shadow">
                 <CardContent className="p-6">
@@ -141,7 +134,7 @@ export default function Index() {
       {/* Footer */}
       <footer className="border-t border-border py-8">
         <div className="container mx-auto px-4 text-center text-muted-foreground">
-          <p>Kiya Smart POS v2.1 • Built for Ethiopian Retail</p>
+          <p>Kiya POS System v2.1 • Built for Ethiopian Retail</p>
         </div>
       </footer>
     </div>

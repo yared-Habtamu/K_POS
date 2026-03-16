@@ -1,6 +1,6 @@
-# Contributing to Kiya Smart POS System
+# Contributing to Kiya POS System System
 
-Thank you for your interest in contributing to the Kiya Smart POS & Inventory Management System! This document provides guidelines and instructions for contributing to the project.
+Thank you for your interest in contributing to the Kiya POS System & Inventory Management System! This document provides guidelines and instructions for contributing to the project.
 
 ## 📋 Table of Contents
 
@@ -366,4 +366,4 @@ If you have questions about contributing:
 
 ---
 
-Thank you for contributing to Kiya Smart POS System! 🎉
+Thank you for contributing to Kiya POS System System! 🎉

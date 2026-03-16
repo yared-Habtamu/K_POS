@@ -62,7 +62,7 @@ class _SignInPageState extends State<SignInPage> {
                               image: AssetImage("assets/logos/pos.png"))),
                     ),
                     const SizedBox(height: 16),
-                    const Text("Kiya Smart POS. Easy Living.",
+                    const Text("Kiya POS System. Easy Living.",
                         style: TextStyle(fontSize: 14, color: Colors.grey)),
                     const SizedBox(height: 40),
 
@@ -214,7 +214,7 @@ class _SignInPageState extends State<SignInPage> {
                     const SizedBox(height: 30),
                     const Divider(color: Colors.grey),
                     const SizedBox(height: 20),
-                    const Text("By continuing, you agree to Kiya Smart POS",
+                    const Text("By continuing, you agree to Kiya POS System",
                         style: TextStyle(fontSize: 12, color: Colors.grey)),
                     const SizedBox(height: 4),
                     GestureDetector(
