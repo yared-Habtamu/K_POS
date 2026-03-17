@@ -315,9 +315,10 @@ export default function OwnerEmployeeManagement(): JSX.Element {
         const updated = await res.json();
         setEmployees(employees.map(emp => emp.id === editingEmployee.id ? { ...emp, ...updated } : emp));
         toast({ title: 'Employee updated successfully' });
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
-        toast({ title: 'Failed to update employee' });
+        toast({ title: 'Failed to update employee', description: err?.message || 'Server error', variant: 'destructive' });
+        return; // Don't close modal on error
       }
       // success toast handled above
     } else {
@@ -371,9 +372,9 @@ export default function OwnerEmployeeManagement(): JSX.Element {
         toast({ title: t('employee_added') });
       } catch (err:any) {
         console.error(err);
-        toast({ title: 'Failed to add employee', description: err?.message || 'Server error' });
+        toast({ title: 'Failed to add employee', description: err?.message || 'Server error', variant: 'destructive' });
+        return; // Important: Return early so we don't close the modal
       }
-      // toast is handled after API success
     }
 
     setIsDialogOpen(false);
@@ -1025,8 +1026,8 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                   </DialogHeader>
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="username">Username (optional)</Label>
-                      <Input id="username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="login username (optional)" />
+                      <Label htmlFor="username">Username (Optional)</Label>
+                      <Input id="username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="e.g. jsmith (optional)" />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="name">{t('employee_name')} *</Label>
