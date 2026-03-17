@@ -188,29 +188,30 @@ export default function Login() {
                   htmlFor="remember"
                   className="text-sm font-medium leading-none cursor-pointer"
                 >
-                  {t("remember_me", "Remember me")}
-                </label>
-              </div>
-              <Button
-                variant="link"
-                className="p-0 h-auto text-sm"
-                onClick={(e) => {
-                  e.preventDefault();
-                  toast({
-                    title: t("forgot_password", "Forgot password?"),
-                    description: t(
-                      "forgot_password_msg",
-                      "Please contact your system administrator or owner to reset your password.",
-                    ),
-                    duration: 5000,
-                  });
-                }}
-              >
-                {t("forgot_password", "Forgot password?")}
-              </Button>
+                {t("remember_me", "Remember me")}
+              </label>
             </div>
+            <Button
+              type="button"
+              variant="link"
+              className="p-0 h-auto text-sm"
+              onClick={(e) => {
+                e.preventDefault();
+                toast({
+                  title: t("forgot_password", "Forgot password?"),
+                  description: t(
+                    "forgot_password_msg",
+                    "Please contact your system administrator or owner to reset your password.",
+                  ),
+                  duration: 5000,
+                });
+              }}
+            >
+              {t("forgot_password", "Forgot password?")}
+            </Button>
+          </div>
 
-            {/* Submit */}
+          {/* Submit */}
             <Button
               type="submit"
               className="w-full h-12 text-base font-semibold"

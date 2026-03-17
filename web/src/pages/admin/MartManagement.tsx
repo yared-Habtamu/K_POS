@@ -33,7 +33,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { CheckCircle, XCircle, Trash, Edit2, RotateCw, Key } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { CheckCircle, XCircle, Trash, Edit2, RotateCw, Key, MoreHorizontal, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -42,6 +48,7 @@ type Shop = {
   name: string;
   owner: string;
   ownerId?: string;
+  ownerUsername?: string;
   status: "active" | "pending" | "suspended" | "rejected";
   sales: number;
   users: number;
@@ -62,6 +69,9 @@ type EditShopForm = {
   id: string;
   name: string;
   owner: string;
+  ownerId?: string;
+  ownerUsername?: string;
+  newPassword?: string;
   country: string;
   region: string;
   city: string;
@@ -282,9 +292,11 @@ export default function MartManagement() {
   const [editForm, setEditForm] = React.useState<EditShopForm | null>(null);
   const [shopToDelete, setShopToDelete] = React.useState<Shop | null>(null);
   const [resetPasswordTarget, setResetPasswordTarget] = React.useState<Shop | null>(null);
+  const [viewShop, setViewShop] = React.useState<Shop | null>(null);
   const [newPassword, setNewPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
   const [isResettingPassword, setIsResettingPassword] = React.useState(false);
+  const [isSavingEdit, setIsSavingEdit] = React.useState(false);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
 
   // ✅ Pagination state
@@ -324,6 +336,7 @@ export default function MartManagement() {
   const mapBackendToShop = (m: any): Shop => {
     const ownerName = (m.ownerId && (m.ownerId.name || m.ownerId)) || "Owner";
     const ownerId = m.ownerId ? (m.ownerId._id || m.ownerId) : undefined;
+    const ownerUsername = m.ownerId ? m.ownerId.username : undefined;
     const statusMap: Record<string, Shop["status"]> = {
       pending: "pending",
       approved: "active",
@@ -335,6 +348,7 @@ export default function MartManagement() {
       name: m.martName || m.name || "Unnamed",
       owner: ownerName,
       ownerId: ownerId,
+      ownerUsername: ownerUsername,
       status: statusMap[m.status] || "pending",
       sales: 0,
       users: 1,
@@ -513,14 +527,77 @@ export default function MartManagement() {
       id: shop.id,
       name: shop.name,
       owner: shop.owner,
+      ownerId: shop.ownerId,
+      ownerUsername: shop.ownerUsername || "",
+      newPassword: "",
       country: shop.address?.country || "Ethiopia",
       region: shop.address?.region || "",
       city: shop.address?.city || "",
     });
   };
 
-  const saveEditedShop = () => {
+  const saveEditedShop = async () => {
     if (!editForm) return;
+
+    if (API_BASE) {
+      setIsSavingEdit(true);
+      try {
+        // 1. Update Mart
+        const martRes = await fetch(`${API_BASE}/api/marts/${editForm.id}`, {
+          method: "PUT",
+          headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify({
+            martName: editForm.name,
+            country: editForm.country,
+            region: editForm.region,
+            city: editForm.city,
+          }),
+        });
+        if (!martRes.ok) throw new Error("Failed to update market details");
+
+        // 2. Update Owner User if there's an ownerId
+        if (editForm.ownerId) {
+          const userRes = await fetch(`${API_BASE}/api/auth/users/${editForm.ownerId}`, {
+            method: "PUT",
+            headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: editForm.owner,
+              username: editForm.ownerUsername,
+            }),
+          });
+          if (!userRes.ok) throw new Error("Failed to update owner details");
+
+          // 3. Reset Password if provided
+          if (editForm.newPassword) {
+            const passRes = await fetch(`${API_BASE}/api/auth/users/${editForm.ownerId}/reset-password`, {
+              method: "PUT",
+              headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+              body: JSON.stringify({
+                newPassword: editForm.newPassword,
+                confirmPassword: editForm.newPassword,
+              }),
+            });
+            if (!passRes.ok) throw new Error("Failed to reset password");
+          }
+        }
+
+        await fetchShopsFromServer(getCurrentStatusQuery());
+        toast({
+          title: "Shop updated",
+          description: "Market and owner details have been successfully updated.",
+        });
+        setEditForm(null);
+      } catch (err: any) {
+        toast({
+          title: "Update failed",
+          description: err.message || "An error occurred while updating the shop.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsSavingEdit(false);
+      }
+      return;
+    }
 
     setShops((prev) =>
       prev.map((s) =>
@@ -529,6 +606,7 @@ export default function MartManagement() {
               ...s,
               name: editForm.name,
               owner: editForm.owner,
+              ownerUsername: editForm.ownerUsername,
               address: {
                 country: editForm.country,
                 region: editForm.region,
@@ -788,7 +866,7 @@ export default function MartManagement() {
                 <TableBody>
                   {paginatedShops.length > 0 ? (
                     paginatedShops.map((shop) => (
-                      <TableRow key={shop.id}>
+                      <TableRow key={shop.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setViewShop(shop)}>
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <Avatar className="h-9 w-9">
@@ -844,87 +922,61 @@ export default function MartManagement() {
                         <TableCell className="text-center">
                           <Badge variant="outline">{shop.users}</Badge>
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {shop.status === "pending" && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  onClick={() =>
-                                    setPendingAction({
-                                      shopId: shop.id,
-                                      action: "approve",
-                                    })
-                                  }
-                                >
-                                  Approve
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() =>
-                                    setPendingAction({
-                                      shopId: shop.id,
-                                      action: "reject",
-                                    })
-                                  }
-                                >
-                                  Reject
-                                </Button>
-                              </>
-                            )}
-                            {shop.status === "active" && (
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() =>
-                                  setPendingAction({
-                                    shopId: shop.id,
-                                    action: "suspend",
-                                  })
-                                }
-                              >
-                                Suspend
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">Open menu</span>
+                                <MoreHorizontal className="h-4 w-4" />
                               </Button>
-                            )}
-                            {shop.status === "suspended" && (
-                              <Button
-                                size="sm"
-                                onClick={() =>
-                                  setPendingAction({
-                                    shopId: shop.id,
-                                    action: "unsuspend",
-                                  })
-                                }
-                              >
-                                Unsuspend
-                              </Button>
-                            )}
-                            {shop.status === "active" && shop.ownerId && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setResetPasswordTarget(shop)}
-                                title="Reset Owner Password"
-                              >
-                                <Key className="w-4 h-4" />
-                              </Button>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => editShop(shop.id)}
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => setShopToDelete(shop)}
-                            >
-                              <Trash className="w-4 h-4" />
-                            </Button>
-                          </div>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setViewShop(shop)}>
+                                <Eye className="mr-2 h-4 w-4 text-muted-foreground" />
+                                View Details
+                              </DropdownMenuItem>
+                              {shop.status === "pending" && (
+                                <>
+                                  <DropdownMenuItem onClick={() => setPendingAction({ shopId: shop.id, action: "approve" })}>
+                                    <CheckCircle className="mr-2 h-4 w-4 text-success" />
+                                    Approve
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => setPendingAction({ shopId: shop.id, action: "reject" })} className="text-destructive focus:bg-destructive/10">
+                                    <XCircle className="mr-2 h-4 w-4" />
+                                    Reject
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              {shop.status === "active" && (
+                                <>
+                                  {shop.ownerId && (
+                                    <DropdownMenuItem onClick={() => setResetPasswordTarget(shop)}>
+                                      <Key className="mr-2 h-4 w-4 text-muted-foreground" />
+                                      Reset Password
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuItem onClick={() => setPendingAction({ shopId: shop.id, action: "suspend" })} className="text-destructive focus:bg-destructive/10">
+                                    <XCircle className="mr-2 h-4 w-4" />
+                                    Suspend
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              {shop.status === "suspended" && (
+                                <DropdownMenuItem onClick={() => setPendingAction({ shopId: shop.id, action: "unsuspend" })}>
+                                  <CheckCircle className="mr-2 h-4 w-4 text-success" />
+                                  Unsuspend
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem onClick={() => editShop(shop.id)}>
+                                <Edit2 className="mr-2 h-4 w-4 text-muted-foreground" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setShopToDelete(shop)} className="text-destructive focus:bg-destructive/10">
+                                <Trash className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     ))
@@ -1071,14 +1123,44 @@ export default function MartManagement() {
                 />
               </div>
 
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="market-owner">Owner Name</Label>
+                  <Input
+                    id="market-owner"
+                    value={editForm?.owner || ""}
+                    onChange={(event) =>
+                      setEditForm((prev) =>
+                        prev ? { ...prev, owner: event.target.value } : prev,
+                      )
+                    }
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="market-owner-username">Owner Username</Label>
+                  <Input
+                    id="market-owner-username"
+                    value={editForm?.ownerUsername || ""}
+                    onChange={(event) =>
+                      setEditForm((prev) =>
+                        prev ? { ...prev, ownerUsername: event.target.value } : prev,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
               <div className="grid gap-2">
-                <Label htmlFor="market-owner">Owner name</Label>
+                <Label htmlFor="market-owner-password">Reset Owner Password (Optional)</Label>
                 <Input
-                  id="market-owner"
-                  value={editForm?.owner || ""}
+                  id="market-owner-password"
+                  type="password"
+                  placeholder="Leave blank to keep current password"
+                  value={editForm?.newPassword || ""}
                   onChange={(event) =>
                     setEditForm((prev) =>
-                      prev ? { ...prev, owner: event.target.value } : prev,
+                      prev ? { ...prev, newPassword: event.target.value } : prev,
                     )
                   }
                 />
@@ -1127,10 +1209,10 @@ export default function MartManagement() {
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setEditForm(null)}>
+              <Button variant="outline" onClick={() => setEditForm(null)} disabled={isSavingEdit}>
                 Cancel
               </Button>
-              <Button onClick={saveEditedShop}>Save changes</Button>
+              <Button onClick={saveEditedShop} loading={isSavingEdit}>Save changes</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -1217,6 +1299,69 @@ export default function MartManagement() {
           </Button>
           <Button onClick={handleResetPassword} loading={isResettingPassword}>
             Save Password
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* View Shop Details Modal */}
+    <Dialog open={!!viewShop} onOpenChange={(open) => !open && setViewShop(null)}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Market Details</DialogTitle>
+          <DialogDescription>
+            Comprehensive information for {viewShop?.name}.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+          <div className="space-y-4">
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground">Market Name</h4>
+              <p className="text-base font-semibold">{viewShop?.name}</p>
+            </div>
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground">Owner / Contact</h4>
+              <p className="text-base font-medium">{viewShop?.owner}</p>
+            </div>
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground">Status</h4>
+              <div className="mt-1">
+                {viewShop?.status === "active" && <Badge className="bg-success/10 text-success border-success/20">Active</Badge>}
+                {viewShop?.status === "pending" && <Badge className="bg-warning/10 text-warning border-warning/20">Pending</Badge>}
+                {viewShop?.status === "suspended" && <Badge className="bg-destructive/10 text-destructive border-destructive/20">Suspended</Badge>}
+                {viewShop?.status === "rejected" && <Badge className="bg-destructive/10 text-destructive border-destructive/20">Rejected</Badge>}
+              </div>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground">Location</h4>
+              <p className="text-base">
+                {viewShop?.address ? (
+                  <>
+                    <span>{viewShop.address.city || "Unknown City"}</span>
+                    <span className="block text-muted-foreground text-sm">
+                      {viewShop.address.region || "-"}, {viewShop.address.country || "-"}
+                    </span>
+                  </>
+                ) : (
+                  "Address not provided"
+                )}
+              </p>
+            </div>
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground">Registered Users</h4>
+              <p className="text-base">{viewShop?.users || 0} users enrolled</p>
+            </div>
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground">Total Sales (Placeholder)</h4>
+              <p className="text-base font-medium text-primary">Birr {viewShop?.sales?.toLocaleString() || "0"}</p>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={() => setViewShop(null)}>
+            Close
           </Button>
         </DialogFooter>
       </DialogContent>

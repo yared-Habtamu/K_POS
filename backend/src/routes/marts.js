@@ -209,7 +209,7 @@ router.get("/pending", authenticate, async (req, res) => {
       return res.status(403).json({ message: "Insufficient permissions" });
     const list = await Mart.find({ status: "pending" })
       .sort({ createdAt: -1 })
-      .populate("ownerId", "name phone");
+      .populate("ownerId", "name username phone");
     res.json(list);
   } catch (err) {
     console.error(err);
@@ -278,7 +278,7 @@ router.put("/:id/disable", authenticate, async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const mart = await Mart.findById(id).populate("ownerId", "name phone");
+    const mart = await Mart.findById(id).populate("ownerId", "name username phone");
     if (!mart) return res.status(404).json({ message: "Mart not found" });
     res.json(mart);
   } catch (err) {
@@ -337,7 +337,7 @@ router.get("/", async (req, res) => {
     if (status) filter.status = status;
     const list = await Mart.find(filter)
       .sort({ createdAt: -1 })
-      .populate("ownerId", "name phone");
+      .populate("ownerId", "name username phone");
     res.json(list);
   } catch (err) {
     console.error(err);
