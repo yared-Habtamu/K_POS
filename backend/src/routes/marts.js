@@ -202,6 +202,175 @@ router.post("/register", async (req, res) => {
   }
 });
 
+// System admin direct registration: create mart + owner as approved (no approval step)
+router.post("/admin-register", authenticate, async (req, res) => {
+  try {
+    if (req.user.role !== "systemAdmin") {
+      return res.status(403).json({ message: "Insufficient permissions" });
+    }
+
+    const {
+      martName,
+      phone,
+      email,
+      country,
+      region,
+      city,
+      address,
+      receiptHeader,
+      receiptMessage,
+      shopLogoUrl,
+      taxRate,
+      ownerName,
+      ownerPhone,
+      ownerUsername,
+      ownerPassword,
+      ownerConfirmPassword,
+    } = req.body || {};
+
+    if (
+      !martName ||
+      !ownerName ||
+      !ownerUsername ||
+      !ownerPassword ||
+      !ownerConfirmPassword
+    ) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    if (ownerPassword !== ownerConfirmPassword) {
+      return res.status(400).json({ message: "Owner passwords do not match" });
+    }
+
+    const normalizedOwnerName = String(ownerName).trim();
+    const normalizedOwnerPhone = String(ownerPhone || phone || "").trim();
+    const normalizedMartName = String(martName).trim();
+    const normalizedEmail = String(email || "").trim();
+
+    const sanitize = (s) =>
+      (s || "")
+        .toString()
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "")
+        .slice(0, 30);
+
+    const normalizedUsername = sanitize(ownerUsername);
+    if (!normalizedUsername) {
+      return res.status(400).json({ message: "Invalid owner username" });
+    }
+
+    const duplicateMessages = [];
+    const [
+      existingOwnerName,
+      existingUsername,
+      existingPhoneInUsers,
+      existingPhoneInMarts,
+      existingMartName,
+      existingEmail,
+    ] = await Promise.all([
+      User.findOne({
+        name: {
+          $regex: `^${escapeRegex(normalizedOwnerName)}$`,
+          $options: "i",
+        },
+      }).lean(),
+      User.findOne({ username: normalizedUsername }).lean(),
+      normalizedOwnerPhone
+        ? User.findOne({ phone: normalizedOwnerPhone }).lean()
+        : null,
+      normalizedOwnerPhone
+        ? Mart.findOne({ phone: normalizedOwnerPhone }).lean()
+        : null,
+      Mart.findOne({
+        martName: {
+          $regex: `^${escapeRegex(normalizedMartName)}$`,
+          $options: "i",
+        },
+      }).lean(),
+      normalizedEmail
+        ? Mart.findOne({
+            email: {
+              $regex: `^${escapeRegex(normalizedEmail)}$`,
+              $options: "i",
+            },
+          }).lean()
+        : null,
+    ]);
+
+    if (existingOwnerName) duplicateMessages.push("Owner Name already exists");
+    if (existingUsername) duplicateMessages.push("Username already exists");
+    if (existingPhoneInUsers || existingPhoneInMarts)
+      duplicateMessages.push("Phone already exists");
+    if (existingMartName) duplicateMessages.push("Mart Name already exists");
+    if (existingEmail) duplicateMessages.push("Email already exists");
+
+    if (duplicateMessages.length > 0) {
+      return res.status(409).json({
+        message: `Duplicate registration data found: ${duplicateMessages.join(", ")}. Please change and try again.`,
+        duplicates: duplicateMessages,
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(ownerPassword, 10);
+
+    const owner = new User({
+      name: normalizedOwnerName,
+      username: normalizedUsername,
+      phone: normalizedOwnerPhone,
+      email: normalizedEmail || undefined,
+      passwordHash,
+      role: "owner",
+    });
+    await owner.save();
+
+    const parsedTaxRate = Number(taxRate);
+    const mart = new Mart({
+      ownerId: owner._id,
+      martName: normalizedMartName,
+      phone: normalizedOwnerPhone,
+      email: normalizedEmail,
+      country,
+      region,
+      city,
+      address,
+      receiptHeader,
+      receiptMessage,
+      shopLogoUrl,
+      taxRate: Number.isFinite(parsedTaxRate) ? parsedTaxRate : 0,
+      customPaymentFields: Array.isArray(req.body.customPaymentFields)
+        ? req.body.customPaymentFields
+        : [],
+      status: "approved",
+    });
+    await mart.save();
+
+    owner.martId = mart._id;
+    await owner.save();
+
+    return res.status(201).json({
+      mart,
+      owner,
+      assignedUsername: normalizedUsername,
+      message: "Mart created and approved successfully",
+    });
+  } catch (err) {
+    console.error(err);
+    if (err && err.name === "ValidationError") {
+      const details = Object.keys(err.errors || {}).reduce((acc, k) => {
+        acc[k] = err.errors[k].message;
+        return acc;
+      }, {});
+      return res.status(400).json({ message: "Validation error", details });
+    }
+    if (err && err.code === 11000) {
+      return res
+        .status(409)
+        .json({ message: "Duplicate resource", key: err.keyValue });
+    }
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
 // List pending marts (for admin)
 router.get("/pending", authenticate, async (req, res) => {
   try {
@@ -278,7 +447,10 @@ router.put("/:id/disable", authenticate, async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const mart = await Mart.findById(id).populate("ownerId", "name username phone");
+    const mart = await Mart.findById(id).populate(
+      "ownerId",
+      "name username phone",
+    );
     if (!mart) return res.status(404).json({ message: "Mart not found" });
     res.json(mart);
   } catch (err) {

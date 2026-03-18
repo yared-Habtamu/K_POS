@@ -39,7 +39,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { CheckCircle, XCircle, Trash, Edit2, RotateCw, Key, MoreHorizontal, Eye } from "lucide-react";
+import {
+  CheckCircle,
+  XCircle,
+  Trash,
+  Edit2,
+  RotateCw,
+  Key,
+  MoreHorizontal,
+  Eye,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -291,7 +300,8 @@ export default function MartManagement() {
     React.useState<PendingMartAction | null>(null);
   const [editForm, setEditForm] = React.useState<EditShopForm | null>(null);
   const [shopToDelete, setShopToDelete] = React.useState<Shop | null>(null);
-  const [resetPasswordTarget, setResetPasswordTarget] = React.useState<Shop | null>(null);
+  const [resetPasswordTarget, setResetPasswordTarget] =
+    React.useState<Shop | null>(null);
   const [viewShop, setViewShop] = React.useState<Shop | null>(null);
   const [newPassword, setNewPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
@@ -335,7 +345,7 @@ export default function MartManagement() {
 
   const mapBackendToShop = (m: any): Shop => {
     const ownerName = (m.ownerId && (m.ownerId.name || m.ownerId)) || "Owner";
-    const ownerId = m.ownerId ? (m.ownerId._id || m.ownerId) : undefined;
+    const ownerId = m.ownerId ? m.ownerId._id || m.ownerId : undefined;
     const ownerUsername = m.ownerId ? m.ownerId.username : undefined;
     const statusMap: Record<string, Shop["status"]> = {
       pending: "pending",
@@ -357,11 +367,10 @@ export default function MartManagement() {
     } as Shop;
   };
 
-  const fetchShopsFromServer = async (statusQuery = "") => {
+  const fetchShopsFromServer = async () => {
     if (!API_BASE) return false;
     try {
-      const q = statusQuery ? `?status=${encodeURIComponent(statusQuery)}` : "";
-      const res = await fetch(`${API_BASE}/api/marts${q}`, {
+      const res = await fetch(`${API_BASE}/api/marts`, {
         headers: getAuthHeaders(),
       });
       if (!res.ok) throw new Error("Server error");
@@ -376,24 +385,12 @@ export default function MartManagement() {
     }
   };
 
-  const statusQueryByFilter: Record<
-    "all" | "active" | "pending" | "suspended" | "rejected",
-    string
-  > = {
-    all: "",
-    pending: "pending",
-    active: "approved",
-    suspended: "disabled",
-    rejected: "rejected",
-  };
-
-  const getCurrentStatusQuery = () => statusQueryByFilter[filter] || "";
-
-  // When filter changes, try to fetch from server (map frontend filter to backend status)
+  // Keep the full mart list in memory and filter client-side,
+  // so status counters (active/pending/suspended/rejected) remain stable.
   React.useEffect(() => {
-    fetchShopsFromServer(getCurrentStatusQuery());
+    fetchShopsFromServer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter]);
+  }, []);
 
   // ✅ Pagination handlers
   const goToPage = (page: number) => {
@@ -422,7 +419,7 @@ export default function MartManagement() {
           headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
         });
         if (!res.ok) throw new Error("Server approve failed");
-        await fetchShopsFromServer(getCurrentStatusQuery());
+        await fetchShopsFromServer();
         toast({
           title: "Shop approved",
           description: "The shop has been approved on server.",
@@ -461,7 +458,7 @@ export default function MartManagement() {
           headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
         });
         if (!res.ok) throw new Error("Server suspend failed");
-        await fetchShopsFromServer(getCurrentStatusQuery());
+        await fetchShopsFromServer();
         toast({
           title: "Shop suspended",
           description: "The shop has been suspended on server.",
@@ -492,7 +489,7 @@ export default function MartManagement() {
           },
         });
         if (!res.ok) throw new Error("Server unsuspend failed");
-        await fetchShopsFromServer(getCurrentStatusQuery());
+        await fetchShopsFromServer();
         toast({
           title: "Shop unsuspended",
           description: "The shop is active on server.",
@@ -557,40 +554,54 @@ export default function MartManagement() {
 
         // 2. Update Owner User if there's an ownerId
         if (editForm.ownerId) {
-          const userRes = await fetch(`${API_BASE}/api/auth/users/${editForm.ownerId}`, {
-            method: "PUT",
-            headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: editForm.owner,
-              username: editForm.ownerUsername,
-            }),
-          });
+          const userRes = await fetch(
+            `${API_BASE}/api/auth/users/${editForm.ownerId}`,
+            {
+              method: "PUT",
+              headers: {
+                ...getAuthHeaders(),
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                name: editForm.owner,
+                username: editForm.ownerUsername,
+              }),
+            },
+          );
           if (!userRes.ok) throw new Error("Failed to update owner details");
 
           // 3. Reset Password if provided
           if (editForm.newPassword) {
-            const passRes = await fetch(`${API_BASE}/api/auth/users/${editForm.ownerId}/reset-password`, {
-              method: "PUT",
-              headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-              body: JSON.stringify({
-                newPassword: editForm.newPassword,
-                confirmPassword: editForm.newPassword,
-              }),
-            });
+            const passRes = await fetch(
+              `${API_BASE}/api/auth/users/${editForm.ownerId}/reset-password`,
+              {
+                method: "PUT",
+                headers: {
+                  ...getAuthHeaders(),
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  newPassword: editForm.newPassword,
+                  confirmPassword: editForm.newPassword,
+                }),
+              },
+            );
             if (!passRes.ok) throw new Error("Failed to reset password");
           }
         }
 
-        await fetchShopsFromServer(getCurrentStatusQuery());
+        await fetchShopsFromServer();
         toast({
           title: "Shop updated",
-          description: "Market and owner details have been successfully updated.",
+          description:
+            "Market and owner details have been successfully updated.",
         });
         setEditForm(null);
       } catch (err: any) {
         toast({
           title: "Update failed",
-          description: err.message || "An error occurred while updating the shop.",
+          description:
+            err.message || "An error occurred while updating the shop.",
           variant: "destructive",
         });
       } finally {
@@ -631,7 +642,7 @@ export default function MartManagement() {
           headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
         });
         if (!res.ok) throw new Error("Server reject failed");
-        await fetchShopsFromServer(getCurrentStatusQuery());
+        await fetchShopsFromServer();
         toast({
           title: "Shop rejected",
           description: "The shop registration was rejected on server.",
@@ -720,17 +731,20 @@ export default function MartManagement() {
 
     setIsResettingPassword(true);
     try {
-      const res = await fetch(`${API_BASE}/api/auth/users/${resetPasswordTarget.ownerId}/reset-password`, {
-        method: "PUT",
-        headers: {
-          ...getAuthHeaders(),
-          "Content-Type": "application/json",
+      const res = await fetch(
+        `${API_BASE}/api/auth/users/${resetPasswordTarget.ownerId}/reset-password`,
+        {
+          method: "PUT",
+          headers: {
+            ...getAuthHeaders(),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            newPassword,
+            confirmPassword,
+          }),
         },
-        body: JSON.stringify({
-          newPassword,
-          confirmPassword,
-        }),
-      });
+      );
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
@@ -747,7 +761,8 @@ export default function MartManagement() {
     } catch (err: any) {
       toast({
         title: "Error",
-        description: err.message || "An error occurred while resetting the password.",
+        description:
+          err.message || "An error occurred while resetting the password.",
         variant: "destructive",
       });
     } finally {
@@ -758,7 +773,7 @@ export default function MartManagement() {
   const refreshMarts = async () => {
     setIsRefreshing(true);
     try {
-      await fetchShopsFromServer(getCurrentStatusQuery());
+      await fetchShopsFromServer();
     } finally {
       setIsRefreshing(false);
     }
@@ -866,7 +881,11 @@ export default function MartManagement() {
                 <TableBody>
                   {paginatedShops.length > 0 ? (
                     paginatedShops.map((shop) => (
-                      <TableRow key={shop.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setViewShop(shop)}>
+                      <TableRow
+                        key={shop.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setViewShop(shop)}
+                      >
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <Avatar className="h-9 w-9">
@@ -922,7 +941,10 @@ export default function MartManagement() {
                         <TableCell className="text-center">
                           <Badge variant="outline">{shop.users}</Badge>
                         </TableCell>
-                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <TableCell
+                          className="text-right"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" className="h-8 w-8 p-0">
@@ -931,17 +953,34 @@ export default function MartManagement() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setViewShop(shop)}>
+                              <DropdownMenuItem
+                                onClick={() => setViewShop(shop)}
+                              >
                                 <Eye className="mr-2 h-4 w-4 text-muted-foreground" />
                                 View Details
                               </DropdownMenuItem>
                               {shop.status === "pending" && (
                                 <>
-                                  <DropdownMenuItem onClick={() => setPendingAction({ shopId: shop.id, action: "approve" })}>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      setPendingAction({
+                                        shopId: shop.id,
+                                        action: "approve",
+                                      })
+                                    }
+                                  >
                                     <CheckCircle className="mr-2 h-4 w-4 text-success" />
                                     Approve
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => setPendingAction({ shopId: shop.id, action: "reject" })} className="text-destructive focus:bg-destructive/10">
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      setPendingAction({
+                                        shopId: shop.id,
+                                        action: "reject",
+                                      })
+                                    }
+                                    className="text-destructive focus:bg-destructive/10"
+                                  >
                                     <XCircle className="mr-2 h-4 w-4" />
                                     Reject
                                   </DropdownMenuItem>
@@ -950,28 +989,52 @@ export default function MartManagement() {
                               {shop.status === "active" && (
                                 <>
                                   {shop.ownerId && (
-                                    <DropdownMenuItem onClick={() => setResetPasswordTarget(shop)}>
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        setResetPasswordTarget(shop)
+                                      }
+                                    >
                                       <Key className="mr-2 h-4 w-4 text-muted-foreground" />
                                       Reset Password
                                     </DropdownMenuItem>
                                   )}
-                                  <DropdownMenuItem onClick={() => setPendingAction({ shopId: shop.id, action: "suspend" })} className="text-destructive focus:bg-destructive/10">
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      setPendingAction({
+                                        shopId: shop.id,
+                                        action: "suspend",
+                                      })
+                                    }
+                                    className="text-destructive focus:bg-destructive/10"
+                                  >
                                     <XCircle className="mr-2 h-4 w-4" />
                                     Suspend
                                   </DropdownMenuItem>
                                 </>
                               )}
                               {shop.status === "suspended" && (
-                                <DropdownMenuItem onClick={() => setPendingAction({ shopId: shop.id, action: "unsuspend" })}>
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    setPendingAction({
+                                      shopId: shop.id,
+                                      action: "unsuspend",
+                                    })
+                                  }
+                                >
                                   <CheckCircle className="mr-2 h-4 w-4 text-success" />
                                   Unsuspend
                                 </DropdownMenuItem>
                               )}
-                              <DropdownMenuItem onClick={() => editShop(shop.id)}>
+                              <DropdownMenuItem
+                                onClick={() => editShop(shop.id)}
+                              >
                                 <Edit2 className="mr-2 h-4 w-4 text-muted-foreground" />
                                 Edit
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setShopToDelete(shop)} className="text-destructive focus:bg-destructive/10">
+                              <DropdownMenuItem
+                                onClick={() => setShopToDelete(shop)}
+                                className="text-destructive focus:bg-destructive/10"
+                              >
                                 <Trash className="mr-2 h-4 w-4" />
                                 Delete
                               </DropdownMenuItem>
@@ -1144,7 +1207,9 @@ export default function MartManagement() {
                     value={editForm?.ownerUsername || ""}
                     onChange={(event) =>
                       setEditForm((prev) =>
-                        prev ? { ...prev, ownerUsername: event.target.value } : prev,
+                        prev
+                          ? { ...prev, ownerUsername: event.target.value }
+                          : prev,
                       )
                     }
                   />
@@ -1152,7 +1217,9 @@ export default function MartManagement() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="market-owner-password">Reset Owner Password (Optional)</Label>
+                <Label htmlFor="market-owner-password">
+                  Reset Owner Password (Optional)
+                </Label>
                 <Input
                   id="market-owner-password"
                   type="password"
@@ -1160,7 +1227,9 @@ export default function MartManagement() {
                   value={editForm?.newPassword || ""}
                   onChange={(event) =>
                     setEditForm((prev) =>
-                      prev ? { ...prev, newPassword: event.target.value } : prev,
+                      prev
+                        ? { ...prev, newPassword: event.target.value }
+                        : prev,
                     )
                   }
                 />
@@ -1209,10 +1278,16 @@ export default function MartManagement() {
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setEditForm(null)} disabled={isSavingEdit}>
+              <Button
+                variant="outline"
+                onClick={() => setEditForm(null)}
+                disabled={isSavingEdit}
+              >
                 Cancel
               </Button>
-              <Button onClick={saveEditedShop} loading={isSavingEdit}>Save changes</Button>
+              <Button onClick={saveEditedShop} loading={isSavingEdit}>
+                Save changes
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -1245,128 +1320,171 @@ export default function MartManagement() {
                 Yes, delete
               </AlertDialogAction>
             </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+          </AlertDialogContent>
+        </AlertDialog>
 
-    {/* Change Password Dialog */}
-    <Dialog open={!!resetPasswordTarget} onOpenChange={(open) => {
-      if (!open) {
-        setResetPasswordTarget(null);
-        setNewPassword("");
-        setConfirmPassword("");
-      }
-    }}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Reset Password for {resetPasswordTarget?.owner}</DialogTitle>
-          <DialogDescription>
-            Enter a new password for this store owner. This will log them out of existing sessions.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid gap-2">
-            <Label htmlFor="new-password">New Password</Label>
-            <Input
-              id="new-password"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="At least 6 characters"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="confirm-password">Confirm Password</Label>
-            <Input
-              id="confirm-password"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Re-enter new password"
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => {
+        {/* Change Password Dialog */}
+        <Dialog
+          open={!!resetPasswordTarget}
+          onOpenChange={(open) => {
+            if (!open) {
               setResetPasswordTarget(null);
               setNewPassword("");
               setConfirmPassword("");
-            }}
-            disabled={isResettingPassword}
-          >
-            Cancel
-          </Button>
-          <Button onClick={handleResetPassword} loading={isResettingPassword}>
-            Save Password
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-
-    {/* View Shop Details Modal */}
-    <Dialog open={!!viewShop} onOpenChange={(open) => !open && setViewShop(null)}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Market Details</DialogTitle>
-          <DialogDescription>
-            Comprehensive information for {viewShop?.name}.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-          <div className="space-y-4">
-            <div>
-              <h4 className="text-sm font-medium text-muted-foreground">Market Name</h4>
-              <p className="text-base font-semibold">{viewShop?.name}</p>
-            </div>
-            <div>
-              <h4 className="text-sm font-medium text-muted-foreground">Owner / Contact</h4>
-              <p className="text-base font-medium">{viewShop?.owner}</p>
-            </div>
-            <div>
-              <h4 className="text-sm font-medium text-muted-foreground">Status</h4>
-              <div className="mt-1">
-                {viewShop?.status === "active" && <Badge className="bg-success/10 text-success border-success/20">Active</Badge>}
-                {viewShop?.status === "pending" && <Badge className="bg-warning/10 text-warning border-warning/20">Pending</Badge>}
-                {viewShop?.status === "suspended" && <Badge className="bg-destructive/10 text-destructive border-destructive/20">Suspended</Badge>}
-                {viewShop?.status === "rejected" && <Badge className="bg-destructive/10 text-destructive border-destructive/20">Rejected</Badge>}
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                Reset Password for {resetPasswordTarget?.owner}
+              </DialogTitle>
+              <DialogDescription>
+                Enter a new password for this store owner. This will log them
+                out of existing sessions.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="new-password">New Password</Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="At least 6 characters"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="confirm-password">Confirm Password</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter new password"
+                />
               </div>
             </div>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <h4 className="text-sm font-medium text-muted-foreground">Location</h4>
-              <p className="text-base">
-                {viewShop?.address ? (
-                  <>
-                    <span>{viewShop.address.city || "Unknown City"}</span>
-                    <span className="block text-muted-foreground text-sm">
-                      {viewShop.address.region || "-"}, {viewShop.address.country || "-"}
-                    </span>
-                  </>
-                ) : (
-                  "Address not provided"
-                )}
-              </p>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setResetPasswordTarget(null);
+                  setNewPassword("");
+                  setConfirmPassword("");
+                }}
+                disabled={isResettingPassword}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleResetPassword}
+                loading={isResettingPassword}
+              >
+                Save Password
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* View Shop Details Modal */}
+        <Dialog
+          open={!!viewShop}
+          onOpenChange={(open) => !open && setViewShop(null)}
+        >
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Market Details</DialogTitle>
+              <DialogDescription>
+                Comprehensive information for {viewShop?.name}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground">
+                    Market Name
+                  </h4>
+                  <p className="text-base font-semibold">{viewShop?.name}</p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground">
+                    Owner / Contact
+                  </h4>
+                  <p className="text-base font-medium">{viewShop?.owner}</p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground">
+                    Status
+                  </h4>
+                  <div className="mt-1">
+                    {viewShop?.status === "active" && (
+                      <Badge className="bg-success/10 text-success border-success/20">
+                        Active
+                      </Badge>
+                    )}
+                    {viewShop?.status === "pending" && (
+                      <Badge className="bg-warning/10 text-warning border-warning/20">
+                        Pending
+                      </Badge>
+                    )}
+                    {viewShop?.status === "suspended" && (
+                      <Badge className="bg-destructive/10 text-destructive border-destructive/20">
+                        Suspended
+                      </Badge>
+                    )}
+                    {viewShop?.status === "rejected" && (
+                      <Badge className="bg-destructive/10 text-destructive border-destructive/20">
+                        Rejected
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground">
+                    Location
+                  </h4>
+                  <p className="text-base">
+                    {viewShop?.address ? (
+                      <>
+                        <span>{viewShop.address.city || "Unknown City"}</span>
+                        <span className="block text-muted-foreground text-sm">
+                          {viewShop.address.region || "-"},{" "}
+                          {viewShop.address.country || "-"}
+                        </span>
+                      </>
+                    ) : (
+                      "Address not provided"
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground">
+                    Registered Users
+                  </h4>
+                  <p className="text-base">
+                    {viewShop?.users || 0} users enrolled
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground">
+                    Total Sales (Placeholder)
+                  </h4>
+                  <p className="text-base font-medium text-primary">
+                    Birr {viewShop?.sales?.toLocaleString() || "0"}
+                  </p>
+                </div>
+              </div>
             </div>
-            <div>
-              <h4 className="text-sm font-medium text-muted-foreground">Registered Users</h4>
-              <p className="text-base">{viewShop?.users || 0} users enrolled</p>
-            </div>
-            <div>
-              <h4 className="text-sm font-medium text-muted-foreground">Total Sales (Placeholder)</h4>
-              <p className="text-base font-medium text-primary">Birr {viewShop?.sales?.toLocaleString() || "0"}</p>
-            </div>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button onClick={() => setViewShop(null)}>
-            Close
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  </div>
-</RoleLayout>
-);
+            <DialogFooter>
+              <Button onClick={() => setViewShop(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </RoleLayout>
+  );
 }
