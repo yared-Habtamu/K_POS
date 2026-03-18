@@ -8,18 +8,8 @@ const ExpenseSchema = new mongoose.Schema(
       index: true,
       required: true,
     },
-    category: {
-      type: String,
-      enum: [
-        "salary",
-        "rent",
-        "electricity",
-        "water",
-        "cleaning",
-        "miscellaneous",
-      ],
-      default: "miscellaneous",
-    },
+    // Allow arbitrary category names (custom categories per mart)
+    category: { type: String, default: "miscellaneous" },
     description: { type: String, required: true },
     amount: { type: Number, required: true },
     date: { type: Date, required: true },

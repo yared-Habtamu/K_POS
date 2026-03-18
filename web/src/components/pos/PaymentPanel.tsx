@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { useCartStore } from "@/stores/cartStore";
-import { fetchCustomers } from "@/lib/api/customers";
+import { fetchCustomers, createCustomer } from "@/lib/api/customers";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -125,6 +125,11 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
   });
 
   const [customers, setCustomers] = useState<Array<any>>([]);
+  const [showAddCustomerDialog, setShowAddCustomerDialog] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [newCustomerCity, setNewCustomerCity] = useState("");
+  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
 
   const normalizeMartBranding = (
     json: Record<string, unknown>,
@@ -718,32 +723,110 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
       {paymentMethod === "wallet" && (
         <div className="space-y-2">
           <Label>{t("customer") || "Customer"}</Label>
-          <Select
-            value={customerId || undefined}
-            onValueChange={(v) => setCustomer(v && v !== "__none" ? v : null)}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {customers.length === 0 ? (
-                <SelectItem value="__none" disabled>
-                  {t("no_customers") || "No customers"}
-                </SelectItem>
-              ) : (
-                customers.map((c: any) => (
-                  <SelectItem
-                    key={String(c._id || c.id)}
-                    value={String(c._id || c.id)}
-                  >
-                    {String(c.name || c.phoneNumber || c._id)}
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <div className="flex-1">
+              <Select
+                value={customerId || undefined}
+                onValueChange={(v) => setCustomer(v && v !== "__none" ? v : null)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers.length === 0 ? (
+                    <SelectItem value="__none" disabled>
+                      {t("no_customers") || "No customers"}
+                    </SelectItem>
+                  ) : (
+                    customers.map((c: any) => (
+                      <SelectItem
+                        key={String(c._id || c.id)}
+                        value={String(c._id || c.id)}
+                      >
+                        {String(c.name || c.phoneNumber || c._id)}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowAddCustomerDialog(true)}
+              title={t("add_customer")}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+
         </div>
       )}
+
+      {/* Add customer dialog for quick registration from POS */}
+      <Dialog open={showAddCustomerDialog} onOpenChange={setShowAddCustomerDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("add_customer") || "Add Customer"}</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!newCustomerName || newCustomerName.trim().length < 2) {
+                toast({ title: t("valid_name_min2") || "Please enter a valid name" , variant: "destructive"});
+                return;
+              }
+              setIsAddingCustomer(true);
+              try {
+                const payload = {
+                  name: newCustomerName.trim(),
+                  phoneNumber: newCustomerPhone.trim(),
+                  city: newCustomerCity.trim() || undefined,
+                  martId: user?.martId,
+                } as any;
+                const created = await createCustomer(payload, user?.token);
+                // prepend new customer and select it
+                setCustomers((prev) => [created, ...(prev || [])]);
+                try {
+                  setCustomer(String(created._id || created.id));
+                } catch {}
+                setShowAddCustomerDialog(false);
+                setNewCustomerName("");
+                setNewCustomerPhone("");
+                setNewCustomerCity("");
+                toast({ title: t("customer_added") || "Customer added" });
+              } catch (err: any) {
+                console.error("Failed to add customer", err);
+                toast({ title: t("failed_add_customer") || "Failed to add customer", description: err?.message || String(err), variant: "destructive" });
+              } finally {
+                setIsAddingCustomer(false);
+              }
+            }}
+            className="grid gap-3"
+          >
+            <div>
+              <Label htmlFor="pos-new-customer-name">{t("name") || "Name"}</Label>
+              <Input id="pos-new-customer-name" value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} />
+            </div>
+            <div>
+              <Label htmlFor="pos-new-customer-phone">{t("phone_number") || "Phone"}</Label>
+              <Input id="pos-new-customer-phone" value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} />
+            </div>
+            <div>
+              <Label htmlFor="pos-new-customer-city">{t("city") || "City"}</Label>
+              <Input id="pos-new-customer-city" value={newCustomerCity} onChange={(e) => setNewCustomerCity(e.target.value)} />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowAddCustomerDialog(false)} type="button">
+                {t("cancel") || "Cancel"}
+              </Button>
+              <Button type="submit" disabled={isAddingCustomer}>
+                {isAddingCustomer ? <Loader2 className="animate-spin h-4 w-4" /> : t("add_customer")}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Saved Accounts (show all configured payment accounts) */}
       {Object.keys(paymentAccounts || {}).length > 0 && (

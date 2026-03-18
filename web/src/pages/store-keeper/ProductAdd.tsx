@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AutoComplete } from "@/components/ui/AutoComplete";
 import { toast } from "@/hooks/use-toast";
 import { useProductStore } from "@/stores/productStore";
 import type { ProductUnit } from "@/types";
@@ -568,29 +569,42 @@ export default function ProductAdd() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="category">{t("category")} *</Label>
-                  <Select
-                    value={form.category}
-                    onValueChange={(v) => setForm({ ...form, category: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={t("select_category")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableCategories.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.name}>
-                          {cat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    id="newCategory"
-                    value={form.newCategory}
-                    onChange={(e) =>
-                      setForm({ ...form, newCategory: e.target.value })
-                    }
-                    placeholder="Add new category (optional)"
+                  <AutoComplete<{ id: string; name: string }>
+                    id="product-category"
+                    label={t("category")}
+                    placeholder={t("select_or_create_category", { defaultValue: "Select or create category" })}
+                    items={availableCategories.map((c) => ({ id: String(c.id), name: c.name }))}
+                    getItemLabel={(it) => it.name}
+                    getItemValue={(it) => it.name}
+                    onSelect={(it) => setForm({ ...form, category: it.name, newCategory: "" })}
+                    allowCreate
+                    onCreateOption={async (query) => {
+                      const trimmed = String(query || "").trim();
+                      if (!trimmed) return { id: `cat-${Date.now()}`, name: trimmed };
+                      try {
+                        const res = await fetch(`${API_BASE}/api/categories`, {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                          },
+                          body: JSON.stringify({ name: trimmed, martId: useAuthStore.getState().user?.martId }),
+                        });
+                        if (res.ok) {
+                          await fetchCategories?.();
+                          const created = await res.json().catch(() => ({ name: trimmed, _id: `cat-${Date.now()}` }));
+                          const item = { id: String(created._id || created.id || trimmed), name: trimmed };
+                          setForm((f) => ({ ...f, category: trimmed, newCategory: "" }));
+                          return item;
+                        }
+                      } catch (err) {
+                        console.error("create category failed", err);
+                      }
+                      const fallback = { id: `cat-${Date.now()}`, name: trimmed };
+                      setForm((f) => ({ ...f, category: trimmed, newCategory: "" }));
+                      return fallback;
+                    }}
+                    createOptionLabel={(q) => `Add "${q}"`}
                   />
                 </div>
 

@@ -143,6 +143,8 @@ const defaultAttendanceFilterValues: AdvancedFilterValues = {
   sortBy: 'latest',
 };
 
+const ITEMS_PER_PAGE = 7;
+
 export default function MEmployeeManagement(): JSX.Element {
   console.log("✅ MEmployeeManagement loaded!");
   const { t } = useTranslation();
@@ -1011,6 +1013,23 @@ case 'this-week':
   const cashiers = filteredEmployees.filter(e => e.role === 'cashier');
   const storeKeepers = filteredEmployees.filter(e => e.role === 'store_keeper');
 
+  // ===== PAGINATION FOR EMPLOYEES =====
+  const [employeePage, setEmployeePage] = useState(1);
+  const employeeTotalPages = Math.ceil(filteredEmployees.length / ITEMS_PER_PAGE);
+  const employeeStartIndex = (employeePage - 1) * ITEMS_PER_PAGE;
+  const paginatedEmployees = filteredEmployees.slice(employeeStartIndex, employeeStartIndex + ITEMS_PER_PAGE);
+
+  const goToEmployeePage = (page: number) => {
+    if (page >= 1 && page <= employeeTotalPages) setEmployeePage(page);
+  };
+
+  const nextEmployeePage = () => { if (employeePage < employeeTotalPages) setEmployeePage(employeePage + 1); };
+  const prevEmployeePage = () => { if (employeePage > 1) setEmployeePage(employeePage - 1); };
+
+  useEffect(() => {
+    setEmployeePage(1);
+  }, [employeeSortBy, roleFilter, search]);
+
   // Compute monthly attendance data
   const monthlyAttendanceData = useMemo(() => {
     if (!viewingEmployeeId) return { presentDays: new Set<string>(), weekdays: [] };
@@ -1211,7 +1230,7 @@ case 'this-week':
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredEmployees.map((e) => (
+                      {paginatedEmployees.map((e) => (
                         <TableRow key={e.id}>
                           <TableCell>
                             <div className="flex items-center gap-3">
@@ -1272,6 +1291,48 @@ case 'this-week':
                     </TableBody>
                   </Table>
                 </div>
+                {/* EMPLOYEE PAGINATION */}
+                {employeeTotalPages > 1 && (
+                  <div className="flex flex-col sm:flex-row items-center justify-between px-2 py-3 border-t border-border mt-4">
+                    <div className="text-xs text-muted-foreground mb-2 sm:mb-0">
+                      Showing <span className="font-medium">{employeeStartIndex + 1}</span>–
+                      <span className="font-medium">{Math.min(employeeStartIndex + ITEMS_PER_PAGE, filteredEmployees.length)}</span> of 
+                      <span className="font-medium"> {filteredEmployees.length}</span> employees
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={prevEmployeePage}
+                        disabled={employeePage === 1}
+                      >
+                        Prev
+                      </Button>
+
+                      {Array.from({ length: employeeTotalPages }, (_, i) => i + 1).map(page => (
+                        <Button
+                          key={page}
+                          variant={employeePage === page ? 'default' : 'outline'}
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => goToEmployeePage(page)}
+                        >
+                          {page}
+                        </Button>
+                      ))}
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={nextEmployeePage}
+                        disabled={employeePage === employeeTotalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

@@ -22,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -50,6 +51,8 @@ import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import type { Expense, ExpenseCategory } from "@/types";
 import { useAuthStore } from "@/stores/authStore";
+import { useProductStore } from "@/stores/productStore";
+import { AutoComplete } from "@/components/ui/AutoComplete";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
@@ -124,9 +127,99 @@ const loadImageAsDataUrl = async (
 
 export default function ExpenseManagement() {
   const { t } = useTranslation();
+  const [paymentOptions, setPaymentOptions] = useState(
+    [
+      { id: "cash", label: t("cash") },
+      { id: "card", label: t("card") },
+      { id: "mobile", label: t("mobile") },
+      { id: "transfer", label: t("transfer") },
+      { id: "other", label: t("other") },
+    ] as { id: string; label: string }[],
+  );
+  
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const auth = useAuthStore((s) => s.user);
-  const API_BASE = import.meta.env.VITE_API_URL || "";
+  const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+  // localStorage helpers for payment types so created items survive refresh
+  const localPaymentKey = (martId?: string) => `pos:local:payment-types:${martId || "global"}`;
+  const loadLocalPaymentTypes = (martId?: string) => {
+    try {
+      // Load mart-specific first, then global fallback; dedupe by id
+      const keys = [] as string[];
+      if (martId) keys.push(localPaymentKey(martId));
+      keys.push(localPaymentKey(undefined));
+      const merged: { id: string; label: string }[] = [];
+      const seen = new Set<string>();
+      for (const k of keys) {
+        const raw = localStorage.getItem(k);
+        if (!raw) continue;
+        const arr = (JSON.parse(raw) as { id: string; label: string }[]) || [];
+        for (const it of arr) {
+          if (!it || !it.id) continue;
+          if (seen.has(it.id)) continue;
+          seen.add(it.id);
+          merged.push(it);
+        }
+      }
+      return merged;
+    } catch {
+      return [] as { id: string; label: string }[];
+    }
+  };
+  const saveLocalPaymentType = (martId: string | undefined, item: { id: string; label: string }) => {
+    try {
+      const list = loadLocalPaymentTypes(martId);
+      if (!list.find((l) => l.id === item.id)) list.push(item);
+      localStorage.setItem(localPaymentKey(martId), JSON.stringify(list));
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const token = auth?.token;
+        const martId = auth?.martId;
+        const serverItems: { id: string; label: string }[] = [];
+        if (martId) {
+          const res = await fetch(`${API_BASE}/api/payment-types?martId=${martId}`, {
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          });
+          if (res.ok) {
+              const list = await res.json().catch(() => []);
+              if (Array.isArray(list)) {
+                const normalized = list.map((p: any) => {
+                  if (typeof p === 'string') return { id: String(p), label: String(p) };
+                  const id = String(p._id || p.id || p.name || '');
+                  const label = String(p.label || p.name || id || '');
+                  return { id, label };
+                });
+                serverItems.push(...normalized);
+              }
+            }
+        }
+        const localItems = loadLocalPaymentTypes(auth?.martId);
+        const items = [...localItems, ...serverItems];
+        if (!mounted) return;
+        setPaymentOptions((cur) => {
+          const merged = [...items, ...cur];
+          const seen = new Set<string>();
+          return merged.filter((it) => {
+            if (seen.has(it.id)) return false;
+            seen.add(it.id);
+            return true;
+          });
+        });
+      } catch (err) {
+        // ignore
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [API_BASE, auth?.martId]);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [creatorFilter, setCreatorFilter] = useState<
@@ -191,14 +284,68 @@ export default function ExpenseManagement() {
     })
     .reduce((sum, e) => sum + e.amount, 0);
 
-  const expensesByCategory = expenseCategories
-    .map((cat) => ({
-      name: t(cat.label),
-      value: expenses
-        .filter((e) => e.category === cat.value)
-        .reduce((sum, e) => sum + e.amount, 0),
-      color: cat.color,
-    }))
+  const { categories: productCategories, fetchCategories: fetchProductCategories } = useProductStore();
+  const [savedExpenseCategories, setSavedExpenseCategories] = useState<{ id: string; label: string }[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const token = auth?.token;
+        const martId = auth?.martId;
+        if (!API_BASE || !martId) return;
+        const res = await fetch(`${API_BASE}/api/expense-categories?martId=${martId}`, {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        });
+        if (!res.ok) return;
+        const list = await res.json().catch(() => []);
+        if (!mounted || !Array.isArray(list)) return;
+        setSavedExpenseCategories(list.map((c: any) => ({ id: String(c._id || c.id || c.name), label: c.name })));
+      } catch (err) {
+        // ignore
+      }
+    })();
+    return () => { mounted = false; };
+  }, [API_BASE, auth?.martId]);
+
+  const categoryItems = (
+    [
+      // include predefined expense categories as options
+      ...expenseCategories.map((c) => ({ id: c.value, label: t(c.label), value: c.value })),
+      // include server-saved expense categories
+      ...savedExpenseCategories.map((c) => ({ id: c.id, label: c.label, value: c.label })),
+      // include product categories fetched from productStore
+      ...(productCategories || []).map((c) => ({ id: c.id, label: c.name, value: c.name })),
+    ] as { id: string; label: string; value: string }[]
+  ).filter((v, i, arr) => arr.findIndex((x) => x.value === v.value) === i);
+  // productCategories and savedExpenseCategories are declared below; ensure
+  // they are available here by declaring them earlier (moved up).
+
+  // Include any categories present in expenses (including manually created),
+  // plus predefined expense categories and product-derived categories.
+  const allCategoryValues = new Set<string>();
+  expenses.forEach((e) => {
+    if (e.category) allCategoryValues.add(String(e.category));
+  });
+  expenseCategories.forEach((c) => allCategoryValues.add(c.value));
+  // savedExpenseCategories and productCategories are declared later; we'll
+  // reference them safely (they are consts defined in this scope via hoisting not allowed),
+  // so ensure we declare them above — see patch that moves their declaration up.
+  (savedExpenseCategories || []).forEach((c) => allCategoryValues.add(c.label));
+  (productCategories || []).forEach((c) => allCategoryValues.add(c.name));
+
+  const expensesByCategory = Array.from(allCategoryValues)
+    .map((catValue) => {
+      const predefined = expenseCategories.find((c) => c.value === catValue);
+      const productCat = (productCategories || []).find((p) => p.name === catValue);
+      const saved = (savedExpenseCategories || []).find((s) => s.label === catValue);
+      const name = predefined ? t(predefined.label) : productCat?.name || saved?.label || catValue;
+      const color = predefined ? predefined.color : "hsl(var(--muted-foreground))";
+      const value = expenses
+        .filter((e) => String(e.category) === String(catValue))
+        .reduce((sum, e) => sum + e.amount, 0);
+      return { name, value, color };
+    })
     .filter((item) => item.value > 0);
 
   const totalPages = Math.ceil(filteredExpenses.length / ITEMS_PER_PAGE);
@@ -371,30 +518,30 @@ export default function ExpenseManagement() {
           return;
         }
         const saved = await res.json();
-        const newExpense: Expense = {
+        const newExpense: any = {
           id: saved._id || saved.id || Date.now().toString(),
           category: saved.category,
           description: saved.description,
           amount: saved.amount,
           date: new Date(saved.date),
-          paymentType: saved.paymentType,
-          paymentScreenshot: saved.paymentScreenshot,
-          productPicture: saved.productPicture,
-          name: saved.name,
-          reason: saved.reason,
-          screenshots: saved.screenshots || [],
+          paymentType: (saved as any).paymentType,
+          paymentScreenshot: (saved as any).paymentScreenshot,
+          productPicture: (saved as any).productPicture,
+          name: (saved as any).name,
+          reason: (saved as any).reason,
+          screenshots: (saved as any).screenshots || [],
           shopId: String(saved.martId || saved.shopId || ""),
           createdBy: String(saved.createdBy || ""),
           createdByRole:
-            saved.createdByRole ||
+            (saved as any).createdByRole ||
             (auth?.role === "owner"
               ? "owner"
               : auth?.role === "manager"
                 ? "manager"
                 : "other"),
-          createdByName: saved.createdByName || auth?.name || "",
-          createdAt: new Date(saved.createdAt || saved.createdAt),
-        };
+          createdByName: (saved as any).createdByName || auth?.name || "",
+          createdAt: new Date((saved as any).createdAt || saved.createdAt),
+        } as any;
         setExpenses((prev) => [newExpense, ...prev]);
         toast({ title: t("expense_added") });
       }
@@ -658,27 +805,46 @@ export default function ExpenseManagement() {
                 className="grid grid-cols-1 md:grid-cols-2 gap-4"
               >
                 <div className="space-y-2">
-                  <Label htmlFor="category">{t("expense_category")} *</Label>
-                  <Select
-                    value={form.category}
-                    onValueChange={(v) =>
-                      setForm({ ...form, category: v as ExpenseCategory })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {expenseCategories.map((cat) => (
-                        <SelectItem key={cat.value} value={cat.value}>
-                          <div className="flex items-center gap-2">
-                            <cat.icon className="h-4 w-4" />
-                            {t(cat.label)}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <AutoComplete<{ id: string; label: string; value: string }>
+                    id="expense-category-autocomplete"
+                    label={t("expense_category")}
+                    placeholder={t("select_or_create_category", { defaultValue: "Select or create category" })}
+                    items={categoryItems}
+                    getItemLabel={(it) => it.label}
+                    getItemValue={(it) => it.value}
+                    onSelect={(it) => setForm({ ...form, category: it.value as unknown as ExpenseCategory })}
+                    allowCreate
+                    onCreateOption={async (query) => {
+                      const q = String(query || "").trim();
+                      if (!q) return { id: `cat-${Date.now()}`, label: q, value: q };
+                      try {
+                        const token = auth?.token;
+                        if (API_BASE) {
+                          const res = await fetch(`${API_BASE}/api/expense-categories`, {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json",
+                              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                            },
+                            body: JSON.stringify({ name: q, martId: auth?.martId }),
+                          });
+                          if (res.ok) {
+                            const created = await res.json().catch(() => ({ name: q, _id: `cat-${Date.now()}` }));
+                            const item = { id: String(created._id || created.id || q), label: q };
+                            setSavedExpenseCategories((cur) => {
+                              if (cur.find((c) => c.label === q)) return cur;
+                              return [...cur, { id: item.id, label: item.label }];
+                            });
+                            return { id: String(created._id || created.id || q), label: q, value: q };
+                          }
+                        }
+                      } catch (err) {
+                        console.error("create expense category failed", err);
+                      }
+                      return { id: `cat-${Date.now()}`, label: q, value: q };
+                    }}
+                    createOptionLabel={(q) => `Add "${q}"`}
+                  />
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="description">{t("description")} *</Label>
@@ -692,24 +858,49 @@ export default function ExpenseManagement() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="paymentType">{t("payment_type")}</Label>
-                  <Select
-                    value={form.paymentType}
-                    onValueChange={(v) =>
-                      setForm({ ...form, paymentType: v as string })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cash">{t("cash")}</SelectItem>
-                      <SelectItem value="card">{t("card")}</SelectItem>
-                      <SelectItem value="mobile">{t("mobile")}</SelectItem>
-                      <SelectItem value="transfer">{t("transfer")}</SelectItem>
-                      <SelectItem value="other">{t("other")}</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <AutoComplete<{ id: string; label: string }>
+                    id="payment-type-autocomplete"
+                    label={t("payment_type")}
+                    placeholder={t("payment_type", { defaultValue: "Payment type" })}
+                    items={paymentOptions}
+                    getItemLabel={(it) => it.label}
+                    getItemValue={(it) => it.id}
+                    onSelect={(it) => setForm({ ...form, paymentType: it.id })}
+                    allowCreate
+                    onCreateOption={async (query) => {
+                      const q = String(query || "").trim();
+                      if (!q) return null;
+                      const local = { id: q.toLowerCase().replace(/\s+/g, "_"), label: q };
+                      try {
+                        const token = auth?.token;
+                        if (API_BASE) {
+                          const res = await fetch(`${API_BASE}/api/payment-types`, {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json",
+                              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                            },
+                            body: JSON.stringify({ name: q, martId: auth?.martId }),
+                          });
+                          if (res.ok) {
+                            const saved = await res.json().catch(() => null);
+                            const item = saved ? { id: String(saved._id || saved.id || q), label: saved.label || saved.name || q } : local;
+                            setPaymentOptions((cur) => [...cur, item]);
+                            saveLocalPaymentType(auth?.martId, item);
+                            setForm((f) => ({ ...f, paymentType: item.id }));
+                            return item;
+                          }
+                        }
+                      } catch (err) {
+                        console.error("create payment type failed", err);
+                      }
+                      setPaymentOptions((cur) => [...cur, local]);
+                      saveLocalPaymentType(auth?.martId, local);
+                      setForm((f) => ({ ...f, paymentType: local.id }));
+                      return local;
+                    }}
+                    createOptionLabel={(q) => `Add "${q}"`}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="amount">{t("amount")} (ETB) *</Label>
@@ -1003,17 +1194,21 @@ export default function ExpenseManagement() {
                                 <div className="flex items-center gap-2">
                                   <Icon className="h-4 w-4 text-muted-foreground" />
                                   <Badge variant="outline">
-                                    {t(
-                                      expense.category === "salary"
-                                        ? "salary_expense"
-                                        : expense.category,
-                                    )}
-                                  </Badge>
+                                      {t(
+                                        expense.category === "salary"
+                                          ? "salary_expense"
+                                          : expense.category,
+                                      )}
+                                    </Badge>
                                 </div>
                               </TableCell>
                               <TableCell>{expense.description}</TableCell>
                               <TableCell className="capitalize">
-                                {(expense as any).paymentType || "-"}
+                                  {(
+                                    paymentOptions.find((p) => p.id === (expense as any).paymentType)?.label ||
+                                    t((expense as any).paymentType) ||
+                                    "-"
+                                  )}
                               </TableCell>
                               <TableCell className="w-24">
                                 {(expense as any).paymentScreenshot ? (

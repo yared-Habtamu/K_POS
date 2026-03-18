@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types";
@@ -120,20 +121,23 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
       items: [
         { label: "products", icon: Package, path: "/manager/products" },
         { label: "inventory", icon: Warehouse, path: "/manager/inventory" },
-        { label: "assets", icon: Boxes, path: "/manager/assets" },
+        
       ],
     },
     {
       groupLabel: "employees",
       items: [
-        { label: "employees", icon: Users, path: "/manager/employees" },
         { label: "customers", icon: Users, path: "/manager/customers" },
         { label: "approvals", icon: ClipboardList, path: "/manager/approvals" },
       ],
     },
     {
       groupLabel: "finance",
-      items: [{ label: "expenses", icon: Wallet, path: "/manager/expenses" }],
+      items: [
+        { label: "expenses", icon: Wallet, path: "/manager/expenses" },
+        { label: "assets", icon: Boxes, path: "/manager/assets" },
+        { label: "employees", icon: Users, path: "/manager/employees" },
+      ],
     },
     {
       groupLabel: "analytics",
@@ -149,7 +153,6 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
       items: [
         { label: "dashboard", icon: LayoutDashboard, path: "/owner" },
         { label: "pos", icon: ShoppingCart, path: "/owner/pos" },
-        { label: "today_sales", icon: Receipt, path: "/owner/today-sales" },
       ],
     },
     {
@@ -172,24 +175,22 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
           icon: ClipboardList,
           path: "/store-keeper/add-stock",
         },
-        {
-          label: "assets",
-          icon: Boxes,
-          path: "/owner/assets",
-          activePaths: ["/manager/assets"],
-        },
+        
       ],
     },
     {
       groupLabel: "employees",
       items: [
-        { label: "employees", icon: Users, path: "/owner/employees" },
         { label: "customers", icon: Users, path: "/owner/customers" },
       ],
     },
     {
       groupLabel: "finance",
-      items: [{ label: "expenses", icon: Wallet, path: "/owner/expenses" }],
+      items: [
+        { label: "expenses", icon: Wallet, path: "/owner/expenses" },
+        { label: "assets", icon: Boxes, path: "/owner/assets", activePaths: ["/manager/assets"] },
+        { label: "employees", icon: Users, path: "/owner/employees" },
+      ],
     },
     {
       groupLabel: "analytics",
@@ -244,6 +245,7 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
           activePaths: ["/admin/reports"],
         },
         { label: "shop", icon: Building2, path: "/admin/shops" },
+        { label: "register_mart", icon: Building2, path: "/admin/register-mart" },
       ],
     },
   ],
@@ -253,10 +255,12 @@ function NavGroupSection({
   group,
   activeNavPath,
   onClick,
+  onSaveScroll,
 }: {
   group: NavGroup;
   activeNavPath: string | null;
   onClick?: () => void;
+  onSaveScroll?: () => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -273,6 +277,8 @@ function NavGroupSection({
             key={item.path}
             to={item.path}
             onClick={onClick}
+            onMouseDown={() => onSaveScroll?.()}
+            onTouchStart={() => onSaveScroll?.()}
             className={cn(
               "px-4 flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 relative",
               isActive
@@ -282,7 +288,7 @@ function NavGroupSection({
           >
             {isActive && (
               <motion.div
-                layoutId="sidebar-indicator"
+                layout
                 className="absolute left-0 w-1 h-7 bg-primary rounded-r-full"
                 transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
               />
@@ -304,27 +310,59 @@ function NavGroupSection({
   );
 }
 
-export function Sidebar({ role, mobileOpen, onClose }: SidebarPropsExtended) {
-  const { t } = useTranslation();
-  const location = useLocation();
-  const groups = roleNavGroups[role] ?? [];
-  const activeNavPath = getActiveNavPath(location.pathname, groups);
+function NavContent({
+  groups,
+  activeNavPath,
+  onItemClick,
+}: {
+  groups: NavGroup[];
+  activeNavPath: string | null;
+  onItemClick?: () => void;
+}) {
+  const navRef = useRef<HTMLDivElement | null>(null);
+  // Restore scroll from session storage on mount
+  useEffect(() => {
+    const raw = sessionStorage.getItem("sidebar:scroll");
+    if (navRef.current && raw) {
+      const v = Number(raw);
+      if (!Number.isNaN(v)) navRef.current.scrollTop = v;
+    }
+  }, []);
 
-  const NavContent = ({ onItemClick }: { onItemClick?: () => void }) => (
-    <nav className="flex-1 min-h-0 py-3 px-3 overflow-y-auto">
+  const saveScroll = () => {
+    if (!navRef.current) return;
+    try {
+      sessionStorage.setItem("sidebar:scroll", String(navRef.current.scrollTop));
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  return (
+    <nav ref={navRef} className="flex-1 min-h-0 py-3 px-3 overflow-y-auto">
       {groups.map((group, i) => (
         <NavGroupSection
           key={i}
           group={group}
           activeNavPath={activeNavPath}
           onClick={onItemClick}
+          onSaveScroll={saveScroll}
         />
       ))}
     </nav>
   );
+}
+
+export function Sidebar({ role, mobileOpen, onClose }: SidebarPropsExtended) {
+  const { t } = useTranslation();
+  const location = useLocation();
+  const groups = roleNavGroups[role] ?? [];
+  const activeNavPath = getActiveNavPath(location.pathname, groups);
+
+  
 
   return (
-    <>
+    <div>
       <aside className="sidebar-desktop sticky top-0 h-screen w-64 shrink-0 flex-col overflow-hidden glass-strong border-r border-border/50">
         {/* Logo */}
         <div className="h-16 flex items-center px-6 border-b border-border/50">
@@ -343,7 +381,7 @@ export function Sidebar({ role, mobileOpen, onClose }: SidebarPropsExtended) {
           </div>
         </div>
 
-        <NavContent />
+        <NavContent groups={groups} activeNavPath={activeNavPath} />
 
         {/* Footer */}
         <div className="p-4 border-t border-border/50">
@@ -372,10 +410,10 @@ export function Sidebar({ role, mobileOpen, onClose }: SidebarPropsExtended) {
                 </div>
               </div>
             </div>
-            <NavContent onItemClick={onClose} />
+            <NavContent groups={groups} activeNavPath={activeNavPath} onItemClick={onClose} />
           </aside>
         </div>
       )}
-    </>
+    </div>
   );
 }

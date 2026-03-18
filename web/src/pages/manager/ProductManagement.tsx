@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AutoComplete } from "@/components/ui/AutoComplete";
 import {
   Dialog,
   DialogContent,
@@ -491,20 +492,41 @@ export default function ManagerProductManagement() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="category">{t("category")} *</Label>
-                    <Input
-                      id="category"
-                      list="category-list"
-                      value={form.category}
-                      onChange={(e) => setForm({ ...form, category: e.target.value })}
-                      placeholder="Enter or select category"
-                      required
+                    <AutoComplete<{ id: string; label: string }>
+                      id="manager-product-category"
+                      label={t("category")}
+                      placeholder={t("select_or_create_category", { defaultValue: "Enter or select category" })}
+                      items={categoryOptions.map((c) => ({ id: String(c.value), label: c.label }))}
+                      getItemLabel={(it) => it.label}
+                      getItemValue={(it) => it.id}
+                      onSelect={(it) => setForm({ ...form, category: it.label })}
+                      allowCreate
+                      onCreateOption={async (query) => {
+                        const q = String(query || "").trim();
+                        if (!q) return { id: `cat-${Date.now()}`, label: q };
+                        try {
+                          const API_BASE = import.meta.env.VITE_API_URL || "";
+                          const token = useAuthStore.getState().user?.token;
+                          const res = await fetch(`${API_BASE}/api/categories`, {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json",
+                              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                            },
+                            body: JSON.stringify({ name: q, martId: useAuthStore.getState().user?.martId }),
+                          });
+                          if (res.ok) {
+                            await useProductStore.getState().fetchCategories?.();
+                            const created = await res.json().catch(() => ({ name: q, _id: `cat-${Date.now()}` }));
+                            return { id: String(created._id || created.id || q), label: q };
+                          }
+                        } catch (err) {
+                          console.error("create category failed", err);
+                        }
+                        return { id: `cat-${Date.now()}`, label: q };
+                      }}
+                      createOptionLabel={(q) => `Add "${q}"`}
                     />
-                    <datalist id="category-list">
-                      {categories.map((cat) => (
-                        <option key={cat.id} value={cat.name} />
-                      ))}
-                    </datalist>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="unit">{t("unit")} *</Label>

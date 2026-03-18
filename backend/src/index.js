@@ -43,6 +43,8 @@ const employeesRouter = require("./routes/employees");
 const attendanceRouter = require("./routes/attendance");
 const notificationsRouter = require("./routes/notifications");
 const categoryRouter = require("./routes/categories");
+const paymentTypesRouter = require("./routes/paymentTypes");
+const expenseCategoriesRouter = require("./routes/expenseCategories");
 
 app.use("/api/expenses", expensesRouter);
 app.use("/api/assets", assetsRouter);
@@ -62,6 +64,8 @@ try {
 }
 app.use("/api/products", productsRouter);
 app.use("/api/categories", categoryRouter);
+app.use("/api/payment-types", paymentTypesRouter);
+app.use("/api/expense-categories", expenseCategoriesRouter);
 app.use("/api/employees", employeesRouter);
 app.use("/api/attendance", attendanceRouter);
 app.use("/api/product-edit-requests", productEditRequestsRouter);

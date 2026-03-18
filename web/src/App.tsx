@@ -61,6 +61,7 @@ import StoreKeeperProductManagement from "./pages/store-keeper/ProductManagement
 // Admin Pages
 import MainAdmin from "./pages/admin/MainAdmin";
 import MartManagement from "./pages/admin/MartManagement";
+import AdminRegisterMart from "./pages/admin/RegisterMart";
 import { NotificationService } from "./components/notifications/NotificationService";
 
 const queryClient = new QueryClient();
@@ -186,6 +187,7 @@ const App = () => {
             {/* Admin Routes */}
             <Route path="/admin" element={<MainAdmin />} />
             <Route path="/admin/shops" element={<MartManagement />} />
+            <Route path="/admin/register-mart" element={<AdminRegisterMart />} />
             <Route path="/admin/reports" element={<MainAdmin />} />
             {/* Generic Inventory route removed (reverted) */}
 

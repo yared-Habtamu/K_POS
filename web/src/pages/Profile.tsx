@@ -23,17 +23,17 @@ import type { UserRole } from "@/types";
 function getRoleLabel(role?: UserRole) {
   switch (role) {
     case "cashier":
-      return "Cashier";
+      return "cashier";
     case "store_keeper":
-      return "Storekeeper";
+      return "store_keeper";
     case "manager":
-      return "Manager";
+      return "manager";
     case "owner":
-      return "Owner";
+      return "owner";
     case "system_admin":
-      return "System Admin";
+      return "system_admin";
     default:
-      return "User";
+      return "unknown";
   }
 }
 
@@ -67,7 +67,7 @@ export default function ProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSavingPassword, setIsSavingPassword] = useState(false);
 
-  const roleLabel = useMemo(() => getRoleLabel(user?.role), [user?.role]);
+  const roleLabel = useMemo(() => t(getRoleLabel(user?.role)), [user?.role, t]);
 
   const handleProfileImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -196,8 +196,8 @@ export default function ProfilePage() {
       <div className="mx-auto max-w-4xl space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Personal Information</CardTitle>
-            <CardDescription>Manage the details used for your account profile.</CardDescription>
+            <CardTitle>{t('profile_personal_information')}</CardTitle>
+            <CardDescription>{t('profile_manage_details')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -209,15 +209,15 @@ export default function ProfilePage() {
               </Avatar>
               <div className="space-y-3">
                 <div>
-                  <p className="text-sm font-medium">Profile Picture</p>
-                  <p className="text-sm text-muted-foreground">Optional image shown in your account menu.</p>
+                  <p className="text-sm font-medium">{t('profile_picture')}</p>
+                  <p className="text-sm text-muted-foreground">{t('profile_picture_optional')}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
                     <Upload className="mr-2 h-4 w-4" />
-                    Upload picture
+                    {t('upload_picture')}
                   </Button>
-                  <Button type="button" variant="ghost" onClick={() => setProfilePictureUrl("")}>Remove</Button>
+                  <Button type="button" variant="ghost" onClick={() => setProfilePictureUrl("")}>{t('remove_picture')}</Button>
                 </div>
                 <input
                   ref={fileInputRef}
@@ -231,23 +231,23 @@ export default function ProfilePage() {
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="profile-full-name">Full Name</Label>
+                <Label htmlFor="profile-full-name">{t('profile_full_name')}</Label>
                 <Input id="profile-full-name" value={fullName} onChange={(event) => setFullName(event.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="profile-username">Username</Label>
+                <Label htmlFor="profile-username">{t('profile_username')}</Label>
                 <Input id="profile-username" value={username} onChange={(event) => setUsername(event.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="profile-phone">Phone Number</Label>
+                <Label htmlFor="profile-phone">{t('profile_phone_number')}</Label>
                 <Input id="profile-phone" value={phone} onChange={(event) => setPhone(event.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="profile-email">Email</Label>
-                <Input id="profile-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Optional" />
+                <Label htmlFor="profile-email">{t('profile_email')}</Label>
+                <Input id="profile-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder={t('profile_email_optional')} />
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="profile-role">Role</Label>
+                <Label htmlFor="profile-role">{t('profile_role')}</Label>
                 <Input id="profile-role" value={roleLabel} readOnly className="bg-muted" />
               </div>
             </div>
@@ -255,7 +255,7 @@ export default function ProfilePage() {
             <div className="flex justify-end">
               <Button type="button" onClick={handleSaveProfile} disabled={isSavingProfile}>
                 <UserCircle className="mr-2 h-4 w-4" />
-                {isSavingProfile ? "Saving..." : "Save profile"}
+                {isSavingProfile ? t('saving') : t('save_profile')}
               </Button>
             </div>
           </CardContent>
@@ -263,28 +263,28 @@ export default function ProfilePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Security</CardTitle>
-            <CardDescription>Update your account password.</CardDescription>
+            <CardTitle>{t('profile_security')}</CardTitle>
+            <CardDescription>{t('profile_security_desc')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
-                <Label htmlFor="current-password">Current Password</Label>
+                <Label htmlFor="current-password">{t('current_password')}</Label>
                 <Input id="current-password" type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="new-password">New Password</Label>
+                <Label htmlFor="new-password">{t('new_password')}</Label>
                 <Input id="new-password" type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirm Password</Label>
+                <Label htmlFor="confirm-password">{t('confirm_password')}</Label>
                 <Input id="confirm-password" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
               </div>
             </div>
             <div className="flex justify-end">
               <Button type="button" onClick={handleChangePassword} disabled={isSavingPassword}>
                 <KeyRound className="mr-2 h-4 w-4" />
-                {isSavingPassword ? "Updating..." : "Change Password"}
+                {isSavingPassword ? t('saving') : t('change_password')}
               </Button>
             </div>
           </CardContent>
@@ -292,8 +292,8 @@ export default function ProfilePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Preferences</CardTitle>
-            <CardDescription>Choose how the interface looks for your account.</CardDescription>
+            <CardTitle>{t('profile_preferences')}</CardTitle>
+            <CardDescription>{t('profile_preferences_desc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:max-w-xs">
@@ -304,13 +304,13 @@ export default function ProfilePage() {
                     <SelectValue placeholder="Select theme" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="light">Light</SelectItem>
-                    <SelectItem value="dark">Dark</SelectItem>
+                    <SelectItem value="light">{t('light_mode')}</SelectItem>
+                    <SelectItem value="dark">{t('dark_mode')}</SelectItem>
                   </SelectContent>
                 </Select>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   {theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-                  <span>{theme === "dark" ? "Dark mode active" : "Light mode active"}</span>
+                  <span>{theme === "dark" ? t('dark_mode_active') : t('light_mode_active')}</span>
                 </div>
               </div>
             </div>

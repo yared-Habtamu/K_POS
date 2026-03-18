@@ -57,7 +57,7 @@ export default function TodaysSalesView({
                 {t("today")} • {dateLabel()}
               </p>
               <h1 className="text-3xl md:text-4xl font-semibold">
-                {t("todays_sales")}
+                {t("today_sales")}
               </h1>
               <p className="text-sm text-slate-300 mt-1">
                 {t("live_snapshot_sold_costs")}
