@@ -73,6 +73,17 @@ export default function ProfilePage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      toast({
+        title: "Image too large",
+        description: "Please choose an image smaller than 5MB.",
+        variant: "destructive",
+      });
+      event.target.value = "";
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = () => {
       const result = typeof reader.result === "string" ? reader.result : "";
