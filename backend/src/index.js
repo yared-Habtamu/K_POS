@@ -3,15 +3,15 @@ const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
 const mongoose = require("mongoose");
-const dns = require('dns');
+const dns = require("dns");
 
 // Prefer well-known public DNS servers for SRV resolution when local
 // DNS may refuse SRV queries (works around environments where the
 // system DNS blocks SRV/UDP queries). These are fallbacks and can be
 // removed if not desired.
 try {
-  dns.setServers(['1.1.1.1', '8.8.8.8']);
-  console.log('Using DNS servers:', dns.getServers());
+  dns.setServers(["1.1.1.1", "8.8.8.8"]);
+  console.log("Using DNS servers:", dns.getServers());
 } catch (e) {
   // ignore
 }
@@ -57,11 +57,11 @@ app.use("/api/auth", authRouter);
 
 // Mount debug endpoints (development only)
 try {
-  const debugRouter = require('./routes/debug');
-  app.use('/api/debug', debugRouter);
-  console.log('Debug routes enabled at /api/debug');
+  const debugRouter = require("./routes/debug");
+  app.use("/api/debug", debugRouter);
+  console.log("Debug routes enabled at /api/debug");
 } catch (e) {
-  console.log('Debug routes not available');
+  console.log("Debug routes not available");
 }
 app.use("/api/products", productsRouter);
 app.use("/api/categories", categoryRouter);
@@ -109,7 +109,6 @@ async function start() {
 
     // No development seeding: data must come from the actual database.
     // If temporary seeding is ever required, gate it behind an environment flag such as SEED_TEST_DATA=true.
-
   } catch (err) {
     console.error("Failed to connect to MongoDB", err);
 
@@ -117,13 +116,27 @@ async function start() {
     // in some environments (corporate DNS, offline machine, or blocked DNS).
     // Provide a clearer hint for common resolution steps.
     try {
-      const uriLower = (uri || '').toLowerCase();
-      if (uriLower.startsWith('mongodb+srv') && err && err.code === 'ECONNREFUSED') {
-        console.error('\nHint: DNS SRV lookup for the Atlas host failed (querySrv ECONNREFUSED).');
-        console.error(' - Ensure this machine has internet access and can resolve DNS SRV records.');
-        console.error(' - Test with: nslookup -type=SRV _mongodb._tcp.cluster0.terbebv.mongodb.net');
-        console.error(" - Or use a standard (non-SRV) connection string from MongoDB Atlas 'Connect' -> 'Connect your application' and paste it into .env as MONGODB_URI.");
-        console.error(' - As a quick local workaround, install MongoDB locally and set MONGODB_URI=mongodb://localhost:27017/');
+      const uriLower = (uri || "").toLowerCase();
+      if (
+        uriLower.startsWith("mongodb+srv") &&
+        err &&
+        err.code === "ECONNREFUSED"
+      ) {
+        console.error(
+          "\nHint: DNS SRV lookup for the Atlas host failed (querySrv ECONNREFUSED).",
+        );
+        console.error(
+          " - Ensure this machine has internet access and can resolve DNS SRV records.",
+        );
+        console.error(
+          " - Test with: nslookup -type=SRV _mongodb._tcp.cluster0.terbebv.mongodb.net",
+        );
+        console.error(
+          " - Or use a standard (non-SRV) connection string from MongoDB Atlas 'Connect' -> 'Connect your application' and paste it into .env as MONGODB_URI.",
+        );
+        console.error(
+          " - As a quick local workaround, install MongoDB locally and set MONGODB_URI=mongodb://localhost:27017/",
+        );
       }
     } catch (e) {
       // ignore
@@ -133,13 +146,13 @@ async function start() {
   }
 
   // Create HTTP server and upgrade to socket.io
-  const http = require('http');
+  const http = require("http");
   const server = http.createServer(app);
-  const { Server } = require('socket.io');
-  const io = new Server(server, { cors: { origin: '*' } });
+  const { Server } = require("socket.io");
+  const io = new Server(server, { cors: { origin: "*" } });
 
   // wire socket helper
-  const socketHelper = require('./socket');
+  const socketHelper = require("./socket");
   socketHelper.setIo(io);
 
   server.listen(PORT, () => {
@@ -148,5 +161,3 @@ async function start() {
 }
 
 start();
-
-
