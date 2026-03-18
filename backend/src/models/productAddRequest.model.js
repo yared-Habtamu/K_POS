@@ -1,18 +1,37 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const ProductAddRequestSchema = new mongoose.Schema(
   {
-    martId: { type: mongoose.Schema.Types.ObjectId, ref: 'Mart', required: true, index: true },
-    requesterId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    martId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Mart",
+      required: true,
+      index: true,
+    },
+    requesterId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
     requesterName: { type: String },
     payload: { type: Object, required: true },
-    status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
-    approverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    approvalRole: {
+      type: String,
+      enum: ["manager", "store_keeper"],
+      default: "manager",
+      index: true,
+    },
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+    },
+    approverId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     approverName: { type: String },
     reason: { type: String },
     decidedAt: { type: Date },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-module.exports = mongoose.model('ProductAddRequest', ProductAddRequestSchema);
+module.exports = mongoose.model("ProductAddRequest", ProductAddRequestSchema);

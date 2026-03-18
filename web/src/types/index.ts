@@ -131,6 +131,7 @@ export interface ProductAddRequest {
   requesterId: string;
   requesterName?: string;
   payload: Partial<Product> & { name?: string };
+  approvalRole?: "manager" | "store_keeper";
   status: "pending" | "approved" | "rejected";
   approverId?: string;
   approverName?: string;
@@ -161,8 +162,9 @@ export interface ProductEditRequest {
   id?: string;
   _id?: string;
   martId: string;
-  productId: string;
+  productId: string | { _id?: string; name?: string };
   changes: Partial<Product>;
+  approvalRole?: "manager" | "store_keeper";
   requesterId: string;
   requesterName?: string;
   status: "pending" | "approved" | "rejected";

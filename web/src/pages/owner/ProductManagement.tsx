@@ -135,9 +135,8 @@ export default function ProductManagement() {
     };
   }, [useProductStore.getState().products]);
 
-  const [filterValues, setFilterValues] = useState<AdvancedFilterValues>(
-    defaultFilterValues,
-  );
+  const [filterValues, setFilterValues] =
+    useState<AdvancedFilterValues>(defaultFilterValues);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -163,6 +162,8 @@ export default function ProductManagement() {
     purchasePrice: "",
     sellingPrice: "",
     quantity: "",
+    storeQuantity: "",
+    martQuantity: "",
     stockDestination: "warehouse" as "warehouse" | "mart",
     lowStockThreshold: "10",
     expiryDate: "",
@@ -218,18 +219,32 @@ export default function ProductManagement() {
   );
 
   const filteredProducts = useMemo(() => {
-    const query = String(filterValues.query || "").trim().toLowerCase();
-    const category = String(filterValues.category || "").trim().toLowerCase();
+    const query = String(filterValues.query || "")
+      .trim()
+      .toLowerCase();
+    const category = String(filterValues.category || "")
+      .trim()
+      .toLowerCase();
     const stockStatus = String(filterValues.stockStatus || "").trim();
     const sortBy = String(filterValues.sortBy || "name_asc");
 
     const filtered = products.filter((product) => {
       const name = String(product.name || "").toLowerCase();
-      const barcode = String(product.barcode || product.barcodes?.[0] || "").toLowerCase();
-      const productCategory = String(product.category || "").trim().toLowerCase();
-      const martQty = Number(product.quantity ?? product.supermarketQuantity ?? 0);
+      const barcode = String(
+        product.barcode || product.barcodes?.[0] || "",
+      ).toLowerCase();
+      const productCategory = String(product.category || "")
+        .trim()
+        .toLowerCase();
+      const martQty = Number(
+        product.quantity ?? product.supermarketQuantity ?? 0,
+      );
 
-      const matchesQuery = !query || name.includes(query) || barcode.includes(query) || productCategory.includes(query);
+      const matchesQuery =
+        !query ||
+        name.includes(query) ||
+        barcode.includes(query) ||
+        productCategory.includes(query);
       const matchesCategory = !category || productCategory === category;
       const matchesStockStatus =
         !stockStatus ||
@@ -243,20 +258,36 @@ export default function ProductManagement() {
     return filtered.sort((left, right) => {
       switch (sortBy) {
         case "name_desc":
-          return String(right.name || "").localeCompare(String(left.name || ""));
+          return String(right.name || "").localeCompare(
+            String(left.name || ""),
+          );
         case "category_asc":
-          return String(left.category || "").localeCompare(String(right.category || ""));
+          return String(left.category || "").localeCompare(
+            String(right.category || ""),
+          );
         case "price_asc":
-          return Number(left.sellingPrice || 0) - Number(right.sellingPrice || 0);
+          return (
+            Number(left.sellingPrice || 0) - Number(right.sellingPrice || 0)
+          );
         case "price_desc":
-          return Number(right.sellingPrice || 0) - Number(left.sellingPrice || 0);
+          return (
+            Number(right.sellingPrice || 0) - Number(left.sellingPrice || 0)
+          );
         case "stock_asc":
-          return Number(left.quantity ?? left.supermarketQuantity ?? 0) - Number(right.quantity ?? right.supermarketQuantity ?? 0);
+          return (
+            Number(left.quantity ?? left.supermarketQuantity ?? 0) -
+            Number(right.quantity ?? right.supermarketQuantity ?? 0)
+          );
         case "stock_desc":
-          return Number(right.quantity ?? right.supermarketQuantity ?? 0) - Number(left.quantity ?? left.supermarketQuantity ?? 0);
+          return (
+            Number(right.quantity ?? right.supermarketQuantity ?? 0) -
+            Number(left.quantity ?? left.supermarketQuantity ?? 0)
+          );
         case "name_asc":
         default:
-          return String(left.name || "").localeCompare(String(right.name || ""));
+          return String(left.name || "").localeCompare(
+            String(right.name || ""),
+          );
       }
     });
   }, [categories, filterValues, products]);
@@ -279,6 +310,8 @@ export default function ProductManagement() {
       purchasePrice: "",
       sellingPrice: "",
       quantity: "",
+      storeQuantity: "",
+      martQuantity: "",
       stockDestination: "warehouse",
       lowStockThreshold: "10",
       expiryDate: "",
@@ -290,12 +323,9 @@ export default function ProductManagement() {
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
-    // product.quantity is authoritative remaining value after sales
-    const remaining = Number(
-      product.quantity ??
-        product.supermarketQuantity ??
-        product.storeQuantity ??
-        0,
+    const storeQty = Number(product.storeQuantity ?? 0);
+    const martQty = Number(
+      product.quantity ?? product.supermarketQuantity ?? 0,
     );
 
     setForm({
@@ -304,8 +334,9 @@ export default function ProductManagement() {
       unit: product.unit,
       purchasePrice: product.purchasePrice.toString(),
       sellingPrice: product.sellingPrice.toString(),
-      // show remaining quantity in the edit form so owner edits the remaining amount
-      quantity: String(remaining),
+      quantity: String(martQty),
+      storeQuantity: String(storeQty),
+      martQuantity: String(martQty),
       stockDestination: "warehouse",
       lowStockThreshold: product.lowStockThreshold.toString(),
       expiryDate: product.expiryDate
@@ -357,7 +388,10 @@ export default function ProductManagement() {
             "Content-Type": "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify({ name: form.category, martId: useAuthStore.getState().user?.martId }),
+          body: JSON.stringify({
+            name: form.category,
+            martId: useAuthStore.getState().user?.martId,
+          }),
         });
         // ignore response, it may already exist
       } catch (err) {
@@ -367,23 +401,12 @@ export default function ProductManagement() {
 
     const pendingBarcode = (form.barcodeInput || "").trim();
     const quantityValue = parseInt(form.quantity);
-    const productData = {
+    const baseProductData = {
       name: form.name,
       category: form.category,
       unit: form.unit,
       purchasePrice: parseFloat(form.purchasePrice),
       sellingPrice: parseFloat(form.sellingPrice),
-      quantity: quantityValue,
-      storeQuantity: editingProduct
-        ? quantityValue
-        : form.stockDestination === "warehouse"
-          ? quantityValue
-          : 0,
-      supermarketQuantity: editingProduct
-        ? quantityValue
-        : form.stockDestination === "mart"
-          ? quantityValue
-          : 0,
       stockDestination: form.stockDestination,
       lowStockThreshold: parseInt(form.lowStockThreshold),
       expiryDate: form.expiryDate ? new Date(form.expiryDate) : undefined,
@@ -398,13 +421,48 @@ export default function ProductManagement() {
       shopId: "shop-001",
     };
 
+    const productData = editingProduct
+      ? (() => {
+          const editPayload: Record<string, unknown> = {
+            ...baseProductData,
+          };
+          delete editPayload.stockDestination;
+
+          const storeQtyValue = Number(form.storeQuantity || 0);
+          const martQtyValue = Number(form.martQuantity || 0);
+          const originalStoreQty = Number(editingProduct.storeQuantity ?? 0);
+          const originalMartQty = Number(
+            editingProduct.quantity ?? editingProduct.supermarketQuantity ?? 0,
+          );
+
+          if (storeQtyValue !== originalStoreQty) {
+            editPayload.storeQuantity = storeQtyValue;
+          }
+
+          if (martQtyValue !== originalMartQty) {
+            editPayload.quantity = martQtyValue;
+            editPayload.supermarketQuantity = martQtyValue;
+          }
+
+          return editPayload;
+        })()
+      : {
+          ...baseProductData,
+          quantity: quantityValue,
+          storeQuantity:
+            form.stockDestination === "warehouse" ? quantityValue : 0,
+          supermarketQuantity:
+            form.stockDestination === "mart" ? quantityValue : 0,
+        };
+
     try {
       if (editingProduct) {
         const result: any = await updateProduct(editingProduct.id, productData);
         if (result?.status === 202) {
           toast({
-            title: "Sent for manager approval",
-            description: "Your changes will apply after approval.",
+            title: "Sent for approval",
+            description:
+              "Your changes will be reviewed by manager and/or store keeper.",
           });
         } else {
           toast({ title: t("product_updated") });
@@ -436,7 +494,7 @@ export default function ProductManagement() {
       try {
         const b = await generateUniqueBarcode();
         // place in input field so user can see/edit before adding
-        setForm(prev => ({ ...prev, barcodeInput: b }));
+        setForm((prev) => ({ ...prev, barcodeInput: b }));
       } catch (e) {
         console.error("generate barcode failed", e);
         toast({ title: "Failed to generate barcode", variant: "destructive" });
@@ -538,7 +596,9 @@ export default function ProductManagement() {
                       id="category"
                       list="category-list"
                       value={form.category}
-                      onChange={(e) => setForm({ ...form, category: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, category: e.target.value })
+                      }
                       placeholder="Enter or select category"
                       required
                     />
@@ -569,27 +629,59 @@ export default function ProductManagement() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="quantity">{t("quantity")} *</Label>
-                    <Input
-                      id="quantity"
-                      type="number"
-                      value={form.quantity}
-                      onChange={(e) =>
-                        setForm({ ...form, quantity: e.target.value })
-                      }
-                      required
-                    />
-                    {editingProduct && (
-                      <div className="text-xs text-muted-foreground">
-                        Showing remaining quantity (total - sold). If you change
-                        this value it will be submitted as the new remaining
-                        quantity and may require approval.
-                      </div>
+                    {editingProduct ? (
+                      <>
+                        <Label htmlFor="storeQuantity">Store Quantity *</Label>
+                        <Input
+                          id="storeQuantity"
+                          type="number"
+                          value={form.storeQuantity}
+                          onChange={(e) =>
+                            setForm({ ...form, storeQuantity: e.target.value })
+                          }
+                          required
+                        />
+                        <div className="text-xs text-muted-foreground">
+                          Store quantity edits go to Store Keeper approval.
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <Label htmlFor="quantity">{t("quantity")} *</Label>
+                        <Input
+                          id="quantity"
+                          type="number"
+                          value={form.quantity}
+                          onChange={(e) =>
+                            setForm({ ...form, quantity: e.target.value })
+                          }
+                          required
+                        />
+                      </>
                     )}
                   </div>
+                  {editingProduct && (
+                    <div className="space-y-2">
+                      <Label htmlFor="martQuantity">Mart Quantity *</Label>
+                      <Input
+                        id="martQuantity"
+                        type="number"
+                        value={form.martQuantity}
+                        onChange={(e) =>
+                          setForm({ ...form, martQuantity: e.target.value })
+                        }
+                        required
+                      />
+                      <div className="text-xs text-muted-foreground">
+                        Mart quantity edits go to Manager approval.
+                      </div>
+                    </div>
+                  )}
                   {!editingProduct && (
                     <div className="space-y-2">
-                      <Label htmlFor="stockDestination">Initial stock location</Label>
+                      <Label htmlFor="stockDestination">
+                        Initial stock location
+                      </Label>
                       <Select
                         value={form.stockDestination}
                         onValueChange={(v) =>
@@ -603,7 +695,9 @@ export default function ProductManagement() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="warehouse">Warehouse / store stock</SelectItem>
+                          <SelectItem value="warehouse">
+                            Warehouse / store stock
+                          </SelectItem>
                           <SelectItem value="mart">Direct to mart</SelectItem>
                         </SelectContent>
                       </Select>
@@ -827,6 +921,14 @@ export default function ProductManagement() {
                                   };
 
                                   setEditingProduct(normalized);
+                                  const loadedStoreQty = Number(
+                                    normalized.storeQuantity ?? 0,
+                                  );
+                                  const loadedMartQty = Number(
+                                    normalized.quantity ??
+                                      normalized.supermarketQuantity ??
+                                      0,
+                                  );
                                   setForm({
                                     name: String(normalized.name || ""),
                                     category: String(normalized.category || ""),
@@ -837,12 +939,10 @@ export default function ProductManagement() {
                                     sellingPrice: String(
                                       normalized.sellingPrice ?? 0,
                                     ),
-                                    quantity: String(
-                                      normalized.storeQuantity ??
-                                        normalized.quantity ??
-                                        normalized.supermarketQuantity ??
-                                        0,
-                                    ),
+                                    quantity: String(loadedMartQty),
+                                    storeQuantity: String(loadedStoreQty),
+                                    martQuantity: String(loadedMartQty),
+                                    stockDestination: "warehouse",
                                     lowStockThreshold: String(
                                       normalized.lowStockThreshold ?? 10,
                                     ),
@@ -1080,7 +1180,9 @@ export default function ProductManagement() {
                         colSpan={8}
                         className="text-center py-4 text-muted-foreground"
                       >
-                        {Object.values(filterValues).some((value) => Boolean(value))
+                        {Object.values(filterValues).some((value) =>
+                          Boolean(value),
+                        )
                           ? "No products found"
                           : "No products yet. Add your first product."}
                       </TableCell>

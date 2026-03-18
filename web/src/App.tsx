@@ -57,6 +57,7 @@ import StockManagement from "./pages/store-keeper/StockManagement";
 import BarcodeManagement from "./pages/store-keeper/BarcodeManagement";
 import ProductAdd from "./pages/store-keeper/ProductAdd";
 import StoreKeeperProductManagement from "./pages/store-keeper/ProductManagement";
+import StoreKeeperApprovals from "./pages/store-keeper/Approvals";
 
 // Admin Pages
 import MainAdmin from "./pages/admin/MainAdmin";
@@ -180,6 +181,10 @@ const App = () => {
               path="/store-keeper/products"
               element={<StoreKeeperProductManagement />}
             />
+            <Route
+              path="/store-keeper/approvals"
+              element={<StoreKeeperApprovals />}
+            />
 
             {/* Generic Inventory route (top-level) */}
             <Route path="/inventory" element={<Inventory />} />
@@ -187,7 +192,10 @@ const App = () => {
             {/* Admin Routes */}
             <Route path="/admin" element={<MainAdmin />} />
             <Route path="/admin/shops" element={<MartManagement />} />
-            <Route path="/admin/register-mart" element={<AdminRegisterMart />} />
+            <Route
+              path="/admin/register-mart"
+              element={<AdminRegisterMart />}
+            />
             <Route path="/admin/reports" element={<MainAdmin />} />
             {/* Generic Inventory route removed (reverted) */}
 

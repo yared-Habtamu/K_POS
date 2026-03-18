@@ -121,7 +121,6 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
       items: [
         { label: "products", icon: Package, path: "/manager/products" },
         { label: "inventory", icon: Warehouse, path: "/manager/inventory" },
-        
       ],
     },
     {
@@ -175,20 +174,22 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
           icon: ClipboardList,
           path: "/store-keeper/add-stock",
         },
-        
       ],
     },
     {
       groupLabel: "employees",
-      items: [
-        { label: "customers", icon: Users, path: "/owner/customers" },
-      ],
+      items: [{ label: "customers", icon: Users, path: "/owner/customers" }],
     },
     {
       groupLabel: "finance",
       items: [
         { label: "expenses", icon: Wallet, path: "/owner/expenses" },
-        { label: "assets", icon: Boxes, path: "/owner/assets", activePaths: ["/manager/assets"] },
+        {
+          label: "assets",
+          icon: Boxes,
+          path: "/owner/assets",
+          activePaths: ["/manager/assets"],
+        },
         { label: "employees", icon: Users, path: "/owner/employees" },
       ],
     },
@@ -229,6 +230,11 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
     {
       groupLabel: "products",
       items: [
+        {
+          label: "approvals",
+          icon: ClipboardList,
+          path: "/store-keeper/approvals",
+        },
         { label: "barcode", icon: Barcode, path: "/store-keeper/barcode" },
         { label: "products", icon: Image, path: "/store-keeper/products" },
         { label: "alerts", icon: AlertTriangle, path: "/alerts" },
@@ -245,7 +251,11 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
           activePaths: ["/admin/reports"],
         },
         { label: "shop", icon: Building2, path: "/admin/shops" },
-        { label: "register_mart", icon: Building2, path: "/admin/register-mart" },
+        {
+          label: "register_mart",
+          icon: Building2,
+          path: "/admin/register-mart",
+        },
       ],
     },
   ],
@@ -332,7 +342,10 @@ function NavContent({
   const saveScroll = () => {
     if (!navRef.current) return;
     try {
-      sessionStorage.setItem("sidebar:scroll", String(navRef.current.scrollTop));
+      sessionStorage.setItem(
+        "sidebar:scroll",
+        String(navRef.current.scrollTop),
+      );
     } catch (e) {
       // ignore
     }
@@ -358,8 +371,6 @@ export function Sidebar({ role, mobileOpen, onClose }: SidebarPropsExtended) {
   const location = useLocation();
   const groups = roleNavGroups[role] ?? [];
   const activeNavPath = getActiveNavPath(location.pathname, groups);
-
-  
 
   return (
     <div>
@@ -410,7 +421,11 @@ export function Sidebar({ role, mobileOpen, onClose }: SidebarPropsExtended) {
                 </div>
               </div>
             </div>
-            <NavContent groups={groups} activeNavPath={activeNavPath} onItemClick={onClose} />
+            <NavContent
+              groups={groups}
+              activeNavPath={activeNavPath}
+              onItemClick={onClose}
+            />
           </aside>
         </div>
       )}

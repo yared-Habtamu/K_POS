@@ -16,9 +16,9 @@ const upload = multer({
 });
 
 async function ensureProductPayloadBarcodes(productPayload) {
-  const incomingBarcodes = (Array.isArray(productPayload.barcodes)
-    ? productPayload.barcodes
-    : [])
+  const incomingBarcodes = (
+    Array.isArray(productPayload.barcodes) ? productPayload.barcodes : []
+  )
     .map((value) => String(value).trim())
     .filter(Boolean);
 
@@ -28,7 +28,10 @@ async function ensureProductPayloadBarcodes(productPayload) {
   }
 
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    const candidate = String(Math.floor(Math.random() * 1e12)).padStart(12, "0");
+    const candidate = String(Math.floor(Math.random() * 1e12)).padStart(
+      12,
+      "0",
+    );
     const existing = await Product.findOne({
       martId: productPayload.martId,
       $or: [{ barcodes: candidate }, { barcode: candidate }],
@@ -66,7 +69,10 @@ async function createProductFromRequest(req, res, options = {}) {
   let finalImageUrl = imageUrl || "";
   if (req.file && req.file.buffer) {
     try {
-      const uploaded = await uploadBuffer(req.file.buffer, req.file.originalname);
+      const uploaded = await uploadBuffer(
+        req.file.buffer,
+        req.file.originalname,
+      );
       finalImageUrl = uploaded.secure_url || uploaded.url || finalImageUrl;
     } catch (err) {
       console.error(
@@ -186,7 +192,23 @@ async function createProductFromRequest(req, res, options = {}) {
       .select("_id username name")
       .lean();
 
-    if (!managers || managers.length === 0) {
+    const storeKeepers = await User.find({
+      martId: finalMartId,
+      role: { $regex: /^store_?keeper$/i },
+    })
+      .select("_id username name")
+      .lean();
+
+    const approvalRole =
+      initialStockTarget === "mart" ? "manager" : "store_keeper";
+    const primaryApprovers =
+      approvalRole === "store_keeper" ? storeKeepers : managers;
+    const fallbackApprovers = approvalRole === "store_keeper" ? managers : [];
+    const approvers = primaryApprovers?.length
+      ? primaryApprovers
+      : fallbackApprovers;
+
+    if (!approvers || approvers.length === 0) {
       const product = new Product(productPayload);
       await product.save();
 
@@ -207,19 +229,20 @@ async function createProductFromRequest(req, res, options = {}) {
       requesterId: user.id,
       requesterName: user.username || user.name,
       payload: productPayload,
+      approvalRole,
     });
 
     await reqDoc.save();
 
-    if (managers && managers.length > 0) {
-      for (const m of managers) {
+    if (approvers && approvers.length > 0) {
+      for (const approver of approvers) {
         await createNotification({
           martId: finalMartId,
-          userId: m._id,
+          userId: approver._id,
           type: "product_add_request",
           title: "Product creation requested",
           message: `${reqDoc.requesterName || "Owner"} requested to add product ${name}`,
-          metadata: { requestId: reqDoc._id, name },
+          metadata: { requestId: reqDoc._id, name, approvalRole },
         });
       }
     } else {
@@ -228,12 +251,15 @@ async function createProductFromRequest(req, res, options = {}) {
         type: "product_add_request",
         title: "Product creation requested",
         message: `${reqDoc.requesterName || "Owner"} requested to add product ${name}`,
-        metadata: { requestId: reqDoc._id, name },
+        metadata: { requestId: reqDoc._id, name, approvalRole },
       });
     }
 
     return res.status(202).json({
-      message: "Product submitted for manager approval",
+      message:
+        approvalRole === "store_keeper"
+          ? "Product submitted for store keeper approval"
+          : "Product submitted for manager approval",
       requestId: reqDoc._id,
       pending: {
         name: productPayload.name,
@@ -347,7 +373,10 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    console.log('[products:update] entered update handler for user', { id: user.id, role: user.role });
+    console.log("[products:update] entered update handler for user", {
+      id: user.id,
+      role: user.role,
+    });
     const update = {};
     const allowed = [
       "name",
@@ -384,15 +413,53 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
 
     // Prevent store keepers from directly adjusting stock quantities via product update.
     // Store keepers should create a stock transfer request instead, which managers will approve.
-    const roleLc = String(user.role || '').toLowerCase();
-    const isStoreKeeper = roleLc === 'storekeeper' || roleLc === 'store_keeper' || (roleLc.includes('store') && roleLc.includes('keeper'));
-    const forbiddenFields = ['storeQuantity', 'supermarketQuantity', 'quantity'];
+    const roleLc = String(user.role || "").toLowerCase();
+    const isStoreKeeper =
+      roleLc === "storekeeper" ||
+      roleLc === "store_keeper" ||
+      (roleLc.includes("store") && roleLc.includes("keeper"));
+    const forbiddenFields = [
+      "storeQuantity",
+      "supermarketQuantity",
+      "quantity",
+    ];
     // Check both the normalized `update` object and raw `req.body` to be robust against multipart/form-data
-    const hasForbidden = forbiddenFields.some(f => (update[f] !== undefined) || (req.body && req.body[f] !== undefined));
-    console.log('[products:update] user.role=', user.role, 'roleLc=', roleLc, 'isStoreKeeper=', isStoreKeeper, 'updateKeys=', Object.keys(update), 'rawBodyKeys=', req.body ? Object.keys(req.body) : []);
+    const hasForbidden = forbiddenFields.some(
+      (f) => update[f] !== undefined || (req.body && req.body[f] !== undefined),
+    );
+    console.log(
+      "[products:update] user.role=",
+      user.role,
+      "roleLc=",
+      roleLc,
+      "isStoreKeeper=",
+      isStoreKeeper,
+      "updateKeys=",
+      Object.keys(update),
+      "rawBodyKeys=",
+      req.body ? Object.keys(req.body) : [],
+    );
     if (isStoreKeeper && hasForbidden) {
-      console.log('[products:update] blocked store keeper update attempt', { user: user.id, role: user.role, attempted: forbiddenFields.reduce((acc,f) => (acc[f] = (update[f] !== undefined ? update[f] : req.body && req.body[f] !== undefined ? req.body[f] : undefined) , acc), {}) });
-      return res.status(403).json({ message: 'Store keepers cannot directly change stock quantities. Submit a stock transfer request via /api/stock-transfer-requests' });
+      console.log("[products:update] blocked store keeper update attempt", {
+        user: user.id,
+        role: user.role,
+        attempted: forbiddenFields.reduce(
+          (acc, f) => (
+            (acc[f] =
+              update[f] !== undefined
+                ? update[f]
+                : req.body && req.body[f] !== undefined
+                  ? req.body[f]
+                  : undefined),
+            acc
+          ),
+          {},
+        ),
+      });
+      return res.status(403).json({
+        message:
+          "Store keepers cannot directly change stock quantities. Submit a stock transfer request via /api/stock-transfer-requests",
+      });
     }
 
     const product = await Product.findById(id);
@@ -409,15 +476,15 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
 
     // make sure updated category exists
     if (update.category) {
-      const Category = require('../models/category.model');
+      const Category = require("../models/category.model");
       try {
         await Category.findOneAndUpdate(
           { name: update.category.trim(), martId: product.martId },
           { name: update.category.trim(), martId: product.martId },
-          { upsert: true, new: true, setDefaultsOnInsert: true }
+          { upsert: true, new: true, setDefaultsOnInsert: true },
         );
       } catch (catErr) {
-        console.error('category upsert error (update)', catErr);
+        console.error("category upsert error (update)", catErr);
       }
     }
 
@@ -433,9 +500,12 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
         const dup = await Product.findOne({
           _id: { $ne: product._id },
           martId: product.martId,
-          $or: [{ barcodes: { $in: newBarcodes } }, { barcode: { $in: newBarcodes } }],
+          $or: [
+            { barcodes: { $in: newBarcodes } },
+            { barcode: { $in: newBarcodes } },
+          ],
         })
-          .select('_id name')
+          .select("_id name")
           .lean();
 
         if (dup) {
@@ -450,77 +520,128 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
       delete update.barcode;
     }
 
-    // Owners require manager/systemAdmin approval for any update (case-insensitive check)
-    if (String(user.role || '').toLowerCase() === 'owner' && String(user.role || '').toLowerCase() !== 'systemadmin') {
+    // Owners require approval for updates. Route edit requests by quantity target:
+    // - storeQuantity -> store keeper approval
+    // - quantity/supermarketQuantity and all other fields -> manager approval
+    if (
+      String(user.role || "").toLowerCase() === "owner" &&
+      String(user.role || "").toLowerCase() !== "systemadmin"
+    ) {
       const changes = { ...update };
       if (Object.keys(changes).length === 0) {
         return res.status(400).json({ message: "No changes supplied" });
       }
 
-      // Business rule: owner edits/adds should adjust warehouse/store stock, not front/mart stock.
-      if (
-        changes.quantity !== undefined ||
-        changes.supermarketQuantity !== undefined
-      ) {
-        const storeVal =
-          changes.storeQuantity !== undefined
-            ? Number(changes.storeQuantity)
-            : Number(changes.quantity ?? changes.supermarketQuantity ?? 0);
-        changes.storeQuantity = Number.isFinite(storeVal) ? storeVal : 0;
-        delete changes.quantity;
-        delete changes.supermarketQuantity;
+      if (changes.storeQuantity !== undefined) {
+        const value = Number(changes.storeQuantity);
+        changes.storeQuantity = Number.isFinite(value) ? value : 0;
+      }
+      if (changes.quantity !== undefined) {
+        const value = Number(changes.quantity);
+        changes.quantity = Number.isFinite(value) ? value : 0;
+      }
+      if (changes.supermarketQuantity !== undefined) {
+        const value = Number(changes.supermarketQuantity);
+        changes.supermarketQuantity = Number.isFinite(value) ? value : 0;
       }
 
-      const User = require('../models/user.model');
-      const managers = await User.find({ martId: product.martId, role: { $regex: /^manager$/i } }).select('_id username name').lean();
+      const User = require("../models/user.model");
+      const managers = await User.find({
+        martId: product.martId,
+        role: { $regex: /^manager$/i },
+      })
+        .select("_id username name")
+        .lean();
 
-      // If no managers exist for this mart, apply changes immediately and notify requester
-      if (!managers || managers.length === 0) {
-        const updated = await Product.findByIdAndUpdate(id, changes, { new: true });
+      const storeKeepers = await User.find({
+        martId: product.martId,
+        role: { $regex: /^store_?keeper$/i },
+      })
+        .select("_id username name")
+        .lean();
+
+      const managerChanges = { ...changes };
+      const storeKeeperChanges = {};
+
+      if (changes.storeQuantity !== undefined) {
+        storeKeeperChanges.storeQuantity = changes.storeQuantity;
+        delete managerChanges.storeQuantity;
+      }
+
+      const requestIds = [];
+      const immediateChanges = {};
+
+      const createEditRequestForRole = async (
+        approvalRole,
+        roleChanges,
+        approvers,
+      ) => {
+        if (!roleChanges || Object.keys(roleChanges).length === 0) return;
+
+        if (!approvers || approvers.length === 0) {
+          Object.assign(immediateChanges, roleChanges);
+          return;
+        }
+
+        const reqDoc = new ProductEditRequest({
+          productId: product._id,
+          martId: product.martId,
+          requesterId: user.id,
+          requesterName: user.username || user.name,
+          changes: roleChanges,
+          approvalRole,
+        });
+        await reqDoc.save();
+        requestIds.push(String(reqDoc._id));
+
+        for (const approver of approvers) {
+          await createNotification({
+            martId: product.martId,
+            userId: approver._id,
+            type: "product_edit_request",
+            title: "Product edit requested",
+            message: `${reqDoc.requesterName} requested updates for product ${product.name}`,
+            metadata: {
+              requestId: reqDoc._id,
+              productId: product._id,
+              approvalRole,
+              requestedChanges: reqDoc.changes,
+            },
+          });
+        }
+      };
+
+      await createEditRequestForRole(
+        "store_keeper",
+        storeKeeperChanges,
+        storeKeepers,
+      );
+      await createEditRequestForRole("manager", managerChanges, managers);
+
+      if (Object.keys(immediateChanges).length > 0) {
+        const updated = await Product.findByIdAndUpdate(id, immediateChanges, {
+          new: true,
+        });
 
         await createNotification({
           martId: product.martId,
           userId: user.id,
-          type: 'product_edit_result',
-          title: 'Product edit applied',
-          message: `Your requested updates for product ${updated.name} were applied`,
-          metadata: { productId: updated._id, result: 'approved' },
+          type: "product_edit_result",
+          title: "Product edit applied",
+          message: `Some requested updates for product ${updated.name} were applied immediately`,
+          metadata: { productId: updated._id, result: "approved" },
         });
-
-        return res.json({ message: 'Update applied', product: updated });
       }
 
-      const reqDoc = new ProductEditRequest({
-        productId: product._id,
-        martId: product.martId,
-        requesterId: user.id,
-        requesterName: user.username || user.name,
-        changes,
+      if (requestIds.length === 0) {
+        const updated = await Product.findById(id).lean();
+        return res.json({ message: "Update applied", product: updated });
+      }
+
+      return res.status(202).json({
+        message: "Update submitted for approval",
+        requestIds,
       });
-      await reqDoc.save();
-
-      if (managers && managers.length > 0) {
-        for (const m of managers) {
-          await createNotification({
-            martId: product.martId,
-            userId: m._id,
-            type: 'product_edit_request',
-            title: 'Product edit requested',
-            message: `${reqDoc.requesterName} requested updates for product ${product.name}`,
-            metadata: { requestId: reqDoc._id, productId: product._id, requestedChanges: reqDoc.changes },
-          });
-        }
-      } else {
-        await createNotification({
-          martId: product.martId,
-          type: 'product_edit_request',
-          title: 'Product edit requested',
-          message: `${reqDoc.requesterName} requested updates for product ${product.name}`,
-          metadata: { requestId: reqDoc._id, productId: product._id, requestedChanges: reqDoc.changes },
-        });
-      }
-
-      return res.status(202).json({ message: 'Update submitted for manager approval', requestId: reqDoc._id });
     }
 
     const updated = await Product.findByIdAndUpdate(id, update, { new: true });
@@ -562,11 +683,9 @@ router.delete("/:id", authenticate, async (req, res) => {
         String(user.martId) !== String(product.martId) ||
         user.role !== "owner"
       ) {
-        return res
-          .status(403)
-          .json({
-            message: "Only mart owner or system admin can delete products",
-          });
+        return res.status(403).json({
+          message: "Only mart owner or system admin can delete products",
+        });
       }
     }
 
@@ -577,6 +696,5 @@ router.delete("/:id", authenticate, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-
 
 module.exports = router;
