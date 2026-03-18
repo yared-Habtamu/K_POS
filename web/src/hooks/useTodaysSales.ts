@@ -45,16 +45,26 @@ export default function useTodaysSales() {
       id: p.productId || p.id || p.sku || p.name,
       name: p.name || 'Unknown',
       qty: Number(p.qty || 0),
-      purchasePrice: Number(p.purchasePrice || 0),
+      sellingPrice: Number(p.sellingPrice || 0),
+      subtotal: Number(p.subtotal || 0),
+      vatAmount: Number(p.vatAmount || 0),
       img: p.image || p.imageUrl || '',
-      total: Number(p.total || (Number(p.purchasePrice || 0) * Number(p.qty || 0))),
+      total: Number(
+        p.total ||
+          (Number(p.subtotal || 0) + Number(p.vatAmount || 0)),
+      ),
     }));
   }, [items]);
 
   const totals = useMemo(() => {
     const totalItemsSold = mappedItems.reduce((s, it) => s + (it.qty || 0), 0);
-    const totalPurchasingCost = mappedItems.reduce((s, it) => s + (it.total || 0), 0);
-    return { totalItemsSold, totalPurchasingCost };
+    const totalBeforeVat = mappedItems.reduce(
+      (s, it) => s + (it.subtotal || 0),
+      0,
+    );
+    const totalVat = mappedItems.reduce((s, it) => s + (it.vatAmount || 0), 0);
+    const grandTotal = mappedItems.reduce((s, it) => s + (it.total || 0), 0);
+    return { totalItemsSold, totalBeforeVat, totalVat, grandTotal };
   }, [mappedItems]);
 
   return { items: mappedItems, totals, loading, error, refetch: async () => { /* simple refetch by re-running effect */ } };

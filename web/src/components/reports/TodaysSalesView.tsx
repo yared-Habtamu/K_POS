@@ -5,7 +5,9 @@ type Item = {
   id: string | number;
   name: string;
   qty: number;
-  purchasePrice: number;
+  sellingPrice: number;
+  subtotal: number;
+  vatAmount: number;
   img?: string;
   total: number;
 };
@@ -25,7 +27,12 @@ const dateLabel = () =>
 interface Props {
   items: Item[];
   loading?: boolean;
-  totals: { totalItemsSold: number; totalPurchasingCost: number };
+  totals: {
+    totalItemsSold: number;
+    totalBeforeVat: number;
+    totalVat: number;
+    grandTotal: number;
+  };
   // hide header when an external dashboard header is shown
   hideHeader?: boolean;
 }
@@ -38,8 +45,10 @@ export default function TodaysSalesView({
 }: Props) {
   const { t } = useTranslation();
   const totalItems = totals?.totalItemsSold ?? 0;
-  const totalCost = totals?.totalPurchasingCost ?? 0;
-  const avgPerItem = totalItems > 0 ? totalCost / totalItems : 0;
+  const subtotal = totals?.totalBeforeVat ?? 0;
+  const totalVat = totals?.totalVat ?? 0;
+  const grandTotal = totals?.grandTotal ?? 0;
+  const avgPerItem = totalItems > 0 ? grandTotal / totalItems : 0;
   const topItems = [...(items || [])]
     .sort((a, b) => (b.total || 0) - (a.total || 0))
     .slice(0, 5);
@@ -69,8 +78,8 @@ export default function TodaysSalesView({
                 <p className="text-xl font-semibold">{totalItems}</p>
               </div>
               <div className="bg-white/10 backdrop-blur px-4 py-3 rounded-xl border border-white/10 text-center">
-                <p className="text-xs text-slate-300">{t("total_cost")}</p>
-                <p className="text-xl font-semibold">{currency(totalCost)}</p>
+                <p className="text-xs text-slate-300">{t("total")}</p>
+                <p className="text-xl font-semibold">{currency(grandTotal)}</p>
               </div>
             </div>
           </div>
@@ -95,7 +104,7 @@ export default function TodaysSalesView({
             </div>
             <div className="rounded-xl border bg-background p-3 text-center">
               <p className="text-xs text-muted-foreground">{t("total_cost")}</p>
-              <p className="text-lg font-semibold">{currency(totalCost)}</p>
+              <p className="text-lg font-semibold">{currency(grandTotal)}</p>
             </div>
           </div>
         </div>
@@ -170,7 +179,8 @@ export default function TodaysSalesView({
                   <th className="py-2">{t("item")}</th>
                   <th className="py-2">{t("name")}</th>
                   <th className="py-2 text-right">{t("quantity_short")}</th>
-                  <th className="py-2 text-right">{t("purchase_price")}</th>
+                  <th className="py-2 text-right">{t("selling_price")}</th>
+                  <th className="py-2 text-right">VAT</th>
                   <th className="py-2 text-right">{t("total")}</th>
                 </tr>
               </thead>
@@ -202,7 +212,10 @@ export default function TodaysSalesView({
                     </td>
                     <td className="py-3 text-right font-medium">{it.qty}</td>
                     <td className="py-3 text-right">
-                      {currency(it.purchasePrice)}
+                      {currency(it.sellingPrice)}
+                    </td>
+                    <td className="py-3 text-right">
+                      {currency(it.vatAmount)}
                     </td>
                     <td className="py-3 text-right font-semibold">
                       {currency(it.total)}
@@ -211,6 +224,21 @@ export default function TodaysSalesView({
                 ))}
               </tbody>
             </table>
+
+            <div className="mt-4 ml-auto max-w-sm space-y-1 text-sm">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>Subtotal</span>
+                <span>{currency(subtotal)}</span>
+              </div>
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>VAT</span>
+                <span>{currency(totalVat)}</span>
+              </div>
+              <div className="flex items-center justify-between font-semibold text-foreground border-t pt-2 mt-2">
+                <span>{t("total")}</span>
+                <span>{currency(grandTotal)}</span>
+              </div>
+            </div>
           </div>
         )}
       </div>

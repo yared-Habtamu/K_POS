@@ -34,7 +34,12 @@ export default function CashierDashboard({
   totals,
 }: {
   items: Item[];
-  totals: { totalItemsSold: number; totalPurchasingCost: number };
+  totals: {
+    totalItemsSold: number;
+    totalBeforeVat: number;
+    totalVat: number;
+    grandTotal: number;
+  };
 }) {
   const { t } = useTranslation();
   const topItems = [...(items || [])]
@@ -44,7 +49,7 @@ export default function CashierDashboard({
 
   const pieData = topItems.map((d) => ({ name: d.name, value: d.total }));
   const totalItems = totals?.totalItemsSold ?? 0;
-  const totalCost = totals?.totalPurchasingCost ?? 0;
+  const totalCost = totals?.grandTotal ?? 0;
   const avgPerItem = totalItems > 0 ? totalCost / totalItems : 0;
 
   return (

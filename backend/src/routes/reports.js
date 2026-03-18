@@ -452,7 +452,7 @@ router.get("/mart", authenticate, async (req, res) => {
 
 module.exports = router;
 // GET /api/reports/today-sales?martId=...
-// Returns aggregated items sold today with quantity and purchasing cost.
+// Returns aggregated items sold today with quantity, VAT and totals.
 router.get('/today-sales', authenticate, async (req, res) => {
   try {
     const { martId } = req.query;
@@ -504,15 +504,28 @@ router.get('/today-sales', authenticate, async (req, res) => {
             name: productName,
             image: rawPid && productMap[rawPid] ? productMap[rawPid].imageUrl || '' : it.imageUrl || '',
             qty: 0,
-            purchasePrice: rawPid && productMap[rawPid] ? Number(productMap[rawPid].purchasePrice || 0) : Number(it.purchasePrice || 0),
+            sellingPrice: rawPid && productMap[rawPid] ? Number(productMap[rawPid].sellingPrice || 0) : Number(it.sellingPrice || it.price || 0),
+            subtotal: 0,
+            vatAmount: 0,
+            total: 0,
           };
         }
 
-        prodAgg[key].qty += Number(it.quantity || 0);
-        // keep purchasePrice from canonical product when available
-        if (rawPid && productMap[rawPid]) {
-          prodAgg[key].purchasePrice = Number(productMap[rawPid].purchasePrice || 0);
-        }
+        const qty = Number(it.quantity || 0);
+        const saleTaxRate = Number(s.taxRate || 0);
+        const taxRate = Number.isFinite(saleTaxRate) ? saleTaxRate : 0;
+        const lineSellingPrice = rawPid && productMap[rawPid]
+          ? Number(productMap[rawPid].sellingPrice || 0)
+          : Number(it.sellingPrice || it.price || 0);
+        const lineSubtotal = qty * lineSellingPrice;
+        const lineVat = Math.round((lineSubtotal * (taxRate / 100) + Number.EPSILON) * 100) / 100;
+        const lineTotal = lineSubtotal + lineVat;
+
+        prodAgg[key].qty += qty;
+        prodAgg[key].sellingPrice = lineSellingPrice;
+        prodAgg[key].subtotal += lineSubtotal;
+        prodAgg[key].vatAmount += lineVat;
+        prodAgg[key].total += lineTotal;
       }
     }
 
@@ -521,14 +534,18 @@ router.get('/today-sales', authenticate, async (req, res) => {
       name: x.name,
       image: x.image,
       qty: x.qty,
-      purchasePrice: Number(x.purchasePrice || 0),
-      total: Number((x.purchasePrice || 0) * (x.qty || 0)),
+      sellingPrice: Number(x.sellingPrice || 0),
+      subtotal: Number(x.subtotal || 0),
+      vatAmount: Number(x.vatAmount || 0),
+      total: Number(x.total || 0),
     }));
 
     const totalItemsSold = items.reduce((s, it) => s + (it.qty || 0), 0);
-    const totalPurchasingCost = items.reduce((s, it) => s + (it.total || 0), 0);
+    const totalBeforeVat = items.reduce((s, it) => s + (it.subtotal || 0), 0);
+    const totalVat = items.reduce((s, it) => s + (it.vatAmount || 0), 0);
+    const grandTotal = items.reduce((s, it) => s + (it.total || 0), 0);
 
-    res.json({ date: day, items, totalItemsSold, totalPurchasingCost });
+    res.json({ date: day, items, totalItemsSold, totalBeforeVat, totalVat, grandTotal });
   } catch (err) {
     console.error('today-sales error', err);
     res.status(500).json({ message: 'Server error' });
