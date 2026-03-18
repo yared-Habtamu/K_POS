@@ -6,6 +6,69 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/stores/authStore";
+import { AutoComplete } from "@/components/ui/AutoComplete";
+
+type CountryOption = { id: string; label: string };
+
+const COUNTRY_KEY = "pos_admin_country_options_v1";
+const BLOCKED_COUNTRIES = new Set([
+  "united states",
+  "united states of america",
+  "usa",
+  "u.s.a",
+  "us",
+  "u.s",
+  "united kingdom",
+  "uk",
+  "u.k",
+  "great britain",
+]);
+
+const normalizeCountryValue = (value: string) =>
+  String(value || "")
+    .trim()
+    .replace(/\s+/g, " ");
+
+const isBlockedCountry = (value: string) =>
+  BLOCKED_COUNTRIES.has(normalizeCountryValue(value).toLowerCase());
+
+function loadSavedCountries(): CountryOption[] {
+  try {
+    const raw = localStorage.getItem(COUNTRY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as CountryOption[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => ({
+        id: String(item?.id || item?.label || "").trim(),
+        label: normalizeCountryValue(String(item?.label || "")),
+      }))
+      .filter((item) => item.id && item.label && !isBlockedCountry(item.label));
+  } catch {
+    return [];
+  }
+}
+
+function saveCountries(options: CountryOption[]) {
+  try {
+    localStorage.setItem(COUNTRY_KEY, JSON.stringify(options));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function dedupeCountryOptions(options: CountryOption[]) {
+  const seen = new Set<string>();
+  const merged: CountryOption[] = [];
+  for (const option of options) {
+    const normalized = normalizeCountryValue(option.label);
+    const key = normalized.toLowerCase();
+    if (!normalized || seen.has(key) || isBlockedCountry(normalized)) continue;
+    seen.add(key);
+    merged.push({ id: option.id || key, label: normalized });
+  }
+  return merged;
+}
 
 export default function RegisterMart() {
   const { toast } = useToast();
@@ -23,6 +86,55 @@ export default function RegisterMart() {
   const [password, setPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
+  const [countryOptions, setCountryOptions] = React.useState<CountryOption[]>(
+    () =>
+      dedupeCountryOptions([
+        { id: "ethiopia", label: "Ethiopia" },
+        { id: "kenya", label: "Kenya" },
+        { id: "uganda", label: "Uganda" },
+        { id: "tanzania", label: "Tanzania" },
+        { id: "rwanda", label: "Rwanda" },
+        ...loadSavedCountries(),
+      ]),
+  );
+
+  React.useEffect(() => {
+    let mounted = true;
+
+    const loadCountriesFromMarts = async () => {
+      if (!token) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/marts`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const marts = await res.json().catch(() => []);
+        if (!mounted || !Array.isArray(marts)) return;
+
+        const fromMarts: CountryOption[] = marts
+          .map((mart: any) => {
+            const label = normalizeCountryValue(String(mart?.country || ""));
+            if (!label) return null;
+            return { id: label.toLowerCase().replace(/\s+/g, "_"), label };
+          })
+          .filter(Boolean) as CountryOption[];
+
+        setCountryOptions((current) => {
+          const merged = dedupeCountryOptions([...current, ...fromMarts]);
+          saveCountries(merged);
+          return merged;
+        });
+      } catch {
+        // ignore network errors and keep local options
+      }
+    };
+
+    void loadCountriesFromMarts();
+
+    return () => {
+      mounted = false;
+    };
+  }, [API_BASE, token]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,10 +264,36 @@ export default function RegisterMart() {
                 />
               </div>
               <div>
-                <Label>Country</Label>
-                <Input
+                <AutoComplete<CountryOption>
+                  id="mart-country-autocomplete"
+                  label="Country"
+                  placeholder="Select or add country"
+                  items={countryOptions}
                   value={country}
-                  onChange={(e) => setCountry(e.target.value)}
+                  onValueChange={setCountry}
+                  getItemLabel={(item) => item.label}
+                  getItemValue={(item) => item.id}
+                  onSelect={(item) => setCountry(item.label)}
+                  allowCreate
+                  onCreateOption={async (query) => {
+                    const label = normalizeCountryValue(query);
+                    if (!label) return null;
+                    if (isBlockedCountry(label)) return null;
+                    const option = {
+                      id: label.toLowerCase().replace(/\s+/g, "_"),
+                      label,
+                    };
+
+                    setCountryOptions((current) => {
+                      const merged = dedupeCountryOptions([...current, option]);
+                      saveCountries(merged);
+                      return merged;
+                    });
+
+                    setCountry(label);
+                    return option;
+                  }}
+                  createOptionLabel={(q) => `Add "${q}"`}
                 />
               </div>
               <div>
