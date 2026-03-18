@@ -27,7 +27,7 @@ router.get("/daily", authenticate, async (req, res) => {
     const grossSales = sales.reduce((s, x) => s + (x.subtotal || 0), 0);
     const discountsTotal = sales.reduce(
       (s, x) => s + ((x.discount && x.discount.amount) || 0),
-      0
+      0,
     );
 
     const salesByPaymentMethod = {};
@@ -54,7 +54,7 @@ router.get("/daily", authenticate, async (req, res) => {
       grossSales,
       discountsTotal,
       salesByPaymentMethod: Object.entries(salesByPaymentMethod).map(
-        ([method, total]) => ({ method, total })
+        ([method, total]) => ({ method, total }),
       ),
       salesByCashier: Object.values(salesByCashier),
       count: sales.length,
@@ -120,9 +120,9 @@ router.get("/summary", authenticate, async (req, res) => {
     const productIds = Array.from(
       new Set(
         sales.flatMap((s) =>
-          (s.items || []).map((it) => it.productId).filter(Boolean)
-        )
-      )
+          (s.items || []).map((it) => it.productId).filter(Boolean),
+        ),
+      ),
     );
     const products = productIds.length
       ? await Product.find({ _id: { $in: productIds } }).lean()
@@ -143,7 +143,8 @@ router.get("/summary", authenticate, async (req, res) => {
       const items = s.items || [];
       const itemTotals = items.map((it) => {
         if (it.total != null) return Number(it.total || 0);
-        if (it.price != null) return Number(it.quantity || 0) * Number(it.price || 0);
+        if (it.price != null)
+          return Number(it.quantity || 0) * Number(it.price || 0);
         return 0;
       });
       const computedSubtotal = itemTotals.reduce((acc, v) => acc + v, 0);
@@ -153,21 +154,24 @@ router.get("/summary", authenticate, async (req, res) => {
       for (let i = 0; i < items.length; i++) {
         const it = items[i] || {};
         const rawPid = it.productId ? String(it.productId) : null;
-        const category = rawPid && productMap[rawPid] && productMap[rawPid].category
-          ? String(productMap[rawPid].category)
-          : "Uncategorized";
+        const category =
+          rawPid && productMap[rawPid] && productMap[rawPid].category
+            ? String(productMap[rawPid].category)
+            : "Uncategorized";
         const itemTotal = itemTotals[i] || 0;
         if (!itemTotal) continue;
-        categorySalesMap[category] = (categorySalesMap[category] || 0) + itemTotal;
+        categorySalesMap[category] =
+          (categorySalesMap[category] || 0) + itemTotal;
         const itemTax = (itemTotal / saleSubtotal) * saleTax;
-        taxByCategoryMap[category] = (taxByCategoryMap[category] || 0) + itemTax;
+        taxByCategoryMap[category] =
+          (taxByCategoryMap[category] || 0) + itemTax;
       }
     }
     const totalSales = sales.reduce((s, x) => s + (x.total || 0), 0);
     const grossSales = sales.reduce((s, x) => s + (x.subtotal || 0), 0);
     const discountsTotal = sales.reduce(
       (s, x) => s + ((x.discount && x.discount.amount) || 0),
-      0
+      0,
     );
     const taxByCategory = Object.entries(taxByCategoryMap)
       .map(([category, tax]) => ({ category, tax: Number(tax || 0) }))
@@ -176,7 +180,8 @@ router.get("/summary", authenticate, async (req, res) => {
       .map(([category, total]) => ({
         category,
         total: Number(total || 0),
-        percentage: totalSales > 0 ? (Number(total || 0) / totalSales) * 100 : 0,
+        percentage:
+          totalSales > 0 ? (Number(total || 0) / totalSales) * 100 : 0,
       }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 10);
@@ -212,7 +217,11 @@ router.get("/summary", authenticate, async (req, res) => {
       cur.setDate(cur.getDate() + 1);
     }
 
-    const totalItemsSold = sales.reduce((s, x) => s + (x.items || []).reduce((acc, it) => acc + (it.quantity || 0), 0), 0);
+    const totalItemsSold = sales.reduce(
+      (s, x) =>
+        s + (x.items || []).reduce((acc, it) => acc + (it.quantity || 0), 0),
+      0,
+    );
 
     res.json({
       range: range || "monthly",
@@ -225,7 +234,7 @@ router.get("/summary", authenticate, async (req, res) => {
       taxByCategory,
       totalItemsSold,
       salesByPaymentMethod: Object.entries(salesByPaymentMethod).map(
-        ([method, total]) => ({ method, total })
+        ([method, total]) => ({ method, total }),
       ),
       salesByCashier: Object.values(salesByCashier),
       series,
@@ -243,8 +252,10 @@ router.get("/mart", authenticate, async (req, res) => {
   try {
     const { martId, range, start, end } = req.query;
     // determine target mart: systemAdmin may provide martId, others use their mart
-    const targetMartId = req.user.role === "systemAdmin" ? martId || undefined : req.user.martId;
-    if (!targetMartId) return res.status(400).json({ message: "martId required" });
+    const targetMartId =
+      req.user.role === "systemAdmin" ? martId || undefined : req.user.martId;
+    if (!targetMartId)
+      return res.status(400).json({ message: "martId required" });
 
     let startDate, endDate;
     const now = new Date();
@@ -263,7 +274,10 @@ router.get("/mart", authenticate, async (req, res) => {
       startDate = new Date(first.setHours(0, 0, 0, 0));
       endDate = new Date(last.setHours(23, 59, 59, 999));
     } else if (range === "custom") {
-      if (!start || !end) return res.status(400).json({ message: "start and end required for custom range" });
+      if (!start || !end)
+        return res
+          .status(400)
+          .json({ message: "start and end required for custom range" });
       startDate = new Date(String(start) + "T00:00:00.000Z");
       endDate = new Date(String(end) + "T23:59:59.999Z");
     } else {
@@ -275,14 +289,25 @@ router.get("/mart", authenticate, async (req, res) => {
     }
 
     // Fetch sales in range
-    const sales = await Sale.find({ martId: targetMartId, date: { $gte: startDate, $lte: endDate } }).lean();
+    const sales = await Sale.find({
+      martId: targetMartId,
+      date: { $gte: startDate, $lte: endDate },
+    }).lean();
     const totalSales = sales.reduce((s, x) => s + (x.total || 0), 0);
     const transactions = sales.length;
     const totalTax = sales.reduce((s, x) => s + (x.tax || 0), 0);
 
     // Compute COGS: sum of (item.quantity * purchasePrice). Need product purchasePrice lookup
-    const productIds = Array.from(new Set(sales.flatMap((s) => (s.items || []).map((it) => it.productId).filter(Boolean))));
-    const products = productIds.length ? await Product.find({ _id: { $in: productIds } }).lean() : [];
+    const productIds = Array.from(
+      new Set(
+        sales.flatMap((s) =>
+          (s.items || []).map((it) => it.productId).filter(Boolean),
+        ),
+      ),
+    );
+    const products = productIds.length
+      ? await Product.find({ _id: { $in: productIds } }).lean()
+      : [];
     const productMap = {};
     for (const p of products) productMap[String(p._id)] = p;
 
@@ -299,7 +324,8 @@ router.get("/mart", authenticate, async (req, res) => {
       const items = s.items || [];
       const itemTotals = items.map((it) => {
         if (it.total != null) return Number(it.total || 0);
-        if (it.price != null) return Number(it.quantity || 0) * Number(it.price || 0);
+        if (it.price != null)
+          return Number(it.quantity || 0) * Number(it.price || 0);
         return 0;
       });
       const computedSubtotal = itemTotals.reduce((acc, v) => acc + v, 0);
@@ -309,14 +335,17 @@ router.get("/mart", authenticate, async (req, res) => {
       for (let i = 0; i < items.length; i++) {
         const it = items[i] || {};
         const rawPid = it.productId ? String(it.productId) : null;
-        const category = rawPid && productMap[rawPid] && productMap[rawPid].category
-          ? String(productMap[rawPid].category)
-          : "Uncategorized";
+        const category =
+          rawPid && productMap[rawPid] && productMap[rawPid].category
+            ? String(productMap[rawPid].category)
+            : "Uncategorized";
         const itemTotal = itemTotals[i] || 0;
         if (!itemTotal) continue;
-        categorySalesMap[category] = (categorySalesMap[category] || 0) + itemTotal;
+        categorySalesMap[category] =
+          (categorySalesMap[category] || 0) + itemTotal;
         const itemTax = (itemTotal / saleSubtotal) * saleTax;
-        taxByCategoryMap[category] = (taxByCategoryMap[category] || 0) + itemTax;
+        taxByCategoryMap[category] =
+          (taxByCategoryMap[category] || 0) + itemTax;
       }
     }
     const taxByCategory = Object.entries(taxByCategoryMap)
@@ -326,7 +355,8 @@ router.get("/mart", authenticate, async (req, res) => {
       .map(([category, total]) => ({
         category,
         total: Number(total || 0),
-        percentage: totalSales > 0 ? (Number(total || 0) / totalSales) * 100 : 0,
+        percentage:
+          totalSales > 0 ? (Number(total || 0) / totalSales) * 100 : 0,
       }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 10);
@@ -335,14 +365,19 @@ router.get("/mart", authenticate, async (req, res) => {
     for (const s of sales) {
       for (const it of s.items || []) {
         const pid = String(it.productId || "");
-        const purchasePrice = productMap[pid] ? Number(productMap[pid].purchasePrice || 0) : Number(it.purchasePrice || 0);
+        const purchasePrice = productMap[pid]
+          ? Number(productMap[pid].purchasePrice || 0)
+          : Number(it.purchasePrice || 0);
         const qty = Number(it.quantity || 0);
         cogs += purchasePrice * qty;
       }
     }
 
     // Fetch expenses
-    const expenses = await Expense.find({ martId: targetMartId, date: { $gte: startDate, $lte: endDate } }).lean();
+    const expenses = await Expense.find({
+      martId: targetMartId,
+      date: { $gte: startDate, $lte: endDate },
+    }).lean();
     const totalExpenses = expenses.reduce((s, x) => s + (x.amount || 0), 0);
 
     const profit = totalSales - cogs - totalExpenses;
@@ -354,7 +389,11 @@ router.get("/mart", authenticate, async (req, res) => {
     for (const s of sales) {
       // precompute sale-level fallback unit price if needed
       const saleTotal = Number(s.total || 0);
-      const saleQty = (s.items || []).reduce((acc, ii) => acc + Number(ii.quantity || 0), 0) || 0;
+      const saleQty =
+        (s.items || []).reduce(
+          (acc, ii) => acc + Number(ii.quantity || 0),
+          0,
+        ) || 0;
       const saleUnitFallback = saleQty > 0 ? saleTotal / saleQty : 0;
 
       for (const it of s.items || []) {
@@ -364,17 +403,26 @@ router.get("/mart", authenticate, async (req, res) => {
 
         // derive a reliable name from several possible fields
         let productName = "";
-        if (it.name && String(it.name).trim()) productName = String(it.name).trim();
-        else if (it.productName && String(it.productName).trim()) productName = String(it.productName).trim();
-        else if (it.title && String(it.title).trim()) productName = String(it.title).trim();
-        else if (it.product && it.product.name && String(it.product.name).trim()) productName = String(it.product.name).trim();
+        if (it.name && String(it.name).trim())
+          productName = String(it.name).trim();
+        else if (it.productName && String(it.productName).trim())
+          productName = String(it.productName).trim();
+        else if (it.title && String(it.title).trim())
+          productName = String(it.title).trim();
+        else if (
+          it.product &&
+          it.product.name &&
+          String(it.product.name).trim()
+        )
+          productName = String(it.product.name).trim();
         // fall back
         if (!productName) productName = "Unknown";
 
         if (rawPid) {
           productId = String(rawPid);
           key = `pid:${productId}`;
-          if (productMap[productId] && productMap[productId].name) productName = productMap[productId].name;
+          if (productMap[productId] && productMap[productId].name)
+            productName = productMap[productId].name;
         } else {
           // fallback grouping by normalized name for free-text items
           const nameNorm = (productName || "").trim();
@@ -382,7 +430,8 @@ router.get("/mart", authenticate, async (req, res) => {
           productName = nameNorm || productName;
         }
 
-        if (!prodAgg[key]) prodAgg[key] = { productId, name: productName, sold: 0, revenue: 0 };
+        if (!prodAgg[key])
+          prodAgg[key] = { productId, name: productName, sold: 0, revenue: 0 };
         prodAgg[key].sold += Number(it.quantity || 0);
 
         // compute line revenue with fallbacks:
@@ -390,9 +439,14 @@ router.get("/mart", authenticate, async (req, res) => {
         // 2) item.quantity * item.price if price present
         // 3) estimate from sale-level average (sale.total / saleQty)
         let lineRevenue = null;
-        if (it.total != null && it.total !== undefined) lineRevenue = Number(it.total);
-        else if (it.price != null && it.price !== undefined) lineRevenue = Number(it.quantity || 0) * Number(it.price);
-        else lineRevenue = Number((saleUnitFallback || 0) * Number(it.quantity || 0));
+        if (it.total != null && it.total !== undefined)
+          lineRevenue = Number(it.total);
+        else if (it.price != null && it.price !== undefined)
+          lineRevenue = Number(it.quantity || 0) * Number(it.price);
+        else
+          lineRevenue = Number(
+            (saleUnitFallback || 0) * Number(it.quantity || 0),
+          );
 
         prodAgg[key].revenue += Number(lineRevenue || 0);
       }
@@ -424,7 +478,11 @@ router.get("/mart", authenticate, async (req, res) => {
       series[i].total = dailyMap[series[i].date] || 0;
     }
 
-    const totalItemsSold = sales.reduce((s, x) => s + (x.items || []).reduce((acc, it) => acc + (it.quantity || 0), 0), 0);
+    const totalItemsSold = sales.reduce(
+      (s, x) =>
+        s + (x.items || []).reduce((acc, it) => acc + (it.quantity || 0), 0),
+      0,
+    );
 
     res.json({
       start: startDate.toISOString(),
@@ -453,20 +511,20 @@ router.get("/mart", authenticate, async (req, res) => {
 module.exports = router;
 // GET /api/reports/today-sales?martId=...
 // Returns aggregated items sold today with quantity, VAT and totals.
-router.get('/today-sales', authenticate, async (req, res) => {
+router.get("/today-sales", authenticate, async (req, res) => {
   try {
     const { martId } = req.query;
     const day = new Date().toISOString().slice(0, 10);
-    const start = new Date(day + 'T00:00:00.000Z');
-    const end = new Date(day + 'T23:59:59.999Z');
+    const start = new Date(day + "T00:00:00.000Z");
+    const end = new Date(day + "T23:59:59.999Z");
 
     const filter = { date: { $gte: start, $lte: end } };
 
     // Cashiers only see their own sales
-    if (req.user.role === 'cashier') {
+    if (req.user.role === "cashier") {
       filter.cashierId = req.user._id || req.user.id;
       if (req.user.martId) filter.martId = req.user.martId;
-    } else if (req.user.role !== 'systemAdmin') {
+    } else if (req.user.role !== "systemAdmin") {
       // owner/manager/store_keeper see mart-wide sales
       filter.martId = req.user.martId;
     } else if (martId) {
@@ -480,20 +538,26 @@ router.get('/today-sales', authenticate, async (req, res) => {
     const prodAgg = {};
     const productIds = Array.from(
       new Set(
-        sales.flatMap((s) => (s.items || []).map((it) => it.productId).filter(Boolean))
-      )
+        sales.flatMap((s) =>
+          (s.items || []).map((it) => it.productId).filter(Boolean),
+        ),
+      ),
     );
 
-    const products = productIds.length ? await Product.find({ _id: { $in: productIds } }).lean() : [];
+    const products = productIds.length
+      ? await Product.find({ _id: { $in: productIds } }).lean()
+      : [];
     const productMap = {};
     for (const p of products) productMap[String(p._id)] = p;
 
     for (const s of sales) {
       for (const it of s.items || []) {
         const rawPid = it.productId ? String(it.productId) : null;
-        const key = rawPid ? `pid:${rawPid}` : `name:${(it.name || '').trim().toLowerCase()}`;
+        const key = rawPid
+          ? `pid:${rawPid}`
+          : `name:${(it.name || "").trim().toLowerCase()}`;
 
-        let productName = (it.name && String(it.name).trim()) || 'Unknown';
+        let productName = (it.name && String(it.name).trim()) || "Unknown";
         if (rawPid && productMap[rawPid] && productMap[rawPid].name) {
           productName = productMap[rawPid].name;
         }
@@ -502,9 +566,15 @@ router.get('/today-sales', authenticate, async (req, res) => {
           prodAgg[key] = {
             productId: rawPid,
             name: productName,
-            image: rawPid && productMap[rawPid] ? productMap[rawPid].imageUrl || '' : it.imageUrl || '',
+            image:
+              rawPid && productMap[rawPid]
+                ? productMap[rawPid].imageUrl || ""
+                : it.imageUrl || "",
             qty: 0,
-            sellingPrice: rawPid && productMap[rawPid] ? Number(productMap[rawPid].sellingPrice || 0) : Number(it.sellingPrice || it.price || 0),
+            sellingPrice:
+              rawPid && productMap[rawPid]
+                ? Number(productMap[rawPid].sellingPrice || 0)
+                : Number(it.sellingPrice || it.price || 0),
             subtotal: 0,
             vatAmount: 0,
             total: 0,
@@ -514,11 +584,14 @@ router.get('/today-sales', authenticate, async (req, res) => {
         const qty = Number(it.quantity || 0);
         const saleTaxRate = Number(s.taxRate || 0);
         const taxRate = Number.isFinite(saleTaxRate) ? saleTaxRate : 0;
-        const lineSellingPrice = rawPid && productMap[rawPid]
-          ? Number(productMap[rawPid].sellingPrice || 0)
-          : Number(it.sellingPrice || it.price || 0);
+        const lineSellingPrice =
+          rawPid && productMap[rawPid]
+            ? Number(productMap[rawPid].sellingPrice || 0)
+            : Number(it.sellingPrice || it.price || 0);
         const lineSubtotal = qty * lineSellingPrice;
-        const lineVat = Math.round((lineSubtotal * (taxRate / 100) + Number.EPSILON) * 100) / 100;
+        const lineVat =
+          Math.round((lineSubtotal * (taxRate / 100) + Number.EPSILON) * 100) /
+          100;
         const lineTotal = lineSubtotal + lineVat;
 
         prodAgg[key].qty += qty;
@@ -545,10 +618,16 @@ router.get('/today-sales', authenticate, async (req, res) => {
     const totalVat = items.reduce((s, it) => s + (it.vatAmount || 0), 0);
     const grandTotal = items.reduce((s, it) => s + (it.total || 0), 0);
 
-    res.json({ date: day, items, totalItemsSold, totalBeforeVat, totalVat, grandTotal });
+    res.json({
+      date: day,
+      items,
+      totalItemsSold,
+      totalBeforeVat,
+      totalVat,
+      grandTotal,
+    });
   } catch (err) {
-    console.error('today-sales error', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("today-sales error", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
-
