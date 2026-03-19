@@ -15,7 +15,6 @@ import {
   DollarSign,
   ShoppingCart,
   Package,
-  TrendingUp,
   ArrowUpRight,
   ArrowDownRight,
 } from "lucide-react";
@@ -255,14 +254,6 @@ export default function OwnerDashboard() {
       icon: Package,
       color: "text-warning",
     },
-    {
-      title: t("profit"),
-      value: metrics ? Number(metrics.profit || 0).toLocaleString() : "—",
-      change: "+5.3%",
-      trend: "up",
-      icon: TrendingUp,
-      color: "text-chart-2",
-    },
   ];
 
   // Only show actual top products when metrics exists
@@ -287,7 +278,7 @@ export default function OwnerDashboard() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {stats.map((stat, i) => (
             <motion.div
               key={stat.title}

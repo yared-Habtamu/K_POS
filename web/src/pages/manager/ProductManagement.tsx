@@ -41,7 +41,6 @@ import { generateUniqueBarcode } from "@/utils/barcodes";
 import type { Product, ProductUnit } from "@/types";
 import {
   Package,
-  Plus,
   Search,
   Edit,
   Trash2,
@@ -131,9 +130,8 @@ export default function ManagerProductManagement() {
     };
   }, [useProductStore.getState().products]);
 
-  const [filterValues, setFilterValues] = useState<AdvancedFilterValues>(
-    defaultFilterValues,
-  );
+  const [filterValues, setFilterValues] =
+    useState<AdvancedFilterValues>(defaultFilterValues);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -176,18 +174,32 @@ export default function ManagerProductManagement() {
   );
 
   const filteredProducts = useMemo(() => {
-    const query = String(filterValues.query || "").trim().toLowerCase();
-    const category = String(filterValues.category || "").trim().toLowerCase();
+    const query = String(filterValues.query || "")
+      .trim()
+      .toLowerCase();
+    const category = String(filterValues.category || "")
+      .trim()
+      .toLowerCase();
     const stockStatus = String(filterValues.stockStatus || "").trim();
     const sortBy = String(filterValues.sortBy || "name_asc");
 
     const filtered = products.filter((product) => {
       const name = String(product.name || "").toLowerCase();
-      const barcode = String(product.barcode || product.barcodes?.[0] || "").toLowerCase();
-      const productCategory = String(product.category || "").trim().toLowerCase();
-      const martQty = Number(product.quantity ?? product.supermarketQuantity ?? 0);
+      const barcode = String(
+        product.barcode || product.barcodes?.[0] || "",
+      ).toLowerCase();
+      const productCategory = String(product.category || "")
+        .trim()
+        .toLowerCase();
+      const martQty = Number(
+        product.quantity ?? product.supermarketQuantity ?? 0,
+      );
 
-      const matchesQuery = !query || name.includes(query) || barcode.includes(query) || productCategory.includes(query);
+      const matchesQuery =
+        !query ||
+        name.includes(query) ||
+        barcode.includes(query) ||
+        productCategory.includes(query);
       const matchesCategory = !category || productCategory === category;
       const matchesStockStatus =
         !stockStatus ||
@@ -201,20 +213,36 @@ export default function ManagerProductManagement() {
     return filtered.sort((left, right) => {
       switch (sortBy) {
         case "name_desc":
-          return String(right.name || "").localeCompare(String(left.name || ""));
+          return String(right.name || "").localeCompare(
+            String(left.name || ""),
+          );
         case "category_asc":
-          return String(left.category || "").localeCompare(String(right.category || ""));
+          return String(left.category || "").localeCompare(
+            String(right.category || ""),
+          );
         case "price_asc":
-          return Number(left.sellingPrice || 0) - Number(right.sellingPrice || 0);
+          return (
+            Number(left.sellingPrice || 0) - Number(right.sellingPrice || 0)
+          );
         case "price_desc":
-          return Number(right.sellingPrice || 0) - Number(left.sellingPrice || 0);
+          return (
+            Number(right.sellingPrice || 0) - Number(left.sellingPrice || 0)
+          );
         case "stock_asc":
-          return Number(left.quantity ?? left.supermarketQuantity ?? 0) - Number(right.quantity ?? right.supermarketQuantity ?? 0);
+          return (
+            Number(left.quantity ?? left.supermarketQuantity ?? 0) -
+            Number(right.quantity ?? right.supermarketQuantity ?? 0)
+          );
         case "stock_desc":
-          return Number(right.quantity ?? right.supermarketQuantity ?? 0) - Number(left.quantity ?? left.supermarketQuantity ?? 0);
+          return (
+            Number(right.quantity ?? right.supermarketQuantity ?? 0) -
+            Number(left.quantity ?? left.supermarketQuantity ?? 0)
+          );
         case "name_asc":
         default:
-          return String(left.name || "").localeCompare(String(right.name || ""));
+          return String(left.name || "").localeCompare(
+            String(right.name || ""),
+          );
       }
     });
   }, [categories, filterValues, products]);
@@ -308,7 +336,10 @@ export default function ManagerProductManagement() {
             "Content-Type": "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify({ name: form.category, martId: useAuthStore.getState().user?.martId }),
+          body: JSON.stringify({
+            name: form.category,
+            martId: useAuthStore.getState().user?.martId,
+          }),
         });
       } catch (err) {
         console.error("failed to create category", err);
@@ -384,9 +415,7 @@ export default function ManagerProductManagement() {
           const res = await fetch(
             `${API_BASE}/api/products/by-barcode/${encodeURIComponent(trimmed)}`,
             {
-              headers: token
-                ? { Authorization: `Bearer ${token}` }
-                : undefined,
+              headers: token ? { Authorization: `Bearer ${token}` } : undefined,
             },
           );
           if (res.status === 404) return null;
@@ -459,10 +488,6 @@ export default function ManagerProductManagement() {
                 className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
               />
             </Button>
-            <Button onClick={() => navigate("/manager/products/add")}>
-              <Plus className="mr-2 h-4 w-4" />
-              {t("add_product")}
-            </Button>
           </div>
 
           <Dialog
@@ -495,11 +520,18 @@ export default function ManagerProductManagement() {
                     <AutoComplete<{ id: string; label: string }>
                       id="manager-product-category"
                       label={t("category")}
-                      placeholder={t("select_or_create_category", { defaultValue: "Enter or select category" })}
-                      items={categoryOptions.map((c) => ({ id: String(c.value), label: c.label }))}
+                      placeholder={t("select_or_create_category", {
+                        defaultValue: "Enter or select category",
+                      })}
+                      items={categoryOptions.map((c) => ({
+                        id: String(c.value),
+                        label: c.label,
+                      }))}
                       getItemLabel={(it) => it.label}
                       getItemValue={(it) => it.id}
-                      onSelect={(it) => setForm({ ...form, category: it.label })}
+                      onSelect={(it) =>
+                        setForm({ ...form, category: it.label })
+                      }
                       allowCreate
                       onCreateOption={async (query) => {
                         const q = String(query || "").trim();
@@ -507,18 +539,36 @@ export default function ManagerProductManagement() {
                         try {
                           const API_BASE = import.meta.env.VITE_API_URL || "";
                           const token = useAuthStore.getState().user?.token;
-                          const res = await fetch(`${API_BASE}/api/categories`, {
-                            method: "POST",
-                            headers: {
-                              "Content-Type": "application/json",
-                              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                          const res = await fetch(
+                            `${API_BASE}/api/categories`,
+                            {
+                              method: "POST",
+                              headers: {
+                                "Content-Type": "application/json",
+                                ...(token
+                                  ? { Authorization: `Bearer ${token}` }
+                                  : {}),
+                              },
+                              body: JSON.stringify({
+                                name: q,
+                                martId: useAuthStore.getState().user?.martId,
+                              }),
                             },
-                            body: JSON.stringify({ name: q, martId: useAuthStore.getState().user?.martId }),
-                          });
+                          );
                           if (res.ok) {
-                            await useProductStore.getState().fetchCategories?.();
-                            const created = await res.json().catch(() => ({ name: q, _id: `cat-${Date.now()}` }));
-                            return { id: String(created._id || created.id || q), label: q };
+                            await useProductStore
+                              .getState()
+                              .fetchCategories?.();
+                            const created = await res
+                              .json()
+                              .catch(() => ({
+                                name: q,
+                                _id: `cat-${Date.now()}`,
+                              }));
+                            return {
+                              id: String(created._id || created.id || q),
+                              label: q,
+                            };
                           }
                         } catch (err) {
                           console.error("create category failed", err);
@@ -893,7 +943,9 @@ export default function ManagerProductManagement() {
                         colSpan={8}
                         className="text-center py-4 text-muted-foreground"
                       >
-                        {Object.values(filterValues).some((value) => Boolean(value))
+                        {Object.values(filterValues).some((value) =>
+                          Boolean(value),
+                        )
                           ? "No products found"
                           : "No products yet."}
                       </TableCell>
