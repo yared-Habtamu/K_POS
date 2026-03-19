@@ -49,7 +49,7 @@ export function ProductSearch({
 
   useEffect(() => {
     if (query.length >= 2) {
-      const found = searchProducts(query);
+      const found = searchProducts(query).filter((product) => getMartQuantity(product) > 0);
       setResults(found.slice(0, 8));
       setShowResults(true);
     } else {
@@ -59,6 +59,28 @@ export function ProductSearch({
   }, [query, searchProducts]);
 
   const handleSelect = (product: Product) => {
+    const available = getMartQuantity(product);
+    if (available <= 0) {
+      toast({
+        title: t("out_of_stock") || "Out of stock",
+        description: `${product.name} cannot be sold because mart quantity is 0.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const inCart = useCartStore
+      .getState()
+      .items.find((item) => item.product.id === product.id)?.quantity || 0;
+    if (inCart >= available) {
+      toast({
+        title: t("stock_limit_reached") || "Stock limit reached",
+        description: `${product.name} reached available mart quantity (${available}).`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     addItem(product, 1);
     onProductAdded?.(product);
     toast({
@@ -76,12 +98,12 @@ export function ProductSearch({
     // Check if it's a barcode (numeric)
     if (/^\d+$/.test(query)) {
       const product = getProductByBarcode(query);
-      if (product) {
+      if (product && getMartQuantity(product) > 0) {
         handleSelect(product);
       } else {
         toast({
           title: "Not Found",
-          description: "No product found with this barcode",
+          description: "No in-stock product found with this barcode",
           variant: "destructive",
         });
       }

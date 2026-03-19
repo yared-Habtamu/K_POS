@@ -1,13 +1,21 @@
 import { useTranslation } from "react-i18next";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCartStore } from "@/stores/cartStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "@/hooks/use-toast";
 import { Minus, Plus, Trash2, Package, ShoppingCart } from "lucide-react";
+
+function getMartQuantity(product: { quantity?: number; supermarketQuantity?: number }) {
+  const quantity = Number(product.quantity ?? product.supermarketQuantity ?? 0);
+  return Number.isFinite(quantity) ? Math.max(0, quantity) : 0;
+}
 
 export function Cart() {
   const { t } = useTranslation();
+  const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({});
   const {
     items,
     updateQuantity,
@@ -19,6 +27,83 @@ export function Cart() {
     getTotal,
     taxRate,
   } = useCartStore();
+
+  useEffect(() => {
+    setQuantityDrafts((prev) => {
+      const next: Record<string, string> = {};
+      for (const item of items) {
+        next[item.product.id] = prev[item.product.id] ?? String(item.quantity);
+      }
+      return next;
+    });
+  }, [items]);
+
+  const getAvailableForItem = (item: (typeof items)[number]) =>
+    Math.max(getMartQuantity(item.product), 0);
+
+  const showStockLimitToast = (productName: string, available: number) => {
+    toast({
+      title: t("stock_limit_reached") || "Stock limit reached",
+      description: `${productName} only has ${available} in mart stock.`,
+      variant: "destructive",
+    });
+  };
+
+  const commitQuantity = (item: (typeof items)[number], rawValue: string) => {
+    const available = getAvailableForItem(item);
+
+    if (available <= 0) {
+      showStockLimitToast(item.product.name, 0);
+      removeItem(item.product.id);
+      return;
+    }
+
+    const trimmed = String(rawValue ?? "").trim();
+    if (!trimmed) {
+      setQuantityDrafts((prev) => ({
+        ...prev,
+        [item.product.id]: String(item.quantity),
+      }));
+      return;
+    }
+
+    const parsed = Number.parseInt(trimmed, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setQuantityDrafts((prev) => ({
+        ...prev,
+        [item.product.id]: String(item.quantity),
+      }));
+      return;
+    }
+
+    if (parsed > available) {
+      showStockLimitToast(item.product.name, available);
+      updateQuantity(item.product.id, available);
+      setQuantityDrafts((prev) => ({
+        ...prev,
+        [item.product.id]: String(available),
+      }));
+      return;
+    }
+
+    updateQuantity(item.product.id, parsed);
+    setQuantityDrafts((prev) => ({
+      ...prev,
+      [item.product.id]: String(parsed),
+    }));
+  };
+
+  const incrementQuantity = (item: (typeof items)[number]) => {
+    const available = getAvailableForItem(item);
+    if (item.quantity >= available) {
+      showStockLimitToast(item.product.name, available);
+      return;
+    }
+
+    const next = item.quantity + 1;
+    updateQuantity(item.product.id, next);
+    setQuantityDrafts((prev) => ({ ...prev, [item.product.id]: String(next) }));
+  };
 
   if (items.length === 0) {
     return (
@@ -87,13 +172,59 @@ export function Cart() {
                 </Button>
                 <Input
                   type="number"
-                  value={item.quantity}
-                  onChange={(e) =>
-                    updateQuantity(
-                      item.product.id,
-                      parseInt(e.target.value) || 0,
+                  value={quantityDrafts[item.product.id] ?? String(item.quantity)}
+                  onChange={(e) => {
+                    const rawValue = e.target.value;
+                    setQuantityDrafts((prev) => ({
+                      ...prev,
+                      [item.product.id]: rawValue,
+                    }));
+
+                    const trimmed = String(rawValue ?? "").trim();
+                    if (!trimmed) {
+                      // Keep draft only while input is empty; don't remove item.
+                      return;
+                    }
+
+                    const parsed = Number.parseInt(trimmed, 10);
+                    if (!Number.isFinite(parsed) || parsed <= 0) {
+                      return;
+                    }
+
+                    const available = getAvailableForItem(item);
+                    if (available <= 0) {
+                      showStockLimitToast(item.product.name, 0);
+                      removeItem(item.product.id);
+                      return;
+                    }
+
+                    if (parsed > available) {
+                      showStockLimitToast(item.product.name, available);
+                      updateQuantity(item.product.id, available);
+                      setQuantityDrafts((prev) => ({
+                        ...prev,
+                        [item.product.id]: String(available),
+                      }));
+                      return;
+                    }
+
+                    updateQuantity(item.product.id, parsed);
+                  }}
+                  onBlur={() =>
+                    commitQuantity(
+                      item,
+                      quantityDrafts[item.product.id] ?? String(item.quantity),
                     )
                   }
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      commitQuantity(
+                        item,
+                        quantityDrafts[item.product.id] ?? String(item.quantity),
+                      );
+                    }
+                  }}
                   className="w-14 h-8 text-center px-1"
                   min={1}
                 />
@@ -101,9 +232,7 @@ export function Cart() {
                   variant="outline"
                   size="icon"
                   className="h-8 w-8"
-                  onClick={() =>
-                    updateQuantity(item.product.id, item.quantity + 1)
-                  }
+                  onClick={() => incrementQuantity(item)}
                 >
                   <Plus className="h-3 w-3" />
                 </Button>

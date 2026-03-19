@@ -9,8 +9,9 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useAuthStore } from "./stores/authStore";
+import { useCartStore } from "./stores/cartStore";
 import { initSocket, disconnectSocket } from "./utils/socket";
 import "@/i18n";
 import AutoCompleteExample from "@/components/examples/AutoCompleteExample";
@@ -69,8 +70,14 @@ const queryClient = new QueryClient();
 
 const App = () => {
   const user = useAuthStore((s) => s.user);
+  const clearCart = useCartStore((s) => s.clearCart);
+  const previousUserKeyRef = useRef<string | null>(null);
   const Router =
     window.location.protocol === "file:" ? HashRouter : BrowserRouter;
+
+  const currentUserKey = user
+    ? String(user.id || `${user.username}:${user.role}:${user.martId || ""}`)
+    : null;
 
   // initialize or disconnect realtime socket when user logs in/out
   // This keeps permissions in sync across devices and sessions
@@ -79,6 +86,14 @@ const App = () => {
     else disconnectSocket();
     return () => disconnectSocket();
   }, [user?.token]);
+
+  // Prevent cart data from leaking between employees when accounts change.
+  useEffect(() => {
+    if (previousUserKeyRef.current !== currentUserKey) {
+      clearCart();
+      previousUserKeyRef.current = currentUserKey;
+    }
+  }, [currentUserKey, clearCart]);
 
   return (
     <QueryClientProvider client={queryClient}>

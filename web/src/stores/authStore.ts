@@ -1,6 +1,7 @@
 ﻿import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { UserRole } from '@/types';
+import { useCartStore } from './cartStore';
 
 type AuthUser = {
   id?: string;
@@ -58,6 +59,8 @@ export const useAuthStore = create<AuthState>()(
 
           const data = await res.json();
           if (data && data.token && data.user) {
+            // Always start a fresh cart for each authenticated session.
+            useCartStore.getState().clearCart();
             // normalize backend role -> frontend UserRole
             const rawRole = String(data.user.role || '').trim();
             const roleMap: Record<string, import('@/types').UserRole> = {
@@ -102,7 +105,10 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      logout: () => set({ user: null, isAuthenticated: false }),
+      logout: () => {
+        useCartStore.getState().clearCart();
+        set({ user: null, isAuthenticated: false });
+      },
 
       setUser: (user) => set({ user, isAuthenticated: !!user }),
       

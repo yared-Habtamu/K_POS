@@ -69,6 +69,11 @@ type MartBranding = {
   receiptSlogan?: string;
 };
 
+function getMartQuantityForSaleItem(item: { product?: { quantity?: number; supermarketQuantity?: number } }) {
+  const quantity = Number(item?.product?.quantity ?? item?.product?.supermarketQuantity ?? 0);
+  return Number.isFinite(quantity) ? Math.max(0, quantity) : 0;
+}
+
 function buildMartAddress(mart: Record<string, unknown>) {
   const directAddress = String(mart.address || "").trim();
   if (directAddress) return directAddress;
@@ -261,6 +266,52 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     }
 
     setIsProcessing(true);
+
+    // Re-sync product stock right before receipt generation so receipt is not
+    // shown for quantities that are no longer available.
+    try {
+      await useProductStore.getState().fetchProducts?.();
+    } catch (err) {
+      // continue with current in-memory products if refresh fails
+      console.warn("Stock refresh before receipt failed", err);
+    }
+
+    const latestProducts = useProductStore.getState().products || [];
+    const latestById = new Map(
+      latestProducts.map((product) => [String(product.id), product]),
+    );
+
+    const invalidStockItems = items
+      .map((item) => {
+        const latest = latestById.get(String(item.product.id));
+        const available = latest
+          ? Number(latest.quantity ?? latest.supermarketQuantity ?? 0)
+          : getMartQuantityForSaleItem(item as any);
+        const safeAvailable = Number.isFinite(available)
+          ? Math.max(0, available)
+          : 0;
+
+        return {
+          item,
+          available: safeAvailable,
+          invalid: safeAvailable <= 0 || item.quantity > safeAvailable,
+        };
+      })
+      .filter((entry) => entry.invalid);
+
+    if (invalidStockItems.length > 0) {
+      const first = invalidStockItems[0];
+      toast({
+        title: t("out_of_stock") || "Out of stock",
+        description:
+          first.available <= 0
+            ? `${first.item.product.name} is out of stock.`
+            : `${first.item.product.name} only has ${first.available} available in mart stock.`,
+        variant: "destructive",
+      });
+      setIsProcessing(false);
+      return;
+    }
 
     // Simulate processing
     await new Promise((resolve) => setTimeout(resolve, 1000));

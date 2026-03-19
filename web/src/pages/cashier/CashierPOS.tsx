@@ -104,6 +104,7 @@ export default function CashierPOS() {
       const productCategory = String(product.category || '').trim().toLowerCase();
       const barcode = getPrimaryBarcode(product).toLowerCase();
       const currentStatus = getStockStatus(product);
+      const martQty = getMartQuantity(product);
 
       const matchesQuery =
         !query ||
@@ -114,7 +115,7 @@ export default function CashierPOS() {
       const matchesCategory = !category || productCategory === category;
       const matchesStockStatus = !stockStatus || currentStatus === stockStatus;
 
-      return matchesQuery && matchesCategory && matchesStockStatus;
+      return matchesQuery && matchesCategory && matchesStockStatus && martQty > 0;
     });
 
     return filtered.sort((left, right) => {
@@ -139,6 +140,26 @@ export default function CashierPOS() {
   }, [filterValues, products]);
 
   const handleAddToCart = (product: Product) => {
+    const martQty = getMartQuantity(product);
+    if (martQty <= 0) {
+      toast({
+        title: t('out_of_stock') || 'Out of stock',
+        description: `${product.name} cannot be sold because mart quantity is 0.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const inCart = items.find((item) => item.product.id === product.id)?.quantity || 0;
+    if (inCart >= martQty) {
+      toast({
+        title: t('stock_limit_reached') || 'Stock limit reached',
+        description: `${product.name} reached available mart quantity (${martQty}).`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     addItem(product, 1);
     toast({
       title: t('product_added'),

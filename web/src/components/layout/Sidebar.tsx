@@ -131,7 +131,7 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
       ],
     },
     {
-      groupLabel: "finance",
+      groupLabel: "erp",
       items: [
         { label: "expenses", icon: Wallet, path: "/manager/expenses" },
         { label: "assets", icon: Boxes, path: "/manager/assets" },
@@ -181,7 +181,7 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
       items: [{ label: "customers", icon: Users, path: "/owner/customers" }],
     },
     {
-      groupLabel: "finance",
+      groupLabel: "erp",
       items: [
         { label: "expenses", icon: Wallet, path: "/owner/expenses" },
         {

@@ -44,6 +44,11 @@ interface CartState {
 
 const DEFAULT_TAX_RATE = 0; // percentage
 
+function getMartQuantity(product: Product) {
+  const quantity = Number(product.quantity ?? product.supermarketQuantity ?? 0);
+  return Number.isFinite(quantity) ? Math.max(0, quantity) : 0;
+}
+
 export const useCartStore = create<CartState>((set, get) => ({
   items: [],
   extraCharges: [],
@@ -54,13 +59,19 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   addItem: (product, quantity = 1) => {
     set((state) => {
+      const available = getMartQuantity(product);
+      if (available <= 0) {
+        return state;
+      }
+
       const existingIndex = state.items.findIndex(
         (item) => item.product.id === product.id,
       );
 
       if (existingIndex >= 0) {
         const newItems = [...state.items];
-        const newQty = newItems[existingIndex].quantity + quantity;
+        const requestedQty = newItems[existingIndex].quantity + quantity;
+        const newQty = Math.min(Math.max(requestedQty, 1), available);
         newItems[existingIndex] = {
           ...newItems[existingIndex],
           quantity: newQty,
@@ -69,13 +80,15 @@ export const useCartStore = create<CartState>((set, get) => ({
         return { items: newItems };
       }
 
+      const initialQuantity = Math.min(Math.max(quantity, 1), available);
+
       return {
         items: [
           ...state.items,
           {
             product,
-            quantity,
-            subtotal: quantity * product.sellingPrice,
+            quantity: initialQuantity,
+            subtotal: initialQuantity * product.sellingPrice,
           },
         ],
       };
@@ -99,8 +112,15 @@ export const useCartStore = create<CartState>((set, get) => ({
         item.product.id === productId
           ? {
               ...item,
-              quantity,
-              subtotal: quantity * item.product.sellingPrice,
+              quantity: Math.min(
+                Math.max(quantity, 1),
+                Math.max(getMartQuantity(item.product), 1),
+              ),
+              subtotal:
+                Math.min(
+                  Math.max(quantity, 1),
+                  Math.max(getMartQuantity(item.product), 1),
+                ) * item.product.sellingPrice,
             }
           : item,
       ),
