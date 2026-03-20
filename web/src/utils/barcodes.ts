@@ -17,15 +17,12 @@ export async function generateUniqueBarcode(
   return String(Math.floor(Math.random() * 1e12)).padStart(12, "0");
 }
 
-export function printBarcodeLabel(params: {
-  barcode: string;
-  productName?: string;
-  price?: string | number;
-  shopName?: string;
-}) {
-  const { barcode, productName, price, shopName } = params;
-  if (!barcode) return;
-
+/**
+ * Generate a barcode data URL synchronously.
+ * Returns empty string on failure.
+ */
+export function generateBarcodeDataUrl(barcode: string): string {
+  if (!barcode) return "";
   const canvas = document.createElement("canvas");
   try {
     JsBarcode(canvas, barcode, {
@@ -38,56 +35,100 @@ export function printBarcodeLabel(params: {
       background: "#ffffff",
       lineColor: "#111111",
     });
-    
-    const dataUrl = canvas.toDataURL("image/png");
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
+    return canvas.toDataURL("image/png");
+  } catch {
+    return "";
+  }
+}
 
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Barcode</title>
-          <style>
-            @page { size: auto; margin: 0; }
-            body { 
-              font-family: Arial, sans-serif; 
-              text-align: center;
-              padding: 0;
-              margin: 0;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              height: 100vh;
-              width: 100vw;
-            }
-            img.barcode { 
-              max-width: 100%; 
-              max-height: 100%;
-              display: block; 
-              margin: auto;
-            }
-          </style>
-        </head>
-        <body>
-          <img class="barcode" id="barcodeImage" src="${dataUrl}" alt="Barcode" />
-          <script>
-            const img = document.getElementById('barcodeImage');
-            const doPrint = () => {
-              window.print();
-              setTimeout(() => { window.close(); }, 500);
-            };
-            if (img.complete) {
-              doPrint();
-            } else {
-              img.onload = doPrint;
-            }
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-  } catch (e) {
-    console.error("Barcode printing failed:", e);
+/**
+ * Print a barcode label using a hidden iframe (no new tab/window).
+ * Falls back to window.open if iframe approach fails.
+ */
+export function printBarcodeLabel(params: {
+  barcode: string;
+  productName?: string;
+  price?: string | number;
+  shopName?: string;
+}) {
+  const { barcode } = params;
+  if (!barcode) return;
+
+  const dataUrl = generateBarcodeDataUrl(barcode);
+  if (!dataUrl) return;
+
+  // Create a hidden iframe for printing
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.top = "-10000px";
+  iframe.style.left = "-10000px";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "none";
+  document.body.appendChild(iframe);
+
+  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!iframeDoc) {
+    document.body.removeChild(iframe);
+    return;
+  }
+
+  iframeDoc.open();
+  iframeDoc.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Barcode</title>
+        <style>
+          @page { size: auto; margin: 0; }
+          @media print {
+            body { margin: 0; padding: 0; }
+          }
+          body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+          }
+          img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: auto;
+          }
+        </style>
+      </head>
+      <body>
+        <img src="${dataUrl}" alt="Barcode" />
+      </body>
+    </html>
+  `);
+  iframeDoc.close();
+
+  // Wait for image to load in iframe, then print
+  const img = iframeDoc.querySelector("img");
+  const doPrint = () => {
+    try {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    } catch (e) {
+      console.error("iframe print failed:", e);
+    }
+    // Clean up after a brief delay
+    setTimeout(() => {
+      document.body.removeChild(iframe);
+    }, 1000);
+  };
+
+  if (img?.complete) {
+    // Image already loaded (it's a data URL, so usually instant)
+    setTimeout(doPrint, 100);
+  } else if (img) {
+    img.onload = doPrint;
+  } else {
+    doPrint();
   }
 }

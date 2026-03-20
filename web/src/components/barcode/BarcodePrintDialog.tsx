@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import JsBarcode from "jsbarcode";
 import { Button } from "@/components/ui/button";
 import { Printer, Download } from "lucide-react";
-import { printBarcodeLabel } from "@/utils/barcodes";
+import { printBarcodeLabel, generateBarcodeDataUrl } from "@/utils/barcodes";
 import {
   Dialog,
   DialogContent,
@@ -18,28 +17,8 @@ interface BarcodePrintDialogProps {
   barcode: string;
   productName?: string;
   price?: string | number;
-  /** Optional pre-generated data URL — if provided, skips internal generation */
+  /** Optional pre-generated data URL */
   dataUrl?: string;
-}
-
-function generateBarcodeDataUrl(barcode: string): string {
-  if (!barcode) return "";
-  const canvas = document.createElement("canvas");
-  try {
-    JsBarcode(canvas, barcode, {
-      format: "CODE128",
-      width: 2,
-      height: 80,
-      displayValue: true,
-      fontSize: 14,
-      margin: 10,
-      background: "#ffffff",
-      lineColor: "#111111",
-    });
-    return canvas.toDataURL("image/png");
-  } catch {
-    return "";
-  }
 }
 
 export function BarcodePrintDialog({
@@ -52,27 +31,14 @@ export function BarcodePrintDialog({
 }: BarcodePrintDialogProps) {
   const { t } = useTranslation();
 
-  // Generate eagerly — no dependency on `open` state.
-  // This avoids problems with nested Radix dialogs swallowing useEffect.
-  const [internalDataUrl, setInternalDataUrl] = useState("");
-  const lastBarcode = useRef("");
+  // Synchronous generation — no useEffect, no timing issues, no loading state.
+  // useMemo recalculates only when `barcode` changes.
+  const generatedDataUrl = useMemo(
+    () => generateBarcodeDataUrl(barcode),
+    [barcode],
+  );
 
-  // Always regenerate when barcode changes, regardless of open state
-  useEffect(() => {
-    if (barcode && barcode !== lastBarcode.current) {
-      lastBarcode.current = barcode;
-      setInternalDataUrl(generateBarcodeDataUrl(barcode));
-    }
-  }, [barcode]);
-
-  // Also generate on mount / when dialog opens if we don't have a URL yet
-  useEffect(() => {
-    if (open && barcode && !internalDataUrl) {
-      setInternalDataUrl(generateBarcodeDataUrl(barcode));
-    }
-  }, [open, barcode, internalDataUrl]);
-
-  const resolvedDataUrl = externalDataUrl || internalDataUrl;
+  const resolvedDataUrl = externalDataUrl || generatedDataUrl;
 
   const handlePrint = () => {
     printBarcodeLabel({ barcode });

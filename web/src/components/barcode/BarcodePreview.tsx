@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import JsBarcode from "jsbarcode";
 import { Button } from "@/components/ui/button";
 import { Eye } from "lucide-react";
+import { generateBarcodeDataUrl } from "@/utils/barcodes";
 import { BarcodePrintDialog } from "./BarcodePrintDialog";
 
 interface BarcodePreviewProps {
@@ -13,37 +13,10 @@ interface BarcodePreviewProps {
 
 export function BarcodePreview({ barcode, productName, price }: BarcodePreviewProps) {
   const { t } = useTranslation();
-  const [dataUrl, setDataUrl] = useState<string>("");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!barcode) {
-      setDataUrl("");
-      setError(null);
-      return;
-    }
-
-    const canvas = document.createElement("canvas");
-    try {
-      JsBarcode(canvas, barcode, {
-        format: "CODE128",
-        width: 2,
-        height: 80,
-        displayValue: true,
-        fontSize: 14,
-        margin: 10,
-        background: "#ffffff",
-        lineColor: "#111111",
-      });
-      setDataUrl(canvas.toDataURL("image/png"));
-      setError(null);
-    } catch (e) {
-      console.error("JsBarcode failed:", e);
-      setDataUrl("");
-      setError(t("invalid_barcode") || "Invalid Barcode");
-    }
-  }, [barcode, t]);
+  // Synchronous — instant render, no loading state possible
+  const dataUrl = useMemo(() => generateBarcodeDataUrl(barcode), [barcode]);
 
   if (!barcode) return null;
 
@@ -51,20 +24,13 @@ export function BarcodePreview({ barcode, productName, price }: BarcodePreviewPr
     <>
       <div className="mt-4 p-4 border rounded-xl bg-accent/20 flex flex-col items-center gap-4">
         <div className="bg-white p-4 rounded-lg shadow-sm">
-          <div className="text-center font-bold text-[10px] mb-1">{t("kiya_pos_system")}</div>
           {dataUrl ? (
             <img src={dataUrl} alt="Barcode Preview" className="max-w-full h-auto mx-auto" />
-          ) : error ? (
-            <div className="w-full h-16 flex items-center justify-center text-destructive text-xs">
-              {error}
-            </div>
           ) : (
-            <div className="w-full h-16 flex items-center justify-center text-accent text-xs font-medium animate-pulse">
-              {t("loading") || "Loading..."}
+            <div className="w-full h-16 flex items-center justify-center text-destructive text-xs">
+              {t("invalid_barcode") || "Invalid Barcode"}
             </div>
           )}
-          <div className="text-center text-[8px] mt-1 truncate max-w-[150px]">{productName || t("product")}</div>
-          <div className="text-center font-bold text-[10px]">{price || 0} ETB</div>
         </div>
         
         <Button type="button" size="sm" onClick={() => setIsModalOpen(true)} className="w-full">
