@@ -181,7 +181,7 @@ async function createProductFromRequest(req, res, options = {}) {
   }
 
   if (
-    String(user.role || "").toLowerCase() === "owner" &&
+    String(user.role || "").toLowerCase() !== "owner" &&
     String(user.role || "").toLowerCase() !== "systemadmin"
   ) {
     const User = require("../models/user.model");
@@ -524,7 +524,7 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
     // - storeQuantity -> store keeper approval
     // - quantity/supermarketQuantity and all other fields -> manager approval
     if (
-      String(user.role || "").toLowerCase() === "owner" &&
+      String(user.role || "").toLowerCase() !== "owner" &&
       String(user.role || "").toLowerCase() !== "systemadmin"
     ) {
       const changes = { ...update };
