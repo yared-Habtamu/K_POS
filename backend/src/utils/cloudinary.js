@@ -9,7 +9,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-async function uploadBuffer(buffer, filename) {
+async function uploadBuffer(buffer, filename, requestBaseUrl = "") {
   if (!buffer) throw new Error("No buffer provided");
 
   // Fail fast with a clear error when Cloudinary env vars are missing (ONLY in production)
@@ -74,10 +74,10 @@ async function uploadBuffer(buffer, filename) {
         const localName = `${Date.now()}-${Math.floor(Math.random() * 10000)}.${ext}`;
         const localPath = path.join(uploadsRoot, localName);
         fs.writeFileSync(localPath, buffer);
-        const host =
-          process.env.LOCAL_UPLOADS_URL ||
-          `http://localhost:${process.env.PORT || 4000}`;
-        const secure_url = `${host}/uploads/pos_products/${localName}`;
+        const host = process.env.LOCAL_UPLOADS_URL || requestBaseUrl || "";
+        const secure_url = host
+          ? `${host}/uploads/pos_products/${localName}`
+          : `/uploads/pos_products/${localName}`;
         console.warn("Saved image to local uploads as fallback:", secure_url);
         return { secure_url, url: secure_url };
       } catch (fsErr) {

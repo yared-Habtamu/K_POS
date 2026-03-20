@@ -67,7 +67,11 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
     let finalImageUrl = req.body.image || "";
     if (req.file && req.file.buffer) {
       try {
-        const uploaded = await uploadBuffer(req.file.buffer, req.file.originalname);
+        const uploaded = await uploadBuffer(
+          req.file.buffer,
+          req.file.originalname,
+          `${req.protocol}://${req.get("host")}`,
+        );
         finalImageUrl = uploaded.secure_url || uploaded.url || finalImageUrl;
       } catch (uploadErr) {
         console.error("Asset image upload error:", uploadErr);
@@ -119,7 +123,11 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
     // Handle image update
     if (req.file && req.file.buffer) {
       try {
-        const uploaded = await uploadBuffer(req.file.buffer, req.file.originalname);
+        const uploaded = await uploadBuffer(
+          req.file.buffer,
+          req.file.originalname,
+          `${req.protocol}://${req.get("host")}`,
+        );
         asset.image = uploaded.secure_url || uploaded.url || asset.image;
       } catch (uploadErr) {
         console.error("Asset image update error:", uploadErr);

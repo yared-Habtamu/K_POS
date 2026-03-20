@@ -58,9 +58,6 @@ export function BarcodePrintDialog({
   const handlePrint = () => {
     printBarcodeLabel({
       barcode,
-      productName,
-      price,
-      shopName: t("kiya_pos_system"),
     });
   };
 
@@ -81,28 +78,19 @@ export function BarcodePrintDialog({
         <DialogHeader>
           <DialogTitle>{t("barcode_preview") || "Barcode Preview"}</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col items-center justify-center p-6 bg-accent/10 rounded-xl">
-          <div className="bg-white p-8 rounded-lg shadow-md border-2 border-dashed border-primary/20 scale-125 my-8">
-            <div className="text-center font-bold text-[12px] mb-2">
-              {t("kiya_pos_system")}
-            </div>
+        <div className="flex flex-col items-center justify-center p-6 bg-accent/5 rounded-xl border border-border/50">
+          <div className="bg-white p-6 rounded-lg shadow-sm border border-border scale-110 my-6">
             {dataUrl ? (
               <img
                 src={dataUrl}
-                alt="Final Barcode"
-                className="max-w-full h-auto mx-auto"
+                alt="Barcode Preview"
+                className="max-w-full h-auto mx-auto select-none"
               />
             ) : (
-              <div className="w-full h-16 flex items-center justify-center text-destructive text-xs">
-                Invalid Barcode
+              <div className="w-48 h-24 flex items-center justify-center text-destructive text-xs font-medium animate-pulse">
+                Generating Barcode...
               </div>
             )}
-            <div className="text-center text-[10px] mt-2 font-medium truncate max-w-[200px]">
-              {productName || t("product")}
-            </div>
-            <div className="text-center font-bold text-[12px]">
-              {price || 0} ETB
-            </div>
           </div>
         </div>
         <DialogFooter className="flex sm:justify-between gap-2">

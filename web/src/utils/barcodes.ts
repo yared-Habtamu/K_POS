@@ -49,35 +49,34 @@ export function printBarcodeLabel(params: {
         <head>
           <title>Barcode</title>
           <style>
-            @page { size: 50mm 30mm; margin: 0; }
+            @page { size: auto; margin: 0; }
             body { 
               font-family: Arial, sans-serif; 
               text-align: center;
-              padding: 2mm;
+              padding: 0;
               margin: 0;
-            }
-            .label {
-              padding: 1mm;
               display: flex;
-              flex-direction: column;
               align-items: center;
               justify-content: center;
-              height: 26mm;
+              height: 100vh;
+              width: 100vw;
             }
-            .shop-name { font-size: 9pt; font-weight: bold; margin-bottom: 1mm; }
-            .item-name { font-size: 7pt; margin: 1mm 0; max-height: 2.4em; overflow: hidden; }
-            .price { font-size: 9pt; font-weight: bold; margin-top: 1mm; }
-            img.barcode { max-width: 100%; height: auto; display: block; }
+            img.barcode { 
+              max-width: 100%; 
+              max-height: 100%;
+              display: block; 
+              margin: auto;
+            }
           </style>
         </head>
         <body>
-          <div class="label">
-            <div class="shop-name">${shopName || "Kiya POS System"}</div>
-            <img class="barcode" src="${dataUrl}" alt="Barcode" />
-            <div class="item-name">${productName || "Product"}</div>
-            <div class="price">${price || 0} ETB</div>
-          </div>
-          <script>window.onload = () => { window.print(); window.close(); }</script>
+          <img class="barcode" src="${dataUrl}" alt="Barcode" />
+          <script>
+            window.onload = () => { 
+              window.print(); 
+              setTimeout(() => window.close(), 100);
+            }
+          </script>
         </body>
       </html>
     `);
