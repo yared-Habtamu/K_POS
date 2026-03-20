@@ -264,39 +264,30 @@ export default function ManagerAssets() {
       body: tableData,
       foot: [["Total:", "", "", "", "", totalPurchasePrice.toLocaleString(), "", "", "", String(totalQty)]],
       theme: "grid",
-      headStyles: {
-        fillColor: [255, 255, 255],
-        textColor: [30, 30, 30],
-        fontStyle: "bold",
+      styles: {
         fontSize: 8,
-        lineWidth: 0.3,
-        lineColor: [100, 100, 100],
-      },
-      footStyles: {
-        fillColor: [245, 245, 245],
-        textColor: [30, 30, 30],
-        fontStyle: "bold",
-        fontSize: 9,
-        lineWidth: 0.3,
-        lineColor: [100, 100, 100],
-        halign: "center",
-      },
-      bodyStyles: {
-        fontSize: 8,
-        textColor: [40, 40, 40],
+        cellPadding: 2,
+        lineColor: [180, 180, 180],
         lineWidth: 0.2,
-        lineColor: [160, 160, 160],
-        minCellHeight: 20,
         valign: "middle",
       },
-      styles: {
-        cellPadding: { left: 2, right: 2, top: 1, bottom: 1 },
+      headStyles: {
+        fillColor: [232, 232, 232],
+        textColor: [20, 20, 20],
+        fontStyle: "bold",
+        halign: "center",
+      },
+      footStyles: {
+        fillColor: [240, 240, 240],
+        textColor: [20, 20, 20],
+        fontStyle: "bold",
+        halign: "center",
       },
       columnStyles: {
-        0: { cellWidth: 8,  halign: "center" },   // #
+        0: { cellWidth: 10, halign: "center" },   // #
         1: { cellWidth: 20 },                       // Asset ID
         2: { cellWidth: 25 },                       // Name
-        3: { cellWidth: 20, halign: "center" },     // Image
+        3: { cellWidth: 22, halign: "center" },     // Image
         4: { cellWidth: 20 },                       // Size or type
         5: { cellWidth: 20, halign: "right" },      // Purchase
         6: { cellWidth: 20, halign: "center" },     // Purchase date
@@ -305,17 +296,23 @@ export default function ManagerAssets() {
         9: { cellWidth: 10, halign: "center" },     // Qty
       },
       showFoot: "lastPage",
+      didParseCell: (data) => {
+        if (data.section === "body") {
+          data.cell.styles.minCellHeight = 22;
+        }
+      },
       didDrawCell: (data) => {
         if (data.section === "body" && data.column.index === 3) {
           const img = loadedImages[data.row.index];
           if (img) {
-            const cellW = data.cell.width;
-            const cellH = data.cell.height;
-            const imgW = Math.min(cellW - 4, 16);
-            const imgH = Math.min(cellH - 4, 16);
-            const posX = data.cell.x + (cellW - imgW) / 2;
-            const posY = data.cell.y + (cellH - imgH) / 2;
-            doc.addImage(img, "JPEG", posX, posY, imgW, imgH);
+            const padding = 1.5;
+            const maxWidth = data.cell.width - padding * 2;
+            const maxHeight = data.cell.height - padding * 2;
+            const side = Math.max(1, Math.min(maxWidth, maxHeight));
+            const x = data.cell.x + (data.cell.width - side) / 2;
+            const y = data.cell.y + (data.cell.height - side) / 2;
+
+            doc.addImage(img, "JPEG", x, y, side, side);
           }
         }
       },
