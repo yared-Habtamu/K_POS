@@ -78,7 +78,7 @@ export default function Index() {
             </motion.div>
 
             <h1 className="text-4xl md:text-6xl font-bold mb-6">
-              Smart <span className="text-gradient">POS</span> System
+              {t('hero_title_part1')} <span className="text-gradient">{t('hero_title_part2')}</span> {t('hero_title_part3')}
             </h1>
             <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
               Complete point-of-sale and inventory management solution for Ethiopian supermarkets and retail stores.
@@ -86,17 +86,17 @@ export default function Index() {
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" onClick={handleGetStarted} className="text-lg h-14 px-8">
-                {isAuthenticated ? 'Go to Dashboard' : 'Get Started'}
+                {isAuthenticated ? t('dashboard_go') : t('get_started')}
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
               <Button size="lg" variant="outline" onClick={() => navigate('/owner/register')} className="text-lg h-14 px-8">
                 <UserPlus className="mr-2 h-5 w-5" />
-                Register Your Mart
+                {t('register_your_mart')}
               </Button>
               {!isAuthenticated && (
                 <Button size="lg" variant="outline" onClick={() => navigate('/login')} className="text-lg h-14 px-8">
                   <Shield className="mr-2 h-5 w-5" />
-                  Login
+                  {t('login')}
                 </Button>
               )}
             </div>
