@@ -419,7 +419,7 @@ export default function ManagerProductManagement() {
   const generateBarcode = () => {
     void (async () => {
       try {
-        const API_BASE = import.meta.env.VITE_API_URL || "";
+        const API_BASE = (import.meta as any).env.VITE_API_URL || "";
         const token = useAuthStore.getState().user?.token;
         const findProductByBarcode = async (code: string) => {
           const trimmed = (code || "").trim();
@@ -435,7 +435,11 @@ export default function ManagerProductManagement() {
           return await res.json();
         };
         const b = await generateUniqueBarcode(findProductByBarcode);
-        setForm((prev) => ({ ...prev, barcodeInput: b }));
+        setForm((prev) => ({ 
+          ...prev, 
+          barcodes: [...(Array.isArray(prev.barcodes) ? prev.barcodes : []), b],
+          barcodeInput: "" 
+        }));
       } catch (e) {
         console.error("generate barcode failed", e);
         toast({ title: "Failed to generate barcode", variant: "destructive" });

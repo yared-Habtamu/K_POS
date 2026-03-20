@@ -397,7 +397,11 @@ export default function ProductAdd() {
     void (async () => {
       try {
         const b = await generateUniqueBarcode(findProductByBarcode);
-        setForm((prev) => ({ ...prev, barcodeInput: b }));
+        setForm((prev) => ({ 
+          ...prev, 
+          barcodes: [...(Array.isArray(prev.barcodes) ? prev.barcodes : []), b],
+          barcodeInput: "" 
+        }));
       } catch (e) {
         console.error("generate barcode failed", e);
         toast({ title: t("failed_generate_barcode"), variant: "destructive" });
@@ -758,6 +762,12 @@ export default function ProductAdd() {
                         {t("generate")}
                       </Button>
                     </div>
+
+                    <BarcodePreview 
+                      barcode={activeBarcode} 
+                      productName={form.name} 
+                      price={form.sellingPrice} 
+                    />
 
                   <div className="flex flex-wrap gap-2 mt-2">
                     {(Array.isArray(form.barcodes) ? form.barcodes : []).map(

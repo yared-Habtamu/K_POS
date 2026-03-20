@@ -70,11 +70,17 @@ export function printBarcodeLabel(params: {
           </style>
         </head>
         <body>
-          <img class="barcode" src="${dataUrl}" alt="Barcode" />
+          <img class="barcode" id="barcodeImage" src="${dataUrl}" alt="Barcode" />
           <script>
-            window.onload = () => { 
-              window.print(); 
-              setTimeout(() => window.close(), 100);
+            const img = document.getElementById('barcodeImage');
+            const doPrint = () => {
+              window.print();
+              setTimeout(() => { window.close(); }, 500);
+            };
+            if (img.complete) {
+              doPrint();
+            } else {
+              img.onload = doPrint;
             }
           </script>
         </body>

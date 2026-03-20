@@ -502,8 +502,11 @@ export default function ProductManagement() {
     void (async () => {
       try {
         const b = await generateUniqueBarcode();
-        // place in input field so user can see/edit before adding
-        setForm((prev) => ({ ...prev, barcodeInput: b }));
+        setForm((prev) => ({ 
+          ...prev, 
+          barcodes: [...(Array.isArray(prev.barcodes) ? prev.barcodes : []), b],
+          barcodeInput: "" 
+        }));
       } catch (e) {
         console.error("generate barcode failed", e);
         toast({ title: "Failed to generate barcode", variant: "destructive" });

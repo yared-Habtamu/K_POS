@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import JsBarcode from "jsbarcode";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,28 @@ interface BarcodePrintDialogProps {
   barcode: string;
   productName?: string;
   price?: string | number;
+  /** Optional pre-generated data URL — if provided, skips internal generation */
+  dataUrl?: string;
+}
+
+function generateBarcodeDataUrl(barcode: string): string {
+  if (!barcode) return "";
+  const canvas = document.createElement("canvas");
+  try {
+    JsBarcode(canvas, barcode, {
+      format: "CODE128",
+      width: 2,
+      height: 80,
+      displayValue: true,
+      fontSize: 14,
+      margin: 10,
+      background: "#ffffff",
+      lineColor: "#111111",
+    });
+    return canvas.toDataURL("image/png");
+  } catch {
+    return "";
+  }
 }
 
 export function BarcodePrintDialog({
@@ -26,49 +48,44 @@ export function BarcodePrintDialog({
   barcode,
   productName,
   price,
+  dataUrl: externalDataUrl,
 }: BarcodePrintDialogProps) {
   const { t } = useTranslation();
-  const [dataUrl, setDataUrl] = useState<string>("");
 
+  // Generate eagerly — no dependency on `open` state.
+  // This avoids problems with nested Radix dialogs swallowing useEffect.
+  const [internalDataUrl, setInternalDataUrl] = useState("");
+  const lastBarcode = useRef("");
+
+  // Always regenerate when barcode changes, regardless of open state
   useEffect(() => {
-    if (!barcode || !open) {
-      setDataUrl("");
-      return;
+    if (barcode && barcode !== lastBarcode.current) {
+      lastBarcode.current = barcode;
+      setInternalDataUrl(generateBarcodeDataUrl(barcode));
     }
+  }, [barcode]);
 
-    const canvas = document.createElement("canvas");
-    try {
-      JsBarcode(canvas, barcode, {
-        format: "CODE128",
-        width: 2,
-        height: 80,
-        displayValue: true,
-        fontSize: 14,
-        margin: 10,
-        background: "#ffffff",
-        lineColor: "#111111",
-      });
-      setDataUrl(canvas.toDataURL("image/png"));
-    } catch (e) {
-      console.error("JsBarcode failed:", e);
-      setDataUrl("");
+  // Also generate on mount / when dialog opens if we don't have a URL yet
+  useEffect(() => {
+    if (open && barcode && !internalDataUrl) {
+      setInternalDataUrl(generateBarcodeDataUrl(barcode));
     }
-  }, [barcode, open]);
+  }, [open, barcode, internalDataUrl]);
+
+  const resolvedDataUrl = externalDataUrl || internalDataUrl;
 
   const handlePrint = () => {
-    printBarcodeLabel({
-      barcode,
-    });
+    printBarcodeLabel({ barcode });
   };
 
   const handleDownload = () => {
-    if (!dataUrl) return;
+    if (!resolvedDataUrl) return;
     const link = document.createElement("a");
     const safeName = (productName || "product")
       .replace(/[^a-z0-9]/gi, "_")
       .toLowerCase();
     link.download = `${safeName}_${barcode}.png`;
-    link.href = dataUrl;
+    link.href = resolvedDataUrl;
     link.click();
   };
 
@@ -80,15 +97,15 @@ export function BarcodePrintDialog({
         </DialogHeader>
         <div className="flex flex-col items-center justify-center p-6 bg-accent/5 rounded-xl border border-border/50">
           <div className="bg-white p-6 rounded-lg shadow-sm border border-border scale-110 my-6">
-            {dataUrl ? (
+            {resolvedDataUrl ? (
               <img
-                src={dataUrl}
+                src={resolvedDataUrl}
                 alt="Barcode Preview"
                 className="max-w-full h-auto mx-auto select-none"
               />
             ) : (
-              <div className="w-48 h-24 flex items-center justify-center text-destructive text-xs font-medium animate-pulse">
-                Generating Barcode...
+              <div className="w-48 h-24 flex items-center justify-center text-destructive text-xs font-medium">
+                {t("invalid_barcode") || "Invalid Barcode"}
               </div>
             )}
           </div>

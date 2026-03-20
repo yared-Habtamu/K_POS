@@ -52,12 +52,23 @@ router.get("/", authenticate, async (req, res) => {
 // Create asset
 router.post("/", authenticate, upload.single("image"), async (req, res) => {
   try {
-    const { name, sizeOrType, purchaseDate, status, conditions, assignedTo, quantity, description, martId, purchasePrice } = req.body;
+    const {
+      name,
+      sizeOrType,
+      purchaseDate,
+      status,
+      conditions,
+      assignedTo,
+      quantity,
+      description,
+      martId,
+      purchasePrice,
+    } = req.body;
     const targetMartId =
       req.user.role === "systemAdmin"
         ? martId || req.user.martId
         : req.user.martId;
-    
+
     if (!targetMartId)
       return res.status(400).json({ message: "martId is required" });
     if (!name || quantity == null)
@@ -109,10 +120,21 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
 router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, assetId, sizeOrType, purchaseDate, status, conditions, assignedTo, quantity, description, purchasePrice } = req.body;
+    const {
+      name,
+      assetId,
+      sizeOrType,
+      purchaseDate,
+      status,
+      conditions,
+      assignedTo,
+      quantity,
+      description,
+      purchasePrice,
+    } = req.body;
     const asset = await Asset.findById(id);
     if (!asset) return res.status(404).json({ message: "Asset not found" });
-    
+
     if (req.user.role !== "systemAdmin") {
       if (!req.user.martId || String(asset.martId) !== String(req.user.martId))
         return res
@@ -148,7 +170,7 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
     if (quantity != null) asset.quantity = Number(quantity);
     if (purchasePrice != null) asset.purchasePrice = Number(purchasePrice);
     if (description != null) asset.description = description;
-    
+
     await asset.save();
     res.json(asset);
   } catch (err) {

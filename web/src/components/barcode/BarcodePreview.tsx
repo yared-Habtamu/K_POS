@@ -15,10 +15,12 @@ export function BarcodePreview({ barcode, productName, price }: BarcodePreviewPr
   const { t } = useTranslation();
   const [dataUrl, setDataUrl] = useState<string>("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!barcode) {
       setDataUrl("");
+      setError(null);
       return;
     }
 
@@ -35,11 +37,13 @@ export function BarcodePreview({ barcode, productName, price }: BarcodePreviewPr
         lineColor: "#111111",
       });
       setDataUrl(canvas.toDataURL("image/png"));
+      setError(null);
     } catch (e) {
       console.error("JsBarcode failed:", e);
       setDataUrl("");
+      setError(t("invalid_barcode") || "Invalid Barcode");
     }
-  }, [barcode]);
+  }, [barcode, t]);
 
   if (!barcode) return null;
 
@@ -50,9 +54,13 @@ export function BarcodePreview({ barcode, productName, price }: BarcodePreviewPr
           <div className="text-center font-bold text-[10px] mb-1">{t("kiya_pos_system")}</div>
           {dataUrl ? (
             <img src={dataUrl} alt="Barcode Preview" className="max-w-full h-auto mx-auto" />
-          ) : (
+          ) : error ? (
             <div className="w-full h-16 flex items-center justify-center text-destructive text-xs">
-              Invalid Barcode
+              {error}
+            </div>
+          ) : (
+            <div className="w-full h-16 flex items-center justify-center text-accent text-xs font-medium animate-pulse">
+              {t("loading") || "Loading..."}
             </div>
           )}
           <div className="text-center text-[8px] mt-1 truncate max-w-[150px]">{productName || t("product")}</div>
@@ -70,7 +78,8 @@ export function BarcodePreview({ barcode, productName, price }: BarcodePreviewPr
         onOpenChange={setIsModalOpen} 
         barcode={barcode} 
         productName={productName} 
-        price={price} 
+        price={price}
+        dataUrl={dataUrl}
       />
     </>
   );
