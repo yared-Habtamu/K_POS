@@ -47,7 +47,7 @@ import {
   TrendingDown,
 } from "lucide-react";
 import { format } from "date-fns";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import type { Expense, ExpenseCategory } from "@/types";
 import { useProductStore } from "@/stores/productStore";
 import { AutoComplete } from "@/components/ui/AutoComplete";
@@ -104,24 +104,15 @@ const expenseCategories: {
 
 const ITEMS_PER_PAGE = 7; // ✅ 7 items per page
 
-const loadImageAsDataUrl = async (
-  url?: string | null,
-): Promise<string | null> => {
-  if (!url) return null;
-  try {
-    const response = await fetch(url);
-    if (!response.ok) return null;
-    const blob = await response.blob();
-    return await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        resolve(typeof reader.result === "string" ? reader.result : null);
-      };
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return null;
-  }
+const loadImage = (url: string | null): Promise<HTMLImageElement | null> => {
+  return new Promise((resolve) => {
+    if (!url) return resolve(null);
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
 };
 
 export default function ExpenseManagement() {
@@ -375,14 +366,14 @@ export default function ExpenseManagement() {
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          toast({ title: err.message || t("failed_delete_expense") });
+          toast(err.message || t("failed_delete_expense"));
           return;
         }
         setExpenses((prev) => prev.filter((e) => e.id !== id));
-        toast({ title: t("expense_deleted") });
+        toast(t("expense_deleted"));
       } catch (err) {
         console.error(err);
-        toast({ title: t("failed_delete_expense") });
+        toast(t("failed_delete_expense"));
       }
     })();
     // Reset to page 1 if current page becomes empty
@@ -464,7 +455,7 @@ export default function ExpenseManagement() {
         }
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          toast({ title: err.message || t("failed_update_expense") });
+          toast(err.message || t("failed_update_expense"));
           return;
         }
         const saved = await res.json();
@@ -481,7 +472,7 @@ export default function ExpenseManagement() {
               : e,
           ),
         );
-        toast({ title: t("expense_updated") });
+        toast(t("expense_updated"));
       } else {
         // create new
         let res;
@@ -523,7 +514,7 @@ export default function ExpenseManagement() {
         }
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          toast({ title: err.message || t("failed_add_expense") });
+          toast(err.message || t("failed_add_expense"));
           return;
         }
         const saved = await res.json();
@@ -552,7 +543,7 @@ export default function ExpenseManagement() {
           createdAt: new Date((saved as any).createdAt || saved.createdAt),
         } as any;
         setExpenses((prev) => [newExpense, ...prev]);
-        toast({ title: t("expense_added") });
+        toast(t("expense_added"));
       }
       // reset dialog/form state
       setIsDialogOpen(false);
@@ -575,11 +566,11 @@ export default function ExpenseManagement() {
       setCurrentPage(1);
     } catch (err) {
       console.error(err);
-      toast({
-        title: editingExpenseId
+      toast.error(
+        editingExpenseId
           ? t("failed_update_expense")
-          : t("failed_add_expense"),
-      });
+          : t("failed_add_expense")
+      );
     }
   };
 
@@ -687,15 +678,16 @@ export default function ExpenseManagement() {
   };
 
   const downloadExpensePdf = async () => {
+    if (filteredExpenses.length === 0) {
+      toast(t("no_expenses_to_export", { defaultValue: "No expenses to export" }));
+      return;
+    }
+
     try {
-      const visibleRows = filteredExpenses.slice(0, ITEMS_PER_PAGE);
-      const paddedRows: Array<Expense | null> = [...visibleRows];
-      while (paddedRows.length < ITEMS_PER_PAGE) paddedRows.push(null);
+      toast.info(t("generating_pdf_wait", { defaultValue: "Generating PDF, please wait..." }));
 
       const imageRows = await Promise.all(
-        paddedRows.map(async (expense) => {
-          if (!expense) return { item: null, screenshot: null };
-
+        filteredExpenses.map(async (expense) => {
           const itemUrl = (expense as any).productPicture || null;
           const screenshotUrl =
             (Array.isArray((expense as any).screenshots) &&
@@ -704,26 +696,24 @@ export default function ExpenseManagement() {
             null;
 
           const [item, screenshot] = await Promise.all([
-            loadImageAsDataUrl(itemUrl),
-            loadImageAsDataUrl(screenshotUrl),
+            loadImage(itemUrl),
+            loadImage(screenshotUrl),
           ]);
 
           return { item, screenshot };
         }),
       );
 
-      const bodyRows: string[][] = paddedRows.map((expense, idx) => [
+      const bodyRows: string[][] = filteredExpenses.map((expense, idx) => [
         String(idx + 1),
-        expense
-          ? String(
-              expense.category === "salary"
-                ? t("salary_expense")
-                : t(expense.category),
-            )
-          : "",
+        String(
+          expense.category === "salary"
+            ? t("salary_expense")
+            : t(expense.category),
+        ),
         "",
-        expense ? String(expense.description || "") : "",
-        `$ ${expense ? Number(expense.amount || 0).toFixed(2) : "0.00"}`,
+        String(expense.description || ""),
+        `$ ${Number(expense.amount || 0).toFixed(2)}`,
         "",
       ]);
 
@@ -741,18 +731,18 @@ export default function ExpenseManagement() {
       });
       doc.setFont("helvetica", "bold");
       doc.setFontSize(14);
-      doc.text("Expense", 105, 14, { align: "center" });
+      doc.text(t("expense_report", { defaultValue: "Expense Report" }), 105, 14, { align: "center" });
 
       autoTable(doc, {
         startY: 18,
         head: [
           [
             "#",
-            "Category",
-            "Item image",
-            "Description",
-            "Amount",
-            "Screenshots",
+            t("category", { defaultValue: "Category" }),
+            t("item_image", { defaultValue: "Item image" }),
+            t("description", { defaultValue: "Description" }),
+            t("amount", { defaultValue: "Amount" }),
+            t("screenshots", { defaultValue: "Screenshots" }),
           ],
         ],
         body: bodyRows,
@@ -779,23 +769,23 @@ export default function ExpenseManagement() {
           5: { cellWidth: 30 },
         },
         didParseCell: (data) => {
-          if (data.section === "body" && data.row.index < ITEMS_PER_PAGE) {
+          if (data.section === "body" && data.row.index < filteredExpenses.length) {
             data.cell.styles.minCellHeight = 22;
           }
-          if (data.section === "body" && data.row.index === ITEMS_PER_PAGE) {
+          if (data.section === "body" && data.row.index === filteredExpenses.length) {
             data.cell.styles.fillColor = [240, 240, 240];
             data.cell.styles.fontStyle = "bold";
           }
         },
         didDrawCell: (data) => {
-          if (data.section !== "body" || data.row.index >= ITEMS_PER_PAGE)
+          if (data.section !== "body" || data.row.index >= filteredExpenses.length)
             return;
 
           const rowImage = imageRows[data.row.index];
           if (!rowImage) return;
 
-          const drawImage = (dataUrl: string, colIndex: number) => {
-            if (data.column.index !== colIndex) return;
+          const drawImage = (img: HTMLImageElement | null, colIndex: number) => {
+            if (!img || data.column.index !== colIndex) return;
 
             const padding = 1.5;
             const maxWidth = data.cell.width - padding * 2;
@@ -803,11 +793,8 @@ export default function ExpenseManagement() {
             const side = Math.max(1, Math.min(maxWidth, maxHeight));
             const x = data.cell.x + (data.cell.width - side) / 2;
             const y = data.cell.y + (data.cell.height - side) / 2;
-            const format = dataUrl.startsWith("data:image/png")
-              ? "PNG"
-              : "JPEG";
 
-            doc.addImage(dataUrl, format, x, y, side, side);
+            doc.addImage(img, "JPEG", x, y, side, side);
           };
 
           if (rowImage.item) drawImage(rowImage.item, 2);
@@ -817,9 +804,10 @@ export default function ExpenseManagement() {
 
       const filenameMonth = monthFilter || "all-months";
       doc.save(`expense-${filenameMonth}.pdf`);
+      toast.success(t("pdf_generated_success", { defaultValue: "PDF generated successfully" }));
     } catch (err) {
       console.error("downloadExpensePdf error", err);
-      toast({ title: "Failed to download PDF" });
+      toast.error(t("failed_download_pdf", { defaultValue: "Failed to download PDF" }));
     }
   };
 
