@@ -1,4 +1,8 @@
-require("dotenv").config();
+try {
+  require("dotenv").config();
+} catch (e) {
+  console.warn("dotenv not installed; skipping .env file loading");
+}
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
