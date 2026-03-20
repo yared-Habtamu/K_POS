@@ -24,8 +24,18 @@ import {
   Printer,
   Trash2,
   RotateCw,
+  Scan,
 } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { BarcodeScanner } from "@/components/barcode/BarcodeScanner";
+import { BarcodePreview } from "@/components/barcode/BarcodePreview";
+import { BarcodePrintDialog } from "@/components/barcode/BarcodePrintDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,8 +62,7 @@ const defaultCategories = [
 ];
 import axios from "axios";
 import { useAuthStore } from "@/stores/authStore";
-import { generateUniqueBarcode } from "@/utils/barcodes";
-import JsBarcode from "jsbarcode";
+import { generateUniqueBarcode, printBarcodeLabel } from "@/utils/barcodes";
 
 export default function ProductAdd() {
   const { t } = useTranslation();
@@ -72,6 +81,9 @@ export default function ProductAdd() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
+  const [printTargetBarcode, setPrintTargetBarcode] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -410,61 +422,6 @@ export default function ProductAdd() {
       ? String(form.barcodes[0] || "").trim()
       : "");
 
-  const handlePrintBarcode = () => {
-    if (!activeBarcode) return;
-
-    const canvas = document.createElement("canvas");
-    JsBarcode(canvas, activeBarcode, {
-      format: "CODE128",
-      width: 2,
-      height: 80,
-      displayValue: true,
-      fontSize: 14,
-      margin: 10,
-      background: "#ffffff",
-      lineColor: "#111111",
-    });
-
-    const barcodeDataUrl = canvas.toDataURL("image/png");
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
-
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Barcode - ${form.name || "Product"}</title>
-          <style>
-            @page { size: 50mm 30mm; margin: 2mm; }
-            body {
-              font-family: Arial, sans-serif;
-              text-align: center;
-              padding: 4mm;
-            }
-            .label {
-              border: 1px dashed #ccc;
-              padding: 2mm;
-            }
-            .shop-name { font-size: 10pt; font-weight: bold; margin-bottom: 2mm; }
-            .item-name { font-size: 8pt; margin: 2mm 0; }
-            .price { font-size: 10pt; font-weight: bold; }
-            img.barcode { max-width: 100%; height: auto; }
-          </style>
-        </head>
-        <body>
-          <div class="label">
-            <div class="shop-name">${t("smart_supermarket")}</div>
-            <img class="barcode" src="${barcodeDataUrl}" alt="Barcode" />
-            <div class="item-name">${form.name || t("product")}</div>
-            <div class="price">${form.sellingPrice || 0} ETB</div>
-          </div>
-          <script>window.onload = () => { window.print(); window.close(); }</script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-  };
-
   return (
     // Product creation allowed for owners and managers.
     <RoleLayout allowedRoles={["owner", "manager"]}>
@@ -734,65 +691,73 @@ export default function ProductAdd() {
 
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="barcodeInput">{t("barcodes")}</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="barcodeInput"
-                      value={form.barcodeInput}
-                      onChange={(e) =>
-                        setForm({ ...form, barcodeInput: e.target.value })
-                      }
-                      placeholder={t("enter_barcode_to_add")}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        void (async () => {
-                          const val = (form.barcodeInput || "").trim();
-                          if (!val) return;
-                          try {
-                            const found = await findProductByBarcode(val);
-                            if (found) {
-                              setBarcodeConflict({
-                                code: val,
-                                productId: String(found._id || found.id),
-                                productName: String(found.name || t("product")),
-                                storeQuantity: Number(found.storeQuantity || 0),
+                    <div className="flex gap-2">
+                      <Input
+                        id="barcodeInput"
+                        value={form.barcodeInput}
+                        onChange={(e) =>
+                          setForm({ ...form, barcodeInput: e.target.value })
+                        }
+                        placeholder={t("enter_barcode_to_add")}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsScannerOpen(true)}
+                        title={t("scan")}
+                      >
+                        <Scan className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          void (async () => {
+                            const val = (form.barcodeInput || "").trim();
+                            if (!val) return;
+                            try {
+                              const found = await findProductByBarcode(val);
+                              if (found) {
+                                setBarcodeConflict({
+                                  code: val,
+                                  productId: String(found._id || found.id),
+                                  productName: String(found.name || t("product")),
+                                  storeQuantity: Number(found.storeQuantity || 0),
+                                });
+                                setBarcodeConflictProduct(found);
+                                setBarcodeConflictOpen(true);
+                                return;
+                              }
+                              const existing = Array.isArray(form.barcodes)
+                                ? form.barcodes.slice()
+                                : [];
+                              setForm({
+                                ...form,
+                                barcodes: [...existing, val],
+                                barcodeInput: "",
                               });
-                              setBarcodeConflictProduct(found);
-                              setBarcodeConflictOpen(true);
-                              return;
+                            } catch (e: any) {
+                              console.error("barcode lookup failed", e);
+                              toast({
+                                title: t("failed_check_barcode"),
+                                description: e?.message || t("server_error"),
+                                variant: "destructive",
+                              });
                             }
-                            const existing = Array.isArray(form.barcodes)
-                              ? form.barcodes.slice()
-                              : [];
-                            setForm({
-                              ...form,
-                              barcodes: [...existing, val],
-                              barcodeInput: "",
-                            });
-                          } catch (e: any) {
-                            console.error("barcode lookup failed", e);
-                            toast({
-                              title: t("failed_check_barcode"),
-                              description: e?.message || t("server_error"),
-                              variant: "destructive",
-                            });
-                          }
-                        })();
-                      }}
-                    >
-                      {t("add")}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={generateBarcode}
-                    >
-                      <Barcode className="mr-2 h-4 w-4" />
-                      {t("generate")}
-                    </Button>
-                  </div>
+                          })();
+                        }}
+                      >
+                        {t("add")}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={generateBarcode}
+                      >
+                        <Barcode className="mr-2 h-4 w-4" />
+                        {t("generate")}
+                      </Button>
+                    </div>
 
                   <div className="flex flex-wrap gap-2 mt-2">
                     {(Array.isArray(form.barcodes) ? form.barcodes : []).map(
@@ -802,18 +767,31 @@ export default function ProductAdd() {
                           className="inline-flex items-center gap-2 px-2 py-1 rounded border"
                         >
                           <span className="font-mono text-sm">{b}</span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className="text-destructive p-1"
-                            onClick={() => {
-                              const arr = (form.barcodes || []).slice();
-                              arr.splice(idx, 1);
-                              setForm({ ...form, barcodes: arr });
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                              onClick={() => {
+                                setPrintTargetBarcode(b);
+                                setIsPrintDialogOpen(true);
+                              }}
+                            >
+                              <Printer className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="h-8 w-8 p-0 text-destructive"
+                              onClick={() => {
+                                const arr = (form.barcodes || []).slice();
+                                arr.splice(idx, 1);
+                                setForm({ ...form, barcodes: arr });
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       ),
                     )}
@@ -822,15 +800,6 @@ export default function ProductAdd() {
                   <div className="text-xs text-muted-foreground">
                     {t("previously_registered_barcodes_hint")}
                   </div>
-
-                  {activeBarcode ? (
-                    <div className="mt-3 flex justify-end">
-                      <Button type="button" onClick={handlePrintBarcode}>
-                        <Printer className="mr-2 h-4 w-4" />
-                        {t("print_label")}
-                      </Button>
-                    </div>
-                  ) : null}
                 </div>
 
                 <AlertDialog
@@ -945,6 +914,18 @@ export default function ProductAdd() {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+
+                <Dialog open={isScannerOpen} onOpenChange={setIsScannerOpen}>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>{t("scan_barcode")}</DialogTitle>
+                    </DialogHeader>
+                    <BarcodeScanner 
+                      onScan={(code) => setForm({ ...form, barcodeInput: code })}
+                      onClose={() => setIsScannerOpen(false)}
+                    />
+                  </DialogContent>
+                </Dialog>
               </div>
 
               <div className="flex justify-end gap-2 pt-4">
@@ -969,6 +950,13 @@ export default function ProductAdd() {
             </form>
           </CardContent>
         </Card>
+        <BarcodePrintDialog
+          open={isPrintDialogOpen}
+          onOpenChange={setIsPrintDialogOpen}
+          barcode={printTargetBarcode}
+          productName={form.name}
+          price={form.sellingPrice}
+        />
       </div>
     </RoleLayout>
   );

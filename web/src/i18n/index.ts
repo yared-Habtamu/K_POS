@@ -27,14 +27,18 @@ const resources = {
       actions: "Actions",
       view: "View",
       print: "Print",
-      download: "Download",
-      image: "Image",
       get_started: "Get Started",
       register_your_mart: "Register Your Mart",
       dashboard_go: "Go to Dashboard",
       hero_title_part1: "Kiya",
       hero_title_part2: "POS",
       hero_title_part3: "System",
+      kiya_pos_system: "Kiya POS System",
+      scan: "Scan",
+      stop_scanning: "Stop Scanning",
+      preview_and_print: "Preview & Print",
+      barcode_preview: "Barcode Preview",
+      download: "Download",
 
       // Roles
       system_admin: "System Admin",
@@ -598,6 +602,11 @@ const resources = {
       hero_title_part1: "ኪያ",
       hero_title_part2: "POS",
       hero_title_part3: "ሲስተም",
+      kiya_pos_system: "ኪያ POS ሲስተም",
+      scan: "አስነብብ",
+      stop_scanning: "ንባብ አቁም",
+      preview_and_print: "ቅድመ እይታ እና ማተም",
+      barcode_preview: "የባርኮድ ቅድመ እይታ",
 
       // Roles
       system_admin: "ሲስተም አድሚን",

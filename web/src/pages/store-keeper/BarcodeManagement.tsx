@@ -26,7 +26,8 @@ import {
   Image as ImageIcon,
   QrCode,
 } from "lucide-react";
-import { generateUniqueBarcode } from "@/utils/barcodes";
+import { generateUniqueBarcode, printBarcodeLabel } from "@/utils/barcodes";
+import { BarcodePrintDialog } from "@/components/barcode/BarcodePrintDialog";
 
 export default function BarcodeManagement() {
   const { t } = useTranslation();
@@ -35,6 +36,7 @@ export default function BarcodeManagement() {
   const [search, setSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
   const [barcodeImage, setBarcodeImage] = useState("");
 
   const [loading, setLoading] = useState(false);
@@ -169,45 +171,13 @@ export default function BarcodeManagement() {
   };
 
   const handlePrint = () => {
-    const printWindow = window.open("", "_blank");
-    if (!printWindow || !selectedProduct) return;
-
-    const barcodeDataUrl = barcodeImage;
-
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Barcode - ${selectedProduct.name}</title>
-          <style>
-            @page { size: 50mm 30mm; margin: 2mm; }
-            body { 
-              font-family: Arial, sans-serif; 
-              text-align: center;
-              padding: 4mm;
-            }
-            .label {
-              border: 1px dashed #ccc;
-              padding: 2mm;
-            }
-            .shop-name { font-size: 10pt; font-weight: bold; margin-bottom: 2mm; }
-            .item-name { font-size: 8pt; margin: 2mm 0; }
-            .price { font-size: 10pt; font-weight: bold; }
-            img.barcode { max-width: 100%; height: auto; }
-          </style>
-        </head>
-        <body>
-          <div class="label">
-            <div class="shop-name">${t("smart_supermarket")}</div>
-            ${barcodeDataUrl ? `<img class="barcode" src="${barcodeDataUrl}" alt="Barcode" />` : ""}
-            <div class="item-name">${selectedProduct.name}</div>
-            <div class="price">${selectedProduct.sellingPrice} ETB</div>
-          </div>
-          <script>window.onload = () => { window.print(); window.close(); }</script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+    if (!selectedProduct) return;
+    printBarcodeLabel({
+      barcode: getActiveBarcode(selectedProduct),
+      productName: selectedProduct.name,
+      price: selectedProduct.sellingPrice,
+      shopName: t("kiya_pos_system"),
+    });
   };
 
   const openBarcodeDialog = (product: Product) => {
@@ -374,7 +344,7 @@ export default function BarcodeManagement() {
                 {getActiveBarcode(selectedProduct) ? (
                   <div className="barcode-label text-center">
                     <p className="font-bold text-sm mb-2">
-                      {t("smart_supermarket")}
+                      {t("kiya_pos_system")}
                     </p>
                     {barcodeImage ? (
                       <img
@@ -415,7 +385,10 @@ export default function BarcodeManagement() {
                       : t("generate")}
                   </Button>
                   {getActiveBarcode(selectedProduct) && (
-                    <Button className="flex-1" onClick={handlePrint}>
+                    <Button
+                      className="flex-1"
+                      onClick={() => setIsPrintDialogOpen(true)}
+                    >
                       <Printer className="mr-2 h-4 w-4" />
                       {t("print_label")}
                     </Button>
@@ -425,6 +398,14 @@ export default function BarcodeManagement() {
             )}
           </DialogContent>
         </Dialog>
+
+        <BarcodePrintDialog
+          open={isPrintDialogOpen}
+          onOpenChange={setIsPrintDialogOpen}
+          barcode={getActiveBarcode(selectedProduct)}
+          productName={selectedProduct?.name}
+          price={selectedProduct?.sellingPrice}
+        />
       </div>
     </RoleLayout>
   );

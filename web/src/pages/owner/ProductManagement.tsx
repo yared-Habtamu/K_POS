@@ -37,6 +37,7 @@ import { toast } from "@/hooks/use-toast";
 import { useProductStore } from "@/stores/productStore";
 import { useAuthStore } from "@/stores/authStore";
 import type { Product, ProductUnit } from "@/types";
+import { generateUniqueBarcode, printBarcodeLabel } from "@/utils/barcodes";
 import {
   Package,
   Plus,
@@ -46,8 +47,13 @@ import {
   Barcode,
   Image as ImageIcon,
   Loader2,
+  Printer,
   RotateCw,
+  Scan,
 } from "lucide-react";
+import { BarcodeScanner } from "@/components/barcode/BarcodeScanner";
+import { BarcodePreview } from "@/components/barcode/BarcodePreview";
+import { BarcodePrintDialog } from "@/components/barcode/BarcodePrintDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -142,6 +148,9 @@ export default function ProductManagement() {
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [soldMap, setSoldMap] = useState<Record<string, number>>({});
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
+  const [printTargetBarcode, setPrintTargetBarcode] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -502,6 +511,12 @@ export default function ProductManagement() {
     })();
   };
 
+  const activeBarcode =
+    (form.barcodeInput || "").trim() ||
+    (Array.isArray(form.barcodes) && form.barcodes.length > 0
+      ? String(form.barcodes[0] || "").trim()
+      : "");
+
   // Pagination handlers
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
@@ -769,8 +784,16 @@ export default function ProductManagement() {
                         onChange={(e) =>
                           setForm({ ...form, barcodeInput: e.target.value })
                         }
-                        placeholder="Enter barcode to add"
+                        placeholder={t("enter_barcode_to_add")}
                       />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsScannerOpen(true)}
+                        title={t("scan")}
+                      >
+                        <Scan className="h-4 w-4" />
+                      </Button>
                       <Button
                         type="button"
                         variant="outline"
@@ -835,7 +858,7 @@ export default function ProductManagement() {
                           })();
                         }}
                       >
-                        Add
+                        {t("add")}
                       </Button>
                       <Button
                         type="button"
@@ -843,9 +866,15 @@ export default function ProductManagement() {
                         onClick={generateBarcode}
                       >
                         <Barcode className="mr-2 h-4 w-4" />
-                        Generate
+                        {t("generate")}
                       </Button>
                     </div>
+
+                    <BarcodePreview 
+                      barcode={activeBarcode} 
+                      productName={form.name} 
+                      price={form.sellingPrice} 
+                    />
 
                     <div className="flex flex-wrap gap-2 mt-2">
                       {(Array.isArray(form.barcodes) ? form.barcodes : []).map(
@@ -854,11 +883,24 @@ export default function ProductManagement() {
                             key={b + "-" + idx}
                             className="inline-flex items-center gap-2 px-2 py-1 rounded border"
                           >
-                            <span className="font-mono text-sm">{b}</span>
+                          <span className="font-mono text-sm">{b}</span>
+                          <div className="flex items-center">
                             <Button
                               type="button"
                               variant="ghost"
-                              className="text-destructive p-1"
+                              className="h-8 w-8 p-0"
+                              onClick={() => {
+                                setPrintTargetBarcode(b);
+                                setIsPrintDialogOpen(true);
+                              }}
+                            >
+                              <Printer className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              role="button"
+                              className="h-8 w-8 p-0 text-destructive"
                               onClick={() => {
                                 const arr = (form.barcodes || []).slice();
                                 arr.splice(idx, 1);
@@ -867,6 +909,7 @@ export default function ProductManagement() {
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
+                          </div>
                           </div>
                         ),
                       )}
@@ -998,7 +1041,7 @@ export default function ProductManagement() {
                     {isLoading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Saving...
+                        {t("saving")}
                       </>
                     ) : (
                       t("save")
@@ -1006,6 +1049,26 @@ export default function ProductManagement() {
                   </Button>
                 </div>
               </form>
+
+              <Dialog open={isScannerOpen} onOpenChange={setIsScannerOpen}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>{t("scan_barcode")}</DialogTitle>
+                  </DialogHeader>
+                  <BarcodeScanner 
+                    onScan={(code) => setForm({ ...form, barcodeInput: code })}
+                    onClose={() => setIsScannerOpen(false)}
+                  />
+                </DialogContent>
+              </Dialog>
+
+              <BarcodePrintDialog
+                open={isPrintDialogOpen}
+                onOpenChange={setIsPrintDialogOpen}
+                barcode={printTargetBarcode}
+                productName={form.name}
+                price={form.sellingPrice}
+              />
             </DialogContent>
           </Dialog>
         </div>
