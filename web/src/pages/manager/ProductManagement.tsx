@@ -884,17 +884,12 @@ export default function ManagerProductManagement() {
                   price={form.sellingPrice}
                 />
 
-                <Dialog open={isScannerOpen} onOpenChange={setIsScannerOpen}>
-                  <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                      <DialogTitle>{t("scan_barcode")}</DialogTitle>
-                    </DialogHeader>
-                    <BarcodeScanner
-                      onScan={(code) => setForm({ ...form, barcodeInput: code })}
-                      onClose={() => setIsScannerOpen(false)}
-                    />
-                  </DialogContent>
-                </Dialog>
+                {isScannerOpen && (
+                  <BarcodeScanner 
+                    onScan={(code) => setForm({ ...form, barcodeInput: code })}
+                    onClose={() => setIsScannerOpen(false)}
+                  />
+                )}
 
                 <Dialog open={barcodeConflictOpen} onOpenChange={setBarcodeConflictOpen}>
                   <DialogContent>
