@@ -695,7 +695,7 @@ export default function ProductAdd() {
 
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="barcodeInput">{t("barcodes")}</Label>
-                    <div className="flex gap-2">
+                    <div className="space-y-2 sm:space-y-0 sm:flex sm:gap-2">
                       <Input
                         id="barcodeInput"
                         value={form.barcodeInput}
@@ -703,12 +703,15 @@ export default function ProductAdd() {
                           setForm({ ...form, barcodeInput: e.target.value })
                         }
                         placeholder={t("enter_barcode_to_add")}
+                        className="w-full"
                       />
+                      <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center sm:gap-2">
                       <Button
                         type="button"
                         variant="outline"
                         onClick={() => setIsScannerOpen(true)}
                         title={t("scan")}
+                        className="w-full sm:w-auto"
                       >
                         <Scan className="h-4 w-4" />
                       </Button>
@@ -750,6 +753,7 @@ export default function ProductAdd() {
                             }
                           })();
                         }}
+                        className="w-full sm:w-auto"
                       >
                         {t("add")}
                       </Button>
@@ -757,10 +761,12 @@ export default function ProductAdd() {
                         type="button"
                         variant="outline"
                         onClick={generateBarcode}
+                        className="w-full sm:w-auto"
                       >
                         <Barcode className="mr-2 h-4 w-4" />
                         {t("generate")}
                       </Button>
+                      </div>
                     </div>
 
                     <BarcodePreview 

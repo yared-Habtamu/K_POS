@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Search, Barcode, X, Package } from "lucide-react";
+import { Search, Barcode, X, Package, Scan } from "lucide-react";
+import { BarcodeScanner } from "@/components/barcode/BarcodeScanner";
 import type { Product } from "@/types";
 
 interface ProductSearchProps {
@@ -31,6 +32,7 @@ export function ProductSearch({
   const [internalQuery, setInternalQuery] = useState("");
   const [results, setResults] = useState<Product[]>([]);
   const [showResults, setShowResults] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const query = value ?? internalQuery;
 
@@ -121,23 +123,43 @@ export function ProductSearch({
             value={query}
             onChange={(e) => updateQuery(e.target.value)}
             placeholder={t("scan_barcode")}
-            className="pl-12 pr-12 h-14 text-lg rounded-xl"
+            className="pl-12 pr-20 h-14 text-lg rounded-xl"
             autoFocus={autoFocus}
           />
-          {query && (
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3">
+            {query && (
+              <button
+                type="button"
+                onClick={() => {
+                  updateQuery("");
+                  setShowResults(false);
+                }}
+                className="text-muted-foreground hover:text-foreground p-1 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => {
-                updateQuery("");
-                setShowResults(false);
-              }}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => setIsScannerOpen(true)}
+              className="text-primary hover:text-primary/80 p-1 transition-colors"
+              title={t("scan")}
             >
-              <X className="h-5 w-5" />
+              <Scan className="h-6 w-6" />
             </button>
-          )}
+          </div>
         </div>
       </form>
+
+      {isScannerOpen && (
+        <BarcodeScanner
+          onScan={(code) => {
+            updateQuery(code);
+            setIsScannerOpen(false);
+          }}
+          onClose={() => setIsScannerOpen(false)}
+        />
+      )}
 
       <AnimatePresence>
         {showResults && results.length > 0 && (
