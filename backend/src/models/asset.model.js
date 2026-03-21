@@ -20,6 +20,7 @@ const AssetSchema = new mongoose.Schema(
     quantity: { type: Number, required: true, default: 0 },
     description: { type: String },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    isDeleted: { type: Boolean, default: false, index: true },
   },
   { timestamps: true }
 );

@@ -104,16 +104,6 @@ const expenseCategories: {
 
 const ITEMS_PER_PAGE = 7; // ✅ 7 items per page
 
-const loadImage = (url: string | null): Promise<HTMLImageElement | null> => {
-  return new Promise((resolve) => {
-    if (!url) return resolve(null);
-    const img = new Image();
-    img.crossOrigin = "Anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = url;
-  });
-};
 
 export default function ExpenseManagement() {
   const { t } = useTranslation();
@@ -686,23 +676,24 @@ export default function ExpenseManagement() {
     try {
       toast.info(t("generating_pdf_wait", { defaultValue: "Generating PDF, please wait..." }));
 
-      const imageRows = await Promise.all(
-        filteredExpenses.map(async (expense) => {
-          const itemUrl = (expense as any).productPicture || null;
-          const screenshotUrl =
-            (Array.isArray((expense as any).screenshots) &&
-              (expense as any).screenshots[0]) ||
-            (expense as any).paymentScreenshot ||
-            null;
+      const loadImage = (url: string | null): Promise<HTMLImageElement | null> => {
+        return new Promise((resolve) => {
+          if (!url) return resolve(null);
+          const img = new Image();
+          img.crossOrigin = "Anonymous";
+          img.onload = () => resolve(img);
+          img.onerror = () => resolve(null);
+          img.src = url;
+        });
+      };
 
-          const [item, screenshot] = await Promise.all([
-            loadImage(itemUrl),
-            loadImage(screenshotUrl),
-          ]);
-
-          return { item, screenshot };
-        }),
-      );
+      const [loadedItemImages, loadedScreenshotImages] = await Promise.all([
+        Promise.all(filteredExpenses.map(e => (e as any).productPicture ? loadImage((e as any).productPicture) : Promise.resolve(null))),
+        Promise.all(filteredExpenses.map(e => {
+          const s = (Array.isArray((e as any).screenshots) && (e as any).screenshots[0]) || (e as any).paymentScreenshot || null;
+          return s ? loadImage(s) : Promise.resolve(null);
+        }))
+      ]);
 
       const bodyRows: string[][] = filteredExpenses.map((expense, idx) => [
         String(idx + 1),
@@ -781,24 +772,24 @@ export default function ExpenseManagement() {
           if (data.section !== "body" || data.row.index >= filteredExpenses.length)
             return;
 
-          const rowImage = imageRows[data.row.index];
-          if (!rowImage) return;
+          const padding = 1.5;
+          const maxWidth = data.cell.width - padding * 2;
+          const maxHeight = data.cell.height - padding * 2;
+          const side = Math.max(1, Math.min(maxWidth, maxHeight));
+          const x = data.cell.x + (data.cell.width - side) / 2;
+          const y = data.cell.y + (data.cell.height - side) / 2;
 
-          const drawImage = (img: HTMLImageElement | null, colIndex: number) => {
-            if (!img || data.column.index !== colIndex) return;
-
-            const padding = 1.5;
-            const maxWidth = data.cell.width - padding * 2;
-            const maxHeight = data.cell.height - padding * 2;
-            const side = Math.max(1, Math.min(maxWidth, maxHeight));
-            const x = data.cell.x + (data.cell.width - side) / 2;
-            const y = data.cell.y + (data.cell.height - side) / 2;
-
-            doc.addImage(img, "JPEG", x, y, side, side);
-          };
-
-          if (rowImage.item) drawImage(rowImage.item, 2);
-          if (rowImage.screenshot) drawImage(rowImage.screenshot, 5);
+          if (data.column.index === 2) {
+            const img = loadedItemImages[data.row.index];
+            if (img) {
+              doc.addImage(img, "JPEG", x, y, side, side);
+            }
+          } else if (data.column.index === 5) {
+            const img = loadedScreenshotImages[data.row.index];
+            if (img) {
+              doc.addImage(img, "JPEG", x, y, side, side);
+            }
+          }
         },
       });
 

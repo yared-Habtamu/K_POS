@@ -30,6 +30,7 @@ const ExpenseSchema = new mongoose.Schema(
     reason: { type: String },
     // multiple supporting screenshots (URLs)
     screenshots: [{ type: String }],
+    isDeleted: { type: Boolean, default: false, index: true },
   },
   { timestamps: true },
 );

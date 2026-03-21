@@ -13,6 +13,7 @@ const UserSchema = new mongoose.Schema(
     salary: { type: Number },
     permissions: { type: [String], default: [] },
     active: { type: Boolean, default: true },
+    isDeleted: { type: Boolean, default: false, index: true },
   },
   { timestamps: true },
 );

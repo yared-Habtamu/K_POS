@@ -37,6 +37,7 @@ const MartSchema = new mongoose.Schema(
       enum: ["pending", "approved", "disabled"],
       default: "pending",
     },
+    isDeleted: { type: Boolean, default: false, index: true },
   },
   { timestamps: true },
 );

@@ -19,6 +19,7 @@ const ProductSchema = new mongoose.Schema(
     barcodes: { type: [String], index: true, default: [] },
     imageUrl: { type: String },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    isDeleted: { type: Boolean, default: false, index: true },
   },
   { timestamps: true },
 );

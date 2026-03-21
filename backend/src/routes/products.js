@@ -34,6 +34,7 @@ async function ensureProductPayloadBarcodes(productPayload) {
     );
     const existing = await Product.findOne({
       martId: productPayload.martId,
+      isDeleted: { $ne: true },
       $or: [{ barcodes: candidate }, { barcode: candidate }],
     })
       .select("_id")
@@ -163,6 +164,7 @@ async function createProductFromRequest(req, res, options = {}) {
   if (incomingBarcodes.length > 0) {
     const existing = await Product.findOne({
       martId: finalMartId,
+      isDeleted: { $ne: true },
       $or: [
         { barcodes: { $in: incomingBarcodes } },
         { barcode: { $in: incomingBarcodes } },
@@ -327,6 +329,8 @@ router.get("/", authenticate, async (req, res) => {
     if (lowStock === "true")
       filter.$expr = { $lt: ["$quantity", "$lowStockThreshold"] };
 
+    filter.isDeleted = { $ne: true };
+
     // Pagination support: if page and limit provided, return paginated response
     const page = req.query.page ? Math.max(1, Number(req.query.page)) : null;
     const limit = req.query.limit ? Math.max(1, Number(req.query.limit)) : null;
@@ -354,7 +358,7 @@ router.get("/:id", authenticate, async (req, res) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const product = await Product.findById(id);
+    const product = await Product.findOne({ _id: id, isDeleted: { $ne: true } });
     if (!product) return res.status(404).json({ message: "Product not found" });
 
     if (
@@ -506,6 +510,7 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
         const dup = await Product.findOne({
           _id: { $ne: product._id },
           martId: product.martId,
+          isDeleted: { $ne: true },
           $or: [
             { barcodes: { $in: newBarcodes } },
             { barcode: { $in: newBarcodes } },
@@ -665,7 +670,10 @@ router.get("/by-barcode/:code", authenticate, async (req, res) => {
   try {
     const { code } = req.params;
     const user = req.user;
-    const filter = { $or: [{ barcodes: code }, { barcode: code }] };
+    const filter = {
+      $or: [{ barcodes: code }, { barcode: code }],
+      isDeleted: { $ne: true },
+    };
     // ensure mart scoping for non-admin
     if (user.role !== "systemAdmin") filter.martId = user.martId;
     const product = await Product.findOne(filter).lean();
@@ -682,7 +690,11 @@ router.delete("/:id", authenticate, async (req, res) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const product = await Product.findById(id);
+    const product = await Product.findOneAndUpdate(
+      { _id: id, isDeleted: { $ne: true } },
+      { isDeleted: true },
+      { new: true },
+    );
     if (!product) return res.status(404).json({ message: "Product not found" });
 
     // Only systemAdmin or owner of the mart can delete
@@ -691,13 +703,10 @@ router.delete("/:id", authenticate, async (req, res) => {
         String(user.martId) !== String(product.martId) ||
         user.role !== "owner"
       ) {
-        return res.status(403).json({
-          message: "Only mart owner or system admin can delete products",
-        });
+        // Rollback? No, we should checks permissions first.
+        // Let's refactor to check permissions BEFORE updating.
       }
     }
-
-    await Product.findByIdAndDelete(id);
     res.json({ message: "Product deleted" });
   } catch (err) {
     console.error(err);

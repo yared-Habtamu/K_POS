@@ -9,6 +9,7 @@ const CustomerSchema = new mongoose.Schema({
   totalCredit: { type: Number, default: 0 },
   totalPaid: { type: Number, default: 0 },
   totalUnpaid: { type: Number, default: 0 },
+  isDeleted: { type: Boolean, default: false, index: true },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Customer', CustomerSchema);

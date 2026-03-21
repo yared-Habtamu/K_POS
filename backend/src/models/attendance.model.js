@@ -11,6 +11,7 @@ const AttendanceSchema = new mongoose.Schema(
     durationMinutes: { type: Number, default: 0 },
     notes: { type: String },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    isDeleted: { type: Boolean, default: false, index: true },
   },
   { timestamps: true },
 );
