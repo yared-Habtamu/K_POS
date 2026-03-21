@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
@@ -27,9 +28,22 @@ const features = [
 ];
 
 export default function Index() {
-  const { t, i18n } = useTranslation();
-  const navigate = useNavigate();
   const { isAuthenticated, user } = useAuthStore();
+  const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const routes = {
+        system_admin: '/admin',
+        owner: '/owner',
+        manager: '/manager',
+        cashier: '/cashier',
+        store_keeper: '/store-keeper',
+      };
+      navigate(routes[user.role] || '/login');
+    }
+  }, [isAuthenticated, user, navigate]);
 
   const handleGetStarted = () => {
     if (isAuthenticated && user) {

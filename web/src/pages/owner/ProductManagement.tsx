@@ -49,7 +49,7 @@ import {
   Loader2,
   Printer,
   RotateCw,
-  Scan,
+  ScanBarcode,
 } from "lucide-react";
 import { BarcodeScanner } from "@/components/barcode/BarcodeScanner";
 import { BarcodePreview } from "@/components/barcode/BarcodePreview";
@@ -151,6 +151,9 @@ export default function ProductManagement() {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
   const [printTargetBarcode, setPrintTargetBarcode] = useState("");
+  const [isTableScannerOpen, setIsTableScannerOpen] = useState(false);
+  const [isRowScannerOpen, setIsRowScannerOpen] = useState(false);
+  const [activeScannerProduct, setActiveScannerProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -795,7 +798,7 @@ export default function ProductManagement() {
                         onClick={() => setIsScannerOpen(true)}
                         title={t("scan")}
                       >
-                        <Scan className="h-4 w-4" />
+                        <ScanBarcode className="h-4 w-4" />
                       </Button>
                       <Button
                         type="button"
@@ -1055,7 +1058,18 @@ export default function ProductManagement() {
 
               {isScannerOpen && (
                 <BarcodeScanner 
-                  onScan={(code) => setForm({ ...form, barcodeInput: code })}
+                  onScan={(code) => {
+                    setForm((prev) => {
+                      const existing = Array.isArray(prev.barcodes) ? prev.barcodes : [];
+                      if (existing.includes(code)) return { ...prev, barcodeInput: code };
+                      return { 
+                        ...prev, 
+                        barcodes: [...existing, code],
+                        barcodeInput: code 
+                      };
+                    });
+                    setIsScannerOpen(false);
+                  }}
                   onClose={() => setIsScannerOpen(false)}
                 />
               )}
@@ -1078,8 +1092,28 @@ export default function ProductManagement() {
             {
               key: "query",
               label: t("search"),
-              type: "search",
-              placeholder: "Search products...",
+              type: "custom",
+              render: ({ value, setValue }) => (
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={typeof value === "string" ? value : ""}
+                    onChange={(event) => setValue(event.target.value)}
+                    placeholder="Search products..."
+                    className="pl-10 pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setIsTableScannerOpen(true)}
+                    title={t("scan")}
+                  >
+                    <ScanBarcode className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
+                  </Button>
+                </div>
+              ),
             },
             {
               key: "category",
@@ -1219,6 +1253,17 @@ export default function ProductManagement() {
                             <Button
                               variant="ghost"
                               size="icon"
+                              onClick={() => {
+                                setActiveScannerProduct(product);
+                                setIsRowScannerOpen(true);
+                              }}
+                              title="Scan Barcode"
+                            >
+                              <ScanBarcode className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               onClick={() => handleEdit(product)}
                             >
                               <Edit className="h-4 w-4" />
@@ -1305,6 +1350,50 @@ export default function ProductManagement() {
             </div>
           </CardContent>
         </Card>
+        {isTableScannerOpen && (
+          <BarcodeScanner
+            onScan={(code) => {
+              setFilterValues((prev) => ({ ...prev, query: code }));
+              setIsTableScannerOpen(false);
+            }}
+            onClose={() => setIsTableScannerOpen(false)}
+          />
+        )}
+
+        {isRowScannerOpen && (
+          <BarcodeScanner
+            onScan={async (code) => {
+              if (!activeScannerProduct) return;
+              const existingBarcodes = Array.isArray(activeScannerProduct.barcodes)
+                ? activeScannerProduct.barcodes.slice()
+                : activeScannerProduct.barcode
+                  ? [activeScannerProduct.barcode]
+                  : [];
+              
+              if (existingBarcodes.includes(code)) {
+                toast({ title: "Barcode already exists for this product" });
+                setIsRowScannerOpen(false);
+                return;
+              }
+
+              try {
+                await updateProduct(activeScannerProduct.id, {
+                  barcodes: [...existingBarcodes, code],
+                });
+                toast({ title: "Barcode added successfully" });
+              } catch (err) {
+                toast({ title: "Failed to add barcode", variant: "destructive" });
+              } finally {
+                setIsRowScannerOpen(false);
+                setActiveScannerProduct(null);
+              }
+            }}
+            onClose={() => {
+              setIsRowScannerOpen(false);
+              setActiveScannerProduct(null);
+            }}
+          />
+        )}
       </div>
     </RoleLayout>
   );

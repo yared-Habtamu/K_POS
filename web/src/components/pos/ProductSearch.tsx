@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Search, Barcode, X, Package, Scan } from "lucide-react";
+import { Search, Barcode, X, Package, ScanBarcode } from "lucide-react";
 import { BarcodeScanner } from "@/components/barcode/BarcodeScanner";
 import type { Product } from "@/types";
 
@@ -145,7 +145,7 @@ export function ProductSearch({
               className="text-primary hover:text-primary/80 p-1 transition-colors"
               title={t("scan")}
             >
-              <Scan className="h-6 w-6" />
+              <ScanBarcode className="h-6 w-6" />
             </button>
           </div>
         </div>

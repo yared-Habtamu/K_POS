@@ -24,7 +24,7 @@ import {
   Printer,
   Trash2,
   RotateCw,
-  Scan,
+  ScanBarcode,
 } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -713,7 +713,7 @@ export default function ProductAdd() {
                         title={t("scan")}
                         className="w-full sm:w-auto"
                       >
-                        <Scan className="h-4 w-4" />
+                        <ScanBarcode className="h-4 w-4" />
                       </Button>
                       <Button
                         type="button"
@@ -934,7 +934,15 @@ export default function ProductAdd() {
                 {isScannerOpen && (
                   <BarcodeScanner 
                     onScan={(code) => {
-                      setForm({ ...form, barcodeInput: code });
+                      setForm((prev) => {
+                        const existing = Array.isArray(prev.barcodes) ? prev.barcodes : [];
+                        if (existing.includes(code)) return { ...prev, barcodeInput: code };
+                        return { 
+                          ...prev, 
+                          barcodes: [...existing, code],
+                          barcodeInput: code 
+                        };
+                      });
                       setIsScannerOpen(false);
                     }}
                     onClose={() => setIsScannerOpen(false)}

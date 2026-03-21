@@ -135,11 +135,13 @@ async function createProductFromRequest(req, res, options = {}) {
     supermarketQuantity: Math.max(0, Number(supermarketQty)),
     lowStockThreshold: Number(lowStockThreshold || 10),
     expiryDate: expiryDate || null,
-    barcodes: Array.isArray(barcodes)
+    barcodes: (Array.isArray(barcodes)
       ? barcodes
-      : barcode
-        ? [String(barcode)]
-        : [],
+      : (barcodes || barcode)
+        ? [String(barcodes || barcode)]
+        : [])
+      .map(b => String(b).trim())
+      .filter(Boolean),
     imageUrl: finalImageUrl || "",
     createdBy: user.id,
   };
@@ -236,16 +238,18 @@ async function createProductFromRequest(req, res, options = {}) {
     await reqDoc.save();
 
     if (approvers && approvers.length > 0) {
-      for (const approver of approvers) {
-        await createNotification({
-          martId: finalMartId,
-          userId: approver._id,
-          type: "product_add_request",
-          title: "Product creation requested",
-          message: `${reqDoc.requesterName || "Owner"} requested to add product ${name}`,
-          metadata: { requestId: reqDoc._id, name, approvalRole },
-        });
-      }
+      await Promise.all(
+        approvers.map((approver) =>
+          createNotification({
+            martId: finalMartId,
+            userId: approver._id,
+            type: "product_add_request",
+            title: "Product creation requested",
+            message: `${reqDoc.requesterName || "Owner"} requested to add product ${name}`,
+            metadata: { requestId: reqDoc._id, name, approvalRole },
+          })
+        )
+      );
     } else {
       await createNotification({
         martId: finalMartId,
@@ -596,21 +600,23 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
         await reqDoc.save();
         requestIds.push(String(reqDoc._id));
 
-        for (const approver of approvers) {
-          await createNotification({
-            martId: product.martId,
-            userId: approver._id,
-            type: "product_edit_request",
-            title: "Product edit requested",
-            message: `${reqDoc.requesterName} requested updates for product ${product.name}`,
-            metadata: {
-              requestId: reqDoc._id,
-              productId: product._id,
-              approvalRole,
-              requestedChanges: reqDoc.changes,
-            },
-          });
-        }
+        await Promise.all(
+          approvers.map((approver) =>
+            createNotification({
+              martId: product.martId,
+              userId: approver._id,
+              type: "product_edit_request",
+              title: "Product edit requested",
+              message: `${reqDoc.requesterName} requested updates for product ${product.name}`,
+              metadata: {
+                requestId: reqDoc._id,
+                productId: product._id,
+                approvalRole,
+                requestedChanges: reqDoc.changes,
+              },
+            })
+          )
+        );
       };
 
       await createEditRequestForRole(

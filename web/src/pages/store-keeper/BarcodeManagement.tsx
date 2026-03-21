@@ -24,7 +24,7 @@ import {
   RefreshCw,
   Package,
   Image as ImageIcon,
-  QrCode,
+  ScanBarcode,
 } from "lucide-react";
 import { generateUniqueBarcode, printBarcodeLabel } from "@/utils/barcodes";
 import { BarcodePrintDialog } from "@/components/barcode/BarcodePrintDialog";
@@ -217,7 +217,7 @@ export default function BarcodeManagement() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <QrCode className="h-5 w-5" />
+              <ScanBarcode className="h-5 w-5" />
               {t("barcode_scanner")}
             </CardTitle>
           </CardHeader>
