@@ -31,7 +31,17 @@ import {
   Image as ImageIcon,
   Pencil,
   Upload,
+  ScanBarcode,
+  Printer,
+  RotateCw,
+  Trash2,
+  Loader2,
+  Search,
 } from "lucide-react";
+import { BarcodeScanner } from "@/components/barcode/BarcodeScanner";
+import { BarcodePreview } from "@/components/barcode/BarcodePreview";
+import { BarcodePrintDialog } from "@/components/barcode/BarcodePrintDialog";
+import { generateUniqueBarcode } from "@/utils/barcodes";
 
 const defaultFilterValues: AdvancedFilterValues = {
   query: "",
@@ -99,6 +109,13 @@ export default function StockManagement() {
   const [barcodeValue, setBarcodeValue] = useState("");
   const [imageUploadFor, setImageUploadFor] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isTableScannerOpen, setIsTableScannerOpen] = useState(false);
+  const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
+  const [printTargetBarcode, setPrintTargetBarcode] = useState("");
+  const [barcodeInput, setBarcodeInput] = useState("");
+  const [barcodesArray, setBarcodesArray] = useState<string[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const categoryOptions = useMemo(() => {
     const categories = Array.from(
@@ -232,28 +249,54 @@ export default function StockManagement() {
 
   const openBarcodeEditor = (product: Product) => {
     setSelectedProduct(product);
-    setBarcodeValue(
-      Array.isArray(product.barcodes)
-        ? product.barcodes.join(",")
-        : product.barcode || "",
-    );
+    const existing = Array.isArray(product.barcodes)
+      ? product.barcodes.slice()
+      : product.barcode
+        ? [product.barcode]
+        : [];
+    setBarcodesArray(existing);
+    setBarcodeInput("");
     setBarcodeEditOpen(true);
   };
 
-  const handleSaveBarcodes = async () => {
+  const handleGenerateBarcode = async () => {
     if (!selectedProduct) return;
+    setIsGenerating(true);
+    try {
+      const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+      const findProductByBarcode = async (code: string) => {
+        const res = await fetch(`${API_BASE}/api/products/by-barcode/${encodeURIComponent(code)}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (res.status === 404) return null;
+        if (!res.ok) throw new Error("Failed to check barcode");
+        return await res.json();
+      };
+      
+      const b = await generateUniqueBarcode(findProductByBarcode);
+      setBarcodesArray((prev) => [...prev, b]);
+      setBarcodeInput("");
+    } catch (e) {
+      toast({ title: t("failed_generate_barcode"), variant: "destructive" });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
-    const barcodes = String(barcodeValue)
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean);
+  const handleSaveBarcodes = async () => {
+    const finalBarcodes = Array.from(
+      new Set(
+        [...barcodesArray, barcodeInput.trim()].filter(Boolean)
+      )
+    );
 
     try {
-      await updateProduct(selectedProduct.id, { barcodes });
+      await updateProduct(selectedProduct.id, { barcodes: finalBarcodes });
       toast({ title: t("barcodes_updated") });
       setBarcodeEditOpen(false);
       setSelectedProduct(null);
-      setBarcodeValue("");
+      setBarcodeInput("");
+      setBarcodesArray([]);
     } catch {
       toast({
         title: t("failed_update_barcodes"),
@@ -407,9 +450,29 @@ export default function StockManagement() {
           fields={[
             {
               key: "query",
-              label: "Search",
-              type: "search",
-              placeholder: t("search_by_name_or_barcode"),
+              label: t("search"),
+              type: "custom",
+              render: ({ value, setValue }) => (
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={typeof value === "string" ? value : ""}
+                    onChange={(event) => setValue(event.target.value)}
+                    placeholder={t("search_by_name_or_barcode")}
+                    className="pl-10 pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setIsTableScannerOpen(true)}
+                    title={t("scan")}
+                  >
+                    <ScanBarcode className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
+                  </Button>
+                </div>
+              ),
             },
             {
               key: "category",
@@ -686,35 +749,173 @@ export default function StockManagement() {
                 <p className="text-sm text-muted-foreground">{selectedProduct.category}</p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="barcodes">{t("edit_barcodes")}</Label>
-                <Input
-                  id="barcodes"
-                  value={barcodeValue}
-                  onChange={(e) => setBarcodeValue(e.target.value)}
-                  placeholder="Enter barcodes separated by commas"
-                />
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="barcodeInput">{t("add_barcode")}</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="barcodeInput"
+                      value={barcodeInput}
+                      onChange={(e) => setBarcodeInput(e.target.value)}
+                      placeholder={t("enter_barcode_to_add")}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const val = barcodeInput.trim();
+                          if (val && !barcodesArray.includes(val)) {
+                            setBarcodesArray([...barcodesArray, val]);
+                            setBarcodeInput("");
+                          }
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setIsScannerOpen(true)}
+                      title={t("scan")}
+                    >
+                      <ScanBarcode className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        const val = barcodeInput.trim();
+                        if (val && !barcodesArray.includes(val)) {
+                          setBarcodesArray([...barcodesArray, val]);
+                          setBarcodeInput("");
+                        }
+                      }}
+                      title={t("add")}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={handleGenerateBarcode}
+                      disabled={isGenerating}
+                      title={t("generate")}
+                    >
+                      {isGenerating ? (
+                        <RotateCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Barcode className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>{t("current_barcodes")}</Label>
+                  <div className="flex flex-wrap gap-2 p-3 border rounded-xl bg-accent/50">
+                    {barcodesArray.length > 0 ? (
+                      barcodesArray.map((b, idx) => (
+                        <div
+                          key={`${b}-${idx}`}
+                          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-background group"
+                        >
+                          <span className="font-mono text-sm">{b}</span>
+                          <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => {
+                                setPrintTargetBarcode(b);
+                                setIsPrintDialogOpen(true);
+                              }}
+                            >
+                              <Printer className="h-3.5 w-3.5 text-primary" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => {
+                                setBarcodesArray(barcodesArray.filter((_, i) => i !== idx));
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground w-full text-center py-2">
+                        {t("no_barcodes_yet")}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {barcodesArray.length > 0 && (
+                  <BarcodePreview
+                    barcode={barcodesArray[barcodesArray.length - 1]}
+                    productName={selectedProduct.name}
+                    price={selectedProduct.sellingPrice.toString()}
+                  />
+                )}
               </div>
 
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-2 pt-4 border-t">
                 <Button
                   variant="outline"
                   onClick={() => {
                     setBarcodeEditOpen(false);
-                    setBarcodeValue("");
+                    setBarcodeInput("");
+                    setBarcodesArray([]);
                     setSelectedProduct(null);
                   }}
                 >
                   {t("cancel")}
                 </Button>
-                <Button onClick={handleSaveBarcodes}>
+                <Button onClick={handleSaveBarcodes} className="bg-primary text-primary-foreground">
                   <Pencil className="mr-2 h-4 w-4" />
-                  {t("save")}
+                  {t("save_changes")}
                 </Button>
               </div>
             </div>
           ) : null}
+
+          {isScannerOpen && (
+            <BarcodeScanner
+              onScan={(code) => {
+                setBarcodesArray((prev) => {
+                  if (prev.includes(code)) return prev;
+                  return [...prev, code];
+                });
+                setBarcodeInput(code);
+                setIsScannerOpen(false);
+              }}
+              onClose={() => setIsScannerOpen(false)}
+            />
+          )}
+
+          <BarcodePrintDialog
+            open={isPrintDialogOpen}
+            onOpenChange={setIsPrintDialogOpen}
+            barcode={printTargetBarcode}
+            productName={selectedProduct?.name || ""}
+            price={selectedProduct?.sellingPrice.toString() || ""}
+          />
         </Modal>
+
+        {isTableScannerOpen && (
+          <BarcodeScanner
+            onScan={(code) => {
+              setFilterValues((prev) => ({ ...prev, query: code }));
+              setIsTableScannerOpen(false);
+            }}
+            onClose={() => setIsTableScannerOpen(false)}
+          />
+        )}
       </div>
     </RoleLayout>
   );
