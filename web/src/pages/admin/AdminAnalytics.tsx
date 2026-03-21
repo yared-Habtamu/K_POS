@@ -1,6 +1,8 @@
 import { useEffect, useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -46,6 +48,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   XCircle,
+  Eye,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -136,6 +139,7 @@ const fmt = (n: number) =>
 const fmtCurrency = (n: number) => `${fmt(n)} ETB`;
 
 export default function AdminAnalytics() {
+  const navigate = useNavigate();
   const auth = useAuthStore((s) => s.user);
   const API_BASE =
     import.meta.env.VITE_API_URL || import.meta.env.NEXT_PUBLIC_API_URL || "";
@@ -145,6 +149,7 @@ export default function AdminAnalytics() {
   const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
+  const [martSearch, setMartSearch] = useState("");
   const [martFilter, setMartFilter] = useState("all");
   const [stockFilter, setStockFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -163,8 +168,9 @@ export default function AdminAnalytics() {
         if (!res.ok) throw new Error("Failed to fetch analytics");
         const json: AnalyticsData = await res.json();
         setData(json);
-      } catch (err: any) {
-        setError(err.message || "Unknown error");
+      } catch (err: unknown) {
+        console.error("Failed to load admin analytics", err);
+        setError(err instanceof Error ? err.message : "Failed to load analytics");
       } finally {
         setLoading(false);
       }
@@ -201,6 +207,16 @@ export default function AdminAnalytics() {
     (page - 1) * ROWS_PER_PAGE,
     page * ROWS_PER_PAGE,
   );
+
+  const filteredMarts = useMemo(() => {
+    if (!data) return [];
+    if (!martSearch) return data.martAnalytics;
+    const q = martSearch.toLowerCase();
+    return data.martAnalytics.filter(
+      (m) =>
+        m.martName.toLowerCase().includes(q)
+    );
+  }, [data, martSearch]);
 
   useEffect(() => {
     setPage(1);
@@ -644,7 +660,7 @@ export default function AdminAnalytics() {
             <CardTitle className="text-base flex items-center gap-2">
               <Building2 className="h-4 w-4 text-primary" />
               Mart Comparison
-              <Badge variant="secondary" className="ml-1 bg-primary/10 text-primary border-none">{data.martAnalytics.length}</Badge>
+              <Badge variant="secondary" className="ml-1 bg-primary/10 text-primary border-none">{filteredMarts.length}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -661,11 +677,16 @@ export default function AdminAnalytics() {
                     <TableHead className="text-right text-xs font-semibold">Revenue</TableHead>
                     <TableHead className="text-right text-xs font-semibold">Expenses</TableHead>
                     <TableHead className="text-right text-xs font-semibold">Profit</TableHead>
+                    <TableHead className="text-center text-xs font-semibold">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.martAnalytics.map((m) => (
-                    <TableRow key={m.martId} className="border-border/40 hover:bg-muted/20 transition-colors">
+                  {filteredMarts.map((m) => (
+                    <TableRow 
+                      key={m.martId} 
+                      className="border-border/40 hover:bg-muted/20 transition-colors cursor-pointer"
+                      onClick={() => navigate(`/admin/mart/${m.martId}`)}
+                    >
                       <TableCell className="font-semibold text-sm text-primary">{m.martName}</TableCell>
                       <TableCell className="text-center">
                         <Badge variant="secondary" className="text-[10px] font-medium bg-muted/60 text-foreground border-none px-2">{m.productCount}</Badge>
@@ -687,15 +708,39 @@ export default function AdminAnalytics() {
                           {m.profit.toLocaleString()}
                         </span>
                       </TableCell>
+                      <TableCell className="text-center">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 hover:bg-primary/10 hover:text-primary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/admin/mart/${m.martId}`);
+                          }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
-                  {data.martAnalytics.length === 0 && (
+                  {filteredMarts.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-muted-foreground py-12">No marts found</TableCell>
+                      <TableCell colSpan={10} className="text-center text-muted-foreground py-12">No marts found</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
               </Table>
+            </div>
+            <div className="mt-4 flex justify-start">
+              <div className="relative w-full max-w-[240px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search markets..."
+                  className="pl-9 h-9 bg-muted/30 border-none focus-visible:ring-primary/20"
+                  value={martSearch}
+                  onChange={(e) => setMartSearch(e.target.value)}
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
