@@ -50,21 +50,16 @@ import {
 import { useAuthStore } from "@/stores/authStore";
 
 const CHART_COLORS = [
-  "#6366f1",
-  "#8b5cf6",
-  "#a78bfa",
-  "#c4b5fd",
-  "#818cf8",
-  "#7c3aed",
-  "#4f46e5",
-  "#6d28d9",
-  "#5b21b6",
-  "#4c1d95",
-  "#a855f7",
-  "#9333ea",
-  "#7e22ce",
-  "#6b21a8",
-  "#581c87",
+  "hsl(217 60% 30%)", // Primary Navy
+  "hsl(217 60% 45%)", // Lighter Navy
+  "hsl(262 80% 55%)", // Purple
+  "hsl(262 80% 65%)", // Lighter Purple
+  "hsl(38 92% 50%)",  // Amber
+  "hsl(142 76% 36%)", // Green
+  "hsl(0 84% 60%)",   // Red
+  "hsl(217 33% 40%)", // Muted Slate
+  "hsl(217 33% 20%)", // Dark Slate
+  "hsl(217 60% 20%)", // Deeper Navy
 ];
 
 type Platform = {
@@ -152,6 +147,7 @@ export default function AdminAnalytics() {
   const [search, setSearch] = useState("");
   const [martFilter, setMartFilter] = useState("all");
   const [stockFilter, setStockFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [page, setPage] = useState(1);
   const ROWS_PER_PAGE = 10;
 
@@ -194,8 +190,11 @@ export default function AdminAnalytics() {
     if (stockFilter !== "all") {
       list = list.filter((p) => p.stockStatus === stockFilter);
     }
+    if (categoryFilter !== "all") {
+      list = list.filter((p) => p.category === categoryFilter);
+    }
     return list;
-  }, [data, search, martFilter, stockFilter]);
+  }, [data, search, martFilter, stockFilter, categoryFilter]);
 
   const totalPages = Math.ceil(filteredProducts.length / ROWS_PER_PAGE);
   const paginatedProducts = filteredProducts.slice(
@@ -205,7 +204,7 @@ export default function AdminAnalytics() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, martFilter, stockFilter]);
+  }, [search, martFilter, stockFilter, categoryFilter]);
 
   if (loading) {
     return (
@@ -279,9 +278,9 @@ export default function AdminAnalytics() {
       label: "Monthly Profit",
       value: fmtCurrency(p.totalMonthlyProfit),
       icon: p.totalMonthlyProfit >= 0 ? ArrowUpRight : ArrowDownRight,
-      color: p.totalMonthlyProfit >= 0 ? "text-green-500" : "text-red-500",
+      color: p.totalMonthlyProfit >= 0 ? "text-success" : "text-destructive",
       bg:
-        p.totalMonthlyProfit >= 0 ? "bg-green-500/10" : "bg-red-500/10",
+        p.totalMonthlyProfit >= 0 ? "bg-success/10" : "bg-destructive/10",
     },
     {
       label: "Active Marts",
@@ -340,10 +339,10 @@ export default function AdminAnalytics() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
+          <Card className="shadow-card border-none glass">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <Building2 className="h-4 w-4" />
+                <Building2 className="h-4 w-4 text-primary" />
                 Mart Revenue Comparison
               </CardTitle>
             </CardHeader>
@@ -358,6 +357,7 @@ export default function AdminAnalytics() {
                     <CartesianGrid
                       strokeDasharray="3 3"
                       className="stroke-border"
+                      horizontal={false}
                     />
                     <XAxis
                       type="number"
@@ -367,23 +367,27 @@ export default function AdminAnalytics() {
                     <YAxis
                       dataKey="martName"
                       type="category"
-                      className="text-xs"
+                      className="text-xs font-medium"
                       width={100}
                       tick={{ fontSize: 11 }}
                     />
-                    <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`${v.toLocaleString()} ETB`, ""]} />
-                    <Bar dataKey="monthlySales" fill="#6366f1" radius={[0, 4, 4, 0]} name="Sales" />
-                    <Bar dataKey="monthlyExpenses" fill="#f43f5e" radius={[0, 4, 4, 0]} name="Expenses" />
+                    <Tooltip 
+                      contentStyle={tooltipStyle} 
+                      cursor={{ fill: 'hsl(var(--primary)/0.05)' }}
+                      formatter={(v: number) => [`${v.toLocaleString()} ETB`, ""]} 
+                    />
+                    <Bar dataKey="monthlySales" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} name="Sales" barSize={12} />
+                    <Bar dataKey="monthlyExpenses" fill="hsl(var(--destructive))" radius={[0, 4, 4, 0]} name="Expenses" barSize={12} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="shadow-card border-none glass">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <Package className="h-4 w-4" />
+                <Package className="h-4 w-4 text-primary" />
                 Category Distribution
               </CardTitle>
             </CardHeader>
@@ -396,10 +400,10 @@ export default function AdminAnalytics() {
                       dataKey="count"
                       nameKey="category"
                       cx="50%"
-                      cy="50%"
-                      outerRadius={100}
+                      cy="40%"
+                      outerRadius={80}
                       innerRadius={50}
-                      paddingAngle={2}
+                      paddingAngle={4}
                       label={({ category, percent }) =>
                         `${category} (${(percent * 100).toFixed(0)}%)`
                       }
@@ -409,15 +413,19 @@ export default function AdminAnalytics() {
                         <Cell
                           key={i}
                           fill={CHART_COLORS[i % CHART_COLORS.length]}
+                          className="stroke-background hover:opacity-80 transition-opacity"
                         />
                       ))}
                     </Pie>
                     <Tooltip contentStyle={tooltipStyle} />
                     <Legend
-                      wrapperStyle={{ fontSize: "11px" }}
+                      layout="horizontal"
+                      verticalAlign="bottom"
+                      align="center"
+                      wrapperStyle={{ fontSize: "11px", paddingTop: "20px" }}
                       formatter={(val) =>
-                        String(val).length > 15
-                          ? String(val).slice(0, 15) + "…"
+                        String(val).length > 20
+                          ? String(val).slice(0, 20) + "…"
                           : val
                       }
                     />
@@ -428,71 +436,155 @@ export default function AdminAnalytics() {
           </Card>
         </div>
 
-        <Card>
-          <CardHeader>
+        <Card className="shadow-card border-none glass">
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              Mart Comparison
-              <Badge variant="secondary" className="ml-1">{data.martAnalytics.length}</Badge>
+              <Package className="h-4 w-4 text-primary" />
+              All Products
+              <Badge variant="secondary" className="ml-1 bg-primary/10 text-primary border-none">{filteredProducts.length}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
+            <div className="flex flex-col sm:flex-row gap-3 mb-6">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search products, categories, marts..."
+                  className="pl-9 bg-muted/30 border-none focus-visible:ring-primary/20"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Select value={martFilter} onValueChange={setMartFilter}>
+                  <SelectTrigger className="w-[160px] bg-muted/30 border-none">
+                    <SelectValue placeholder="All Marts" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Marts</SelectItem>
+                    {data.martAnalytics.map((m) => (
+                      <SelectItem key={m.martId} value={m.martId}>{m.martName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger className="w-[160px] bg-muted/30 border-none">
+                    <SelectValue placeholder="Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {data.categoryDistribution.map((c) => (
+                      <SelectItem key={c.category} value={c.category}>{c.category}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={stockFilter} onValueChange={setStockFilter}>
+                  <SelectTrigger className="w-[150px] bg-muted/30 border-none">
+                    <SelectValue placeholder="Stock Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Stock</SelectItem>
+                    <SelectItem value="in_stock">In Stock</SelectItem>
+                    <SelectItem value="low_stock">Low Stock</SelectItem>
+                    <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-lg border border-border/50">
               <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Mart</TableHead>
-                    <TableHead className="text-center">Products</TableHead>
-                    <TableHead className="text-center">Users</TableHead>
-                    <TableHead className="text-right">Inventory Value</TableHead>
-                    <TableHead className="text-right">Selling Value</TableHead>
-                    <TableHead className="text-right">Avg Margin</TableHead>
-                    <TableHead className="text-right">Monthly Sales</TableHead>
-                    <TableHead className="text-right">Expenses</TableHead>
-                    <TableHead className="text-right">Profit</TableHead>
+                <TableHeader className="bg-muted/30">
+                  <TableRow className="hover:bg-transparent border-border/50">
+                    <TableHead className="w-12 text-center text-xs font-semibold">#</TableHead>
+                    <TableHead className="text-xs font-semibold">Product</TableHead>
+                    <TableHead className="text-xs font-semibold">Category</TableHead>
+                    <TableHead className="text-xs font-semibold">Mart</TableHead>
+                    <TableHead className="text-right text-xs font-semibold">Purchase</TableHead>
+                    <TableHead className="text-right text-xs font-semibold">Selling</TableHead>
+                    <TableHead className="text-right text-xs font-semibold">Margin</TableHead>
+                    <TableHead className="text-right text-xs font-semibold">Qty</TableHead>
+                    <TableHead className="text-center text-xs font-semibold">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.martAnalytics.map((m) => (
-                    <TableRow key={m.martId}>
-                      <TableCell className="font-medium">{m.martName}</TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="outline">{m.productCount}</Badge>
+                  {paginatedProducts.map((pr, i) => (
+                    <TableRow key={pr._id} className="border-border/40 hover:bg-muted/20 transition-colors">
+                      <TableCell className="text-muted-foreground text-[10px] text-center">{(page - 1) * ROWS_PER_PAGE + i + 1}</TableCell>
+                      <TableCell className="font-medium text-sm">{pr.name}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-[10px] font-normal border-border/50">{pr.category}</Badge>
                       </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="outline">{m.userCount}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">{m.inventoryValue.toLocaleString()}</TableCell>
-                      <TableCell className="text-right">{m.sellingValue.toLocaleString()}</TableCell>
+                      <TableCell className="text-sm font-medium text-primary/80">{pr.martName}</TableCell>
+                      <TableCell className="text-right text-sm">{pr.purchasePrice.toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-semibold text-sm">{pr.sellingPrice.toLocaleString()}</TableCell>
                       <TableCell className="text-right">
-                        <span className={m.avgMargin >= 20 ? "text-green-500" : m.avgMargin >= 10 ? "text-amber-500" : "text-red-500"}>
-                          {m.avgMargin.toFixed(1)}%
+                        <span className={pr.margin >= 20 ? "text-success font-medium text-sm" : pr.margin >= 10 ? "text-warning font-medium text-sm" : "text-destructive font-medium text-sm"}>
+                          {pr.margin.toFixed(1)}%
                         </span>
                       </TableCell>
-                      <TableCell className="text-right font-medium">{m.monthlySales.toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-muted-foreground">{m.monthlyExpenses.toLocaleString()}</TableCell>
-                      <TableCell className="text-right">
-                        <span className={m.profit >= 0 ? "text-green-500 font-medium" : "text-red-500 font-medium"}>
-                          {m.profit.toLocaleString()}
-                        </span>
+                      <TableCell className="text-right text-sm">{pr.quantity}</TableCell>
+                      <TableCell className="text-center">
+                        {pr.stockStatus === "out_of_stock" ? (
+                          <Badge variant="destructive" className="text-[10px] px-2 py-0 h-5">Out</Badge>
+                        ) : pr.stockStatus === "low_stock" ? (
+                          <Badge className="bg-warning/10 text-warning border-warning/20 text-[10px] px-2 py-0 h-5">Low</Badge>
+                        ) : (
+                          <Badge className="bg-success/10 text-success border-success/20 text-[10px] px-2 py-0 h-5">OK</Badge>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
-                  {data.martAnalytics.length === 0 && (
+                  {paginatedProducts.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-muted-foreground py-8">No marts found</TableCell>
+                      <TableCell colSpan={9} className="text-center text-muted-foreground py-12">
+                        <div className="flex flex-col items-center gap-2">
+                          <Package className="h-8 w-8 opacity-20" />
+                          <p>No products found matching your filters</p>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   )}
                 </TableBody>
               </Table>
             </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-6">
+                <p className="text-xs text-muted-foreground">
+                  Showing <span className="font-medium text-foreground">{paginatedProducts.length}</span> of <span className="font-medium text-foreground">{filteredProducts.length}</span> products
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="p-1.5 text-xs font-medium rounded-md disabled:opacity-30 hover:bg-muted/50 transition-colors border border-border/50"
+                  >
+                    Prev
+                  </button>
+                  <div className="flex items-center px-3">
+                    <span className="text-xs text-muted-foreground">Page <span className="font-medium text-foreground">{page}</span> of {totalPages}</span>
+                  </div>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className="p-1.5 text-xs font-medium rounded-md disabled:opacity-30 hover:bg-muted/50 transition-colors border border-border/50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
+          <Card className="shadow-card border-none glass">
             <CardHeader>
-              <CardTitle className="text-base">Top Margin Products</CardTitle>
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary" />
+                Top Margin Products
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-[280px]">
@@ -502,39 +594,42 @@ export default function AdminAnalytics() {
                     layout="vertical"
                     margin={{ left: 10 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
                     <XAxis type="number" className="text-xs" tickFormatter={(v) => `${v}%`} />
-                    <YAxis dataKey="name" type="category" width={100} className="text-xs" tick={{ fontSize: 10 }} />
-                    <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`${v.toFixed(1)}%`, "Margin"]} />
-                    <Bar dataKey="margin" fill="#10b981" radius={[0, 4, 4, 0]} />
+                    <YAxis dataKey="name" type="category" width={100} className="text-[10px] font-medium" tick={{ fontSize: 10 }} />
+                    <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'hsl(var(--success)/0.05)' }} formatter={(v: number) => [`${v.toFixed(1)}%`, "Margin"]} />
+                    <Bar dataKey="margin" fill="hsl(var(--success))" radius={[0, 4, 4, 0]} barSize={16} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="shadow-card border-none glass">
             <CardHeader>
-              <CardTitle className="text-base">Most Expensive Products</CardTitle>
+              <CardTitle className="text-base flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-primary" />
+                Most Expensive Products
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto max-h-[280px] overflow-y-auto">
+              <div className="overflow-x-auto max-h-[280px] overflow-y-auto rounded-lg border border-border/50">
                 <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Mart</TableHead>
-                      <TableHead className="text-right">Purchase</TableHead>
-                      <TableHead className="text-right">Selling</TableHead>
+                  <TableHeader className="bg-muted/30 sticky top-0 z-10">
+                    <TableRow className="hover:bg-transparent border-border/50">
+                      <TableHead className="text-xs font-semibold">Product</TableHead>
+                      <TableHead className="text-xs font-semibold">Mart</TableHead>
+                      <TableHead className="text-right text-xs font-semibold">Purchase</TableHead>
+                      <TableHead className="text-right text-xs font-semibold">Selling</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {data.topExpensiveProducts.map((pr, i) => (
-                      <TableRow key={i}>
+                      <TableRow key={i} className="border-border/40 hover:bg-muted/20 transition-colors">
                         <TableCell className="font-medium text-sm">{pr.name}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{pr.martName}</TableCell>
+                        <TableCell className="text-xs font-medium text-primary/70">{pr.martName}</TableCell>
                         <TableCell className="text-right text-sm">{pr.purchasePrice.toLocaleString()}</TableCell>
-                        <TableCell className="text-right text-sm font-medium">{pr.sellingPrice.toLocaleString()}</TableCell>
+                        <TableCell className="text-right text-sm font-semibold">{pr.sellingPrice.toLocaleString()}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -544,122 +639,64 @@ export default function AdminAnalytics() {
           </Card>
         </div>
 
-        <Card>
+        <Card className="shadow-card border-none glass">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              All Products
-              <Badge variant="secondary" className="ml-1">{filteredProducts.length}</Badge>
+              <Building2 className="h-4 w-4 text-primary" />
+              Mart Comparison
+              <Badge variant="secondary" className="ml-1 bg-primary/10 text-primary border-none">{data.martAnalytics.length}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col sm:flex-row gap-3 mb-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search products, categories, marts..."
-                  className="pl-9"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-              <Select value={martFilter} onValueChange={setMartFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="All Marts" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Marts</SelectItem>
-                  {data.martAnalytics.map((m) => (
-                    <SelectItem key={m.martId} value={m.martId}>{m.martName}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={stockFilter} onValueChange={setStockFilter}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder="All Stock" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Stock</SelectItem>
-                  <SelectItem value="in_stock">In Stock</SelectItem>
-                  <SelectItem value="low_stock">Low Stock</SelectItem>
-                  <SelectItem value="out_of_stock">Out of Stock</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-lg border border-border/50">
               <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>#</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Mart</TableHead>
-                    <TableHead className="text-right">Purchase</TableHead>
-                    <TableHead className="text-right">Selling</TableHead>
-                    <TableHead className="text-right">Margin</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead>Status</TableHead>
+                <TableHeader className="bg-muted/30">
+                  <TableRow className="hover:bg-transparent border-border/50">
+                    <TableHead className="text-xs font-semibold">Mart</TableHead>
+                    <TableHead className="text-center text-xs font-semibold">Products</TableHead>
+                    <TableHead className="text-center text-xs font-semibold">Users</TableHead>
+                    <TableHead className="text-right text-xs font-semibold">Inventory</TableHead>
+                    <TableHead className="text-right text-xs font-semibold">Selling</TableHead>
+                    <TableHead className="text-right text-xs font-semibold">Avg Margin</TableHead>
+                    <TableHead className="text-right text-xs font-semibold">Revenue</TableHead>
+                    <TableHead className="text-right text-xs font-semibold">Expenses</TableHead>
+                    <TableHead className="text-right text-xs font-semibold">Profit</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedProducts.map((pr, i) => (
-                    <TableRow key={pr._id}>
-                      <TableCell className="text-muted-foreground text-xs">{(page - 1) * ROWS_PER_PAGE + i + 1}</TableCell>
-                      <TableCell className="font-medium">{pr.name}</TableCell>
-                      <TableCell className="text-muted-foreground">{pr.category}</TableCell>
-                      <TableCell>{pr.martName}</TableCell>
-                      <TableCell className="text-right">{pr.purchasePrice.toLocaleString()}</TableCell>
-                      <TableCell className="text-right font-medium">{pr.sellingPrice.toLocaleString()}</TableCell>
+                  {data.martAnalytics.map((m) => (
+                    <TableRow key={m.martId} className="border-border/40 hover:bg-muted/20 transition-colors">
+                      <TableCell className="font-semibold text-sm text-primary">{m.martName}</TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="secondary" className="text-[10px] font-medium bg-muted/60 text-foreground border-none px-2">{m.productCount}</Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="secondary" className="text-[10px] font-medium bg-muted/60 text-foreground border-none px-2">{m.userCount}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right text-xs">{m.inventoryValue.toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-xs">{m.sellingValue.toLocaleString()}</TableCell>
                       <TableCell className="text-right">
-                        <span className={pr.margin >= 20 ? "text-green-500" : pr.margin >= 10 ? "text-amber-500" : "text-red-500"}>
-                          {pr.margin.toFixed(1)}%
+                        <span className={m.avgMargin >= 20 ? "text-success font-medium text-xs" : m.avgMargin >= 10 ? "text-warning font-medium text-xs" : "text-destructive font-medium text-xs"}>
+                          {m.avgMargin.toFixed(1)}%
                         </span>
                       </TableCell>
-                      <TableCell className="text-right">{pr.quantity}</TableCell>
-                      <TableCell>
-                        {pr.stockStatus === "out_of_stock" ? (
-                          <Badge variant="destructive" className="text-xs">Out</Badge>
-                        ) : pr.stockStatus === "low_stock" ? (
-                          <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-xs">Low</Badge>
-                        ) : (
-                          <Badge className="bg-green-500/10 text-green-600 border-green-500/20 text-xs">OK</Badge>
-                        )}
+                      <TableCell className="text-right font-semibold text-sm">{m.monthlySales.toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-muted-foreground text-xs">{m.monthlyExpenses.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">
+                        <span className={m.profit >= 0 ? "text-success font-bold text-sm" : "text-destructive font-bold text-sm"}>
+                          {m.profit.toLocaleString()}
+                        </span>
                       </TableCell>
                     </TableRow>
                   ))}
-                  {paginatedProducts.length === 0 && (
+                  {data.martAnalytics.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-muted-foreground py-8">No products found</TableCell>
+                      <TableCell colSpan={9} className="text-center text-muted-foreground py-12">No marts found</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
               </Table>
             </div>
-
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-4">
-                <p className="text-sm text-muted-foreground">
-                  {filteredProducts.length} products • Page {page} of {totalPages}
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                    className="px-3 py-1.5 text-sm border rounded-md disabled:opacity-40 hover:bg-accent transition-colors"
-                  >
-                    Prev
-                  </button>
-                  <button
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
-                    className="px-3 py-1.5 text-sm border rounded-md disabled:opacity-40 hover:bg-accent transition-colors"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>
