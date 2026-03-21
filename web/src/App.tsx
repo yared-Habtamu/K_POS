@@ -64,6 +64,7 @@ import StoreKeeperApprovals from "./pages/store-keeper/Approvals";
 import MainAdmin from "./pages/admin/MainAdmin";
 import MartManagement from "./pages/admin/MartManagement";
 import AdminRegisterMart from "./pages/admin/RegisterMart";
+import AdminAnalytics from "./pages/admin/AdminAnalytics";
 import { NotificationService } from "./components/notifications/NotificationService";
 
 const queryClient = new QueryClient();
@@ -206,6 +207,7 @@ const App = () => {
 
             {/* Admin Routes */}
             <Route path="/admin" element={<MainAdmin />} />
+            <Route path="/admin/analytics" element={<AdminAnalytics />} />
             <Route path="/admin/shops" element={<MartManagement />} />
             <Route
               path="/admin/register-mart"

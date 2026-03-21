@@ -508,6 +508,248 @@ router.get("/mart", authenticate, async (req, res) => {
   }
 });
 
+router.get("/admin-analytics", authenticate, async (req, res) => {
+  try {
+    if (req.user.role !== "systemAdmin") {
+      return res.status(403).json({ message: "Insufficient permissions" });
+    }
+
+    const Mart = require("../models/mart.model");
+    const User = require("../models/user.model");
+
+    const [allMarts, allProducts, allUsers] = await Promise.all([
+      Mart.find({ isDeleted: { $ne: true } }).lean(),
+      Product.find({ isDeleted: { $ne: true } }).lean(),
+      User.find({ isDeleted: { $ne: true } }).select("martId role").lean(),
+    ]);
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    monthStart.setHours(0, 0, 0, 0);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    monthEnd.setHours(23, 59, 59, 999);
+
+    const [monthlySales, monthlyExpenses] = await Promise.all([
+      Sale.find({ date: { $gte: monthStart, $lte: monthEnd } }).lean(),
+      Expense.find({
+        date: { $gte: monthStart, $lte: monthEnd },
+        isDeleted: { $ne: true },
+      }).lean(),
+    ]);
+
+    const salesByMart = {};
+    for (const s of monthlySales) {
+      const mid = String(s.martId);
+      salesByMart[mid] = (salesByMart[mid] || 0) + (s.total || 0);
+    }
+
+    const expensesByMart = {};
+    for (const e of monthlyExpenses) {
+      const mid = String(e.martId);
+      expensesByMart[mid] = (expensesByMart[mid] || 0) + (e.amount || 0);
+    }
+
+    const usersByMart = {};
+    for (const u of allUsers) {
+      if (u.martId) {
+        const mid = String(u.martId);
+        usersByMart[mid] = (usersByMart[mid] || 0) + 1;
+      }
+    }
+
+    const productsByMart = {};
+    const categoryMap = {};
+    let totalInventoryValue = 0;
+    let totalSellingValue = 0;
+    let lowStockCount = 0;
+    let outOfStockCount = 0;
+
+    for (const p of allProducts) {
+      const mid = String(p.martId);
+      if (!productsByMart[mid]) {
+        productsByMart[mid] = {
+          count: 0,
+          inventoryValue: 0,
+          sellingValue: 0,
+          margins: [],
+        };
+      }
+
+      const qty =
+        Number(p.quantity || 0) +
+        Number(p.storeQuantity || 0);
+      const purchasePrice = Number(p.purchasePrice || 0);
+      const sellingPrice = Number(p.sellingPrice || 0);
+      const invValue = purchasePrice * qty;
+      const sellValue = sellingPrice * qty;
+      const margin =
+        sellingPrice > 0 && purchasePrice > 0
+          ? ((sellingPrice - purchasePrice) / sellingPrice) * 100
+          : 0;
+
+      productsByMart[mid].count += 1;
+      productsByMart[mid].inventoryValue += invValue;
+      productsByMart[mid].sellingValue += sellValue;
+      if (margin > 0) productsByMart[mid].margins.push(margin);
+
+      totalInventoryValue += invValue;
+      totalSellingValue += sellValue;
+
+      const cat = p.category || "Uncategorized";
+      categoryMap[cat] = (categoryMap[cat] || 0) + 1;
+
+      const totalQty = Number(p.quantity || 0) + Number(p.storeQuantity || 0);
+      if (totalQty === 0) outOfStockCount += 1;
+      else if (totalQty <= Number(p.lowStockThreshold || 10))
+        lowStockCount += 1;
+    }
+
+    const martAnalytics = allMarts
+      .filter((m) => m.status === "approved")
+      .map((m) => {
+        const mid = String(m._id);
+        const pd = productsByMart[mid] || {
+          count: 0,
+          inventoryValue: 0,
+          sellingValue: 0,
+          margins: [],
+        };
+        const avgMargin =
+          pd.margins.length > 0
+            ? pd.margins.reduce((a, b) => a + b, 0) / pd.margins.length
+            : 0;
+
+        return {
+          martId: mid,
+          martName: m.martName || "Unnamed",
+          productCount: pd.count,
+          inventoryValue: Math.round(pd.inventoryValue * 100) / 100,
+          sellingValue: Math.round(pd.sellingValue * 100) / 100,
+          avgMargin: Math.round(avgMargin * 100) / 100,
+          monthlySales: Math.round((salesByMart[mid] || 0) * 100) / 100,
+          monthlyExpenses: Math.round((expensesByMart[mid] || 0) * 100) / 100,
+          profit: Math.round(
+            ((salesByMart[mid] || 0) - (expensesByMart[mid] || 0)) * 100
+          ) / 100,
+          userCount: usersByMart[mid] || 0,
+        };
+      })
+      .sort((a, b) => b.monthlySales - a.monthlySales);
+
+    const allMargins = allProducts
+      .filter(
+        (p) =>
+          Number(p.sellingPrice || 0) > 0 && Number(p.purchasePrice || 0) > 0,
+      )
+      .map((p) => {
+        const sp = Number(p.sellingPrice);
+        const pp = Number(p.purchasePrice);
+        return { margin: ((sp - pp) / sp) * 100, product: p };
+      });
+
+    const topMarginProducts = allMargins
+      .sort((a, b) => b.margin - a.margin)
+      .slice(0, 10)
+      .map((x) => {
+        const mart = allMarts.find(
+          (m) => String(m._id) === String(x.product.martId),
+        );
+        return {
+          name: x.product.name,
+          martName: mart ? mart.martName : "Unknown",
+          purchasePrice: Number(x.product.purchasePrice || 0),
+          sellingPrice: Number(x.product.sellingPrice || 0),
+          margin: Math.round(x.margin * 100) / 100,
+        };
+      });
+
+    const topExpensiveProducts = [...allProducts]
+      .sort((a, b) => (b.sellingPrice || 0) - (a.sellingPrice || 0))
+      .slice(0, 10)
+      .map((p) => {
+        const mart = allMarts.find((m) => String(m._id) === String(p.martId));
+        return {
+          name: p.name,
+          martName: mart ? mart.martName : "Unknown",
+          purchasePrice: Number(p.purchasePrice || 0),
+          sellingPrice: Number(p.sellingPrice || 0),
+          category: p.category || "Uncategorized",
+        };
+      });
+
+    const categoryDistribution = Object.entries(categoryMap)
+      .map(([category, count]) => ({ category, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 15);
+
+    const overallAvgMargin =
+      allMargins.length > 0
+        ? allMargins.reduce((a, b) => a + b.margin, 0) / allMargins.length
+        : 0;
+
+    const totalMonthlySales = monthlySales.reduce(
+      (s, x) => s + (x.total || 0),
+      0,
+    );
+    const totalMonthlyExpenses = monthlyExpenses.reduce(
+      (s, x) => s + (x.amount || 0),
+      0,
+    );
+    const totalTransactions = monthlySales.length;
+
+    const productList = allProducts.map((p) => {
+      const mart = allMarts.find((m) => String(m._id) === String(p.martId));
+      const sp = Number(p.sellingPrice || 0);
+      const pp = Number(p.purchasePrice || 0);
+      const margin = sp > 0 && pp > 0 ? ((sp - pp) / sp) * 100 : 0;
+      const totalQty = Number(p.quantity || 0) + Number(p.storeQuantity || 0);
+      let stockStatus = "in_stock";
+      if (totalQty === 0) stockStatus = "out_of_stock";
+      else if (totalQty <= Number(p.lowStockThreshold || 10))
+        stockStatus = "low_stock";
+
+      return {
+        _id: p._id,
+        name: p.name,
+        category: p.category || "Uncategorized",
+        martName: mart ? mart.martName : "Unknown",
+        martId: String(p.martId),
+        purchasePrice: pp,
+        sellingPrice: sp,
+        margin: Math.round(margin * 100) / 100,
+        quantity: totalQty,
+        stockStatus,
+      };
+    });
+
+    res.json({
+      platform: {
+        totalProducts: allProducts.length,
+        totalInventoryValue: Math.round(totalInventoryValue * 100) / 100,
+        totalSellingValue: Math.round(totalSellingValue * 100) / 100,
+        overallAvgMargin: Math.round(overallAvgMargin * 100) / 100,
+        lowStockCount,
+        outOfStockCount,
+        totalMonthlySales: Math.round(totalMonthlySales * 100) / 100,
+        totalMonthlyExpenses: Math.round(totalMonthlyExpenses * 100) / 100,
+        totalMonthlyProfit:
+          Math.round((totalMonthlySales - totalMonthlyExpenses) * 100) / 100,
+        totalTransactions,
+        totalMarts: allMarts.filter((m) => m.status === "approved").length,
+        totalUsers: allUsers.length,
+      },
+      martAnalytics,
+      topMarginProducts,
+      topExpensiveProducts,
+      categoryDistribution,
+      products: productList,
+    });
+  } catch (err) {
+    console.error("admin-analytics error", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 module.exports = router;
 // GET /api/reports/today-sales?martId=...
 // Returns aggregated items sold today with quantity, VAT and totals.
