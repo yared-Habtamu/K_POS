@@ -1086,74 +1086,7 @@ case 'this-week':
                 <p className="text-muted-foreground">Manage your team members</p>
               </div>
 
-              <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    {t('add_employee') || 'Add Employee'}
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
-                  <DialogHeader>
-                    <DialogTitle>{editingEmployee ? 'Edit Employee' : t('add_employee') || 'Add Employee'}</DialogTitle>
-                  </DialogHeader>
-                  <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="username">Username (optional)</Label>
-                      <Input id="username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="login username (optional)" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="name">{t('employee_name') || 'Name'} *</Label>
-                      <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">{t('phone') || 'Phone'} *</Label>
-                      <Input id="phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+251..." required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="role">{t('role') || 'Role'} *</Label>
-                      <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v as ManagerAssignableRole })}>
-                        <SelectTrigger>
-                          <SelectValue placeholder={t('select_role') || 'Select role'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {roleOptions.map(role => (
-                            <SelectItem key={role} value={role}>{t(role) || role}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="salary">{t('salary') || 'Salary'} (ETB) *</Label>
-                      <Input id="salary" type="number" value={form.salary} onChange={(e) => setForm({ ...form, salary: e.target.value })} required />
-                    </div>
-                    {!editingEmployee && (
-                      <div className="space-y-2">
-                        <Label htmlFor="password">{t('password') || 'Password'} *</Label>
-                        <Input id="password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
-                        <Input
-                          id="confirmPassword"
-                          type="password"
-                          value={form.confirmPassword}
-                          onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
-                          required
-                          placeholder="Confirm password"
-                          className={form.confirmPassword.length === 0 ? '' : (form.password === form.confirmPassword ? 'ring-2 ring-green-400/60 border-green-400' : 'ring-2 ring-red-400/60 border-red-400')}
-                        />
-                        {form.confirmPassword.length > 0 && (
-                          <p className={`text-xs mt-1 ${form.password === form.confirmPassword ? 'text-green-600' : 'text-red-600'}`}>
-                            {form.password === form.confirmPassword ? 'Passwords match' : 'Passwords do not match'}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                    <div className="flex justify-end gap-2 pt-4">
-                      <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>{t('cancel') || 'Cancel'}</Button>
-                      <Button type="submit">{t('save') || 'Save'}</Button>
-                    </div>
-                  </form>
-                </DialogContent>
-              </Dialog>
+              {/* Manager is not allowed to add employees; Add UI intentionally removed */}
             </div>
 
             <Card>

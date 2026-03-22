@@ -46,7 +46,7 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
-// Create employee (owner or systemAdmin or manager)
+// Create employee (owner only)
 router.post('/', authenticate, async (req, res) => {
   try {
     const requester = req.user;
@@ -61,15 +61,11 @@ router.post('/', authenticate, async (req, res) => {
     const allowedRoles = ['manager','cashier','storeKeeper'];
     if (!allowedRoles.includes(normRole)) return res.status(400).json({ message: 'Invalid role' });
 
-    if (requester.role === 'manager') {
-      // manager can only create cashier or storeKeeper
-      if (['manager','owner','systemAdmin'].includes(normRole)) return res.status(403).json({ message: 'Manager cannot create this role' });
-    }
+    // Only owners are allowed to create employees
+    if (requester.role !== 'owner') return res.status(403).json({ message: 'Only owner can create employees' });
 
-    if (requester.role === 'owner' || requester.role === 'manager') {
-      // use requester's martId
-      if (!requester.martId) return res.status(400).json({ message: 'Requester has no mart assigned' });
-    }
+    // Owners must have a mart assigned
+    if (!requester.martId) return res.status(400).json({ message: 'Requester has no mart assigned' });
 
     // If username not provided, auto-generate a unique one
     if (!username || username.trim() === '') {
