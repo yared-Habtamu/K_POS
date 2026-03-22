@@ -185,10 +185,9 @@ async function createProductFromRequest(req, res, options = {}) {
     }
   }
 
-  if (
-    String(user.role || "").toLowerCase() !== "owner" &&
-    String(user.role || "").toLowerCase() !== "systemadmin"
-  ) {
+  // Only systemAdmin bypasses approval. Owners should submit requests
+  // for approval when managers/store keepers exist for the mart.
+  if (String(user.role || "").toLowerCase() !== "systemadmin") {
     const User = require("../models/user.model");
     const managers = await User.find({
       martId: finalMartId,
@@ -534,10 +533,9 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
     // Owners require approval for updates. Route edit requests by quantity target:
     // - storeQuantity -> store keeper approval
     // - quantity/supermarketQuantity and all other fields -> manager approval
-    if (
-      String(user.role || "").toLowerCase() !== "owner" &&
-      String(user.role || "").toLowerCase() !== "systemadmin"
-    ) {
+    // Only systemAdmin bypasses approval flow. Owners should be treated
+    // like other users and have edits submitted for approval when approvers exist.
+    if (String(user.role || "").toLowerCase() !== "systemadmin") {
       const changes = { ...update };
       if (Object.keys(changes).length === 0) {
         return res.status(400).json({ message: "No changes supplied" });
