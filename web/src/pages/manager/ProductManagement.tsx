@@ -68,7 +68,7 @@ const defaultFilterValues: AdvancedFilterValues = {
 
 export default function ManagerProductManagement() {
   const { t } = useTranslation();
-  const { products, categories, addProduct, updateProduct, deleteProduct } =
+  const { products, categories, addProduct, updateProduct } =
     useProductStore();
   const { user, isAuthenticated } = useAuthStore();
   const isOwner = user?.role === "owner";
@@ -315,17 +315,6 @@ export default function ManagerProductManagement() {
       barcodeInput: "",
     });
     setIsDialogOpen(true);
-  };
-
-  const handleDelete = async (id: string) => {
-    await deleteProduct(id);
-    toast({ title: t("product_deleted") });
-    if (
-      filteredProducts.length <= (currentPage - 1) * ITEMS_PER_PAGE &&
-      currentPage > 1
-    ) {
-      setCurrentPage(1);
-    }
   };
 
   useEffect(() => {
@@ -1117,14 +1106,6 @@ export default function ManagerProductManagement() {
                               onClick={() => handleEdit(product)}
                             >
                               <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDelete(product.id)}
-                              className="text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </TableCell>

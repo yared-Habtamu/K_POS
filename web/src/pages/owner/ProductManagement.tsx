@@ -64,6 +64,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import Modal from "@/components/ui/Modal";
 
 const units: ProductUnit[] = ["pcs", "kg", "g", "l", "ml", "box"];
 const ITEMS_PER_PAGE = 7; // ✅ Set to 7 items per page
@@ -154,6 +155,8 @@ export default function ProductManagement() {
   const [isTableScannerOpen, setIsTableScannerOpen] = useState(false);
   const [isRowScannerOpen, setIsRowScannerOpen] = useState(false);
   const [activeScannerProduct, setActiveScannerProduct] = useState<Product | null>(null);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -1271,7 +1274,10 @@ export default function ProductManagement() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleDelete(product.id)}
+                              onClick={() => {
+                                setDeleteTarget(product);
+                                setIsDeleteOpen(true);
+                              }}
                               className="text-destructive hover:text-destructive"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1297,6 +1303,49 @@ export default function ProductManagement() {
                 </TableBody>
               </Table>
             </div>
+
+            <Modal
+              isOpen={isDeleteOpen}
+              onClose={() => {
+                setIsDeleteOpen(false);
+                setDeleteTarget(null);
+              }}
+              title={deleteTarget?.name ? `Delete ${deleteTarget.name}` : "Delete product"}
+              type="error"
+              size="md"
+            >
+              <div className="mb-4 text-sm text-muted-foreground">
+                {deleteTarget?.name
+                  ? `This will permanently delete ${deleteTarget.name}. This action cannot be undone.`
+                  : "This will permanently delete the product. This action cannot be undone."}
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsDeleteOpen(false);
+                    setDeleteTarget(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    const targetId = String(
+                      deleteTarget?.id ?? (deleteTarget as any)?._id ?? "",
+                    );
+                    if (!targetId) return;
+                    void handleDelete(targetId);
+                    setIsDeleteOpen(false);
+                    setDeleteTarget(null);
+                  }}
+                >
+                  Delete
+                </Button>
+              </div>
+            </Modal>
 
             {/* ✅ PAGINATION CONTROLS (ALWAYS VISIBLE) */}
             <div className="flex flex-col sm:flex-row items-center justify-between px-2 py-3 border-t border-border">
