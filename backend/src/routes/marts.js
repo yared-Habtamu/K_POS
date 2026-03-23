@@ -507,6 +507,9 @@ router.get("/", async (req, res) => {
     const { status } = req.query; // optional: pending, approved, disabled, rejected
     const filter = {};
     if (status) filter.status = status;
+    // By default exclude soft-deleted marts. Client can request deleted records
+    // via `?includeDeleted=true` when intentional.
+    if (req.query.includeDeleted !== "true") filter.isDeleted = { $ne: true };
     const list = await Mart.find(filter)
       .sort({ createdAt: -1 })
       .populate("ownerId", "name username phone");
@@ -514,6 +517,23 @@ router.get("/", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Soft-delete a mart (system admin only)
+router.delete('/:id', authenticate, async (req, res) => {
+  try {
+    if (req.user.role !== 'systemAdmin')
+      return res.status(403).json({ message: 'Insufficient permissions' });
+
+    const { id } = req.params;
+    const mart = await Mart.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
+    if (!mart) return res.status(404).json({ message: 'Mart not found' });
+
+    res.json({ message: 'Mart deleted', mart });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

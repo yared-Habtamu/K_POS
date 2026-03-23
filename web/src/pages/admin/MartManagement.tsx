@@ -509,7 +509,36 @@ export default function MartManagement() {
     });
   };
 
-  const deleteShop = (id: string) => {
+  const deleteShop = async (id: string) => {
+    if (API_BASE) {
+      try {
+        const res = await fetch(`${API_BASE}/api/marts/${id}`, {
+          method: "DELETE",
+          headers: { ...getAuthHeaders() },
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || "Server delete failed");
+        }
+
+        await fetchShopsFromServer();
+        toast({
+          title: "Shop deleted",
+          description: "Shop removed from registry.",
+        });
+        return;
+      } catch (err: any) {
+        console.error("Failed to delete mart", err);
+        toast({
+          title: "Delete failed",
+          description: err?.message || "Failed to delete shop",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setShops((prev) => prev.filter((s) => s.id !== id));
     toast({
       title: "Shop deleted",
@@ -1311,9 +1340,9 @@ export default function MartManagement() {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={() => {
+                onClick={async () => {
                   if (!shopToDelete) return;
-                  deleteShop(shopToDelete.id);
+                  await deleteShop(shopToDelete.id);
                   setShopToDelete(null);
                 }}
               >
