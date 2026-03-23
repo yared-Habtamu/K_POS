@@ -9,7 +9,7 @@ const { authenticate } = require("../middleware/auth");
 const multer = require("multer");
 const { uploadBuffer } = require("../utils/cloudinary");
 
-// Use memory storage so we can send buffer directly to Cloudinary for media storage 
+// Use memory storage so we can send buffer directly to Cloudinary
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
