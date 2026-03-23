@@ -520,17 +520,33 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Soft-delete a mart (system admin only)
+// Hard-delete a mart and its owner user (system admin only)
 router.delete('/:id', authenticate, async (req, res) => {
   try {
     if (req.user.role !== 'systemAdmin')
       return res.status(403).json({ message: 'Insufficient permissions' });
 
     const { id } = req.params;
-    const mart = await Mart.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
+    const mart = await Mart.findById(id);
     if (!mart) return res.status(404).json({ message: 'Mart not found' });
 
-    res.json({ message: 'Mart deleted', mart });
+    // If mart has an ownerId and the owner user is linked to this mart, delete the owner user
+    if (mart.ownerId) {
+      try {
+        const owner = await User.findById(mart.ownerId);
+        if (owner && String(owner.martId) === String(mart._id) && owner.role === 'owner') {
+          await User.findByIdAndDelete(owner._id);
+          console.log(`Deleted owner user ${owner._id} for mart ${mart._id}`);
+        }
+      } catch (e) {
+        console.error('Failed to delete owner user during mart deletion', e);
+      }
+    }
+
+    // Remove the mart record entirely so its identifying fields can be reused
+    await Mart.findByIdAndDelete(mart._id);
+
+    res.json({ message: 'Mart permanently deleted' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });

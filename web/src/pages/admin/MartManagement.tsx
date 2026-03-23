@@ -474,7 +474,7 @@ export default function MartManagement() {
     );
     toast({
       title: "Shop suspended",
-      description: "The shop has been suspended.",
+      description: "Shop suspended — owner access temporarily disabled until reinstated.",
     });
   };
 
@@ -504,8 +504,8 @@ export default function MartManagement() {
       prev.map((s) => (s.id === id ? { ...s, status: "active" } : s)),
     );
     toast({
-      title: "Shop unsuspended",
-      description: "The shop is active again.",
+      title: "Shop reactivated",
+      description: "Shop reactivated — owner access has been restored.",
     });
   };
 
@@ -517,16 +517,16 @@ export default function MartManagement() {
           headers: { ...getAuthHeaders() },
         });
 
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.message || "Server delete failed");
-        }
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.message || "Server delete failed");
+            }
 
-        await fetchShopsFromServer();
-        toast({
-          title: "Shop deleted",
-          description: "Shop removed from registry.",
-        });
+            await fetchShopsFromServer();
+            toast({
+              title: "Shop deleted",
+              description: "Shop deleted — owner access revoked. This action can be reversed by a system administrator.",
+            });
         return;
       } catch (err: any) {
         console.error("Failed to delete mart", err);
@@ -542,7 +542,7 @@ export default function MartManagement() {
     setShops((prev) => prev.filter((s) => s.id !== id));
     toast({
       title: "Shop deleted",
-      description: "Shop removed from registry.",
+      description: "Shop deleted locally — owner access revoked (local).",
     });
   };
 

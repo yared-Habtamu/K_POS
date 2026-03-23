@@ -13,8 +13,18 @@ router.post('/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ message: 'Username and password required' });
 
-  // Allow users to sign in using either their username or phone number
-  const user = await User.findOne({ $or: [{ username }, { phone: username }] });
+  // Normalize helper to match system-admin username sanitization
+  const sanitize = (s = '') =>
+    String(s || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '')
+      .slice(0, 30);
+
+  // Allow users to sign in using either their username (raw or sanitized) or phone number
+  const sanitizedUsername = sanitize(username);
+  const user = await User.findOne({
+    $or: [{ username }, { username: sanitizedUsername }, { phone: username }],
+  });
   if (!user) {
     console.warn(`Login failed: user not found for '${username}'`);
     return res.status(401).json({ message: 'Invalid username or password' });
@@ -26,20 +36,43 @@ router.post('/login', async (req, res) => {
     return res.status(401).json({ message: 'Invalid username or password' });
   }
 
+  // Block login for deleted or deactivated users
+  if (user.isDeleted || user.active === false) {
+    console.info(`Login blocked: user is deleted or inactive (id=${user._id})`);
+    return res.status(403).json({ message: 'Account is deactivated or deleted. Contact an administrator.' });
+  }
+
   // Owners may only login once their mart is approved
   if (user.role === 'owner') {
     if (!user.martId) {
       console.warn(`Owner login blocked: no martId for user id=${user._id}`);
       return res.status(403).json({ message: 'Owner account has no mart assigned. Create a mart first or contact an administrator.' });
     }
-    const mart = await Mart.findById(user.martId).select('status');
+    // include isDeleted flag so deleted marts cannot be used to login
+    const mart = await Mart.findById(user.martId).select('status isDeleted');
     if (!mart) {
       console.warn(`Owner login blocked: mart not found for martId=${user.martId}`);
       return res.status(403).json({ message: "Owner's mart not found. Contact an administrator." });
     }
-    if (mart.status !== 'approved') {
-      console.info(`Owner login blocked: mart status=${mart.status} for martId=${user.martId}`);
+    if (mart.isDeleted) {
+      console.info(`Owner login blocked: mart is deleted for martId=${user.martId}`);
+      return res.status(403).json({ message: 'Your mart has been deleted. Contact an administrator.' });
+    }
+
+    // Specific messaging for mart status
+    if (mart.status === 'pending') {
+      console.info(`Owner login blocked: mart pending for martId=${user.martId}`);
       return res.status(403).json({ message: 'Your mart registration is pending approval.' });
+    }
+
+    if (mart.status === 'disabled') {
+      console.info(`Owner login blocked: mart suspended for martId=${user.martId}`);
+      return res.status(403).json({ message: 'Mart is suspended contact an Administrator' });
+    }
+
+    if (mart.status === 'rejected') {
+      console.info(`Owner login blocked: mart rejected for martId=${user.martId}`);
+      return res.status(403).json({ message: 'Your mart registration was rejected.' });
     }
   }
 
