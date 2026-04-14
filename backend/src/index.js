@@ -43,6 +43,7 @@ const productsRouter = require("./routes/products");
 const productEditRequestsRouter = require("./routes/productEditRequests");
 const productAddRequestsRouter = require("./routes/productAddRequests");
 const stockTransferRequestsRouter = require("./routes/stockTransferRequests");
+const assetActionRequestsRouter = require("./routes/assetActionRequests");
 const customersRouter = require("./routes/customers");
 const employeesRouter = require("./routes/employees");
 const attendanceRouter = require("./routes/attendance");
@@ -76,6 +77,7 @@ app.use("/api/attendance", attendanceRouter);
 app.use("/api/product-edit-requests", productEditRequestsRouter);
 app.use("/api/product-add-requests", productAddRequestsRouter);
 app.use("/api/stock-transfer-requests", stockTransferRequestsRouter);
+app.use("/api/asset-action-requests", assetActionRequestsRouter);
 app.use("/api/customers", customersRouter);
 app.use("/api/notifications", notificationsRouter);
 

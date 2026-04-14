@@ -232,6 +232,31 @@ export interface Asset {
   createdAt: Date;
 }
 
+export interface AssetActionRequest {
+  id?: string;
+  _id?: string;
+  martId: string;
+  requesterId: string;
+  requesterName?: string;
+  requesterRole?: "owner" | "manager" | "systemadmin";
+  assetId?: string;
+  action: "create" | "update" | "delete";
+  approvalRole?: "owner" | "manager";
+  payload?: {
+    name?: string;
+    assetId?: string;
+    quantity?: number;
+    [key: string]: any;
+  };
+  status: "pending" | "approved" | "rejected";
+  approverId?: string;
+  approverName?: string;
+  reason?: string;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+  decidedAt?: Date | string;
+}
+
 // Shop/Supermarket Types
 export interface Shop {
   id: string;

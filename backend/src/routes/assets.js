@@ -1,9 +1,12 @@
 const express = require("express");
 const router = express.Router();
 const Asset = require("../models/asset.model");
+const AssetActionRequest = require("../models/assetActionRequest.model");
+const User = require("../models/user.model");
 const { authenticate } = require("../middleware/auth");
 const multer = require("multer");
 const { uploadBuffer } = require("../utils/cloudinary");
+const { createNotification } = require("../services/notification.service");
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -25,6 +28,79 @@ async function generateAssetId(martId) {
     }
   }
   return `AST${String(nextNum).padStart(4, "0")}`;
+}
+
+function isOwner(user) {
+  return String(user?.role || "").toLowerCase() === "owner";
+}
+
+function isManager(user) {
+  return String(user?.role || "").toLowerCase() === "manager";
+}
+
+async function getMartManagers(martId) {
+  if (!martId) return [];
+  return User.find({ martId, role: { $regex: /^manager$/i } })
+    .select("_id username name")
+    .lean();
+}
+
+async function getMartOwners(martId) {
+  if (!martId) return [];
+  return User.find({ martId, role: { $regex: /^owner$/i } })
+    .select("_id username name")
+    .lean();
+}
+
+async function createAssetApprovalRequest({
+  martId,
+  user,
+  action,
+  assetId,
+  payload,
+  approvalRole,
+}) {
+  const approvers =
+    approvalRole === "owner"
+      ? await getMartOwners(martId)
+      : await getMartManagers(martId);
+  if (!approvers || approvers.length === 0) return null;
+
+  const requesterRole = String(user?.role || "").toLowerCase();
+
+  const reqDoc = new AssetActionRequest({
+    martId,
+    requesterId: user.id,
+    requesterName: user.username || user.name,
+    requesterRole: requesterRole === "manager" ? "manager" : "owner",
+    approvalRole,
+    assetId: assetId || null,
+    action,
+    payload,
+  });
+
+  await reqDoc.save();
+
+  await Promise.all(
+    approvers.map((approver) =>
+      createNotification({
+        martId,
+        userId: approver._id,
+        type: "asset_action_request",
+        title: "Asset action requested",
+        message: `${reqDoc.requesterName || "User"} requested asset ${action} approval`,
+        metadata: {
+          requestId: reqDoc._id,
+          action,
+          approvalRole,
+          assetId: assetId || null,
+          assetName: payload?.name || "",
+        },
+      }),
+    ),
+  );
+
+  return reqDoc;
 }
 
 // List assets. Query ?martId=... allowed for systemAdmin, otherwise scoped to req.user.martId
@@ -87,6 +163,37 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
       } catch (uploadErr) {
         console.error("Asset image upload error:", uploadErr);
         return res.status(500).json({ message: "Image upload failed" });
+      }
+    }
+
+    const requesterIsOwnerOrManager = isOwner(req.user) || isManager(req.user);
+    if (requesterIsOwnerOrManager) {
+      const requestDoc = await createAssetApprovalRequest({
+        martId: targetMartId,
+        user: req.user,
+        action: "create",
+        approvalRole: isOwner(req.user) ? "manager" : "owner",
+        payload: {
+          name,
+          image: finalImageUrl,
+          sizeOrType,
+          purchaseDate,
+          status,
+          conditions,
+          assignedTo,
+          quantity: Number(quantity),
+          purchasePrice: Number(purchasePrice || 0),
+          description,
+        },
+      });
+
+      if (requestDoc) {
+        return res.status(202).json({
+          message: isOwner(req.user)
+            ? "Asset registration submitted for manager approval"
+            : "Asset registration submitted for owner approval",
+          requestId: requestDoc._id,
+        });
       }
     }
 
@@ -159,17 +266,44 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
       asset.image = req.body.image;
     }
 
+    const changes = {};
+    if (name != null) changes.name = name;
+    if (assetId != null) changes.assetId = assetId;
+    if (sizeOrType != null) changes.sizeOrType = sizeOrType;
+    if (purchaseDate != null) changes.purchaseDate = purchaseDate;
+    if (status != null) changes.status = status;
+    if (conditions != null) changes.conditions = conditions;
+    if (assignedTo != null) changes.assignedTo = assignedTo;
+    if (quantity != null) changes.quantity = Number(quantity);
+    if (purchasePrice != null) changes.purchasePrice = Number(purchasePrice);
+    if (description != null) changes.description = description;
+    if (asset.image != null) changes.image = asset.image;
+
+    const requesterIsOwnerOrManager = isOwner(req.user) || isManager(req.user);
+    if (requesterIsOwnerOrManager) {
+      const requestDoc = await createAssetApprovalRequest({
+        martId: asset.martId,
+        user: req.user,
+        action: "update",
+        assetId: asset._id,
+        approvalRole: isOwner(req.user) ? "manager" : "owner",
+        payload: changes,
+      });
+
+      if (requestDoc) {
+        return res.status(202).json({
+          message: isOwner(req.user)
+            ? "Asset update submitted for manager approval"
+            : "Asset update submitted for owner approval",
+          requestId: requestDoc._id,
+        });
+      }
+    }
+
     // allow partial updates
-    if (name != null) asset.name = name;
-    if (assetId != null) asset.assetId = assetId;
-    if (sizeOrType != null) asset.sizeOrType = sizeOrType;
-    if (purchaseDate != null) asset.purchaseDate = purchaseDate;
-    if (status != null) asset.status = status;
-    if (conditions != null) asset.conditions = conditions;
-    if (assignedTo != null) asset.assignedTo = assignedTo;
-    if (quantity != null) asset.quantity = Number(quantity);
-    if (purchasePrice != null) asset.purchasePrice = Number(purchasePrice);
-    if (description != null) asset.description = description;
+    Object.entries(changes).forEach(([k, v]) => {
+      asset[k] = v;
+    });
 
     await asset.save();
     res.json(asset);
@@ -191,6 +325,31 @@ router.delete("/:id", authenticate, async (req, res) => {
           .status(403)
           .json({ message: "Insufficient permissions to delete asset" });
     }
+
+    const requesterIsOwnerOrManager = isOwner(req.user) || isManager(req.user);
+    if (requesterIsOwnerOrManager) {
+      const requestDoc = await createAssetApprovalRequest({
+        martId: asset.martId,
+        user: req.user,
+        action: "delete",
+        assetId: asset._id,
+        approvalRole: isOwner(req.user) ? "manager" : "owner",
+        payload: {
+          name: asset.name,
+          assetId: asset.assetId,
+        },
+      });
+
+      if (requestDoc) {
+        return res.status(202).json({
+          message: isOwner(req.user)
+            ? "Asset delete submitted for manager approval"
+            : "Asset delete submitted for owner approval",
+          requestId: requestDoc._id,
+        });
+      }
+    }
+
     await Asset.findByIdAndDelete(id);
     res.json({ message: "Asset deleted" });
   } catch (err) {

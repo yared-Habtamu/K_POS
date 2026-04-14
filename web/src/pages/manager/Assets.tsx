@@ -10,7 +10,19 @@ import { Modal } from "@/components/ui/Modal";
 import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { Plus, Trash2, FileText, Image as ImageIcon, Download, Printer, RefreshCw, Boxes, DollarSign, UserCheck, Sparkles } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  FileText,
+  Image as ImageIcon,
+  Download,
+  Printer,
+  RefreshCw,
+  Boxes,
+  DollarSign,
+  UserCheck,
+  Sparkles,
+} from "lucide-react";
 import { toast } from "sonner";
 
 export default function ManagerAssets() {
@@ -52,7 +64,7 @@ export default function ManagerAssets() {
 
       const [assetsRes, employeesRes] = await Promise.all([
         fetch(`${API_BASE}/api/assets?martId=${auth.martId}`, { headers }),
-        fetch(`${API_BASE}/api/employees?martId=${auth.martId}`, { headers })
+        fetch(`${API_BASE}/api/employees?martId=${auth.martId}`, { headers }),
       ]);
 
       if (assetsRes.ok) {
@@ -112,7 +124,7 @@ export default function ManagerAssets() {
     setEditingId(asset.id);
     setName(asset.name || "");
     setSizeOrType(asset.sizeOrType || "");
-    setPurchaseDate(asset.purchaseDate ? asset.purchaseDate.split('T')[0] : "");
+    setPurchaseDate(asset.purchaseDate ? asset.purchaseDate.split("T")[0] : "");
     setStatus(asset.status || "new");
     setConditions(asset.conditions || "");
     setAssignedTo(asset.assignedTo || "");
@@ -148,10 +160,10 @@ export default function ManagerAssets() {
         formData.append("image", imageFile);
       }
 
-      const url = editingId 
+      const url = editingId
         ? `${API_BASE}/api/assets/${editingId}`
         : `${API_BASE}/api/assets`;
-      
+
       const method = editingId ? "PUT" : "POST";
 
       const res = await fetch(url, {
@@ -162,13 +174,23 @@ export default function ManagerAssets() {
         body: formData,
       });
 
+      if (res.status === 202) {
+        const pending = await res.json().catch(() => ({}));
+        toast.success(
+          pending?.message || "Asset action submitted for manager approval",
+        );
+        setIsModalOpen(false);
+        resetForm();
+        return;
+      }
+
       if (!res.ok) throw new Error("Failed to save asset");
 
       const saved = await res.json();
       const normalized = { ...saved, id: saved._id || saved.id };
 
       if (editingId) {
-        setAssets(assets.map(a => a.id === editingId ? normalized : a));
+        setAssets(assets.map((a) => (a.id === editingId ? normalized : a)));
         toast.success("Asset updated successfully");
       } else {
         setAssets([normalized, ...assets]);
@@ -185,7 +207,8 @@ export default function ManagerAssets() {
   };
 
   const handleDelete = async (asset: any) => {
-    if (!window.confirm(`Are you sure you want to remove ${asset.name}?`)) return;
+    if (!window.confirm(`Are you sure you want to remove ${asset.name}?`))
+      return;
 
     try {
       const token = auth?.token;
@@ -194,8 +217,16 @@ export default function ManagerAssets() {
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });
 
+      if (res.status === 202) {
+        const pending = await res.json().catch(() => ({}));
+        toast.success(
+          pending?.message || "Asset delete submitted for manager approval",
+        );
+        return;
+      }
+
       if (!res.ok) throw new Error("Delete failed");
-      setAssets(assets.filter(a => a.id !== asset.id));
+      setAssets(assets.filter((a) => a.id !== asset.id));
       toast.success("Asset removed");
     } catch (err) {
       console.error("Delete error", err);
@@ -222,7 +253,7 @@ export default function ManagerAssets() {
       });
     };
     const loadedImages = await Promise.all(
-      assets.map(a => a.image ? loadImage(a.image) : Promise.resolve(null))
+      assets.map((a) => (a.image ? loadImage(a.image) : Promise.resolve(null))),
     );
 
     // Header block
@@ -234,7 +265,12 @@ export default function ManagerAssets() {
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(100, 100, 100);
-    doc.text(`Generated: ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`, pageWidth / 2, 22, { align: "center" });
+    doc.text(
+      `Generated: ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`,
+      pageWidth / 2,
+      22,
+      { align: "center" },
+    );
 
     // Thin divider line
     doc.setDrawColor(180, 180, 180);
@@ -243,26 +279,64 @@ export default function ManagerAssets() {
 
     // Build table rows
     const tableData = assets.map((a, index) => [
-      index + 1,                   // #
-      a.assetId || "-",            // Asset ID
-      a.name || "-",               // Name
-      "",                          // Image
-      a.sizeOrType || "-",         // Size or Type
-      a.purchasePrice != null ? Number(a.purchasePrice).toLocaleString() : "0",  // Purchase
-      a.purchaseDate ? new Date(a.purchaseDate).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "-", // Purchase Date
-      a.conditions || "-",         // Conditions
-      a.assignedTo || "-",         // Assigned To
-      String(a.quantity ?? 1),     // Qty
+      index + 1, // #
+      a.assetId || "-", // Asset ID
+      a.name || "-", // Name
+      "", // Image
+      a.sizeOrType || "-", // Size or Type
+      a.purchasePrice != null ? Number(a.purchasePrice).toLocaleString() : "0", // Purchase
+      a.purchaseDate
+        ? new Date(a.purchaseDate).toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "2-digit",
+          })
+        : "-", // Purchase Date
+      a.conditions || "-", // Conditions
+      a.assignedTo || "-", // Assigned To
+      String(a.quantity ?? 1), // Qty
     ]);
 
-    const totalPurchasePrice = assets.reduce((sum, a) => sum + Number(a.purchasePrice || 0), 0);
-    const totalQty = assets.reduce((sum, a) => sum + Number(a.quantity || 0), 0);
+    const totalPurchasePrice = assets.reduce(
+      (sum, a) => sum + Number(a.purchasePrice || 0),
+      0,
+    );
+    const totalQty = assets.reduce(
+      (sum, a) => sum + Number(a.quantity || 0),
+      0,
+    );
 
     autoTable(doc, {
       startY: 28,
-      head: [["#", "Asset ID", "Name", "Image", "Size or type", "Purchase", "Purchase date", "Conditions", "Assigned To", "Qty"]],
+      head: [
+        [
+          "#",
+          "Asset ID",
+          "Name",
+          "Image",
+          "Size or type",
+          "Purchase",
+          "Purchase date",
+          "Conditions",
+          "Assigned To",
+          "Qty",
+        ],
+      ],
       body: tableData,
-      foot: [["Total:", "", "", "", "", totalPurchasePrice.toLocaleString(), "", "", "", String(totalQty)]],
+      foot: [
+        [
+          "Total:",
+          "",
+          "",
+          "",
+          "",
+          totalPurchasePrice.toLocaleString(),
+          "",
+          "",
+          "",
+          String(totalQty),
+        ],
+      ],
       theme: "grid",
       styles: {
         fontSize: 8,
@@ -284,16 +358,16 @@ export default function ManagerAssets() {
         halign: "center",
       },
       columnStyles: {
-        0: { cellWidth: 10, halign: "center" },   // #
-        1: { cellWidth: 20 },                       // Asset ID
-        2: { cellWidth: 25 },                       // Name
-        3: { cellWidth: 22, halign: "center" },     // Image
-        4: { cellWidth: 20 },                       // Size or type
-        5: { cellWidth: 20, halign: "right" },      // Purchase
-        6: { cellWidth: 20, halign: "center" },     // Purchase date
-        7: { cellWidth: 18 },                       // Conditions
-        8: { cellWidth: 20 },                       // Assigned To
-        9: { cellWidth: 10, halign: "center" },     // Qty
+        0: { cellWidth: 10, halign: "center" }, // #
+        1: { cellWidth: 20 }, // Asset ID
+        2: { cellWidth: 25 }, // Name
+        3: { cellWidth: 22, halign: "center" }, // Image
+        4: { cellWidth: 20 }, // Size or type
+        5: { cellWidth: 20, halign: "right" }, // Purchase
+        6: { cellWidth: 20, halign: "center" }, // Purchase date
+        7: { cellWidth: 18 }, // Conditions
+        8: { cellWidth: 20 }, // Assigned To
+        9: { cellWidth: 10, halign: "center" }, // Qty
       },
       showFoot: "lastPage",
       didParseCell: (data) => {
@@ -325,7 +399,12 @@ export default function ManagerAssets() {
       const pageHeight = doc.internal.pageSize.height;
       doc.setFontSize(7);
       doc.setTextColor(150, 150, 150);
-      doc.text(`Page ${i} of ${pageCount}`, pageWidth - leftMargin, pageHeight - 5, { align: "right" });
+      doc.text(
+        `Page ${i} of ${pageCount}`,
+        pageWidth - leftMargin,
+        pageHeight - 5,
+        { align: "right" },
+      );
     }
 
     doc.save(`Assets_${new Date().toISOString().split("T")[0]}.pdf`);
@@ -337,7 +416,7 @@ export default function ManagerAssets() {
       key: "image",
       header: t("image"),
       cell: (row) => (
-        <div 
+        <div
           className="h-10 w-10 overflow-hidden rounded-md border bg-muted cursor-zoom-in hover:border-primary transition-colors"
           onClick={(e) => {
             e.stopPropagation();
@@ -345,7 +424,11 @@ export default function ManagerAssets() {
           }}
         >
           {row.image ? (
-            <img src={row.image} alt={row.name} className="h-full w-full object-cover" />
+            <img
+              src={row.image}
+              alt={row.name}
+              className="h-full w-full object-cover"
+            />
           ) : (
             <div className="flex h-full w-full items-center justify-center">
               <ImageIcon className="h-5 w-5 text-muted-foreground/50" />
@@ -398,11 +481,15 @@ export default function ManagerAssets() {
       key: "status",
       header: t("status"),
       cell: (row) => (
-        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-          row.status === 'new' ? 'bg-green-100 text-green-800' :
-          row.status === 'damaged' ? 'bg-red-100 text-red-800' :
-          'bg-orange-100 text-orange-800'
-        }`}>
+        <span
+          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+            row.status === "new"
+              ? "bg-green-100 text-green-800"
+              : row.status === "damaged"
+                ? "bg-red-100 text-red-800"
+                : "bg-orange-100 text-orange-800"
+          }`}
+        >
           {t(row.status)}
         </span>
       ),
@@ -420,7 +507,9 @@ export default function ManagerAssets() {
       <div className="space-y-6 p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight">{t("asset_registration")}</h1>
+            <h1 className="text-3xl font-extrabold tracking-tight">
+              {t("asset_registration")}
+            </h1>
             <p className="text-muted-foreground">
               Manage and track your company assets in one place.
             </p>
@@ -429,7 +518,11 @@ export default function ManagerAssets() {
             <Button onClick={openAddModal} className="shadow-sm">
               <Plus className="mr-2 h-4 w-4" /> {t("register_asset")}
             </Button>
-            <Button onClick={exportToPDF} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700">
+            <Button
+              onClick={exportToPDF}
+              variant="outline"
+              className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+            >
               <Download className="mr-2 h-4 w-4" /> PDF
             </Button>
           </div>
@@ -452,18 +545,21 @@ export default function ManagerAssets() {
             },
             {
               label: "Assigned",
-              value: assets.filter(a => a.assignedTo).length,
+              value: assets.filter((a) => a.assignedTo).length,
               Icon: UserCheck,
               color: "text-purple-500",
             },
             {
               label: "New Condition",
-              value: assets.filter(a => a.status === "new").length,
+              value: assets.filter((a) => a.status === "new").length,
               Icon: Sparkles,
               color: "text-amber-500",
             },
           ].map(({ label, value, Icon, color }, i) => (
-            <div key={i} className="bg-card border rounded-xl p-4 flex items-center gap-3 hover:shadow-sm transition-shadow">
+            <div
+              key={i}
+              className="bg-card border rounded-xl p-4 flex items-center gap-3 hover:shadow-sm transition-shadow"
+            >
               <div className={`p-2 rounded-lg bg-muted ${color}`}>
                 <Icon className="h-5 w-5" />
               </div>
@@ -492,8 +588,16 @@ export default function ManagerAssets() {
           }}
           toolbarContent={
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={fetchData} title={t("refresh")}>
-                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /> {t("refresh")}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={fetchData}
+                title={t("refresh")}
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+                />{" "}
+                {t("refresh")}
               </Button>
               <Button variant="ghost" size="sm" onClick={() => window.print()}>
                 <Printer className="mr-2 h-4 w-4" /> {t("print")}
@@ -512,38 +616,50 @@ export default function ManagerAssets() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Image Upload القسم */}
               <div className="space-y-4 md:col-span-2">
-                <label className="text-sm font-semibold">{t("asset_image")}</label>
-                <div 
+                <label className="text-sm font-semibold">
+                  {t("asset_image")}
+                </label>
+                <div
                   className="group relative flex aspect-video cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/25 bg-muted/50 transition-colors hover:border-primary/50 hover:bg-muted"
                   onClick={() => fileInputRef.current?.click()}
                 >
                   {imagePreview ? (
-                    <img src={imagePreview} alt="Preview" className="h-full w-full rounded-lg object-cover" />
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="h-full w-full rounded-lg object-cover"
+                    />
                   ) : (
                     <>
                       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-background shadow-sm transition-transform group-hover:scale-110">
                         <Plus className="h-6 w-6 text-muted-foreground" />
                       </div>
-                      <p className="mt-2 text-sm text-muted-foreground">{t("click_to_upload_image")}</p>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {t("click_to_upload_image")}
+                      </p>
                     </>
                   )}
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    className="hidden" 
-                    accept="image/*" 
-                    onChange={handleImageChange} 
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleImageChange}
                   />
                   {imagePreview && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-                      <p className="text-sm font-medium text-white">{t("change_image")}</p>
+                      <p className="text-sm font-medium text-white">
+                        {t("change_image")}
+                      </p>
                     </div>
                   )}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">{t("asset_name")} *</label>
+                <label className="text-sm font-medium">
+                  {t("asset_name")} *
+                </label>
                 <Input
                   required
                   placeholder="e.g. Office Chair"
@@ -560,23 +676,33 @@ export default function ManagerAssets() {
                   min="1"
                   placeholder="10"
                   value={qty}
-                  onChange={(e) => setQty(e.target.value === "" ? "" : Number(e.target.value))}
+                  onChange={(e) =>
+                    setQty(e.target.value === "" ? "" : Number(e.target.value))
+                  }
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">{t("purchase_price")} (ETB)</label>
+                <label className="text-sm font-medium">
+                  {t("purchase_price")} (ETB)
+                </label>
                 <Input
                   type="number"
                   min="0"
                   placeholder="2500"
                   value={purchasePrice}
-                  onChange={(e) => setPurchasePrice(e.target.value === "" ? "" : Number(e.target.value))}
+                  onChange={(e) =>
+                    setPurchasePrice(
+                      e.target.value === "" ? "" : Number(e.target.value),
+                    )
+                  }
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">{t("size_or_type")}</label>
+                <label className="text-sm font-medium">
+                  {t("size_or_type")}
+                </label>
                 <Input
                   placeholder="e.g. Ergonomic - Mesh"
                   value={sizeOrType}
@@ -601,14 +727,16 @@ export default function ManagerAssets() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">{t("assigned_to")}</label>
+                <label className="text-sm font-medium">
+                  {t("assigned_to")}
+                </label>
                 <select
                   value={assignedTo}
                   onChange={(e) => setAssignedTo(e.target.value)}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <option value="">{t("select_employee")}</option>
-                  {employees.map(emp => (
+                  {employees.map((emp) => (
                     <option key={emp.id || emp._id} value={emp.name}>
                       {emp.name} ({emp.role})
                     </option>
@@ -617,7 +745,9 @@ export default function ManagerAssets() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">{t("purchase_date")}</label>
+                <label className="text-sm font-medium">
+                  {t("purchase_date")}
+                </label>
                 <Input
                   type="date"
                   value={purchaseDate}
@@ -626,7 +756,9 @@ export default function ManagerAssets() {
               </div>
 
               <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-medium">{t("description")}</label>
+                <label className="text-sm font-medium">
+                  {t("description")}
+                </label>
                 <textarea
                   className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   placeholder="Additional details about the asset..."
@@ -637,11 +769,19 @@ export default function ManagerAssets() {
             </div>
 
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end sm:gap-4 border-t pt-6">
-              <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsModalOpen(false)}
+              >
                 {t("cancel")}
               </Button>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? t("saving") : editingId ? t("update_asset") : t("register_asset")}
+                {isSubmitting
+                  ? t("saving")
+                  : editingId
+                    ? t("update_asset")
+                    : t("register_asset")}
               </Button>
             </div>
           </form>
@@ -658,10 +798,10 @@ export default function ManagerAssets() {
             <div className="space-y-6">
               <div className="aspect-video w-full overflow-hidden rounded-xl border bg-muted">
                 {viewingAsset.image ? (
-                  <img 
-                    src={viewingAsset.image} 
-                    alt={viewingAsset.name} 
-                    className="h-full w-full object-cover cursor-zoom-in" 
+                  <img
+                    src={viewingAsset.image}
+                    alt={viewingAsset.name}
+                    className="h-full w-full object-cover cursor-zoom-in"
                     onClick={() => setPreviewImage(viewingAsset.image)}
                   />
                 ) : (
@@ -670,11 +810,13 @@ export default function ManagerAssets() {
                   </div>
                 )}
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div className="space-y-1">
                   <p className="text-muted-foreground">{t("id")}</p>
-                  <p className="font-mono font-bold uppercase">{viewingAsset.assetId || "-"}</p>
+                  <p className="font-mono font-bold uppercase">
+                    {viewingAsset.assetId || "-"}
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-muted-foreground">{t("name")}</p>
@@ -682,11 +824,15 @@ export default function ManagerAssets() {
                 </div>
                 <div className="space-y-1">
                   <p className="text-muted-foreground">{t("status")}</p>
-                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                    viewingAsset.status === 'new' ? 'bg-green-100 text-green-800' :
-                    viewingAsset.status === 'damaged' ? 'bg-red-100 text-red-800' :
-                    'bg-orange-100 text-orange-800'
-                  }`}>
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                      viewingAsset.status === "new"
+                        ? "bg-green-100 text-green-800"
+                        : viewingAsset.status === "damaged"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-orange-100 text-orange-800"
+                    }`}
+                  >
                     {t(viewingAsset.status)}
                   </span>
                 </div>
@@ -696,11 +842,18 @@ export default function ManagerAssets() {
                 </div>
                 <div className="space-y-1">
                   <p className="text-muted-foreground">{t("purchase_price")}</p>
-                  <p className="font-bold text-primary">{Number(viewingAsset.purchasePrice || 0).toLocaleString()} ETB</p>
+                  <p className="font-bold text-primary">
+                    {Number(viewingAsset.purchasePrice || 0).toLocaleString()}{" "}
+                    ETB
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-muted-foreground">{t("purchase_date")}</p>
-                  <p className="font-bold">{viewingAsset.purchaseDate ? new Date(viewingAsset.purchaseDate).toLocaleDateString() : "-"}</p>
+                  <p className="font-bold">
+                    {viewingAsset.purchaseDate
+                      ? new Date(viewingAsset.purchaseDate).toLocaleDateString()
+                      : "-"}
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-muted-foreground">{t("assigned_to")}</p>
@@ -711,20 +864,27 @@ export default function ManagerAssets() {
                   <p className="font-bold">{viewingAsset.sizeOrType || "-"}</p>
                 </div>
               </div>
-              
+
               <div className="space-y-1 border-t pt-4 text-sm">
                 <p className="text-muted-foreground">{t("description")}</p>
-                <p className="leading-relaxed whitespace-pre-wrap">{viewingAsset.description || "-"}</p>
+                <p className="leading-relaxed whitespace-pre-wrap">
+                  {viewingAsset.description || "-"}
+                </p>
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t">
-                <Button variant="outline" onClick={() => {
-                  setIsDetailModalOpen(false);
-                  openEditModal(viewingAsset);
-                }}>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsDetailModalOpen(false);
+                    openEditModal(viewingAsset);
+                  }}
+                >
                   {t("edit")}
                 </Button>
-                <Button onClick={() => setIsDetailModalOpen(false)}>{t("close")}</Button>
+                <Button onClick={() => setIsDetailModalOpen(false)}>
+                  {t("close")}
+                </Button>
               </div>
             </div>
           )}
@@ -739,10 +899,10 @@ export default function ManagerAssets() {
         >
           <div className="flex items-center justify-center p-0 overflow-hidden bg-black/5 rounded-lg">
             {previewImage && (
-              <img 
-                src={previewImage} 
-                alt="Preview" 
-                className="max-h-[80vh] w-auto object-contain shadow-2xl transition-transform hover:scale-105 duration-500" 
+              <img
+                src={previewImage}
+                alt="Preview"
+                className="max-h-[80vh] w-auto object-contain shadow-2xl transition-transform hover:scale-105 duration-500"
               />
             )}
           </div>
