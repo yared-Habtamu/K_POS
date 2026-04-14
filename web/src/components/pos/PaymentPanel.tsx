@@ -30,8 +30,6 @@ import {
   Smartphone,
   Building2,
   Wallet,
-  Percent,
-  DollarSign,
   Plus,
   Copy,
   X,
@@ -57,9 +55,14 @@ const paymentMethods: {
   { value: "other", label: "other", icon: Wallet },
 ];
 
-interface PaymentPanelProps {
-  canApplyDiscount?: boolean;
-}
+type MartDiscountPolicy = {
+  type: DiscountType;
+  rate: number;
+  enableByItems: boolean;
+  enableByAmount: boolean;
+  minItems: number;
+  minAmount: number;
+};
 
 type MartBranding = {
   shopName: string;
@@ -69,8 +72,12 @@ type MartBranding = {
   receiptSlogan?: string;
 };
 
-function getMartQuantityForSaleItem(item: { product?: { quantity?: number; supermarketQuantity?: number } }) {
-  const quantity = Number(item?.product?.quantity ?? item?.product?.supermarketQuantity ?? 0);
+function getMartQuantityForSaleItem(item: {
+  product?: { quantity?: number; supermarketQuantity?: number };
+}) {
+  const quantity = Number(
+    item?.product?.quantity ?? item?.product?.supermarketQuantity ?? 0,
+  );
   return Number.isFinite(quantity) ? Math.max(0, quantity) : 0;
 }
 
@@ -84,7 +91,7 @@ function buildMartAddress(mart: Record<string, unknown>) {
     .join(", ");
 }
 
-export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
+export function PaymentPanel() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
   const {
@@ -109,8 +116,6 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     taxRate,
   } = useCartStore();
 
-  const [discountType, setDiscountType] = useState<DiscountType>("percentage");
-  const [discountValue, setDiscountValue] = useState("");
   const [newChargeType, setNewChargeType] = useState<string>("service_charge");
   const [newChargeCustomName, setNewChargeCustomName] = useState("");
   const [newChargeAmount, setNewChargeAmount] = useState("");
@@ -125,6 +130,15 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     Record<string, string>
   >({});
   const [martCurrency, setMartCurrency] = useState<string | null>(null);
+  const [martDiscountPolicy, setMartDiscountPolicy] =
+    useState<MartDiscountPolicy>({
+      type: "percentage",
+      rate: 0,
+      enableByItems: false,
+      enableByAmount: false,
+      minItems: 0,
+      minAmount: 0,
+    });
   const [martBranding, setMartBranding] = useState<MartBranding>({
     shopName: "Shop",
   });
@@ -184,31 +198,6 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
     });
     paymentPanelCachedMartId = martId;
     return nextBranding;
-  };
-
-  const handleApplyDiscount = () => {
-    const value = parseFloat(discountValue);
-    if (!(value > 0)) return;
-
-    const allowed =
-      canApplyDiscount ||
-      user?.role === "owner" ||
-      (Array.isArray(user?.permissions) &&
-        user!.permissions!.includes("discount"));
-
-    if (!allowed) {
-      toast({
-        title: t("not_authorized") || "Not authorized",
-        description:
-          t("no_permission_apply_discount") ||
-          "You do not have permission to apply discounts",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setCartDiscount(discountType, value);
-    setDiscountValue("");
   };
 
   const chargeTypeToLabel = (type: string) => {
@@ -545,9 +534,6 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
         const token = user?.token;
         if (!martId) return;
 
-        // avoid refetching the same mart repeatedly
-        if (paymentPanelCachedMartId === martId) return;
-
         const res = await fetch(`${API_BASE}/api/marts/${martId}`, {
           headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         });
@@ -677,6 +663,37 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
           }
         }
 
+        const incomingDiscountRate = Number(json.globalDiscountRate) || 0;
+        const incomingDiscountType =
+          json.globalDiscountType === "fixed" ? "fixed" : "percentage";
+        const incomingEnableByItems = Boolean(json.enableDiscountByItems);
+        const incomingEnableByAmount = Boolean(json.enableDiscountByAmount);
+        const incomingMinItems = Number(json.discountMinItems) || 0;
+        const incomingMinAmount = Number(json.discountMinAmount) || 0;
+        setMartDiscountPolicy((prev) => {
+          const next = {
+            type: incomingDiscountType,
+            rate: Math.max(0, incomingDiscountRate),
+            enableByItems: incomingEnableByItems,
+            enableByAmount: incomingEnableByAmount,
+            minItems: Math.max(0, incomingMinItems),
+            minAmount: Math.max(0, incomingMinAmount),
+          };
+
+          if (
+            prev.type === next.type &&
+            prev.rate === next.rate &&
+            prev.enableByItems === next.enableByItems &&
+            prev.enableByAmount === next.enableByAmount &&
+            prev.minItems === next.minItems &&
+            prev.minAmount === next.minAmount
+          ) {
+            return prev;
+          }
+
+          return next;
+        });
+
         // cache mart id to avoid repeated fetches
         paymentPanelCachedMartId = martId;
       } catch (err) {
@@ -712,6 +729,55 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
       );
     };
   }, [user?.martId, user?.token, setTaxRate, taxRate]);
+
+  // Keep cart discount aligned with mart-level automatic discount policy.
+  useEffect(() => {
+    const subtotal = getSubtotal();
+    const itemCount = items.reduce(
+      (sum, item) => sum + (Number(item.quantity) || 0),
+      0,
+    );
+
+    const qualifiesByItems =
+      martDiscountPolicy.enableByItems &&
+      martDiscountPolicy.minItems > 0 &&
+      itemCount > martDiscountPolicy.minItems;
+    const qualifiesByAmount =
+      martDiscountPolicy.enableByAmount &&
+      martDiscountPolicy.minAmount > 0 &&
+      subtotal > martDiscountPolicy.minAmount;
+    const shouldApply =
+      martDiscountPolicy.rate > 0 &&
+      (martDiscountPolicy.enableByItems || martDiscountPolicy.enableByAmount) &&
+      (qualifiesByItems || qualifiesByAmount);
+
+    if (shouldApply) {
+      if (
+        !discount ||
+        discount.type !== martDiscountPolicy.type ||
+        Number(discount.value) !== Number(martDiscountPolicy.rate)
+      ) {
+        setCartDiscount(martDiscountPolicy.type, martDiscountPolicy.rate);
+      }
+      return;
+    }
+
+    if (discount) {
+      removeCartDiscount();
+    }
+  }, [
+    discount,
+    getSubtotal,
+    items,
+    martDiscountPolicy.minAmount,
+    martDiscountPolicy.minItems,
+    martDiscountPolicy.enableByAmount,
+    martDiscountPolicy.enableByItems,
+    martDiscountPolicy.rate,
+    martDiscountPolicy.type,
+    removeCartDiscount,
+    setCartDiscount,
+  ]);
 
   // Fetch customers when credit (wallet) payment is selected
   useEffect(() => {
@@ -778,7 +844,9 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
             <div className="flex-1">
               <Select
                 value={customerId || undefined}
-                onValueChange={(v) => setCustomer(v && v !== "__none" ? v : null)}
+                onValueChange={(v) =>
+                  setCustomer(v && v !== "__none" ? v : null)
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -810,12 +878,14 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
               <Plus className="h-4 w-4" />
             </Button>
           </div>
-
         </div>
       )}
 
       {/* Add customer dialog for quick registration from POS */}
-      <Dialog open={showAddCustomerDialog} onOpenChange={setShowAddCustomerDialog}>
+      <Dialog
+        open={showAddCustomerDialog}
+        onOpenChange={setShowAddCustomerDialog}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t("add_customer") || "Add Customer"}</DialogTitle>
@@ -824,7 +894,10 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
             onSubmit={async (e) => {
               e.preventDefault();
               if (!newCustomerName || newCustomerName.trim().length < 2) {
-                toast({ title: t("valid_name_min2") || "Please enter a valid name" , variant: "destructive"});
+                toast({
+                  title: t("valid_name_min2") || "Please enter a valid name",
+                  variant: "destructive",
+                });
                 return;
               }
               setIsAddingCustomer(true);
@@ -848,7 +921,11 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
                 toast({ title: t("customer_added") || "Customer added" });
               } catch (err: any) {
                 console.error("Failed to add customer", err);
-                toast({ title: t("failed_add_customer") || "Failed to add customer", description: err?.message || String(err), variant: "destructive" });
+                toast({
+                  title: t("failed_add_customer") || "Failed to add customer",
+                  description: err?.message || String(err),
+                  variant: "destructive",
+                });
               } finally {
                 setIsAddingCustomer(false);
               }
@@ -856,23 +933,49 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
             className="grid gap-3"
           >
             <div>
-              <Label htmlFor="pos-new-customer-name">{t("name") || "Name"}</Label>
-              <Input id="pos-new-customer-name" value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} />
+              <Label htmlFor="pos-new-customer-name">
+                {t("name") || "Name"}
+              </Label>
+              <Input
+                id="pos-new-customer-name"
+                value={newCustomerName}
+                onChange={(e) => setNewCustomerName(e.target.value)}
+              />
             </div>
             <div>
-              <Label htmlFor="pos-new-customer-phone">{t("phone_number") || "Phone"}</Label>
-              <Input id="pos-new-customer-phone" value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} />
+              <Label htmlFor="pos-new-customer-phone">
+                {t("phone_number") || "Phone"}
+              </Label>
+              <Input
+                id="pos-new-customer-phone"
+                value={newCustomerPhone}
+                onChange={(e) => setNewCustomerPhone(e.target.value)}
+              />
             </div>
             <div>
-              <Label htmlFor="pos-new-customer-city">{t("city") || "City"}</Label>
-              <Input id="pos-new-customer-city" value={newCustomerCity} onChange={(e) => setNewCustomerCity(e.target.value)} />
+              <Label htmlFor="pos-new-customer-city">
+                {t("city") || "City"}
+              </Label>
+              <Input
+                id="pos-new-customer-city"
+                value={newCustomerCity}
+                onChange={(e) => setNewCustomerCity(e.target.value)}
+              />
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowAddCustomerDialog(false)} type="button">
+              <Button
+                variant="outline"
+                onClick={() => setShowAddCustomerDialog(false)}
+                type="button"
+              >
                 {t("cancel") || "Cancel"}
               </Button>
               <Button type="submit" disabled={isAddingCustomer}>
-                {isAddingCustomer ? <Loader2 className="animate-spin h-4 w-4" /> : t("add_customer")}
+                {isAddingCustomer ? (
+                  <Loader2 className="animate-spin h-4 w-4" />
+                ) : (
+                  t("add_customer")
+                )}
               </Button>
             </div>
           </form>
@@ -927,58 +1030,38 @@ export function PaymentPanel({ canApplyDiscount = false }: PaymentPanelProps) {
       )}
 
       {/* Discount Section */}
-      {canApplyDiscount && (
-        <div className="space-y-2">
-          <Label>{t("discount")}</Label>
-          {discount ? (
-            <div className="flex items-center gap-2 p-2 bg-accent rounded-lg">
-              <span className="flex-1 text-sm">
-                {discount.type === "percentage"
-                  ? `${discount.value}%`
-                  : `${discount.value} ETB`}{" "}
-                {t("off")}
-              </span>
-              <Button variant="ghost" size="sm" onClick={removeCartDiscount}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              <Select
-                value={discountType}
-                onValueChange={(v) => setDiscountType(v as DiscountType)}
-              >
-                <SelectTrigger className="w-24">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="percentage">
-                    <div className="flex items-center gap-1">
-                      <Percent className="h-3 w-3" />%
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="fixed">
-                    <div className="flex items-center gap-1">
-                      <DollarSign className="h-3 w-3" />
-                      ETB
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                type="number"
-                placeholder={t("value")}
-                value={discountValue}
-                onChange={(e) => setDiscountValue(e.target.value)}
-                className="flex-1"
-              />
-              <Button onClick={handleApplyDiscount} size="icon">
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
+      <div className="space-y-2">
+        <Label>{t("discount")}</Label>
+        {martDiscountPolicy.rate > 0 ? (
+          <div className="space-y-1 rounded-lg border p-3">
+            <p className="text-sm text-muted-foreground">
+              Auto discount policy:{" "}
+              {martDiscountPolicy.type === "percentage"
+                ? `${martDiscountPolicy.rate}% off`
+                : `${martDiscountPolicy.rate} ETB off`}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Conditions:{" "}
+              {martDiscountPolicy.enableByItems
+                ? `items > ${martDiscountPolicy.minItems}`
+                : "items condition disabled"}
+              {" | "}
+              {martDiscountPolicy.enableByAmount
+                ? `subtotal > ${martDiscountPolicy.minAmount} ETB`
+                : "amount condition disabled"}
+            </p>
+            <p className="text-sm font-medium">
+              {discount
+                ? `Applied: -${getDiscountAmount().toFixed(2)} ETB`
+                : "Not applied for current cart"}
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No mart discount policy configured.
+          </p>
+        )}
+      </div>
 
       {/* Extra Charges */}
       <div className="space-y-2">
