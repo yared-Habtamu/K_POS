@@ -1,7 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const Expense = require("../models/expense.model");
+const ExpenseActionRequest = require("../models/expenseActionRequest.model");
+const User = require("../models/user.model");
 const { authenticate } = require("../middleware/auth");
+const { createNotification } = require("../services/notification.service");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
@@ -21,6 +24,13 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+
+async function getMartOwners(martId) {
+  if (!martId) return [];
+  return User.find({ martId, role: { $regex: /^owner$/i } })
+    .select("_id name username")
+    .lean();
+}
 
 // List expenses. Query: ?martId=... optional. Non-systemAdmin users limited to their mart.
 router.get("/", authenticate, async (req, res) => {
@@ -96,6 +106,109 @@ router.post(
       if (!description || amount == null || !date)
         return res.status(400).json({ message: "Missing required fields" });
 
+      const createdByRole =
+        req.user.role === "owner"
+          ? "owner"
+          : req.user.role === "manager"
+            ? "manager"
+            : "other";
+
+      const attachmentPayload = {
+        paymentScreenshot: undefined,
+        productPicture: undefined,
+        screenshots: [],
+      };
+
+      // Attach uploaded files (if any) as accessible URLs.
+      // Managers also need this in request payload for owner approval.
+      try {
+        if (
+          req.files &&
+          req.files.paymentScreenshot &&
+          req.files.paymentScreenshot[0]
+        ) {
+          const f = req.files.paymentScreenshot[0];
+          attachmentPayload.paymentScreenshot = `${req.protocol}://${req.get("host")}/uploads/${f.filename}`;
+        }
+        if (
+          req.files &&
+          req.files.productPicture &&
+          req.files.productPicture[0]
+        ) {
+          const f = req.files.productPicture[0];
+          attachmentPayload.productPicture = `${req.protocol}://${req.get("host")}/uploads/${f.filename}`;
+        }
+        if (
+          req.files &&
+          req.files.screenshots &&
+          req.files.screenshots.length
+        ) {
+          attachmentPayload.screenshots = req.files.screenshots.map(
+            (f) => `${req.protocol}://${req.get("host")}/uploads/${f.filename}`,
+          );
+        }
+      } catch (e) {
+        console.warn("Failed to attach uploaded files", e);
+      }
+
+      // Managers cannot directly create expenses; route through owner approval.
+      if (req.user.role === "manager") {
+        const owners = await getMartOwners(targetMartId);
+        if (!owners || owners.length === 0) {
+          return res
+            .status(400)
+            .json({
+              message: "No owner found for this mart to approve the expense",
+            });
+        }
+
+        const reqDoc = new ExpenseActionRequest({
+          martId: targetMartId,
+          requesterId: req.user.id,
+          requesterName: req.user.username || req.user.name,
+          requesterRole: "manager",
+          action: "create",
+          approvalRole: "owner",
+          payload: {
+            category,
+            description,
+            name: name || undefined,
+            reason: reason || undefined,
+            amount: Number(amount),
+            date,
+            paymentType: paymentType || undefined,
+            paymentScreenshot: attachmentPayload.paymentScreenshot,
+            productPicture: attachmentPayload.productPicture,
+            screenshots: attachmentPayload.screenshots,
+          },
+        });
+
+        await reqDoc.save();
+
+        await Promise.all(
+          owners.map((owner) =>
+            createNotification({
+              martId: targetMartId,
+              userId: owner._id,
+              type: "expense_action_request",
+              title: "Expense approval requested",
+              message: `${reqDoc.requesterName || "Manager"} requested expense approval`,
+              metadata: {
+                requestId: reqDoc._id,
+                action: "create",
+                amount: Number(amount),
+                description,
+              },
+            }),
+          ),
+        );
+
+        return res.status(202).json({
+          message: "Expense submitted for owner approval",
+          requestId: reqDoc._id,
+        });
+      }
+
       const expense = new Expense({
         martId: targetMartId,
         category,
@@ -105,46 +218,14 @@ router.post(
         amount: Number(amount),
         date: new Date(date),
         createdBy: req.user.id,
-        createdByRole:
-          req.user.role === "owner"
-            ? "owner"
-            : req.user.role === "manager"
-              ? "manager"
-              : "other",
+        createdByRole,
         createdByName: req.user.name || undefined,
         paymentType: paymentType || undefined,
       });
 
-      // attach uploaded files (if any) as accessible URLs
-      try {
-        if (
-          req.files &&
-          req.files.paymentScreenshot &&
-          req.files.paymentScreenshot[0]
-        ) {
-          const f = req.files.paymentScreenshot[0];
-          expense.paymentScreenshot = `${req.protocol}://${req.get("host")}/uploads/${f.filename}`;
-        }
-        if (
-          req.files &&
-          req.files.productPicture &&
-          req.files.productPicture[0]
-        ) {
-          const f = req.files.productPicture[0];
-          expense.productPicture = `${req.protocol}://${req.get("host")}/uploads/${f.filename}`;
-        }
-        if (
-          req.files &&
-          req.files.screenshots &&
-          req.files.screenshots.length
-        ) {
-          expense.screenshots = req.files.screenshots.map(
-            (f) => `${req.protocol}://${req.get("host")}/uploads/${f.filename}`,
-          );
-        }
-      } catch (e) {
-        console.warn("Failed to attach uploaded files", e);
-      }
+      expense.paymentScreenshot = attachmentPayload.paymentScreenshot;
+      expense.productPicture = attachmentPayload.productPicture;
+      expense.screenshots = attachmentPayload.screenshots;
 
       await expense.save();
       res.status(201).json(expense);

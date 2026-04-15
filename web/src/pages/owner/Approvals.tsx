@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, RotateCw } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { toast } from "@/hooks/use-toast";
-import type { AssetActionRequest } from "@/types";
+import type { AssetActionRequest, ExpenseActionRequest } from "@/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,12 +28,16 @@ import {
 
 export default function OwnerApprovals() {
   const token = useAuthStore.getState().user?.token;
-  const [requests, setRequests] = useState<AssetActionRequest[]>([]);
+  const [assetRequests, setAssetRequests] = useState<AssetActionRequest[]>([]);
+  const [expenseRequests, setExpenseRequests] = useState<
+    ExpenseActionRequest[]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<
     "pending" | "approved" | "rejected" | "all"
   >("all");
   const [pendingDecision, setPendingDecision] = useState<{
+    target: "asset" | "expense";
     id: string;
     action: "approve" | "reject";
     itemLabel: string;
@@ -47,20 +51,30 @@ export default function OwnerApprovals() {
       const qs = new URLSearchParams();
       if (statusFilter !== "all") qs.append("status", statusFilter);
 
-      const res = await fetch(
-        `${API_BASE}/api/asset-action-requests?${qs.toString()}`,
-        {
+      const [assetRes, expenseRes] = await Promise.all([
+        fetch(`${API_BASE}/api/asset-action-requests?${qs.toString()}`, {
           headers: { Authorization: token ? `Bearer ${token}` : "" },
-        },
-      );
+        }),
+        fetch(`${API_BASE}/api/expense-action-requests?${qs.toString()}`, {
+          headers: { Authorization: token ? `Bearer ${token}` : "" },
+        }),
+      ]);
 
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.message || `Failed with ${res.status}`);
+      if (!assetRes.ok) {
+        const errJson = await assetRes.json().catch(() => ({}));
+        throw new Error(errJson.message || `Failed with ${assetRes.status}`);
+      }
+      if (!expenseRes.ok) {
+        const errJson = await expenseRes.json().catch(() => ({}));
+        throw new Error(errJson.message || `Failed with ${expenseRes.status}`);
       }
 
-      const json = await res.json();
-      setRequests(Array.isArray(json) ? json : []);
+      const [assetJson, expenseJson] = await Promise.all([
+        assetRes.json(),
+        expenseRes.json(),
+      ]);
+      setAssetRequests(Array.isArray(assetJson) ? assetJson : []);
+      setExpenseRequests(Array.isArray(expenseJson) ? expenseJson : []);
     } catch (err) {
       console.error("Failed to load owner asset approvals", err);
       toast({
@@ -69,6 +83,43 @@ export default function OwnerApprovals() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const actOnExpenseRequest = async (
+    id: string,
+    action: "approve" | "reject",
+    reason?: string,
+  ) => {
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/expense-action-requests/${id}/${action}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: token ? `Bearer ${token}` : "",
+          },
+          body: JSON.stringify(reason ? { reason } : {}),
+        },
+      );
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || `Failed with ${res.status}`);
+      }
+
+      toast({
+        title: `${action === "approve" ? "Approved" : "Rejected"} successfully`,
+      });
+      await fetchRequests();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast({
+        title: "Action failed",
+        description: message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -111,9 +162,13 @@ export default function OwnerApprovals() {
 
   const confirmDecision = async () => {
     if (!pendingDecision) return;
-    const { id, action } = pendingDecision;
+    const { id, action, target } = pendingDecision;
     setPendingDecision(null);
-    await actOnRequest(id, action);
+    if (target === "asset") {
+      await actOnRequest(id, action);
+      return;
+    }
+    await actOnExpenseRequest(id, action);
   };
 
   useEffect(() => {
@@ -180,11 +235,11 @@ export default function OwnerApprovals() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               Asset Requests
-              <Badge variant="secondary">{requests.length}</Badge>
+              <Badge variant="secondary">{assetRequests.length}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {requests.length === 0 ? (
+            {assetRequests.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No requests found.
               </p>
@@ -202,7 +257,7 @@ export default function OwnerApprovals() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {requests.map((r) => {
+                  {assetRequests.map((r) => {
                     const approvalRole = r.approvalRole || "manager";
                     const canOwnerAct =
                       r.status === "pending" && approvalRole === "owner";
@@ -251,6 +306,7 @@ export default function OwnerApprovals() {
                                 variant="outline"
                                 onClick={() =>
                                   setPendingDecision({
+                                    target: "asset",
                                     id: String(r._id || r.id),
                                     action: "reject",
                                     itemLabel,
@@ -263,6 +319,114 @@ export default function OwnerApprovals() {
                                 size="sm"
                                 onClick={() =>
                                   setPendingDecision({
+                                    target: "asset",
+                                    id: String(r._id || r.id),
+                                    action: "approve",
+                                    itemLabel,
+                                  })
+                                }
+                              >
+                                Approve
+                              </Button>
+                            </>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              Expense Requests
+              <Badge variant="secondary">{expenseRequests.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {expenseRequests.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No expense requests found.
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Requested At</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Decided At</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {expenseRequests.map((r) => {
+                    const canOwnerAct = r.status === "pending";
+                    const itemLabel =
+                      r.payload?.description ||
+                      r.payload?.name ||
+                      "expense request";
+
+                    return (
+                      <TableRow key={r._id || r.id}>
+                        <TableCell>
+                          {r.createdAt
+                            ? new Date(String(r.createdAt)).toLocaleString()
+                            : "-"}
+                        </TableCell>
+                        <TableCell>{r.payload?.category || "-"}</TableCell>
+                        <TableCell>{r.payload?.description || "-"}</TableCell>
+                        <TableCell>
+                          {Number(r.payload?.amount || 0).toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              r.status === "approved"
+                                ? "default"
+                                : r.status === "rejected"
+                                  ? "destructive"
+                                  : "secondary"
+                            }
+                          >
+                            {r.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {r.decidedAt
+                            ? new Date(String(r.decidedAt)).toLocaleString()
+                            : "-"}
+                        </TableCell>
+                        <TableCell>{r.reason || "-"}</TableCell>
+                        <TableCell className="text-right space-x-2">
+                          {canOwnerAct && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  setPendingDecision({
+                                    target: "expense",
+                                    id: String(r._id || r.id),
+                                    action: "reject",
+                                    itemLabel,
+                                  })
+                                }
+                              >
+                                Reject
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() =>
+                                  setPendingDecision({
+                                    target: "expense",
                                     id: String(r._id || r.id),
                                     action: "approve",
                                     itemLabel,

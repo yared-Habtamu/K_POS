@@ -257,6 +257,34 @@ export interface AssetActionRequest {
   decidedAt?: Date | string;
 }
 
+export interface ExpenseActionRequest {
+  id?: string;
+  _id?: string;
+  martId: string;
+  requesterId?: string;
+  requesterName?: string;
+  requesterRole?: "owner" | "manager" | "systemadmin" | "other";
+  action: "create";
+  approvalRole?: "owner";
+  payload?: {
+    category?: string;
+    description?: string;
+    amount?: number;
+    date?: string | Date;
+    name?: string;
+    reason?: string;
+    paymentType?: string;
+    [key: string]: any;
+  };
+  status: "pending" | "approved" | "rejected";
+  approverId?: string;
+  approverName?: string;
+  reason?: string;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+  decidedAt?: Date | string;
+}
+
 // Shop/Supermarket Types
 export interface Shop {
   id: string;
