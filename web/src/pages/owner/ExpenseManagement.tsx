@@ -45,6 +45,8 @@ import {
   MoreHorizontal,
   Users,
   TrendingDown,
+  Loader2,
+  Camera,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -230,6 +232,7 @@ export default function ExpenseManagement() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1); // ✅ Pagination state
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [form, setForm] = useState({
     category: "miscellaneous" as ExpenseCategory,
@@ -391,6 +394,8 @@ export default function ExpenseManagement() {
   };
 
   const addExpense = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     const token = auth?.token;
     const payload = {
       category: form.category,
@@ -561,6 +566,8 @@ export default function ExpenseManagement() {
           ? t("failed_update_expense")
           : t("failed_add_expense")
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -948,18 +955,47 @@ export default function ExpenseManagement() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="productPicture">{t("product_picture")}</Label>
-                  <Input
-                    id="productPicture"
-                    type="file"
-                    accept="image/*"
-                    onChange={(e: any) => {
-                      const f = e.target.files?.[0] || null;
-                      setForm({ ...form, productPicture: f });
-                      setProductPicturePreview(
-                        f ? URL.createObjectURL(f) : null,
-                      );
-                    }}
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="productPicture"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e: any) => {
+                        const f = e.target.files?.[0] || null;
+                        setForm({ ...form, productPicture: f });
+                        setProductPicturePreview(
+                          f ? URL.createObjectURL(f) : null,
+                        );
+                      }}
+                    />
+                    <input
+                      id="productPictureCamera"
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e: any) => {
+                        const f = e.target.files?.[0] || null;
+                        setForm({ ...form, productPicture: f });
+                        setProductPicturePreview(
+                          f ? URL.createObjectURL(f) : null,
+                        );
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() =>
+                        document
+                          .getElementById("productPictureCamera")
+                          ?.click()
+                      }
+                      aria-label={t("take_photo", "Take photo")}
+                    >
+                      <Camera className="h-4 w-4" />
+                    </Button>
+                  </div>
                   {productPicturePreview && (
                     <img
                       src={productPicturePreview}
@@ -972,18 +1008,47 @@ export default function ExpenseManagement() {
                   <Label htmlFor="paymentScreenshot">
                     {t("payment_screenshot")}
                   </Label>
-                  <Input
-                    id="paymentScreenshot"
-                    type="file"
-                    accept="image/*"
-                    onChange={(e: any) => {
-                      const f = e.target.files?.[0] || null;
-                      setForm({ ...form, paymentScreenshot: f });
-                      setPaymentScreenshotPreview(
-                        f ? URL.createObjectURL(f) : null,
-                      );
-                    }}
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="paymentScreenshot"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e: any) => {
+                        const f = e.target.files?.[0] || null;
+                        setForm({ ...form, paymentScreenshot: f });
+                        setPaymentScreenshotPreview(
+                          f ? URL.createObjectURL(f) : null,
+                        );
+                      }}
+                    />
+                    <input
+                      id="paymentScreenshotCamera"
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e: any) => {
+                        const f = e.target.files?.[0] || null;
+                        setForm({ ...form, paymentScreenshot: f });
+                        setPaymentScreenshotPreview(
+                          f ? URL.createObjectURL(f) : null,
+                        );
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() =>
+                        document
+                          .getElementById("paymentScreenshotCamera")
+                          ?.click()
+                      }
+                      aria-label={t("take_photo", "Take photo")}
+                    >
+                      <Camera className="h-4 w-4" />
+                    </Button>
+                  </div>
                   {paymentScreenshotPreview && (
                     <img
                       src={paymentScreenshotPreview}
@@ -1000,11 +1065,21 @@ export default function ExpenseManagement() {
                       setIsDialogOpen(false);
                       setEditingExpenseId(null);
                     }}
+                    disabled={isSubmitting}
                   >
                     {t("cancel")}
                   </Button>
-                  <Button type="submit">
-                    {editingExpenseId ? t("save") : t("add")}
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <span className="inline-flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        {t("loading")}
+                      </span>
+                    ) : editingExpenseId ? (
+                      t("save")
+                    ) : (
+                      t("add")
+                    )}
                   </Button>
                 </div>
               </form>

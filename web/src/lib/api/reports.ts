@@ -28,7 +28,7 @@ export async function fetchMartReport(params: { martId: string; range?: string; 
   return request(`/api/reports/mart?${qs}`, token);
 }
 
-export async function fetchTodaysSales(params: { martId?: string } = {}, token?: string) {
+export async function fetchTodaysSales(params: { martId?: string; date?: string } = {}, token?: string) {
   const qs = new URLSearchParams(params as Record<string, string>).toString();
   const suffix = qs ? `?${qs}` : '';
   return request(`/api/reports/today-sales${suffix}`, token);
