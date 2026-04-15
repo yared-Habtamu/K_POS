@@ -26,6 +26,7 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/stores/authStore";
 import type {
+  AssetActionRequest,
   ProductAddRequest,
   ProductEditRequest,
   StockTransferRequest,
@@ -33,7 +34,7 @@ import type {
 import { Loader2, Check, X, RotateCw } from "lucide-react";
 
 type ApprovalDecision = {
-  type: "add" | "transfer" | "edit";
+  type: "add" | "transfer" | "edit" | "asset";
   id: string;
   action: "approve" | "reject";
   itemLabel: string;
@@ -46,6 +47,7 @@ export default function Approvals() {
   const [transferRequests, setTransferRequests] = useState<
     StockTransferRequest[]
   >([]);
+  const [assetRequests, setAssetRequests] = useState<AssetActionRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<
     "pending" | "approved" | "rejected" | "all"
@@ -54,6 +56,7 @@ export default function Approvals() {
     add: true,
     edit: true,
     transfer: true,
+    asset: true,
   });
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
@@ -86,9 +89,15 @@ export default function Approvals() {
               headers: { Authorization: token ? `Bearer ${token}` : "" },
             })
           : Promise.resolve(null),
+        typeFilter.asset
+          ? fetch(`${API_BASE}/api/asset-action-requests?${qs.toString()}`, {
+              headers: { Authorization: token ? `Bearer ${token}` : "" },
+            })
+          : Promise.resolve(null),
       ];
 
-      const [addRes, editRes, transferRes] = await Promise.all(requests);
+      const [addRes, editRes, transferRes, assetRes] =
+        await Promise.all(requests);
 
       const addJson = addRes ? (addRes.ok ? await addRes.json() : []) : [];
       const editJson = editRes ? (editRes.ok ? await editRes.json() : []) : [];
@@ -97,10 +106,16 @@ export default function Approvals() {
           ? await transferRes.json()
           : []
         : [];
+      const assetJson = assetRes
+        ? assetRes.ok
+          ? await assetRes.json()
+          : []
+        : [];
 
       setAddRequests(Array.isArray(addJson) ? addJson : []);
       setEditRequests(Array.isArray(editJson) ? editJson : []);
       setTransferRequests(Array.isArray(transferJson) ? transferJson : []);
+      setAssetRequests(Array.isArray(assetJson) ? assetJson : []);
     } catch (err) {
       console.error("Failed to load approvals", err);
       toast({ title: "Failed to load approvals", variant: "destructive" });
@@ -119,10 +134,11 @@ export default function Approvals() {
     typeFilter.add,
     typeFilter.edit,
     typeFilter.transfer,
+    typeFilter.asset,
   ]);
 
   const actOnRequest = async (
-    type: "add" | "transfer" | "edit",
+    type: "add" | "transfer" | "edit" | "asset",
     id: string,
     action: "approve" | "reject",
     reason?: string,
@@ -132,7 +148,9 @@ export default function Approvals() {
         ? `${API_BASE}/api/product-add-requests/${id}/${action}`
         : type === "edit"
           ? `${API_BASE}/api/product-edit-requests/${id}/${action}`
-          : `${API_BASE}/api/stock-transfer-requests/${id}/${action}`;
+          : type === "transfer"
+            ? `${API_BASE}/api/stock-transfer-requests/${id}/${action}`
+            : `${API_BASE}/api/asset-action-requests/${id}/${action}`;
 
     try {
       const res = await fetch(path, {
@@ -176,7 +194,7 @@ export default function Approvals() {
           <div>
             <h1 className="text-2xl font-bold">Approvals</h1>
             <p className="text-muted-foreground">
-              Review product creations and stock transfers
+              Review product, stock transfer, and asset action requests
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -232,7 +250,7 @@ export default function Approvals() {
             <div className="space-y-2">
               <Label>Types</Label>
               <div className="flex flex-wrap gap-3 text-sm">
-                {(["add", "edit", "transfer"] as const).map((k) => (
+                {(["add", "edit", "transfer", "asset"] as const).map((k) => (
                   <label key={k} className="flex items-center gap-2">
                     <input
                       type="checkbox"
@@ -248,7 +266,9 @@ export default function Approvals() {
                       ? "Product Add"
                       : k === "edit"
                         ? "Product Edit"
-                        : "Stock Transfer"}
+                        : k === "transfer"
+                          ? "Stock Transfer"
+                          : "Asset Action"}
                   </label>
                 ))}
               </div>
@@ -580,6 +600,119 @@ export default function Approvals() {
                                         r.productId ||
                                         "stock transfer request",
                                     ),
+                                  })
+                                }
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              Asset Action Requests
+              <Badge variant="secondary">{assetRequests.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {assetRequests.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No requests found for this filter.
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Asset</TableHead>
+                    <TableHead>Requested By</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {assetRequests.map((r) => {
+                    const approvalRole = r.approvalRole || "manager";
+                    const canManagerAct =
+                      r.status === "pending" && approvalRole === "manager";
+                    const assetLabel =
+                      r.payload?.name ||
+                      r.payload?.assetId ||
+                      (r.action === "create"
+                        ? "Asset create request"
+                        : r.action === "update"
+                          ? "Asset update request"
+                          : "Asset delete request");
+                    const statusBadge = (
+                      <Badge
+                        variant={
+                          r.status === "approved"
+                            ? "default"
+                            : r.status === "rejected"
+                              ? "destructive"
+                              : "secondary"
+                        }
+                      >
+                        {r.status}
+                      </Badge>
+                    );
+                    return (
+                      <TableRow key={r._id || r.id}>
+                        <TableCell>
+                          {r.decidedAt ? (
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(
+                                r.decidedAt as any,
+                              ).toLocaleDateString()}
+                            </span>
+                          ) : (
+                            "-"
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{r.action}</Badge>
+                        </TableCell>
+                        <TableCell>{assetLabel}</TableCell>
+                        <TableCell>{r.requesterName || "Owner"}</TableCell>
+                        <TableCell className="space-x-2 flex items-center">
+                          {statusBadge}
+                        </TableCell>
+                        <TableCell className="text-right space-x-2">
+                          {canManagerAct && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  setPendingDecision({
+                                    type: "asset",
+                                    id: String(r._id || r.id),
+                                    action: "reject",
+                                    itemLabel: assetLabel,
+                                  })
+                                }
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() =>
+                                  setPendingDecision({
+                                    type: "asset",
+                                    id: String(r._id || r.id),
+                                    action: "approve",
+                                    itemLabel: assetLabel,
                                   })
                                 }
                               >

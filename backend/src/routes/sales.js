@@ -11,17 +11,8 @@ const { authenticate } = require("../middleware/auth");
 router.post("/", authenticate, async (req, res) => {
   try {
     const payload = req.body || {};
-    const {
-      martId,
-      receiptId,
-      items,
-      subtotal,
-      discount,
-      extraCharges,
-      tax,
-      total,
-      paymentMethod,
-    } = payload;
+    const { martId, receiptId, items, subtotal, extraCharges, paymentMethod } =
+      payload;
     const targetMartId =
       req.user.role === "systemAdmin"
         ? martId || req.user.martId
@@ -32,6 +23,22 @@ router.post("/", authenticate, async (req, res) => {
     const mart = await Mart.findById(targetMartId).lean();
     const martTaxRate = Number(mart?.taxRate);
     const taxRate = Number.isFinite(martTaxRate) ? martTaxRate : 0;
+    const martDiscountType =
+      mart?.globalDiscountType === "fixed" ? "fixed" : "percentage";
+    const martDiscountRateRaw = Number(mart?.globalDiscountRate);
+    const martDiscountRate = Number.isFinite(martDiscountRateRaw)
+      ? Math.max(0, martDiscountRateRaw)
+      : 0;
+    const enableDiscountByItems = Boolean(mart?.enableDiscountByItems);
+    const enableDiscountByAmount = Boolean(mart?.enableDiscountByAmount);
+    const discountMinItemsRaw = Number(mart?.discountMinItems);
+    const discountMinItems = Number.isFinite(discountMinItemsRaw)
+      ? Math.max(0, discountMinItemsRaw)
+      : 0;
+    const discountMinAmountRaw = Number(mart?.discountMinAmount);
+    const discountMinAmount = Number.isFinite(discountMinAmountRaw)
+      ? Math.max(0, discountMinAmountRaw)
+      : 0;
 
     // compute subtotal from items if not provided
     let computedSubtotal = Number(subtotal || 0);
@@ -47,26 +54,42 @@ router.post("/", authenticate, async (req, res) => {
       ? extraCharges.reduce((s, e) => s + (Number(e.amount) || 0), 0)
       : 0;
 
-    // discount amount (if discount object uses .amount)
-    const discountAmt = (discount && Number(discount.amount)) || 0;
+    // Apply mart-level discount policy server-side.
+    const itemCount = Array.isArray(items)
+      ? items.reduce((sum, it) => sum + (Number(it?.quantity) || 0), 0)
+      : 0;
+    const qualifiesByItems =
+      enableDiscountByItems &&
+      discountMinItems > 0 &&
+      itemCount > discountMinItems;
+    const qualifiesByAmount =
+      enableDiscountByAmount &&
+      discountMinAmount > 0 &&
+      computedSubtotal > discountMinAmount;
+    const shouldApplyDiscount =
+      martDiscountRate > 0 &&
+      (enableDiscountByItems || enableDiscountByAmount) &&
+      (qualifiesByItems || qualifiesByAmount);
 
-    // enforce permission: applying a discount requires 'discount' permission
-    if (discountAmt > 0) {
-      const userPerms = Array.isArray(req.user.permissions)
-        ? req.user.permissions
-        : [];
-      if (
-        !(
-          req.user.role === "systemAdmin" ||
-          req.user.role === "owner" ||
-          userPerms.includes("discount")
-        )
-      ) {
-        return res
-          .status(403)
-          .json({ message: "Insufficient permissions to apply discount" });
-      }
-    }
+    const rawDiscountAmt = shouldApplyDiscount
+      ? martDiscountType === "percentage"
+        ? computedSubtotal * (martDiscountRate / 100)
+        : martDiscountRate
+      : 0;
+    const discountAmt =
+      Math.round(
+        (Math.min(computedSubtotal, Math.max(0, rawDiscountAmt)) +
+          Number.EPSILON) *
+          100,
+      ) / 100;
+
+    const appliedDiscount = shouldApplyDiscount
+      ? {
+          type: martDiscountType,
+          value: martDiscountRate,
+          amount: discountAmt,
+        }
+      : undefined;
 
     // taxable base: subtotal - discount + extra charges
     const taxableBase = computedSubtotal - discountAmt + extraSum;
@@ -138,7 +161,7 @@ router.post("/", authenticate, async (req, res) => {
             receiptId,
             items,
             subtotal: computedSubtotal,
-            discount,
+            discount: appliedDiscount,
             extraCharges,
             tax: taxAmount,
             taxRate,
@@ -215,7 +238,7 @@ router.post("/", authenticate, async (req, res) => {
       receiptId,
       items,
       subtotal: computedSubtotal,
-      discount,
+      discount: appliedDiscount,
       extraCharges,
       tax: taxAmount,
       taxRate,

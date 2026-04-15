@@ -40,6 +40,7 @@ import ProductManagement from "./pages/owner/ProductManagement";
 import OwnerEmployeeManagement from "./pages/owner/EmployeeManagement";
 import ExpenseManagement from "./pages/owner/ExpenseManagement";
 import OwnerSettings from "./pages/owner/Settings";
+import OwnerApprovals from "./pages/owner/Approvals";
 import Inventory from "./pages/Inventory";
 import OwnerAssets from "./pages/manager/Assets";
 import RegisterMart from "./pages/owner/RegisterMart";
@@ -148,6 +149,7 @@ const App = () => {
             <Route path="/alerts" element={<OwnerAlerts />} />
             <Route path="/owner/alerts" element={<OwnerAlerts />} />
             <Route path="/owner/settings" element={<OwnerSettings />} />
+            <Route path="/owner/approvals" element={<OwnerApprovals />} />
             <Route path="/owner/reports" element={<ReportPage />} />
             <Route path="/owner/today-sales" element={<TodaysSales />} />
             <Route path="/owner/assets" element={<OwnerAssets />} />

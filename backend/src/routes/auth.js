@@ -1,23 +1,24 @@
-const express = require('express');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const User = require('../models/user.model');
-const Mart = require('../models/mart.model');
+const express = require("express");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const User = require("../models/user.model");
+const Mart = require("../models/mart.model");
 const router = express.Router();
-const { authenticate } = require('../middleware/auth');
+const { authenticate } = require("../middleware/auth");
 
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
+const JWT_SECRET = process.env.JWT_SECRET || "changeme";
 
 // Login endpoint
-router.post('/login', async (req, res) => {
+router.post("/login", async (req, res) => {
   const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ message: 'Username and password required' });
+  if (!username || !password)
+    return res.status(400).json({ message: "Username and password required" });
 
   // Normalize helper to match system-admin username sanitization
-  const sanitize = (s = '') =>
-    String(s || '')
+  const sanitize = (s = "") =>
+    String(s || "")
       .toLowerCase()
-      .replace(/[^a-z0-9]/g, '')
+      .replace(/[^a-z0-9]/g, "")
       .slice(0, 30);
 
   // Allow users to sign in using either their username (raw or sanitized) or phone number
@@ -27,325 +28,537 @@ router.post('/login', async (req, res) => {
   });
   if (!user) {
     console.warn(`Login failed: user not found for '${username}'`);
-    return res.status(401).json({ message: 'Invalid username or password' });
+    return res.status(401).json({ message: "Invalid username or password" });
   }
 
-  const valid = await bcrypt.compare(password, user.passwordHash || '');
+  const valid = await bcrypt.compare(password, user.passwordHash || "");
   if (!valid) {
-    console.warn(`Login failed: wrong password for user '${username}' (id=${user._id})`);
-    return res.status(401).json({ message: 'Invalid username or password' });
+    console.warn(
+      `Login failed: wrong password for user '${username}' (id=${user._id})`,
+    );
+    return res.status(401).json({ message: "Invalid username or password" });
   }
 
   // Block login for deleted or deactivated users
   if (user.isDeleted || user.active === false) {
     console.info(`Login blocked: user is deleted or inactive (id=${user._id})`);
-    return res.status(403).json({ message: 'Account is deactivated or deleted. Contact an administrator.' });
+    return res
+      .status(403)
+      .json({
+        message: "Account is deactivated or deleted. Contact an administrator.",
+      });
   }
 
   // Owners may only login once their mart is approved
-  if (user.role === 'owner') {
+  if (user.role === "owner") {
     if (!user.martId) {
       console.warn(`Owner login blocked: no martId for user id=${user._id}`);
-      return res.status(403).json({ message: 'Owner account has no mart assigned. Create a mart first or contact an administrator.' });
+      return res
+        .status(403)
+        .json({
+          message:
+            "Owner account has no mart assigned. Create a mart first or contact an administrator.",
+        });
     }
     // include isDeleted flag so deleted marts cannot be used to login
-    const mart = await Mart.findById(user.martId).select('status isDeleted');
+    const mart = await Mart.findById(user.martId).select("status isDeleted");
     if (!mart) {
-      console.warn(`Owner login blocked: mart not found for martId=${user.martId}`);
-      return res.status(403).json({ message: "Owner's mart not found. Contact an administrator." });
+      console.warn(
+        `Owner login blocked: mart not found for martId=${user.martId}`,
+      );
+      return res
+        .status(403)
+        .json({ message: "Owner's mart not found. Contact an administrator." });
     }
     if (mart.isDeleted) {
-      console.info(`Owner login blocked: mart is deleted for martId=${user.martId}`);
-      return res.status(403).json({ message: 'Your mart has been deleted. Contact an administrator.' });
+      console.info(
+        `Owner login blocked: mart is deleted for martId=${user.martId}`,
+      );
+      return res
+        .status(403)
+        .json({
+          message: "Your mart has been deleted. Contact an administrator.",
+        });
     }
 
     // Specific messaging for mart status
-    if (mart.status === 'pending') {
-      console.info(`Owner login blocked: mart pending for martId=${user.martId}`);
-      return res.status(403).json({ message: 'Your mart registration is pending approval.' });
+    if (mart.status === "pending") {
+      console.info(
+        `Owner login blocked: mart pending for martId=${user.martId}`,
+      );
+      return res
+        .status(403)
+        .json({ message: "Your mart registration is pending approval." });
     }
 
-    if (mart.status === 'disabled') {
-      console.info(`Owner login blocked: mart suspended for martId=${user.martId}`);
-      return res.status(403).json({ message: 'Mart is suspended contact an Administrator' });
+    if (mart.status === "disabled") {
+      console.info(
+        `Owner login blocked: mart suspended for martId=${user.martId}`,
+      );
+      return res
+        .status(403)
+        .json({ message: "Mart is suspended contact an Administrator" });
     }
 
-    if (mart.status === 'rejected') {
-      console.info(`Owner login blocked: mart rejected for martId=${user.martId}`);
-      return res.status(403).json({ message: 'Your mart registration was rejected.' });
+    if (mart.status === "rejected") {
+      console.info(
+        `Owner login blocked: mart rejected for martId=${user.martId}`,
+      );
+      return res
+        .status(403)
+        .json({ message: "Your mart registration was rejected." });
     }
   }
 
-  const token = jwt.sign({ id: user._id, username: user.username, role: user.role, martId: user.martId, permissions: user.permissions || [] }, JWT_SECRET, { expiresIn: '7d' });
-  res.json({ token, user: { id: user._id, username: user.username, name: user.name, email: user.email || '', phone: user.phone || '', profilePictureUrl: user.profilePictureUrl || '', role: user.role, martId: user.martId, permissions: user.permissions || [] } });
+  const token = jwt.sign(
+    {
+      id: user._id,
+      username: user.username,
+      role: user.role,
+      martId: user.martId,
+      permissions: user.permissions || [],
+    },
+    JWT_SECRET,
+    { expiresIn: "7d" },
+  );
+  res.json({
+    token,
+    user: {
+      id: user._id,
+      username: user.username,
+      name: user.name,
+      email: user.email || "",
+      phone: user.phone || "",
+      profilePictureUrl: user.profilePictureUrl || "",
+      role: user.role,
+      martId: user.martId,
+      permissions: user.permissions || [],
+    },
+  });
 });
 
 // Register endpoint
 // systemAdmin and owner can create manager/cashier/storeKeeper
-// manager can create cashier/storeKeeper inside their own mart
-router.post('/register', authenticate, async (req, res) => {
-  const { name, username, password, confirmPassword, role, martId, phone, email, salary, profilePictureUrl } = req.body;
-  const requesterRole = String(req.user.role || '').trim().toLowerCase();
-  const normalizedRoleInput = String(role || '').trim();
+// manager can create cashier inside their own mart
+router.post("/register", authenticate, async (req, res) => {
+  const {
+    name,
+    username,
+    password,
+    confirmPassword,
+    role,
+    martId,
+    phone,
+    email,
+    salary,
+    profilePictureUrl,
+  } = req.body;
+  const requesterRole = String(req.user.role || "")
+    .trim()
+    .toLowerCase();
+  const normalizedRoleInput = String(role || "").trim();
   const normalizedTargetRole =
-    normalizedRoleInput === 'store_keeper' || normalizedRoleInput === 'storekeeper'
-      ? 'storeKeeper'
-      : normalizedRoleInput === 'system_admin'
-        ? 'systemAdmin'
+    normalizedRoleInput === "store_keeper" ||
+    normalizedRoleInput === "storekeeper"
+      ? "storeKeeper"
+      : normalizedRoleInput === "system_admin"
+        ? "systemAdmin"
         : normalizedRoleInput;
 
-  if (!name || !username || !password || !confirmPassword || !normalizedTargetRole) return res.status(400).json({ message: 'Missing required fields' });
-  if (password !== confirmPassword) return res.status(400).json({ message: 'Passwords do not match' });
-  if (!['manager','cashier','storeKeeper'].includes(normalizedTargetRole)) return res.status(400).json({ message: 'Invalid role' });
+  if (
+    !name ||
+    !username ||
+    !password ||
+    !confirmPassword ||
+    !normalizedTargetRole
+  )
+    return res.status(400).json({ message: "Missing required fields" });
+  if (password !== confirmPassword)
+    return res.status(400).json({ message: "Passwords do not match" });
+  if (!["manager", "cashier", "storeKeeper"].includes(normalizedTargetRole))
+    return res.status(400).json({ message: "Invalid role" });
   // only systemAdmin, owner, or manager are allowed to register employees
-  if (!['systemadmin', 'owner', 'manager'].includes(requesterRole)) {
-    return res.status(403).json({ message: 'Insufficient permissions to create users' });
+  if (!["systemadmin", "owner", "manager"].includes(requesterRole)) {
+    return res
+      .status(403)
+      .json({ message: "Insufficient permissions to create users" });
   }
 
   // owners and managers can only create users within their mart
-  if ((requesterRole === 'owner' || requesterRole === 'manager') && String(req.user.martId) !== String(martId)) {
-    return res.status(403).json({ message: 'Cannot create user outside your mart' });
+  if (
+    (requesterRole === "owner" || requesterRole === "manager") &&
+    String(req.user.martId) !== String(martId)
+  ) {
+    return res
+      .status(403)
+      .json({ message: "Cannot create user outside your mart" });
   }
 
-  // managers may only create cashiers and store keepers
-  if (requesterRole === 'manager' && !['cashier', 'storeKeeper'].includes(normalizedTargetRole)) {
-    return res.status(403).json({ message: 'Managers can only create cashier or store keeper accounts' });
+  // managers may only create cashiers
+  if (requesterRole === "manager" && normalizedTargetRole !== "cashier") {
+    return res
+      .status(403)
+      .json({ message: "Managers can only create cashier accounts" });
   }
 
   const exists = await User.findOne({ username });
-  if (exists) return res.status(409).json({ message: 'Username already exists' });
+  if (exists)
+    return res.status(409).json({ message: "Username already exists" });
   const passwordHash = await bcrypt.hash(password, 10);
-  const user = new User({ name, username, passwordHash, role: normalizedTargetRole, martId, phone, email, salary, profilePictureUrl });
+  const user = new User({
+    name,
+    username,
+    passwordHash,
+    role: normalizedTargetRole,
+    martId,
+    phone,
+    email,
+    salary,
+    profilePictureUrl,
+  });
   await user.save();
-  res.status(201).json({ user: { id: user._id, username: user.username, name: user.name, email: user.email || '', phone: user.phone || '', profilePictureUrl: user.profilePictureUrl || '', role: user.role, martId: user.martId } });
+  res
+    .status(201)
+    .json({
+      user: {
+        id: user._id,
+        username: user.username,
+        name: user.name,
+        email: user.email || "",
+        phone: user.phone || "",
+        profilePictureUrl: user.profilePictureUrl || "",
+        role: user.role,
+        martId: user.martId,
+      },
+    });
 });
 
 // List users by martId (owner/manager/systemAdmin)
-router.get('/users', authenticate, async (req, res) => {
+router.get("/users", authenticate, async (req, res) => {
   try {
     const { martId, role } = req.query;
     const filter = {};
     // system admin can query any mart (or all)
-    if (req.user.role === 'systemAdmin') {
+    if (req.user.role === "systemAdmin") {
       if (martId) filter.martId = martId;
     } else {
       // owner and manager can only list users in their mart
       filter.martId = req.user.martId;
-      if (martId && String(martId) !== String(req.user.martId)) return res.status(403).json({ message: 'Cannot list users for another mart' });
+      if (martId && String(martId) !== String(req.user.martId))
+        return res
+          .status(403)
+          .json({ message: "Cannot list users for another mart" });
     }
     if (role) filter.role = role;
-    const users = await User.find(filter).select('-passwordHash -__v').lean();
+    const users = await User.find(filter).select("-passwordHash -__v").lean();
     res.json(users);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // Update user (protected - requires owner/systemAdmin or manager limited)
-router.put('/users/:id', authenticate, async (req, res) => {
+router.put("/users/:id", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const update = {};
-    const allowed = ['name', 'phone', 'role', 'salary', 'martId', 'username', 'permissions', 'email', 'profilePictureUrl'];
-    for (const k of allowed) if (req.body[k] !== undefined) update[k] = req.body[k];
+    const allowed = [
+      "name",
+      "phone",
+      "role",
+      "salary",
+      "martId",
+      "username",
+      "permissions",
+      "email",
+      "profilePictureUrl",
+    ];
+    for (const k of allowed)
+      if (req.body[k] !== undefined) update[k] = req.body[k];
     if (req.body.password) {
       const hash = await bcrypt.hash(req.body.password, 10);
       update.passwordHash = hash;
     }
     // fetch target user
     const target = await User.findById(id);
-    if (!target) return res.status(404).json({ message: 'User not found' });
+    if (!target) return res.status(404).json({ message: "User not found" });
 
     // Authorization: systemAdmin can update anyone
     // owner can update users inside their mart
-    // manager can update users inside their mart but only permissions limited (discount)
+    // manager can update users inside their mart but cannot manage store keepers
     const requester = req.user;
-    if (requester.role !== 'systemAdmin') {
+    if (requester.role !== "systemAdmin") {
       if (String(requester.martId) !== String(target.martId)) {
-        return res.status(403).json({ message: 'Cannot modify users from another mart' });
+        return res
+          .status(403)
+          .json({ message: "Cannot modify users from another mart" });
+      }
+    }
+
+    if (
+      requester.role === "manager" &&
+      (target.role === "storeKeeper" || target.role === "store_keeper")
+    ) {
+      return res
+        .status(403)
+        .json({ message: "Manager cannot modify store keeper accounts" });
+    }
+
+    if (requester.role === "manager") {
+      const managerAllowedFields = [
+        "name",
+        "phone",
+        "username",
+        "email",
+        "profilePictureUrl",
+        "permissions",
+      ];
+      const invalidManagerFields = Object.keys(update).filter(
+        (k) => !managerAllowedFields.includes(k),
+      );
+      if (invalidManagerFields.length) {
+        return res
+          .status(403)
+          .json({
+            message: "Manager cannot modify private controls or salary",
+          });
       }
     }
 
     // If permissions were provided ensure they are an array of strings
     if (req.body.permissions) {
-      if (!Array.isArray(req.body.permissions)) return res.status(400).json({ message: 'permissions must be an array' });
+      if (!Array.isArray(req.body.permissions))
+        return res
+          .status(400)
+          .json({ message: "permissions must be an array" });
 
       // Validate by target role: only certain permissions make sense per role
       const targetRole = target.role;
       const allowedPerTarget = (r) => {
-        if (r === 'manager') return ['discount', 'addItem'];
-        if (r === 'storeKeeper' || r === 'store_keeper') return ['transferStock'];
-        if (r === 'cashier') return ['discount'];
+        if (r === "manager") return ["discount", "addItem"];
+        if (r === "storeKeeper" || r === "store_keeper")
+          return ["transferStock"];
+        if (r === "cashier") return ["discount"];
         return [];
       };
 
       const allowedForTarget = allowedPerTarget(targetRole);
-      const invalidForTarget = req.body.permissions.filter(p => !allowedForTarget.includes(p));
-      if (invalidForTarget.length) return res.status(403).json({ message: 'Some permissions are not valid for target user role' });
+      const invalidForTarget = req.body.permissions.filter(
+        (p) => !allowedForTarget.includes(p),
+      );
+      if (invalidForTarget.length)
+        return res
+          .status(403)
+          .json({
+            message: "Some permissions are not valid for target user role",
+          });
 
       // managers have limited permission scope and cannot modify peers
-      if (requester.role === 'manager') {
-        // managers may only modify store_keeper or cashier
-        if (targetRole === 'manager') return res.status(403).json({ message: 'Manager cannot modify other managers' });
+      if (requester.role === "manager") {
+        // managers may only modify cashier permissions
+        if (targetRole === "manager")
+          return res
+            .status(403)
+            .json({ message: "Manager cannot modify other managers" });
+        if (targetRole === "storeKeeper" || targetRole === "store_keeper") {
+          return res
+            .status(403)
+            .json({
+              message: "Manager cannot modify store keeper permissions",
+            });
+        }
 
         // allow only manager-scoped permissions to be modified by managers
-        const allowedForManager = ['discount', 'transferStock'];
-        const invalid = req.body.permissions.filter(p => !allowedForManager.includes(p));
-        if (invalid.length) return res.status(403).json({ message: 'Manager cannot change these permissions' });
-
-        // if manager tries to set transferStock ensure target is storeKeeper
-        if (req.body.permissions.includes('transferStock')) {
-          if (!(target.role === 'storeKeeper' || target.role === 'store_keeper')) {
-            return res.status(403).json({ message: 'transferStock can only be assigned to store keeper users' });
-          }
-        }
+        const allowedForManager = ["discount"];
+        const invalid = req.body.permissions.filter(
+          (p) => !allowedForManager.includes(p),
+        );
+        if (invalid.length)
+          return res
+            .status(403)
+            .json({ message: "Manager cannot change these permissions" });
       }
 
       update.permissions = req.body.permissions.map(String);
     }
 
     // ensure owners cannot change role to systemAdmin and similar protections
-    if (update.role && requester.role !== 'systemAdmin') {
+    if (update.role && requester.role !== "systemAdmin") {
       // only system admin can change role to systemAdmin or owner
-      if (['systemAdmin','owner'].includes(update.role)) return res.status(403).json({ message: 'Insufficient permissions to set that role' });
+      if (["systemAdmin", "owner"].includes(update.role))
+        return res
+          .status(403)
+          .json({ message: "Insufficient permissions to set that role" });
     }
 
-    const user = await User.findByIdAndUpdate(id, update, { new: true }).select('-passwordHash -__v');
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    const user = await User.findByIdAndUpdate(id, update, { new: true }).select(
+      "-passwordHash -__v",
+    );
+    if (!user) return res.status(404).json({ message: "User not found" });
 
     // Emit realtime notification if permissions were changed
     if (update.permissions) {
       try {
         // Log change and notify user in realtime
-        console.log(`Permissions updated for user ${user._id}:`, user.permissions);
-        const socketHelper = require('../socket');
+        console.log(
+          `Permissions updated for user ${user._id}:`,
+          user.permissions,
+        );
+        const socketHelper = require("../socket");
         // Include actor info so clients can show who changed permissions
         const actor = {
           id: requester._id ? String(requester._id) : null,
           role: requester.role || null,
           name: requester.name || requester.username || null,
         };
-        socketHelper.emitToUser(user._id.toString(), 'permissions_updated', { userId: user._id.toString(), permissions: user.permissions || [], actor });
+        socketHelper.emitToUser(user._id.toString(), "permissions_updated", {
+          userId: user._id.toString(),
+          permissions: user.permissions || [],
+          actor,
+        });
 
         // create a notification so offline sessions will see this change in notifications
-        const { createNotification } = require('../services/notification.service');
+        const {
+          createNotification,
+        } = require("../services/notification.service");
         await createNotification({
           martId: user.martId,
           userId: user._id,
-          type: 'permissions_changed',
-          title: 'Permissions updated',
-          message: `Your permissions were changed by ${actor.role || 'an administrator'}`,
+          type: "permissions_changed",
+          title: "Permissions updated",
+          message: `Your permissions were changed by ${actor.role || "an administrator"}`,
           metadata: { permissions: user.permissions || [], actor },
         });
       } catch (e) {
-        console.error('Failed to emit permissions update', e);
+        console.error("Failed to emit permissions update", e);
       }
     }
 
     res.json(user);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
-router.put('/change-password', authenticate, async (req, res) => {
+router.put("/change-password", authenticate, async (req, res) => {
   try {
     const { currentPassword, newPassword, confirmPassword } = req.body || {};
 
     if (!currentPassword || !newPassword || !confirmPassword) {
-      return res.status(400).json({ message: 'Current password, new password, and confirmation are required' });
+      return res
+        .status(400)
+        .json({
+          message:
+            "Current password, new password, and confirmation are required",
+        });
     }
 
     if (newPassword !== confirmPassword) {
-      return res.status(400).json({ message: 'Passwords do not match' });
+      return res.status(400).json({ message: "Passwords do not match" });
     }
 
     if (String(newPassword).length < 6) {
-      return res.status(400).json({ message: 'New password must be at least 6 characters long' });
+      return res
+        .status(400)
+        .json({ message: "New password must be at least 6 characters long" });
     }
 
     const user = await User.findById(req.user.id);
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: "User not found" });
     }
 
-    const valid = await bcrypt.compare(String(currentPassword), user.passwordHash || '');
+    const valid = await bcrypt.compare(
+      String(currentPassword),
+      user.passwordHash || "",
+    );
     if (!valid) {
-      return res.status(400).json({ message: 'Current password is incorrect' });
+      return res.status(400).json({ message: "Current password is incorrect" });
     }
 
     user.passwordHash = await bcrypt.hash(String(newPassword), 10);
     await user.save();
 
-    return res.json({ message: 'Password updated successfully' });
+    return res.json({ message: "Password updated successfully" });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error' });
+    return res.status(500).json({ message: "Server error" });
   }
 });
 
 // Admin reset user password
-router.put('/users/:id/reset-password', authenticate, async (req, res) => {
+router.put("/users/:id/reset-password", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { newPassword, confirmPassword } = req.body || {};
 
     // Only systemAdmin can reset any user's password
     const requester = req.user;
-    if (requester.role !== 'systemAdmin') {
-      return res.status(403).json({ message: 'Insufficient permissions to reset passwords' });
+    if (requester.role !== "systemAdmin") {
+      return res
+        .status(403)
+        .json({ message: "Insufficient permissions to reset passwords" });
     }
 
     if (!newPassword || !confirmPassword) {
-      return res.status(400).json({ message: 'New password and confirmation are required' });
+      return res
+        .status(400)
+        .json({ message: "New password and confirmation are required" });
     }
 
     if (newPassword !== confirmPassword) {
-      return res.status(400).json({ message: 'Passwords do not match' });
+      return res.status(400).json({ message: "Passwords do not match" });
     }
 
     if (String(newPassword).length < 6) {
-      return res.status(400).json({ message: 'New password must be at least 6 characters long' });
+      return res
+        .status(400)
+        .json({ message: "New password must be at least 6 characters long" });
     }
 
     const targetUser = await User.findById(id);
     if (!targetUser) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: "User not found" });
     }
 
     targetUser.passwordHash = await bcrypt.hash(String(newPassword), 10);
     await targetUser.save();
 
-    return res.json({ message: 'Password reset successfully' });
+    return res.json({ message: "Password reset successfully" });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error' });
+    return res.status(500).json({ message: "Server error" });
   }
 });
 
 // Delete user
-router.delete('/users/:id', authenticate, async (req, res) => {
+router.delete("/users/:id", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const target = await User.findById(id);
-    if (!target) return res.status(404).json({ message: 'User not found' });
+    if (!target) return res.status(404).json({ message: "User not found" });
 
     const requester = req.user;
-    if (requester.role !== 'systemAdmin') {
-      if (requester.role === 'owner') {
-        if (String(requester.martId) !== String(target.martId)) return res.status(403).json({ message: 'Cannot delete user from another mart' });
+    if (requester.role !== "systemAdmin") {
+      if (requester.role === "owner") {
+        if (String(requester.martId) !== String(target.martId))
+          return res
+            .status(403)
+            .json({ message: "Cannot delete user from another mart" });
       } else {
-        return res.status(403).json({ message: 'Insufficient permissions to delete user' });
+        return res
+          .status(403)
+          .json({ message: "Insufficient permissions to delete user" });
       }
     }
 
     await User.findByIdAndDelete(id);
-    res.json({ message: 'User deleted' });
+    res.json({ message: "User deleted" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: "Server error" });
   }
 });
 

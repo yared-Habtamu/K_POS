@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -29,6 +30,14 @@ export default function OwnerSettings() {
     { key: string; value: string }[]
   >([]);
   const [tax, setTax] = useState("");
+  const [globalDiscountType, setGlobalDiscountType] = useState<
+    "percentage" | "fixed"
+  >("percentage");
+  const [globalDiscountRate, setGlobalDiscountRate] = useState("");
+  const [enableDiscountByItems, setEnableDiscountByItems] = useState(false);
+  const [enableDiscountByAmount, setEnableDiscountByAmount] = useState(false);
+  const [discountMinItems, setDiscountMinItems] = useState("");
+  const [discountMinAmount, setDiscountMinAmount] = useState("");
   const { toast } = useToast();
   const auth = useAuthStore((s) => s.user);
   const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -145,6 +154,30 @@ export default function OwnerSettings() {
           if (prev !== "") return prev;
           const parsedTaxRate = Number(json.taxRate);
           return String(Number.isFinite(parsedTaxRate) ? parsedTaxRate : 0);
+        });
+
+        setGlobalDiscountRate((prev) => {
+          if (prev !== "") return prev;
+          const parsed = Number(json.globalDiscountRate);
+          return String(Number.isFinite(parsed) ? parsed : 0);
+        });
+
+        setGlobalDiscountType(
+          json.globalDiscountType === "fixed" ? "fixed" : "percentage",
+        );
+        setEnableDiscountByItems(Boolean(json.enableDiscountByItems));
+        setEnableDiscountByAmount(Boolean(json.enableDiscountByAmount));
+
+        setDiscountMinItems((prev) => {
+          if (prev !== "") return prev;
+          const parsed = Number(json.discountMinItems);
+          return String(Number.isFinite(parsed) ? parsed : 0);
+        });
+
+        setDiscountMinAmount((prev) => {
+          if (prev !== "") return prev;
+          const parsed = Number(json.discountMinAmount);
+          return String(Number.isFinite(parsed) ? parsed : 0);
         });
       } catch (err) {
         console.error("Load settings error", err);
@@ -291,6 +324,57 @@ export default function OwnerSettings() {
       } catch (err) {
         console.error("saveTax error", err);
         toast({ title: t("failed_save_tax_settings") });
+      }
+    })();
+  };
+
+  const saveDiscountPolicy = () => {
+    (async () => {
+      try {
+        const martId = auth?.martId;
+        const token = auth?.token;
+        if (!martId) return toast({ title: t("mart_not_found") });
+
+        const payload = {
+          globalDiscountType,
+          globalDiscountRate: Number(globalDiscountRate || 0),
+          enableDiscountByItems,
+          enableDiscountByAmount,
+          discountMinItems: Number(discountMinItems || 0),
+          discountMinAmount: Number(discountMinAmount || 0),
+        };
+
+        const res = await fetch(`${API_BASE}/api/marts/${martId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          return toast({
+            title: err.message || "Failed to save discount settings",
+            variant: "destructive",
+          });
+        }
+
+        toast({ title: "Discount settings saved" });
+        try {
+          window.dispatchEvent(
+            new CustomEvent("mart-settings-updated", { detail: { martId } }),
+          );
+        } catch {
+          // ignore
+        }
+      } catch (err) {
+        console.error("saveDiscountPolicy error", err);
+        toast({
+          title: "Failed to save discount settings",
+          variant: "destructive",
+        });
       }
     })();
   };
@@ -494,6 +578,108 @@ export default function OwnerSettings() {
 
               <div className="flex justify-end pt-2">
                 <Button onClick={saveTax}>{t("save_tax")}</Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Global Discount Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Global Discount</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <p className="text-sm font-medium">Discount Type</p>
+                <Select
+                  value={globalDiscountType}
+                  onValueChange={(v) =>
+                    setGlobalDiscountType(v as "percentage" | "fixed")
+                  }
+                >
+                  <SelectTrigger className="mt-2 w-56">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="percentage">Percentage (%)</SelectItem>
+                    <SelectItem value="fixed">Fixed Amount</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <p className="text-sm font-medium">
+                  {globalDiscountType === "percentage"
+                    ? "Discount Rate (%)"
+                    : "Discount Value (ETB)"}
+                </p>
+                <Input
+                  type="number"
+                  value={globalDiscountRate}
+                  onChange={(e) => setGlobalDiscountRate(e.target.value)}
+                  placeholder={
+                    globalDiscountType === "percentage"
+                      ? "Enter discount percentage"
+                      : "Enter fixed discount value"
+                  }
+                  className="mt-2 w-44"
+                />
+              </div>
+
+              <div className="space-y-3 rounded-lg border p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium">
+                    Apply when total items exceed X
+                  </p>
+                  <Switch
+                    checked={enableDiscountByItems}
+                    onCheckedChange={(checked) =>
+                      setEnableDiscountByItems(Boolean(checked))
+                    }
+                  />
+                </div>
+                {enableDiscountByItems && (
+                  <Input
+                    type="number"
+                    value={discountMinItems}
+                    onChange={(e) => setDiscountMinItems(e.target.value)}
+                    placeholder="Enter item threshold"
+                    className="w-44"
+                  />
+                )}
+              </div>
+
+              <div className="space-y-3 rounded-lg border p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium">
+                    Apply when subtotal exceeds X amount
+                  </p>
+                  <Switch
+                    checked={enableDiscountByAmount}
+                    onCheckedChange={(checked) =>
+                      setEnableDiscountByAmount(Boolean(checked))
+                    }
+                  />
+                </div>
+                {enableDiscountByAmount && (
+                  <Input
+                    type="number"
+                    value={discountMinAmount}
+                    onChange={(e) => setDiscountMinAmount(e.target.value)}
+                    placeholder="Enter amount threshold"
+                    className="w-44"
+                  />
+                )}
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                Discount is auto-applied when at least one enabled condition is
+                met.
+              </p>
+
+              <div className="flex justify-end pt-2">
+                <Button onClick={saveDiscountPolicy}>Save Discount</Button>
               </div>
             </div>
           </CardContent>

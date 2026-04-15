@@ -471,6 +471,12 @@ router.put("/:id", authenticate, async (req, res) => {
       "paymentAccounts",
       "customPaymentFields",
       "taxRate",
+      "globalDiscountType",
+      "globalDiscountRate",
+      "enableDiscountByItems",
+      "enableDiscountByAmount",
+      "discountMinItems",
+      "discountMinAmount",
       "receiptHeader",
       "receiptMessage",
       "shopLogoUrl",
@@ -521,35 +527,39 @@ router.get("/", async (req, res) => {
 });
 
 // Hard-delete a mart and its owner user (system admin only)
-router.delete('/:id', authenticate, async (req, res) => {
+router.delete("/:id", authenticate, async (req, res) => {
   try {
-    if (req.user.role !== 'systemAdmin')
-      return res.status(403).json({ message: 'Insufficient permissions' });
+    if (req.user.role !== "systemAdmin")
+      return res.status(403).json({ message: "Insufficient permissions" });
 
     const { id } = req.params;
     const mart = await Mart.findById(id);
-    if (!mart) return res.status(404).json({ message: 'Mart not found' });
+    if (!mart) return res.status(404).json({ message: "Mart not found" });
 
     // If mart has an ownerId and the owner user is linked to this mart, delete the owner user
     if (mart.ownerId) {
       try {
         const owner = await User.findById(mart.ownerId);
-        if (owner && String(owner.martId) === String(mart._id) && owner.role === 'owner') {
+        if (
+          owner &&
+          String(owner.martId) === String(mart._id) &&
+          owner.role === "owner"
+        ) {
           await User.findByIdAndDelete(owner._id);
           console.log(`Deleted owner user ${owner._id} for mart ${mart._id}`);
         }
       } catch (e) {
-        console.error('Failed to delete owner user during mart deletion', e);
+        console.error("Failed to delete owner user during mart deletion", e);
       }
     }
 
     // Remove the mart record entirely so its identifying fields can be reused
     await Mart.findByIdAndDelete(mart._id);
 
-    res.json({ message: 'Mart permanently deleted' });
+    res.json({ message: "Mart permanently deleted" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: "Server error" });
   }
 });
 

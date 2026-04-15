@@ -32,6 +32,20 @@ const MartSchema = new mongoose.Schema(
 
     // Tax / VAT settings (percentage). Owner can update this setting.
     taxRate: { type: Number, default: 0 },
+
+    // Mart-wide discount policy managed by owner.
+    // Applied automatically during sale when threshold conditions are met.
+    globalDiscountType: {
+      type: String,
+      enum: ["percentage", "fixed"],
+      default: "percentage",
+    },
+    globalDiscountRate: { type: Number, default: 0 },
+    enableDiscountByItems: { type: Boolean, default: false },
+    enableDiscountByAmount: { type: Boolean, default: false },
+    discountMinItems: { type: Number, default: 0 },
+    discountMinAmount: { type: Number, default: 0 },
+
     status: {
       type: String,
       enum: ["pending", "approved", "disabled"],
