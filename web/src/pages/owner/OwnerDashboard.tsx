@@ -160,12 +160,20 @@ export default function OwnerDashboard() {
       color: "text-warning",
     },
     {
-      title: t("profit"),
+      title: t("net_profit"),
       value: metrics ? Number(metrics.profit || 0).toLocaleString() : "—",
       change: "+5.3%",
       trend: "up",
       icon: TrendingUp,
       color: "text-chart-2",
+    },
+    {
+      title: t("expenses"),
+      value: metrics ? Number(metrics.expenses || 0).toLocaleString() : "—",
+      change: "",
+      trend: "down",
+      icon: ArrowDownRight,
+      color: "text-destructive",
     },
   ];
 
@@ -189,7 +197,7 @@ export default function OwnerDashboard() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           {stats.map((stat, i) => (
             <motion.div
               key={stat.title}

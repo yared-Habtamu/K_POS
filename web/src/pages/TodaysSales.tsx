@@ -3,6 +3,7 @@ import { RoleLayout } from '@/components/layout/RoleLayout';
 import useTodaysSales from '@/hooks/useTodaysSales';
 import TodaysSalesView from '@/components/reports/TodaysSalesView';
 import CashierDashboard from '@/components/reports/CashierDashboard';
+import SoldItemsTable from '@/components/reports/SoldItemsTable';
 import { useAuthStore } from '@/stores/authStore';
 
 const TodaysSales: React.FC = () => {
@@ -19,7 +20,12 @@ const TodaysSales: React.FC = () => {
             <TodaysSalesView items={items} loading={loading} totals={totals} hideHeader />
           </>
         ) : (
-          <TodaysSalesView items={items} loading={loading} totals={totals} />
+          <>
+            <TodaysSalesView items={items} loading={loading} totals={totals} />
+            <div className="mt-6">
+              <SoldItemsTable items={items} totals={totals} loading={loading} />
+            </div>
+          </>
         )}
       </div>
     </RoleLayout>

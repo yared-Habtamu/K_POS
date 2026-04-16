@@ -21,6 +21,10 @@ router.get("/daily", authenticate, async (req, res) => {
       filter.martId = martId;
     }
 
+    if (req.user.role === "cashier") {
+      filter.cashierId = req.user.id;
+    }
+
     const sales = await Sale.find(filter).lean();
 
     const totalSales = sales.reduce((s, x) => s + (x.total || 0), 0);
@@ -755,23 +759,36 @@ module.exports = router;
 // Returns aggregated items sold today with quantity, VAT and totals.
 router.get("/today-sales", authenticate, async (req, res) => {
   try {
-    const { martId } = req.query;
-    const day = new Date().toISOString().slice(0, 10);
+    const { martId, date } = req.query;
+    const day = (date && String(date)) || new Date().toISOString().slice(0, 10);
     const start = new Date(day + "T00:00:00.000Z");
     const end = new Date(day + "T23:59:59.999Z");
 
     const filter = { date: { $gte: start, $lte: end } };
 
+    const userMartId = req.user.martId ? String(req.user.martId) : "";
+    const queryMartId = martId ? String(martId) : "";
+
     // Cashiers only see their own sales
     if (req.user.role === "cashier") {
       filter.cashierId = req.user._id || req.user.id;
-      if (req.user.martId) filter.martId = req.user.martId;
+      const effectiveMartId = userMartId || queryMartId;
+      if (effectiveMartId) {
+        filter.martId = effectiveMartId;
+      }
     } else if (req.user.role !== "systemAdmin") {
       // owner/manager/store_keeper see mart-wide sales
-      filter.martId = req.user.martId;
-    } else if (martId) {
+      if (userMartId && queryMartId && userMartId !== queryMartId) {
+        return res.status(403).json({ message: "Cannot access another mart" });
+      }
+      const effectiveMartId = userMartId || queryMartId;
+      if (!effectiveMartId) {
+        return res.status(400).json({ message: "martId required" });
+      }
+      filter.martId = effectiveMartId;
+    } else if (queryMartId) {
       // system admin may provide martId to scope
-      filter.martId = martId;
+      filter.martId = queryMartId;
     }
 
     const sales = await Sale.find(filter).lean();
@@ -793,11 +810,19 @@ router.get("/today-sales", authenticate, async (req, res) => {
     for (const p of products) productMap[String(p._id)] = p;
 
     for (const s of sales) {
+      const paymentMethod = String(s.paymentMethod || "unknown");
+      // soldBy: prefer cashierId where available, else use cashierName
+      const soldById = s.cashierId ? String(s.cashierId) : null;
+      const soldByName = s.cashierName || "unknown";
+      const soldByKey = soldById ? soldById : soldByName;
       for (const it of s.items || []) {
         const rawPid = it.productId ? String(it.productId) : null;
-        const key = rawPid
+        // include payment method and soldBy in grouping key so same product sold
+        // by different users or payment methods becomes separate rows
+        const baseKey = rawPid
           ? `pid:${rawPid}`
           : `name:${(it.name || "").trim().toLowerCase()}`;
+        const key = `${soldByKey}::${paymentMethod}::${baseKey}`;
 
         let productName = (it.name && String(it.name).trim()) || "Unknown";
         if (rawPid && productMap[rawPid] && productMap[rawPid].name) {
@@ -820,6 +845,9 @@ router.get("/today-sales", authenticate, async (req, res) => {
             subtotal: 0,
             vatAmount: 0,
             total: 0,
+            paymentMethod,
+            soldById,
+            soldByName,
           };
         }
 
@@ -853,6 +881,9 @@ router.get("/today-sales", authenticate, async (req, res) => {
       subtotal: Number(x.subtotal || 0),
       vatAmount: Number(x.vatAmount || 0),
       total: Number(x.total || 0),
+      paymentMethod: x.paymentMethod || "unknown",
+      soldById: x.soldById || null,
+      soldByName: x.soldByName || "unknown",
     }));
 
     const totalItemsSold = items.reduce((s, it) => s + (it.qty || 0), 0);

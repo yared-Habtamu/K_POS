@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/stores/authStore";
+import useTodaysSales from "@/hooks/useTodaysSales";
+import SoldItemsTable from "@/components/reports/SoldItemsTable";
 import { RefreshCw } from "lucide-react";
 import {
   FileText,
@@ -23,6 +25,10 @@ import { format } from "date-fns";
 export default function DailyReport() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
+  const [reportDate, setReportDate] = useState(() =>
+    new Date().toISOString().slice(0, 10),
+  );
+  const { items, totals, loading } = useTodaysSales(reportDate);
 
   const [report, setReport] = useState({
     totalSales: "",
@@ -40,7 +46,7 @@ export default function DailyReport() {
       const token = user?.token;
       const martId = user?.martId;
       if (!martId) return;
-      const day = new Date().toISOString().slice(0, 10);
+      const day = reportDate;
       const res = await fetch(
         `${API_BASE}/api/reports/daily?martId=${martId}&date=${day}`,
         { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } },
@@ -72,7 +78,7 @@ export default function DailyReport() {
       const token = user?.token;
       const martId = user?.martId;
       if (!martId) return;
-      const day = new Date().toISOString().slice(0, 10);
+      const day = reportDate;
       const res = await fetch(
         `${API_BASE}/api/reports/daily?martId=${martId}&date=${day}`,
         { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } },
@@ -94,14 +100,26 @@ export default function DailyReport() {
       fetchReportsList();
     }, 5000); // poll every 5s
     return () => clearInterval(id);
-  }, [user]);
+  }, [user, reportDate]);
+
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const isToday = reportDate === todayKey;
+  const moveDay = (delta: number) => {
+    setReportDate((current) => {
+      const base = new Date(current + "T00:00:00.000Z");
+      base.setUTCDate(base.getUTCDate() + delta);
+      const next = base.toISOString().slice(0, 10);
+      if (next > todayKey) return current;
+      return next;
+    });
+  };
 
   return (
-    <RoleLayout allowedRoles={["cashier", "manager", "owner", "systemAdmin"]}>
+    <RoleLayout allowedRoles={["cashier", "manager", "owner", "system_admin"]}>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-2xl mx-auto space-y-6"
+        className="w-full max-w-6xl mx-auto space-y-6"
       >
         <Card>
           <CardHeader>
@@ -113,7 +131,7 @@ export default function DailyReport() {
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
                   {t("todays_live_financial_summary")} •{" "}
-                  {format(new Date(), "EEEE, MMMM dd, yyyy")}
+                  {format(new Date(reportDate + "T00:00:00"), "EEEE, MMMM dd, yyyy")}
                 </p>
               </div>
               <div className="flex items-center gap-2 px-3 py-1 bg-green-500/10 text-green-500 rounded-full text-xs font-medium animate-pulse">
@@ -123,6 +141,37 @@ export default function DailyReport() {
             </div>
           </CardHeader>
           <CardContent>
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => moveDay(-1)}
+              >
+                &lt;
+              </Button>
+              <Input
+                type="date"
+                value={reportDate}
+                max={todayKey}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  if (next && next <= todayKey) {
+                    setReportDate(next);
+                  }
+                }}
+                className="h-8 w-[160px]"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => moveDay(1)}
+                disabled={isToday}
+              >
+                &gt;
+              </Button>
+            </div>
             <div className="space-y-6">
               {/* Report Info */}
               <div className="p-4 rounded-xl bg-accent/50 border border-border">
@@ -226,10 +275,14 @@ export default function DailyReport() {
           </CardContent>
         </Card>
 
+        {user?.role === "cashier" ? (
+          <SoldItemsTable items={items} totals={totals} loading={loading} />
+        ) : null}
+
         {/* Live Cashier Breakdown for managers/owners */}
         {(user?.role === "manager" ||
           user?.role === "owner" ||
-          user?.role === "systemAdmin") && (
+          user?.role === "system_admin") && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}

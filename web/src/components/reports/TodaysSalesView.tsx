@@ -10,6 +10,9 @@ type Item = {
   vatAmount: number;
   img?: string;
   total: number;
+  soldByName?: string;
+  soldBy?: string;
+  paymentMethod?: string;
 };
 
 const currency = (v: number) =>
@@ -45,8 +48,6 @@ export default function TodaysSalesView({
 }: Props) {
   const { t } = useTranslation();
   const totalItems = totals?.totalItemsSold ?? 0;
-  const subtotal = totals?.totalBeforeVat ?? 0;
-  const totalVat = totals?.totalVat ?? 0;
   const grandTotal = totals?.grandTotal ?? 0;
   const avgPerItem = totalItems > 0 ? grandTotal / totalItems : 0;
   const topItems = [...(items || [])]
@@ -156,92 +157,6 @@ export default function TodaysSalesView({
         </div>
       </div>
 
-      <div className="bg-card p-4 rounded-2xl border">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-foreground">
-            {t("sold_items")}
-          </h2>
-          <span className="text-xs text-muted-foreground">
-            {t("detailed_view")}
-          </span>
-        </div>
-        {loading ? (
-          <div className="text-muted-foreground">{t("loading")}</div>
-        ) : items.length === 0 ? (
-          <div className="rounded-xl border border-dashed p-6 text-center text-muted-foreground">
-            {t("no_items_sold_today")}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full w-full table-auto">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground border-b">
-                  <th className="py-2">{t("item")}</th>
-                  <th className="py-2">{t("name")}</th>
-                  <th className="py-2 text-right">{t("quantity_short")}</th>
-                  <th className="py-2 text-right">{t("selling_price")}</th>
-                  <th className="py-2 text-right">VAT</th>
-                  <th className="py-2 text-right">{t("total")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((it) => (
-                  <tr
-                    key={it.id}
-                    className="border-b last:border-0 hover:bg-accent/20"
-                  >
-                    <td className="py-3 w-20">
-                      <div className="w-14 h-14 bg-muted rounded-xl overflow-hidden flex items-center justify-center">
-                        {it.img ? (
-                          <img
-                            src={it.img}
-                            alt={it.name}
-                            className="object-cover w-full h-full"
-                          />
-                        ) : (
-                          <div className="text-xs text-muted-foreground">
-                            {t("no_image")}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3">
-                      <div className="font-medium text-foreground">
-                        {it.name}
-                      </div>
-                    </td>
-                    <td className="py-3 text-right font-medium">{it.qty}</td>
-                    <td className="py-3 text-right">
-                      {currency(it.sellingPrice)}
-                    </td>
-                    <td className="py-3 text-right">
-                      {currency(it.vatAmount)}
-                    </td>
-                    <td className="py-3 text-right font-semibold">
-                      {currency(it.total)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <div className="mt-4 ml-auto max-w-sm space-y-1 text-sm">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span>Subtotal</span>
-                <span>{currency(subtotal)}</span>
-              </div>
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span>VAT</span>
-                <span>{currency(totalVat)}</span>
-              </div>
-              <div className="flex items-center justify-between font-semibold text-foreground border-t pt-2 mt-2">
-                <span>{t("total")}</span>
-                <span>{currency(grandTotal)}</span>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
