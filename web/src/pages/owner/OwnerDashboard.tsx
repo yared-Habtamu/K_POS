@@ -32,6 +32,20 @@ import {
   Bar,
 } from "recharts";
 
+type ExpiredItem = {
+  id?: string;
+  _id?: string;
+  name?: string;
+  expiryDate?: string;
+};
+
+type BrokenAssetItem = {
+  id?: string;
+  _id?: string;
+  name?: string;
+  asset_status?: string;
+};
+
 // Metrics will be fetched from the backend (/api/reports/mart)
 
 export default function OwnerDashboard() {
@@ -66,6 +80,13 @@ export default function OwnerDashboard() {
           sold: p.sold || p.quantity || p.count || 0,
         }))
       : [];
+
+  const expiredItems: ExpiredItem[] =
+    metrics && Array.isArray(metrics.expiredProducts)
+      ? metrics.expiredProducts
+      : [];
+  const brokenAssets: BrokenAssetItem[] =
+    metrics && Array.isArray(metrics.brokenAssets) ? metrics.brokenAssets : [];
 
   useEffect(() => {
     let mounted = true;
@@ -412,6 +433,86 @@ export default function OwnerDashboard() {
             metricsError={metricsError}
           />
         </motion.div>
+
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Expired Items</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoadingMetrics ? (
+                <div className="text-sm text-muted-foreground">
+                  Loading expired items...
+                </div>
+              ) : metricsError ? (
+                <div className="text-sm text-destructive">
+                  Failed to load expired items: {metricsError}
+                </div>
+              ) : expiredItems.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  No expired items found.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {expiredItems.slice(0, 10).map((item, index: number) => (
+                    <div
+                      key={String(
+                        item.id || item._id || `${item.name}-${index}`,
+                      )}
+                      className="flex items-center justify-between border-b pb-2 text-sm"
+                    >
+                      <span className="font-medium">{item.name || "-"}</span>
+                      <span className="text-muted-foreground">
+                        {item.expiryDate
+                          ? new Date(item.expiryDate).toLocaleDateString()
+                          : "-"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Broken Assets</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoadingMetrics ? (
+                <div className="text-sm text-muted-foreground">
+                  Loading broken assets...
+                </div>
+              ) : metricsError ? (
+                <div className="text-sm text-destructive">
+                  Failed to load broken assets: {metricsError}
+                </div>
+              ) : brokenAssets.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  No broken assets found.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {brokenAssets.slice(0, 10).map((asset, index: number) => (
+                    <div
+                      key={String(
+                        asset.id || asset._id || `${asset.name}-${index}`,
+                      )}
+                      className="flex items-center justify-between border-b pb-2 text-sm"
+                    >
+                      <span className="font-medium">{asset.name || "-"}</span>
+                      <span className="text-muted-foreground">
+                        {(asset.asset_status || "unbroken") === "broken"
+                          ? "Broken"
+                          : "Not broken"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </RoleLayout>
   );

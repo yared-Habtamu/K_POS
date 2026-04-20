@@ -68,11 +68,9 @@ router.get("/", authenticate, async (req, res) => {
       } else if (isOwner(user)) {
         filter.$or = [{ approvalRole: "owner" }, { requesterId: user.id }];
       } else {
-        return res
-          .status(403)
-          .json({
-            message: "Only managers and owners can view asset approvals",
-          });
+        return res.status(403).json({
+          message: "Only managers and owners can view asset approvals",
+        });
       }
     }
 
@@ -148,6 +146,7 @@ router.put("/:id/approve", authenticate, async (req, res) => {
           sizeOrType: payload.sizeOrType,
           purchaseDate: payload.purchaseDate,
           status: payload.status,
+          asset_status: payload.asset_status || "unbroken",
           conditions: payload.conditions,
           assignedTo: payload.assignedTo,
           quantity: Number(payload.quantity),
@@ -173,6 +172,7 @@ router.put("/:id/approve", authenticate, async (req, res) => {
           "sizeOrType",
           "purchaseDate",
           "status",
+          "asset_status",
           "conditions",
           "assignedTo",
           "description",

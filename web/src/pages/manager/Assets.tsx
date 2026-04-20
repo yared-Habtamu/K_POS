@@ -34,6 +34,30 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+const BROKEN_CONDITION_VALUES = new Set(["damaged", "lost", "broken"]);
+
+function normalizeAssetStatus(asset: any): "broken" | "unbroken" {
+  const directStatus = String(asset?.asset_status || "")
+    .trim()
+    .toLowerCase();
+  if (directStatus === "broken" || directStatus === "unbroken") {
+    return directStatus;
+  }
+
+  const condition = String(asset?.conditions || "")
+    .trim()
+    .toLowerCase();
+  if (BROKEN_CONDITION_VALUES.has(condition)) {
+    return "broken";
+  }
+
+  return "unbroken";
+}
+
+function assetStatusLabel(status: "broken" | "unbroken") {
+  return status === "broken" ? "Broken" : "Not broken";
+}
+
 export default function ManagerAssets() {
   const { t } = useTranslation();
   const [assets, setAssets] = useState<any[]>([]);
@@ -48,6 +72,9 @@ export default function ManagerAssets() {
   const [sizeOrType, setSizeOrType] = useState("");
   const [purchaseDate, setPurchaseDate] = useState("");
   const [status, setStatus] = useState("new");
+  const [assetStatus, setAssetStatus] = useState<"broken" | "unbroken">(
+    "unbroken",
+  );
   const [conditions, setConditions] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
   const [qty, setQty] = useState<number | "">("");
@@ -82,7 +109,13 @@ export default function ManagerAssets() {
 
       if (assetsRes.ok) {
         const list = await assetsRes.json();
-        setAssets(list.map((a: any) => ({ ...a, id: a._id || a.id })));
+        setAssets(
+          list.map((a: any) => ({
+            ...a,
+            id: a._id || a.id,
+            asset_status: normalizeAssetStatus(a),
+          })),
+        );
       }
       if (employeesRes.ok) {
         const list = await employeesRes.json();
@@ -117,6 +150,7 @@ export default function ManagerAssets() {
     setSizeOrType("");
     setPurchaseDate("");
     setStatus("new");
+    setAssetStatus("unbroken");
     setConditions("");
     setAssignedTo("");
     setQty("");
@@ -139,6 +173,7 @@ export default function ManagerAssets() {
     setSizeOrType(asset.sizeOrType || "");
     setPurchaseDate(asset.purchaseDate ? asset.purchaseDate.split("T")[0] : "");
     setStatus(asset.status || "new");
+    setAssetStatus(normalizeAssetStatus(asset));
     setConditions(asset.conditions || "");
     setAssignedTo(asset.assignedTo || "");
     setQty(asset.quantity || "");
@@ -163,6 +198,7 @@ export default function ManagerAssets() {
       formData.append("sizeOrType", sizeOrType);
       formData.append("purchaseDate", purchaseDate);
       formData.append("status", status);
+      formData.append("asset_status", assetStatus);
       formData.append("conditions", conditions);
       formData.append("assignedTo", assignedTo);
       formData.append("quantity", String(qty));
@@ -200,7 +236,11 @@ export default function ManagerAssets() {
       if (!res.ok) throw new Error("Failed to save asset");
 
       const saved = await res.json();
-      const normalized = { ...saved, id: saved._id || saved.id };
+      const normalized = {
+        ...saved,
+        id: saved._id || saved.id,
+        asset_status: normalizeAssetStatus(saved),
+      };
 
       if (editingId) {
         setAssets(assets.map((a) => (a.id === editingId ? normalized : a)));
@@ -304,7 +344,7 @@ export default function ManagerAssets() {
             year: "2-digit",
           })
         : "-", // Purchase Date
-      a.conditions || "-", // Conditions
+      assetStatusLabel(normalizeAssetStatus(a)), // Current status
       a.assignedTo || "-", // Assigned To
       String(a.quantity ?? 1), // Qty
     ]);
@@ -329,7 +369,7 @@ export default function ManagerAssets() {
           "Size or type",
           "Purchase",
           "Purchase date",
-          "Conditions",
+          "Current status",
           "Assigned To",
           "Qty",
         ],
@@ -377,7 +417,7 @@ export default function ManagerAssets() {
         4: { cellWidth: 20 }, // Size or type
         5: { cellWidth: 20, halign: "right" }, // Purchase
         6: { cellWidth: 20, halign: "center" }, // Purchase date
-        7: { cellWidth: 18 }, // Conditions
+        7: { cellWidth: 22 }, // Current status
         8: { cellWidth: 20 }, // Assigned To
         9: { cellWidth: 10, halign: "center" }, // Qty
       },
@@ -505,6 +545,24 @@ export default function ManagerAssets() {
           {t(row.status)}
         </span>
       ),
+    },
+    {
+      key: "asset_status",
+      header: "Current status",
+      cell: (row) => {
+        const normalized = normalizeAssetStatus(row);
+        return (
+          <span
+            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+              normalized === "broken"
+                ? "bg-red-100 text-red-800"
+                : "bg-green-100 text-green-800"
+            }`}
+          >
+            {assetStatusLabel(normalized)}
+          </span>
+        );
+      },
     },
     {
       key: "assignedTo",
@@ -741,6 +799,22 @@ export default function ManagerAssets() {
               </div>
 
               <div className="space-y-2">
+                <label className="text-sm font-medium">Current status</label>
+                <select
+                  value={assetStatus}
+                  onChange={(e) =>
+                    setAssetStatus(
+                      e.target.value === "broken" ? "broken" : "unbroken",
+                    )
+                  }
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="unbroken">Not broken</option>
+                  <option value="broken">Broken</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
                 <label className="text-sm font-medium">
                   {t("assigned_to")}
                 </label>
@@ -848,6 +922,18 @@ export default function ManagerAssets() {
                     }`}
                   >
                     {t(viewingAsset.status)}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">Current status</p>
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                      normalizeAssetStatus(viewingAsset) === "broken"
+                        ? "bg-red-100 text-red-800"
+                        : "bg-green-100 text-green-800"
+                    }`}
+                  >
+                    {assetStatusLabel(normalizeAssetStatus(viewingAsset))}
                   </span>
                 </div>
                 <div className="space-y-1">

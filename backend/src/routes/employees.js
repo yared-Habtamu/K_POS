@@ -20,6 +20,24 @@ function normalizeRole(r) {
   return null;
 }
 
+async function ensureUniqueMartRole({ martId, role, excludeUserId = null }) {
+  if (!martId) return null;
+  if (!["manager", "storeKeeper"].includes(String(role || ""))) return null;
+
+  const query = {
+    martId,
+    role,
+    isDeleted: { $ne: true },
+  };
+  if (excludeUserId) query._id = { $ne: excludeUserId };
+
+  const existing = await User.findOne(query).select("_id name role").lean();
+  if (existing) {
+    return `${role} already exists for this mart`;
+  }
+  return null;
+}
+
 // List employees by mart (systemAdmin may provide martId)
 router.get("/", authenticate, async (req, res) => {
   try {
@@ -108,6 +126,13 @@ router.post("/", authenticate, async (req, res) => {
     const assignedMartId =
       requester.role === "systemAdmin" ? martId || null : requester.martId;
 
+    const uniquenessError = await ensureUniqueMartRole({
+      martId: assignedMartId,
+      role: normRole,
+    });
+    if (uniquenessError)
+      return res.status(409).json({ message: uniquenessError });
+
     const user = new User({
       name,
       username,
@@ -119,17 +144,15 @@ router.post("/", authenticate, async (req, res) => {
     });
     await user.save();
 
-    res
-      .status(201)
-      .json({
-        user: {
-          id: user._id,
-          username: user.username,
-          name: user.name,
-          role: user.role,
-          martId: user.martId,
-        },
-      });
+    res.status(201).json({
+      user: {
+        id: user._id,
+        username: user.username,
+        name: user.name,
+        role: user.role,
+        martId: user.martId,
+      },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -166,6 +189,16 @@ router.put("/:id", authenticate, async (req, res) => {
       if (!nr) return res.status(400).json({ message: "Invalid role" });
       update.role = nr;
     }
+
+    const nextRole = update.role || target.role;
+    const nextMartId = target.martId;
+    const uniquenessError = await ensureUniqueMartRole({
+      martId: nextMartId,
+      role: nextRole,
+      excludeUserId: target._id,
+    });
+    if (uniquenessError)
+      return res.status(409).json({ message: uniquenessError });
 
     // managers cannot escalate roles
     if (requester.role === "manager" && update.role) {
