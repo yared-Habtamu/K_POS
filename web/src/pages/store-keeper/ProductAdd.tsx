@@ -16,7 +16,6 @@ import {
 import { AutoComplete } from "@/components/ui/AutoComplete";
 import { toast } from "@/hooks/use-toast";
 import { useProductStore } from "@/stores/productStore";
-import type { ProductUnit } from "@/types";
 import {
   Barcode,
   Loader2,
@@ -47,7 +46,23 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const units: ProductUnit[] = ["pcs", "kg", "g", "l", "ml", "box"];
+const defaultUnits = ["pcs", "kg", "g", "l", "ml", "box"];
+
+function formatUnitLabel(unit: string) {
+  const normalized = String(unit || "").trim().toLowerCase();
+  const labels: Record<string, string> = {
+    l: "Ltr",
+    kg: "Kg",
+    box: "Box",
+    ml: "Ml",
+    pcs: "Pcs",
+    g: "G",
+  };
+
+  if (labels[normalized]) return labels[normalized];
+  if (!normalized) return "";
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
 const defaultCategories = [
   "Beverages",
   "Snacks",
@@ -92,7 +107,7 @@ export default function ProductAdd() {
     name: "",
     category: "",
     newCategory: "",
-    unit: "pcs" as ProductUnit,
+    unit: "",
     purchasePrice: "",
     sellingPrice: "",
     quantity: "",
@@ -153,6 +168,32 @@ export default function ProductAdd() {
     );
   }, [categories, products]);
 
+  const availableUnits = useMemo(() => {
+    const byUnit = new Map<string, { id: string; name: string }>();
+
+    for (const unit of defaultUnits) {
+      const trimmed = String(unit).trim();
+      if (!trimmed) continue;
+      byUnit.set(trimmed.toLowerCase(), {
+        id: `default-unit-${trimmed.toLowerCase()}`,
+        name: trimmed,
+      });
+    }
+
+    for (const product of products || []) {
+      const unit = String(product?.unit || "").trim();
+      if (!unit) continue;
+      const key = unit.toLowerCase();
+      if (!byUnit.has(key)) {
+        byUnit.set(key, { id: `product-unit-${key}`, name: unit });
+      }
+    }
+
+    return Array.from(byUnit.values()).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+  }, [products]);
+
   useEffect(() => {
     void (async () => {
       await fetchCategories?.();
@@ -182,7 +223,7 @@ export default function ProductAdd() {
       name: "",
       category: "",
       newCategory: "",
-      unit: "pcs",
+      unit: "",
       purchasePrice: "",
       sellingPrice: "",
       quantity: "",
@@ -264,10 +305,21 @@ export default function ProductAdd() {
       }
     }
 
+    const trimmedUnit = String(form.unit || "").trim();
+    if (!trimmedUnit) {
+      toast({
+        title: t("invalid_product_data"),
+        description: "Please select a unit or add a new one.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
     const formData = new FormData();
     formData.append("name", form.name);
     formData.append("category", trimmedCategory);
-    formData.append("unit", form.unit);
+    formData.append("unit", trimmedUnit);
     if (canSetPurchase) {
       formData.append(
         "purchasePrice",
@@ -296,16 +348,13 @@ export default function ProductAdd() {
       String(parseInt(form.lowStockThreshold || "10")),
     );
     if (form.expiryDate) formData.append("expiryDate", form.expiryDate);
-    // Treat the visible input as a pending barcode even if the user did not click Add.
+    // One barcode per product: prefer input box value, otherwise existing saved one.
     const pendingBarcode = (form.barcodeInput || "").trim();
-    const barcodesArr = Array.from(
-      new Set(
-        [
-          ...(Array.isArray(form.barcodes) ? form.barcodes : []),
-          pendingBarcode,
-        ].filter(Boolean),
-      ),
-    );
+    const existingBarcode =
+      Array.isArray(form.barcodes) && form.barcodes.length > 0
+        ? String(form.barcodes[0] || "").trim()
+        : "";
+    const barcodesArr = [pendingBarcode || existingBarcode].filter(Boolean);
     if (barcodesArr.length === 0) {
       try {
         barcodesArr.push(await generateUniqueBarcode(findProductByBarcode));
@@ -397,10 +446,10 @@ export default function ProductAdd() {
     void (async () => {
       try {
         const b = await generateUniqueBarcode(findProductByBarcode);
-        setForm((prev) => ({ 
-          ...prev, 
-          barcodes: [...(Array.isArray(prev.barcodes) ? prev.barcodes : []), b],
-          barcodeInput: "" 
+        setForm((prev) => ({
+          ...prev,
+          barcodes: [b],
+          barcodeInput: b,
         }));
       } catch (e) {
         console.error("generate barcode failed", e);
@@ -570,24 +619,42 @@ export default function ProductAdd() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="unit">{t("unit")} *</Label>
-                  <Select
-                    value={form.unit}
-                    onValueChange={(v) =>
-                      setForm({ ...form, unit: v as ProductUnit })
+                  <AutoComplete<{ id: string; name: string }>
+                    id="product-unit"
+                    label={`${t("unit")} *`}
+                    placeholder={
+                      t("select_or_create_unit", {
+                        defaultValue: "Select or create unit",
+                      })
                     }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {units.map((u) => (
-                        <SelectItem key={u} value={u}>
-                          {u.toUpperCase()}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    value={form.unit}
+                    onValueChange={(value) =>
+                      setForm((prev) => ({ ...prev, unit: value }))
+                    }
+                    items={availableUnits.map((u) => ({
+                      id: String(u.id),
+                      name: u.name,
+                    }))}
+                    getItemLabel={(it) => it.name}
+                    getItemValue={(it) => it.name}
+                    renderItem={(it) => (
+                      <span className="text-sm font-medium tracking-normal">
+                        {formatUnitLabel(it.name)}
+                      </span>
+                    )}
+                    inputClassName="font-medium tracking-normal"
+                    onSelect={(it) => setForm((prev) => ({ ...prev, unit: it.name }))}
+                    allowCreate
+                    onCreateOption={async (query) => {
+                      const trimmed = String(query || "").trim();
+                      if (!trimmed)
+                        return { id: `unit-${Date.now()}`, name: "pcs" };
+                      const item = { id: `unit-${trimmed.toLowerCase()}`, name: trimmed };
+                      setForm((prev) => ({ ...prev, unit: trimmed }));
+                      return item;
+                    }}
+                    createOptionLabel={(q) => `Add "${q}"`}
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -738,11 +805,22 @@ export default function ProductAdd() {
                               const existing = Array.isArray(form.barcodes)
                                 ? form.barcodes.slice()
                                 : [];
+                              const replacingExisting =
+                                existing.length > 0 && existing[0] !== val;
                               setForm({
                                 ...form,
-                                barcodes: [...existing, val],
+                                barcodes: [val],
                                 barcodeInput: "",
                               });
+                              if (replacingExisting) {
+                                toast({
+                                  title: t("barcode_replaced", { defaultValue: "Barcode replaced" }),
+                                  description: t("only_one_barcode_allowed", {
+                                    defaultValue:
+                                      "Only one barcode is allowed per product. The previous barcode was replaced.",
+                                  }),
+                                });
+                              }
                             } catch (e: any) {
                               console.error("barcode lookup failed", e);
                               toast({
@@ -872,7 +950,7 @@ export default function ProductAdd() {
                                 name: String(p?.name || ""),
                                 category: String(p?.category || ""),
                                 newCategory: "",
-                                unit: (p?.unit as ProductUnit) || "pcs",
+                                unit: String(p?.unit || "pcs"),
                                 purchasePrice: String(p?.purchasePrice ?? 0),
                                 sellingPrice: String(p?.sellingPrice ?? 0),
                                 quantity: String(
@@ -891,7 +969,7 @@ export default function ProductAdd() {
                                       .split("T")[0]
                                   : "",
                                 barcodes: Array.isArray(p?.barcodes)
-                                  ? p.barcodes.map(String)
+                                  ? [String(p.barcodes[0] || "")].filter(Boolean)
                                   : p?.barcode
                                     ? [String(p.barcode)]
                                     : [],
@@ -934,15 +1012,11 @@ export default function ProductAdd() {
                 {isScannerOpen && (
                   <BarcodeScanner 
                     onScan={(code) => {
-                      setForm((prev) => {
-                        const existing = Array.isArray(prev.barcodes) ? prev.barcodes : [];
-                        if (existing.includes(code)) return { ...prev, barcodeInput: code };
-                        return { 
-                          ...prev, 
-                          barcodes: [...existing, code],
-                          barcodeInput: code 
-                        };
-                      });
+                      setForm((prev) => ({
+                        ...prev,
+                        barcodes: [String(code).trim()].filter(Boolean),
+                        barcodeInput: String(code).trim(),
+                      }));
                       setIsScannerOpen(false);
                     }}
                     onClose={() => setIsScannerOpen(false)}

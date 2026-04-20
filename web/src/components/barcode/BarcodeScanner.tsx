@@ -23,7 +23,82 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [noCameraFound, setNoCameraFound] = useState(false);
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+  const emitLockRef = useRef(false);
+  const pendingCodeRef = useRef<string | null>(null);
+  const pendingCountRef = useRef(0);
+  const pendingTimerRef = useRef<number | null>(null);
   const containerId = "bscanner-viewport";
+
+  const normalizeDecodedBarcode = (raw: string) =>
+    String(raw || "")
+      .replace(/[\u0000-\u001F\u007F]/g, "")
+      .trim();
+
+  const clearPendingScan = () => {
+    if (pendingTimerRef.current !== null) {
+      window.clearTimeout(pendingTimerRef.current);
+      pendingTimerRef.current = null;
+    }
+    pendingCodeRef.current = null;
+    pendingCountRef.current = 0;
+  };
+
+  const finalizeScan = async (code: string, scanner: Html5Qrcode) => {
+    if (emitLockRef.current) return;
+    emitLockRef.current = true;
+
+    try {
+      onScan(code);
+      if (scanner.isScanning) {
+        await scanner.stop().catch(console.error);
+      }
+      onClose();
+    } finally {
+      clearPendingScan();
+    }
+  };
+
+  const handleDecodedText = (decodedText: string, scanner: Html5Qrcode) => {
+    if (emitLockRef.current) return;
+
+    const normalized = normalizeDecodedBarcode(decodedText);
+    // Ignore noisy/partial reads that are unlikely to be a complete barcode.
+    if (!normalized || normalized.length < 6) return;
+
+    const current = pendingCodeRef.current;
+    if (!current) {
+      pendingCodeRef.current = normalized;
+      pendingCountRef.current = 1;
+    } else {
+      const lowerCurrent = current.toLowerCase();
+      const lowerNext = normalized.toLowerCase();
+
+      if (lowerNext === lowerCurrent) {
+        pendingCountRef.current += 1;
+      } else if (lowerNext.startsWith(lowerCurrent) && normalized.length >= current.length) {
+        // Prefer the longer candidate when frames progressively decode more digits.
+        pendingCodeRef.current = normalized;
+        pendingCountRef.current = 1;
+      } else if (!lowerCurrent.startsWith(lowerNext)) {
+        pendingCodeRef.current = normalized;
+        pendingCountRef.current = 1;
+      }
+    }
+
+    if (pendingTimerRef.current !== null) {
+      window.clearTimeout(pendingTimerRef.current);
+      pendingTimerRef.current = null;
+    }
+
+    // If we read the same value repeatedly, finalize quickly.
+    const settleMs = pendingCountRef.current >= 2 ? 60 : 180;
+    pendingTimerRef.current = window.setTimeout(() => {
+      const best = pendingCodeRef.current;
+      if (best) {
+        void finalizeScan(best, scanner);
+      }
+    }, settleMs);
+  };
 
   // Animation for the laser line — pure CSS keyframe injected once
   useEffect(() => {
@@ -91,11 +166,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
             ],
           },
           (decodedText) => {
-            onScan(decodedText);
-            if (html5QrCode.isScanning) {
-              html5QrCode.stop().catch(console.error);
-            }
-            onClose();
+            handleDecodedText(decodedText, html5QrCode);
           },
           () => {}
         );
@@ -121,11 +192,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
                 ],
               },
               (decodedText) => {
-                onScan(decodedText);
-                if (html5QrCode.isScanning) {
-                  html5QrCode.stop().catch(console.error);
-                }
-                onClose();
+                handleDecodedText(decodedText, html5QrCode);
               },
               () => {}
             );
@@ -141,6 +208,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
     startScanner();
 
     return () => {
+      clearPendingScan();
       if (html5QrCode.isScanning) {
         html5QrCode.stop().catch(console.error);
       }
