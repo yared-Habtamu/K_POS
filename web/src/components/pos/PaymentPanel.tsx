@@ -26,9 +26,11 @@ import { ReceiptPreview } from "./ReceiptPreview";
 import type { PaymentMethod, DiscountType, Sale, Receipt } from "@/types";
 import {
   Banknote,
+  CircleDollarSign,
   CreditCard,
   Smartphone,
   Building2,
+  Landmark,
   Wallet,
   Plus,
   Copy,
@@ -42,18 +44,38 @@ let paymentPanelCachedMartId: string | null = null;
 
 // shape for outgoing sale request saved temporarily before POST
 type SaleRequest = { receiptId?: string; [key: string]: unknown };
-const paymentMethods: {
-  value: PaymentMethod;
-  label: string;
-  icon: React.ElementType;
-}[] = [
-  { value: "cash", label: "cash", icon: Banknote },
-  { value: "card", label: "card", icon: CreditCard },
-  { value: "telebirr", label: "telebirr", icon: Smartphone },
-  { value: "cbe_bank", label: "cbe_bank", icon: Building2 },
-  { value: "wallet", label: "credit", icon: Wallet },
-  { value: "other", label: "other", icon: Wallet },
-];
+
+type PaymentTypeDto = {
+  _id?: string;
+  name?: string;
+  icon?: string;
+};
+
+const paymentMethodIconMap: Record<string, React.ElementType> = {
+  Banknote,
+  CreditCard,
+  Smartphone,
+  Building2,
+  Wallet,
+  Landmark,
+  CircleDollarSign,
+};
+
+const defaultIconByPaymentMethod: Record<string, string> = {
+  cash: "Banknote",
+  card: "CreditCard",
+  telebirr: "Smartphone",
+  cbe_bank: "Building2",
+  credit: "Wallet",
+  wallet: "Wallet",
+  other: "CircleDollarSign",
+};
+
+function normalizePaymentMethodName(name: string) {
+  return String(name || "")
+    .trim()
+    .toLowerCase();
+}
 
 type MartDiscountPolicy = {
   type: DiscountType;
@@ -142,6 +164,14 @@ export function PaymentPanel() {
   const [martBranding, setMartBranding] = useState<MartBranding>({
     shopName: "Shop",
   });
+  const [configuredPaymentMethods, setConfiguredPaymentMethods] = useState<
+    Array<{
+      value: PaymentMethod;
+      label: string;
+      icon: React.ElementType;
+    }>
+  >([]);
+  const [isLoadingPaymentMethods, setIsLoadingPaymentMethods] = useState(false);
 
   const [customers, setCustomers] = useState<Array<any>>([]);
   const [showAddCustomerDialog, setShowAddCustomerDialog] = useState(false);
@@ -233,6 +263,16 @@ export function PaymentPanel() {
   };
 
   const handleCompleteSale = async () => {
+    if (configuredPaymentMethods.length === 0) {
+      toast({
+        title: "No payment methods configured",
+        description:
+          "Owner must configure POS payment methods in Settings first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (items.length === 0) {
       toast({
         title: t("empty_cart"),
@@ -243,7 +283,7 @@ export function PaymentPanel() {
     }
 
     // require a customer for credit (wallet) payments
-    if (paymentMethod === "wallet" && !customerId) {
+    if (isCreditPayment && !customerId) {
       toast({
         title: t("select_customer_for_credit") || "Select customer",
         description:
@@ -730,6 +770,98 @@ export function PaymentPanel() {
     };
   }, [user?.martId, user?.token, setTaxRate, taxRate]);
 
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchConfiguredPaymentMethods = async () => {
+      try {
+        const API_BASE = import.meta.env.VITE_API_URL || "";
+        const martId = user?.martId;
+        const token = user?.token;
+        if (!martId) return;
+
+        setIsLoadingPaymentMethods(true);
+        const res = await fetch(
+          `${API_BASE}/api/payment-types?martId=${martId}`,
+          {
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          },
+        );
+
+        if (!res.ok) {
+          if (mounted) setConfiguredPaymentMethods([]);
+          return;
+        }
+
+        const list = (await res.json()) as PaymentTypeDto[];
+        if (!mounted) return;
+
+        const normalized = (Array.isArray(list) ? list : [])
+          .filter((item) => item && item.name)
+          .map((item) => {
+            const methodName = normalizePaymentMethodName(
+              String(item.name || ""),
+            );
+            const iconKey =
+              String(item.icon || "").trim() ||
+              defaultIconByPaymentMethod[methodName] ||
+              "Wallet";
+            return {
+              value: methodName as PaymentMethod,
+              label: methodName,
+              icon: paymentMethodIconMap[iconKey] || Wallet,
+            };
+          })
+          .filter((item) => item.value);
+
+        setConfiguredPaymentMethods(normalized);
+      } catch (err) {
+        console.error("Failed to load configured payment methods", err);
+        if (mounted) setConfiguredPaymentMethods([]);
+      } finally {
+        if (mounted) setIsLoadingPaymentMethods(false);
+      }
+    };
+
+    fetchConfiguredPaymentMethods();
+
+    const handleMartSettingsUpdated = (ev: Event) => {
+      try {
+        const changedId = (ev as CustomEvent)?.detail?.martId;
+        if (!changedId || changedId === user?.martId) {
+          fetchConfiguredPaymentMethods();
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    window.addEventListener(
+      "mart-settings-updated",
+      handleMartSettingsUpdated as EventListener,
+    );
+
+    return () => {
+      mounted = false;
+      window.removeEventListener(
+        "mart-settings-updated",
+        handleMartSettingsUpdated as EventListener,
+      );
+    };
+  }, [user?.martId, user?.token]);
+
+  useEffect(() => {
+    if (configuredPaymentMethods.length === 0) return;
+    if (
+      !configuredPaymentMethods.some((item) => item.value === paymentMethod)
+    ) {
+      setPaymentMethod(configuredPaymentMethods[0].value);
+    }
+  }, [configuredPaymentMethods, paymentMethod, setPaymentMethod]);
+
+  const isCreditPayment =
+    paymentMethod === "wallet" || paymentMethod === "credit";
+
   // Keep cart discount aligned with mart-level automatic discount policy.
   useEffect(() => {
     const subtotal = getSubtotal();
@@ -779,12 +911,12 @@ export function PaymentPanel() {
     setCartDiscount,
   ]);
 
-  // Fetch customers when credit (wallet) payment is selected
+  // Fetch customers when credit payment is selected
   useEffect(() => {
     let mounted = true;
     const load = async () => {
       try {
-        if (paymentMethod !== "wallet") return;
+        if (!isCreditPayment) return;
         const martId = user?.martId;
         if (!martId) return;
         const list = await fetchCustomers({ martId }, user?.token);
@@ -807,7 +939,7 @@ export function PaymentPanel() {
     return () => {
       mounted = false;
     };
-  }, [paymentMethod, user?.martId, user?.token]);
+  }, [isCreditPayment, user?.martId, user?.token]);
 
   const handleCloseReceipt = () => {
     // Close the receipt preview without saving. Cart remains intact so the user can retry.
@@ -820,24 +952,39 @@ export function PaymentPanel() {
       {/* Payment Method */}
       <div className="space-y-2">
         <Label>{t("payment_method")}</Label>
-        <div className="grid grid-cols-3 gap-2">
-          {paymentMethods.map((method) => {
-            const Icon = method.icon;
-            return (
-              <Button
-                key={method.value}
-                variant={paymentMethod === method.value ? "default" : "outline"}
-                className="h-auto py-3 flex flex-col items-center gap-1"
-                onClick={() => setPaymentMethod(method.value)}
-              >
-                <Icon className="h-5 w-5" />
-                <span className="text-xs">{t(method.label)}</span>
-              </Button>
-            );
-          })}
-        </div>
+        {isLoadingPaymentMethods ? (
+          <p className="text-sm text-muted-foreground">
+            {t("loading_payment_methods") || "Loading payment methods..."}
+          </p>
+        ) : configuredPaymentMethods.length === 0 ? (
+          <p className="text-sm text-destructive">
+            No POS payment methods are configured. Ask the owner to add them in
+            Settings.
+          </p>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            {configuredPaymentMethods.map((method) => {
+              const Icon = method.icon;
+              return (
+                <Button
+                  key={method.value}
+                  variant={
+                    paymentMethod === method.value ? "default" : "outline"
+                  }
+                  className="h-auto py-3 flex flex-col items-center gap-1"
+                  onClick={() => setPaymentMethod(method.value)}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span className="text-xs">
+                    {t(method.label) || method.label}
+                  </span>
+                </Button>
+              );
+            })}
+          </div>
+        )}
       </div>
-      {paymentMethod === "wallet" && (
+      {isCreditPayment && (
         <div className="space-y-2">
           <Label>{t("customer") || "Customer"}</Label>
           <div className="flex items-center gap-2">
@@ -1131,7 +1278,11 @@ export function PaymentPanel() {
         <Button
           className="w-full h-14 text-lg font-bold"
           onClick={handleCompleteSale}
-          disabled={items.length === 0 || isProcessing}
+          disabled={
+            items.length === 0 ||
+            isProcessing ||
+            configuredPaymentMethods.length === 0
+          }
         >
           {isProcessing ? (
             <>

@@ -166,6 +166,8 @@ export default function MEmployeeManagement(): JSX.Element {
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [passwordTarget, setPasswordTarget] = useState<any>(null);
   const [newPassword, setNewPassword] = useState("");
+  const [pendingDeleteEmployee, setPendingDeleteEmployee] =
+    useState<Employee | null>(null);
 
   // Attendance state
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
@@ -1469,7 +1471,7 @@ export default function MEmployeeManagement(): JSX.Element {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  onClick={() => handleDelete(e.id)}
+                                  onClick={() => setPendingDeleteEmployee(e)}
                                   className="text-destructive hover:text-destructive"
                                   title="Delete Employee"
                                 >
@@ -2459,6 +2461,37 @@ export default function MEmployeeManagement(): JSX.Element {
             </form>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog
+          open={Boolean(pendingDeleteEmployee)}
+          onOpenChange={(open) => {
+            if (!open) setPendingDeleteEmployee(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete employee?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {pendingDeleteEmployee
+                  ? `This will permanently delete ${pendingDeleteEmployee.name || "this employee"}.`
+                  : "This action will permanently delete the selected employee."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => {
+                  if (!pendingDeleteEmployee) return;
+                  void handleDelete(pendingDeleteEmployee.id);
+                  setPendingDeleteEmployee(null);
+                }}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </RoleLayout>
   );

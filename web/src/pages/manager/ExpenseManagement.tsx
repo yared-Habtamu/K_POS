@@ -25,6 +25,16 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -234,6 +244,8 @@ export default function ExpenseManagement() {
   const [currentPage, setCurrentPage] = useState(1);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingDeleteExpense, setPendingDeleteExpense] =
+    useState<Expense | null>(null);
 
   const [form, setForm] = useState({
     category: "miscellaneous" as ExpenseCategory,
@@ -1448,7 +1460,9 @@ export default function ExpenseManagement() {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={() => handleDelete(expense.id)}
+                                    onClick={() =>
+                                      setPendingDeleteExpense(expense)
+                                    }
                                     className="text-destructive hover:text-destructive"
                                   >
                                     <Trash2 className="h-4 w-4" />
@@ -1532,6 +1546,37 @@ export default function ExpenseManagement() {
             </Card>
           </motion.div>
         </div>
+
+        <AlertDialog
+          open={Boolean(pendingDeleteExpense)}
+          onOpenChange={(open) => {
+            if (!open) setPendingDeleteExpense(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this expense?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {pendingDeleteExpense
+                  ? `This will permanently delete expense \"${pendingDeleteExpense.description || "Unnamed expense"}\".`
+                  : "This action will permanently delete the selected expense."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => {
+                  if (!pendingDeleteExpense) return;
+                  handleDelete(pendingDeleteExpense.id);
+                  setPendingDeleteExpense(null);
+                }}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </RoleLayout>
   );

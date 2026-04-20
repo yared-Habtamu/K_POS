@@ -60,8 +60,10 @@ export type PaymentMethod =
   | "card"
   | "telebirr"
   | "cbe_bank"
+  | "credit"
   | "wallet"
-  | "other";
+  | "other"
+  | (string & {});
 export type DiscountType = "percentage" | "fixed";
 
 export interface CartItem {
