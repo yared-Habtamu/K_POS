@@ -147,6 +147,12 @@ async function createProductFromRequest(req, res, options = {}) {
     createdBy: user.id,
   };
 
+  if ((productPayload.barcodes || []).length > 1) {
+    return res.status(400).json({
+      message: "Only one barcode is allowed per product",
+    });
+  }
+
   if (productPayload.category) {
     const Category = require("../models/category.model");
     try {
@@ -161,6 +167,11 @@ async function createProductFromRequest(req, res, options = {}) {
   }
 
   const incomingBarcodes = await ensureProductPayloadBarcodes(productPayload);
+  if (incomingBarcodes.length > 1) {
+    return res.status(400).json({
+      message: "Only one barcode is allowed per product",
+    });
+  }
   if (incomingBarcodes.length > 0) {
     const existing = await Product.findOne({
       martId: finalMartId,
@@ -504,6 +515,12 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
         : update.barcode
           ? [String(update.barcode).trim()].filter(Boolean)
           : [];
+
+      if (newBarcodes.length > 1) {
+        return res.status(400).json({
+          message: "Only one barcode is allowed per product",
+        });
+      }
 
       if (newBarcodes.length > 0) {
         const dup = await Product.findOne({

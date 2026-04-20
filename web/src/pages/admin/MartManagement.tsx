@@ -291,7 +291,13 @@ function saveShops(shops: Shop[]) {
 }
 
 export default function MartManagement() {
-  const [shops, setShops] = React.useState<Shop[]>(() => loadShops());
+  const API_BASE = import.meta.env.VITE_API_URL || "";
+  const authUser = useAuthStore((s) => s.user);
+  const hiddenDeletedShopIdsRef = React.useRef<Set<string>>(new Set());
+
+  const [shops, setShops] = React.useState<Shop[]>(() =>
+    API_BASE ? [] : loadShops(),
+  );
   const { toast } = useToast();
   const [filter, setFilter] = React.useState<
     "all" | "active" | "pending" | "suspended" | "rejected"
@@ -327,14 +333,11 @@ export default function MartManagement() {
   );
 
   React.useEffect(() => {
-    saveShops(shops);
-  }, [shops]);
+    if (!API_BASE) saveShops(shops);
+  }, [shops, API_BASE]);
 
   // Fetch real data from backend when available (system admin view)
   // Only one set of declarations!
-
-  const API_BASE = import.meta.env.VITE_API_URL || "";
-  const authUser = useAuthStore((s) => s.user);
 
   const getAuthHeaders = () => {
     const h: Record<string, string> = {};
@@ -375,7 +378,11 @@ export default function MartManagement() {
       });
       if (!res.ok) throw new Error("Server error");
       const data = await res.json();
-      const mapped = (Array.isArray(data) ? data : []).map(mapBackendToShop);
+      const mapped = (Array.isArray(data) ? data : [])
+        .map(mapBackendToShop)
+        .filter(
+          (shop) => !hiddenDeletedShopIdsRef.current.has(String(shop.id)),
+        );
       setShops(mapped);
       return true;
     } catch (err) {
@@ -522,6 +529,8 @@ export default function MartManagement() {
               throw new Error(err.message || "Server delete failed");
             }
 
+            hiddenDeletedShopIdsRef.current.add(String(id));
+            setShops((prev) => prev.filter((s) => s.id !== id));
             await fetchShopsFromServer();
             toast({
               title: "Shop deleted",
