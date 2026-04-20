@@ -48,8 +48,25 @@ const MartSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["pending", "approved", "disabled"],
+      enum: ["pending", "approved", "disabled", "suspended", "rejected"],
       default: "pending",
+    },
+    subscription: {
+      feeEtb: { type: Number, default: 0 },
+      billingPeriodDays: { type: Number, default: 30 },
+      storageLimitMb: { type: Number, default: 0 },
+      warningDaysBeforeExpiry: { type: Number, default: 5 },
+      warningStoragePercent: { type: Number, default: 80 },
+      subscriptionStartDate: { type: Date },
+      subscriptionEndDate: { type: Date },
+      storageUsageMb: { type: Number, default: 0 },
+      storageUsagePercent: { type: Number, default: 0 },
+      subscriptionStatus: {
+        type: String,
+        enum: ["active", "warning", "suspended"],
+        default: "active",
+      },
+      lastEvaluatedAt: { type: Date },
     },
     isDeleted: { type: Boolean, default: false, index: true },
   },

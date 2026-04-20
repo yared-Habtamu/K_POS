@@ -24,6 +24,7 @@ import {
   Store,
   Warehouse,
   TrendingUp,
+  CreditCard,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -255,6 +256,11 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
           activePaths: ["/admin/reports"],
         },
         { label: "analytics", icon: TrendingUp, path: "/admin/analytics" },
+        {
+          label: "subscriptions",
+          icon: CreditCard,
+          path: "/admin/subscriptions",
+        },
         { label: "shop", icon: Building2, path: "/admin/shops" },
         {
           label: "register_mart",

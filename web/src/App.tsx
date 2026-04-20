@@ -66,6 +66,7 @@ import MainAdmin from "./pages/admin/MainAdmin";
 import MartManagement from "./pages/admin/MartManagement";
 import AdminRegisterMart from "./pages/admin/RegisterMart";
 import AdminAnalytics from "./pages/admin/AdminAnalytics";
+import AdminSubscriptions from "./pages/admin/AdminSubscriptions";
 import MartDetails from "./pages/admin/MartDetails";
 import { NotificationService } from "./components/notifications/NotificationService";
 
@@ -211,6 +212,10 @@ const App = () => {
             {/* Admin Routes */}
             <Route path="/admin" element={<MainAdmin />} />
             <Route path="/admin/analytics" element={<AdminAnalytics />} />
+            <Route
+              path="/admin/subscriptions"
+              element={<AdminSubscriptions />}
+            />
             <Route path="/admin/mart/:martId" element={<MartDetails />} />
             <Route path="/admin/shops" element={<MartManagement />} />
             <Route

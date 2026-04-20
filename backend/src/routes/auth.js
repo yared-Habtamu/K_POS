@@ -5,6 +5,9 @@ const User = require("../models/user.model");
 const Mart = require("../models/mart.model");
 const router = express.Router();
 const { authenticate } = require("../middleware/auth");
+const {
+  runSubscriptionCheckForMart,
+} = require("../services/subscription.service");
 
 const JWT_SECRET = process.env.JWT_SECRET || "changeme";
 
@@ -42,23 +45,19 @@ router.post("/login", async (req, res) => {
   // Block login for deleted or deactivated users
   if (user.isDeleted || user.active === false) {
     console.info(`Login blocked: user is deleted or inactive (id=${user._id})`);
-    return res
-      .status(403)
-      .json({
-        message: "Account is deactivated or deleted. Contact an administrator.",
-      });
+    return res.status(403).json({
+      message: "Account is deactivated or deleted. Contact an administrator.",
+    });
   }
 
   // Owners may only login once their mart is approved
   if (user.role === "owner") {
     if (!user.martId) {
       console.warn(`Owner login blocked: no martId for user id=${user._id}`);
-      return res
-        .status(403)
-        .json({
-          message:
-            "Owner account has no mart assigned. Create a mart first or contact an administrator.",
-        });
+      return res.status(403).json({
+        message:
+          "Owner account has no mart assigned. Create a mart first or contact an administrator.",
+      });
     }
     // include isDeleted flag so deleted marts cannot be used to login
     const mart = await Mart.findById(user.martId).select("status isDeleted");
@@ -74,15 +73,26 @@ router.post("/login", async (req, res) => {
       console.info(
         `Owner login blocked: mart is deleted for martId=${user.martId}`,
       );
-      return res
-        .status(403)
-        .json({
-          message: "Your mart has been deleted. Contact an administrator.",
-        });
+      return res.status(403).json({
+        message: "Your mart has been deleted. Contact an administrator.",
+      });
     }
 
+    // Re-evaluate subscription status before allowing owner access.
+    try {
+      await runSubscriptionCheckForMart(user.martId, { persist: true });
+    } catch (subscriptionErr) {
+      console.error(
+        `Subscription check failed for martId=${user.martId}`,
+        subscriptionErr,
+      );
+    }
+
+    const refreshedMart = await Mart.findById(user.martId).select("status");
+    const effectiveStatus = refreshedMart?.status || mart.status;
+
     // Specific messaging for mart status
-    if (mart.status === "pending") {
+    if (effectiveStatus === "pending") {
       console.info(
         `Owner login blocked: mart pending for martId=${user.martId}`,
       );
@@ -91,16 +101,17 @@ router.post("/login", async (req, res) => {
         .json({ message: "Your mart registration is pending approval." });
     }
 
-    if (mart.status === "disabled") {
+    if (effectiveStatus === "disabled" || effectiveStatus === "suspended") {
       console.info(
         `Owner login blocked: mart suspended for martId=${user.martId}`,
       );
-      return res
-        .status(403)
-        .json({ message: "Mart is suspended contact an Administrator" });
+      return res.status(403).json({
+        message:
+          "Your mart is suspended due to subscription policy. Contact an administrator.",
+      });
     }
 
-    if (mart.status === "rejected") {
+    if (effectiveStatus === "rejected") {
       console.info(
         `Owner login blocked: mart rejected for martId=${user.martId}`,
       );
@@ -217,20 +228,18 @@ router.post("/register", authenticate, async (req, res) => {
     profilePictureUrl,
   });
   await user.save();
-  res
-    .status(201)
-    .json({
-      user: {
-        id: user._id,
-        username: user.username,
-        name: user.name,
-        email: user.email || "",
-        phone: user.phone || "",
-        profilePictureUrl: user.profilePictureUrl || "",
-        role: user.role,
-        martId: user.martId,
-      },
-    });
+  res.status(201).json({
+    user: {
+      id: user._id,
+      username: user.username,
+      name: user.name,
+      email: user.email || "",
+      phone: user.phone || "",
+      profilePictureUrl: user.profilePictureUrl || "",
+      role: user.role,
+      martId: user.martId,
+    },
+  });
 });
 
 // List users by martId (owner/manager/systemAdmin)
@@ -318,11 +327,9 @@ router.put("/users/:id", authenticate, async (req, res) => {
         (k) => !managerAllowedFields.includes(k),
       );
       if (invalidManagerFields.length) {
-        return res
-          .status(403)
-          .json({
-            message: "Manager cannot modify private controls or salary",
-          });
+        return res.status(403).json({
+          message: "Manager cannot modify private controls or salary",
+        });
       }
     }
 
@@ -348,11 +355,9 @@ router.put("/users/:id", authenticate, async (req, res) => {
         (p) => !allowedForTarget.includes(p),
       );
       if (invalidForTarget.length)
-        return res
-          .status(403)
-          .json({
-            message: "Some permissions are not valid for target user role",
-          });
+        return res.status(403).json({
+          message: "Some permissions are not valid for target user role",
+        });
 
       // managers have limited permission scope and cannot modify peers
       if (requester.role === "manager") {
@@ -362,11 +367,9 @@ router.put("/users/:id", authenticate, async (req, res) => {
             .status(403)
             .json({ message: "Manager cannot modify other managers" });
         if (targetRole === "storeKeeper" || targetRole === "store_keeper") {
-          return res
-            .status(403)
-            .json({
-              message: "Manager cannot modify store keeper permissions",
-            });
+          return res.status(403).json({
+            message: "Manager cannot modify store keeper permissions",
+          });
         }
 
         // allow only manager-scoped permissions to be modified by managers
@@ -447,12 +450,10 @@ router.put("/change-password", authenticate, async (req, res) => {
     const { currentPassword, newPassword, confirmPassword } = req.body || {};
 
     if (!currentPassword || !newPassword || !confirmPassword) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "Current password, new password, and confirmation are required",
-        });
+      return res.status(400).json({
+        message:
+          "Current password, new password, and confirmation are required",
+      });
     }
 
     if (newPassword !== confirmPassword) {
