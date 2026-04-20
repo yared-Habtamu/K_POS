@@ -1,6 +1,13 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Banknote, CreditCard, Eye, Pencil, Trash2, Wallet } from "lucide-react";
+import {
+  Banknote,
+  CreditCard,
+  Eye,
+  Pencil,
+  Trash2,
+  Wallet,
+} from "lucide-react";
 
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,10 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/Modal";
-import {
-  DataTable,
-  type DataTableColumn,
-} from "@/components/ui/DataTable";
+import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import {
   AdvancedFilters,
   type AdvancedFilterValues,
@@ -60,7 +64,9 @@ const emptyFilterValues: AdvancedFilterValues = {
 };
 
 function formatCityName(value?: string) {
-  const normalized = String(value || "").trim().toLowerCase();
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
   if (!normalized) return "";
 
   return normalized
@@ -79,12 +85,10 @@ export default function CustomerManagement() {
     name?: string;
     phoneNumber?: string;
   }>({});
-  const [filterValues, setFilterValues] = useState<AdvancedFilterValues>(
-    emptyFilterValues,
-  );
-  const [appliedFilters, setAppliedFilters] = useState<AdvancedFilterValues>(
-    emptyFilterValues,
-  );
+  const [filterValues, setFilterValues] =
+    useState<AdvancedFilterValues>(emptyFilterValues);
+  const [appliedFilters, setAppliedFilters] =
+    useState<AdvancedFilterValues>(emptyFilterValues);
   const [modalMode, setModalMode] = useState<CustomerModalMode>("view");
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerRow | null>(
     null,
@@ -97,6 +101,7 @@ export default function CustomerManagement() {
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  const isOwner = user?.role === "owner";
   const isManagement = user?.role === "owner" || user?.role === "manager";
 
   const validateCustomer = (values: CustomerFormState) => {
@@ -160,8 +165,12 @@ export default function CustomerManagement() {
   );
 
   const filteredCustomers = useMemo(() => {
-    const query = String(appliedFilters.query || "").trim().toLowerCase();
-    const city = String(appliedFilters.city || "").trim().toLowerCase();
+    const query = String(appliedFilters.query || "")
+      .trim()
+      .toLowerCase();
+    const city = String(appliedFilters.city || "")
+      .trim()
+      .toLowerCase();
     const balanceStatus = String(appliedFilters.balanceStatus || "all");
     const sortBy = String(appliedFilters.sortBy || "name_asc");
 
@@ -173,7 +182,10 @@ export default function CustomerManagement() {
           .some((value) => String(value).toLowerCase().includes(query));
 
       const matchesCity =
-        !city || String(customer.city || "").trim().toLowerCase() === city;
+        !city ||
+        String(customer.city || "")
+          .trim()
+          .toLowerCase() === city;
 
       const unpaidBalance = Number(customer.totalUnpaid || 0);
       const matchesBalanceStatus =
@@ -322,6 +334,7 @@ export default function CustomerManagement() {
   };
 
   const handleDelete = async () => {
+    if (!isOwner) return;
     if (!selectedCustomer) return;
 
     setDeleting(true);
@@ -564,12 +577,16 @@ export default function CustomerManagement() {
                       },
                     ]
                   : []),
-                {
-                  label: t("delete"),
-                  onSelect: () => openDeleteModal(row),
-                  icon: Trash2,
-                  destructive: true,
-                },
+                ...(isOwner
+                  ? [
+                      {
+                        label: t("delete"),
+                        onSelect: () => openDeleteModal(row),
+                        icon: Trash2,
+                        destructive: true,
+                      },
+                    ]
+                  : []),
               ]}
             />
           )}
@@ -600,10 +617,13 @@ export default function CustomerManagement() {
             modalMode === "delete" ? (
               <div className="space-y-6">
                 <p className="text-sm text-muted-foreground">
-                  Delete this customer and remove them from the list. This action cannot be undone.
+                  Delete this customer and remove them from the list. This
+                  action cannot be undone.
                 </p>
                 <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4">
-                  <div className="font-semibold text-foreground">{selectedCustomer.name}</div>
+                  <div className="font-semibold text-foreground">
+                    {selectedCustomer.name}
+                  </div>
                   <div className="text-sm text-muted-foreground">
                     {selectedCustomer.phoneNumber}
                     {selectedCustomer.city ? ` • ${selectedCustomer.city}` : ""}
@@ -613,7 +633,12 @@ export default function CustomerManagement() {
                   <Button type="button" variant="outline" onClick={resetModal}>
                     {t("cancel")}
                   </Button>
-                  <Button type="button" variant="destructive" onClick={handleDelete} disabled={deleting}>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={handleDelete}
+                    disabled={deleting}
+                  >
                     {deleting ? t("loading") : t("delete")}
                   </Button>
                 </div>
@@ -637,7 +662,9 @@ export default function CustomerManagement() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="modal-customer-phone">{t("phone_number")}</Label>
+                    <Label htmlFor="modal-customer-phone">
+                      {t("phone_number")}
+                    </Label>
                     <Input
                       id="modal-customer-phone"
                       value={editForm.phoneNumber}
@@ -731,7 +758,11 @@ export default function CustomerManagement() {
                     {t("cancel")}
                   </Button>
                   {modalMode === "edit" ? (
-                    <Button type="button" onClick={handleUpdate} disabled={updating}>
+                    <Button
+                      type="button"
+                      onClick={handleUpdate}
+                      disabled={updating}
+                    >
                       {updating ? t("loading") : t("edit")}
                     </Button>
                   ) : null}

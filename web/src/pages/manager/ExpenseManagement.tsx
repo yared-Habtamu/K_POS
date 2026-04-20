@@ -119,6 +119,7 @@ export default function ExpenseManagement() {
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const auth = useAuthStore((s) => s.user);
+  const canDelete = auth?.role === "owner";
   const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
   // localStorage helpers for payment types so created items survive refresh
   const localPaymentKey = (martId?: string) =>
@@ -382,6 +383,7 @@ export default function ExpenseManagement() {
   );
 
   const handleDelete = (id: string) => {
+    if (!canDelete) return;
     (async () => {
       try {
         const token = auth?.token;
@@ -937,12 +939,10 @@ export default function ExpenseManagement() {
                             },
                           );
                           if (res.ok) {
-                            const created = await res
-                              .json()
-                              .catch(() => ({
-                                name: q,
-                                _id: `cat-${Date.now()}`,
-                              }));
+                            const created = await res.json().catch(() => ({
+                              name: q,
+                              _id: `cat-${Date.now()}`,
+                            }));
                             const item = {
                               id: String(created._id || created.id || q),
                               label: q,
@@ -1099,9 +1099,7 @@ export default function ExpenseManagement() {
                       variant="outline"
                       size="icon"
                       onClick={() =>
-                        document
-                          .getElementById("productPictureCamera")
-                          ?.click()
+                        document.getElementById("productPictureCamera")?.click()
                       }
                       aria-label={t("take_photo", "Take photo")}
                     >
@@ -1446,14 +1444,16 @@ export default function ExpenseManagement() {
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleDelete(expense.id)}
-                                  className="text-destructive hover:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                {canDelete && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDelete(expense.id)}
+                                    className="text-destructive hover:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
                               </TableCell>
                             </TableRow>
                           );

@@ -150,6 +150,7 @@ export default function MEmployeeManagement(): JSX.Element {
   const { t } = useTranslation();
 
   const { user } = useAuthStore();
+  const canDelete = user?.role === "owner";
   const token = user?.token;
   const martId = user?.martId;
 
@@ -463,6 +464,7 @@ export default function MEmployeeManagement(): JSX.Element {
   };
 
   const handleDelete = async (id: string) => {
+    if (!canDelete) return;
     try {
       const API_BASE = import.meta.env.VITE_API_URL || "";
       const res = await fetch(`${API_BASE}/api/auth/users/${id}`, {
@@ -742,6 +744,7 @@ export default function MEmployeeManagement(): JSX.Element {
   };
 
   const handleDeleteAttendanceRecord = (recordId: string) => {
+    if (!canDelete) return;
     (async () => {
       if (!token) {
         toast({ title: "Not authenticated", variant: "destructive" });
@@ -1462,15 +1465,17 @@ export default function MEmployeeManagement(): JSX.Element {
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDelete(e.id)}
-                                className="text-destructive hover:text-destructive"
-                                title="Delete Employee"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              {canDelete && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDelete(e.id)}
+                                  className="text-destructive hover:text-destructive"
+                                  title="Delete Employee"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
                             </div>
 
                             {attendance.filter((r) => r.employeeId === e.id)
@@ -1953,46 +1958,50 @@ export default function MEmployeeManagement(): JSX.Element {
                                   >
                                     <Edit className="h-4 w-4" />
                                   </Button>
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-destructive hover:text-destructive"
-                                        aria-label="Delete attendance"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle>
-                                          Delete attendance record?
-                                        </AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          Delete the attendance record for{" "}
-                                          {emp?.name ||
-                                            rec.employeeName ||
-                                            "this employee"}{" "}
-                                          on {rec.date}? This action cannot be
-                                          undone.
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel>
-                                          Cancel
-                                        </AlertDialogCancel>
-                                        <AlertDialogAction
-                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                          onClick={() =>
-                                            handleDeleteAttendanceRecord(rec.id)
-                                          }
+                                  {canDelete && (
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="text-destructive hover:text-destructive"
+                                          aria-label="Delete attendance"
                                         >
-                                          Delete
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>
+                                            Delete attendance record?
+                                          </AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Delete the attendance record for{" "}
+                                            {emp?.name ||
+                                              rec.employeeName ||
+                                              "this employee"}{" "}
+                                            on {rec.date}? This action cannot be
+                                            undone.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>
+                                            Cancel
+                                          </AlertDialogCancel>
+                                          <AlertDialogAction
+                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                            onClick={() =>
+                                              handleDeleteAttendanceRecord(
+                                                rec.id,
+                                              )
+                                            }
+                                          >
+                                            Delete
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  )}
                                 </>
                               )}
                             </TableCell>

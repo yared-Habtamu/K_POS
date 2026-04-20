@@ -12,7 +12,6 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
   Plus,
-  Trash2,
   FileText,
   Image as ImageIcon,
   Download,
@@ -31,6 +30,7 @@ export default function ManagerAssets() {
   const [employees, setEmployees] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const auth = useAuthStore((s) => s.user);
+  const canDelete = auth?.role === "owner";
   const API_BASE = import.meta.env.VITE_API_URL || "";
 
   // Form state
@@ -207,6 +207,7 @@ export default function ManagerAssets() {
   };
 
   const handleDelete = async (asset: any) => {
+    if (!canDelete) return;
     if (!window.confirm(`Are you sure you want to remove ${asset.name}?`))
       return;
 
@@ -581,7 +582,7 @@ export default function ManagerAssets() {
           pagination
           initialPageSize={10}
           onEdit={openEditModal}
-          onDelete={handleDelete}
+          onDelete={canDelete ? handleDelete : undefined}
           onRowClick={(row) => {
             setViewingAsset(row);
             setIsDetailModalOpen(true);
