@@ -434,12 +434,13 @@ export default function OwnerDashboard() {
           />
         </motion.div>
 
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Expired Items</CardTitle>
-            </CardHeader>
-            <CardContent>
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Expired Items</h2>
+            <Badge variant="secondary">{expiredItems.length} items</Badge>
+          </div>
+          <Card className="border-amber-200/70">
+            <CardContent className="pt-6">
               {isLoadingMetrics ? (
                 <div className="text-sm text-muted-foreground">
                   Loading expired items...
@@ -459,7 +460,7 @@ export default function OwnerDashboard() {
                       key={String(
                         item.id || item._id || `${item.name}-${index}`,
                       )}
-                      className="flex items-center justify-between border-b pb-2 text-sm"
+                      className="flex items-center justify-between rounded-md border border-amber-100 px-3 py-2 text-sm"
                     >
                       <span className="font-medium">{item.name || "-"}</span>
                       <span className="text-muted-foreground">
@@ -473,12 +474,15 @@ export default function OwnerDashboard() {
               )}
             </CardContent>
           </Card>
+        </section>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Broken Assets</CardTitle>
-            </CardHeader>
-            <CardContent>
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Broken Assets</h2>
+            <Badge variant="secondary">{brokenAssets.length} assets</Badge>
+          </div>
+          <Card className="border-rose-200/70">
+            <CardContent className="pt-6">
               {isLoadingMetrics ? (
                 <div className="text-sm text-muted-foreground">
                   Loading broken assets...
@@ -498,7 +502,7 @@ export default function OwnerDashboard() {
                       key={String(
                         asset.id || asset._id || `${asset.name}-${index}`,
                       )}
-                      className="flex items-center justify-between border-b pb-2 text-sm"
+                      className="flex items-center justify-between rounded-md border border-rose-100 px-3 py-2 text-sm"
                     >
                       <span className="font-medium">{asset.name || "-"}</span>
                       <span className="text-muted-foreground">
@@ -512,7 +516,7 @@ export default function OwnerDashboard() {
               )}
             </CardContent>
           </Card>
-        </div>
+        </section>
       </div>
     </RoleLayout>
   );
