@@ -52,6 +52,7 @@ const notificationsRouter = require("./routes/notifications");
 const categoryRouter = require("./routes/categories");
 const paymentTypesRouter = require("./routes/paymentTypes");
 const expenseCategoriesRouter = require("./routes/expenseCategories");
+const subscriptionsRouter = require("./routes/subscriptions");
 
 app.use("/api/expenses", expensesRouter);
 app.use("/api/assets", assetsRouter);
@@ -73,6 +74,7 @@ app.use("/api/products", productsRouter);
 app.use("/api/categories", categoryRouter);
 app.use("/api/payment-types", paymentTypesRouter);
 app.use("/api/expense-categories", expenseCategoriesRouter);
+app.use("/api/subscriptions", subscriptionsRouter);
 app.use("/api/employees", employeesRouter);
 app.use("/api/attendance", attendanceRouter);
 app.use("/api/product-edit-requests", productEditRequestsRouter);
@@ -117,6 +119,31 @@ async function start() {
 
     // No development seeding: data must come from the actual database.
     // If temporary seeding is ever required, gate it behind an environment flag such as SEED_TEST_DATA=true.
+
+    // Run an initial subscription check at startup, then periodically.
+    const {
+      runSubscriptionChecksForAllMarts,
+    } = require("./services/subscription.service");
+    try {
+      await runSubscriptionChecksForAllMarts({ persist: true });
+      console.log("Initial subscription checks completed");
+    } catch (checkErr) {
+      console.error("Initial subscription checks failed", checkErr);
+    }
+
+    const intervalMs = Number(
+      process.env.SUBSCRIPTION_CHECK_INTERVAL_MS || 3600000,
+    );
+    setInterval(
+      async () => {
+        try {
+          await runSubscriptionChecksForAllMarts({ persist: true });
+        } catch (checkErr) {
+          console.error("Scheduled subscription checks failed", checkErr);
+        }
+      },
+      Number.isFinite(intervalMs) && intervalMs > 0 ? intervalMs : 3600000,
+    );
   } catch (err) {
     console.error("Failed to connect to MongoDB", err);
 

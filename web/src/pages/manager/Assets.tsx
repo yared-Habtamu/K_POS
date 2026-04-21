@@ -7,6 +7,16 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/Modal";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -52,6 +62,9 @@ export default function ManagerAssets() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingDeleteAsset, setPendingDeleteAsset] = useState<any | null>(
+    null,
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load assets and employees
@@ -208,8 +221,6 @@ export default function ManagerAssets() {
 
   const handleDelete = async (asset: any) => {
     if (!canDelete) return;
-    if (!window.confirm(`Are you sure you want to remove ${asset.name}?`))
-      return;
 
     try {
       const token = auth?.token;
@@ -582,7 +593,9 @@ export default function ManagerAssets() {
           pagination
           initialPageSize={10}
           onEdit={openEditModal}
-          onDelete={canDelete ? handleDelete : undefined}
+          onDelete={
+            canDelete ? (asset) => setPendingDeleteAsset(asset) : undefined
+          }
           onRowClick={(row) => {
             setViewingAsset(row);
             setIsDetailModalOpen(true);
@@ -908,6 +921,37 @@ export default function ManagerAssets() {
             )}
           </div>
         </Modal>
+
+        <AlertDialog
+          open={Boolean(pendingDeleteAsset)}
+          onOpenChange={(open) => {
+            if (!open) setPendingDeleteAsset(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this asset?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {pendingDeleteAsset
+                  ? `This will remove ${pendingDeleteAsset.name || "the selected asset"}.`
+                  : "This action will remove the selected asset."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => {
+                  if (!pendingDeleteAsset) return;
+                  void handleDelete(pendingDeleteAsset);
+                  setPendingDeleteAsset(null);
+                }}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </RoleLayout>
   );

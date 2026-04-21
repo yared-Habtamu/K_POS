@@ -24,6 +24,16 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -106,24 +116,22 @@ const expenseCategories: {
 
 const ITEMS_PER_PAGE = 7; // ✅ 7 items per page
 
-
 export default function ExpenseManagement() {
   const { t } = useTranslation();
-  const [paymentOptions, setPaymentOptions] = useState(
-    [
-      { id: "cash", label: t("cash") },
-      { id: "card", label: t("card") },
-      { id: "mobile", label: t("mobile") },
-      { id: "transfer", label: t("transfer") },
-      { id: "other", label: t("other") },
-    ] as { id: string; label: string }[],
-  );
-  
+  const [paymentOptions, setPaymentOptions] = useState([
+    { id: "cash", label: t("cash") },
+    { id: "card", label: t("card") },
+    { id: "mobile", label: t("mobile") },
+    { id: "transfer", label: t("transfer") },
+    { id: "other", label: t("other") },
+  ] as { id: string; label: string }[]);
+
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const auth = useAuthStore((s) => s.user);
   const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
   // localStorage helpers to persist created payment types across refreshes
-  const localPaymentKey = (martId?: string) => `pos:local:payment-types:${martId || "global"}`;
+  const localPaymentKey = (martId?: string) =>
+    `pos:local:payment-types:${martId || "global"}`;
   const loadLocalPaymentTypes = (martId?: string) => {
     try {
       // Load mart-specific first, then global fallback; dedupe by id
@@ -148,7 +156,10 @@ export default function ExpenseManagement() {
       return [] as { id: string; label: string }[];
     }
   };
-  const saveLocalPaymentType = (martId: string | undefined, item: { id: string; label: string }) => {
+  const saveLocalPaymentType = (
+    martId: string | undefined,
+    item: { id: string; label: string },
+  ) => {
     try {
       const list = loadLocalPaymentTypes(martId);
       if (!list.find((l) => l.id === item.id)) list.push(item);
@@ -166,21 +177,27 @@ export default function ExpenseManagement() {
         const martId = auth?.martId;
         const serverItems: { id: string; label: string }[] = [];
         if (martId && API_BASE) {
-          const res = await fetch(`${API_BASE}/api/payment-types?martId=${martId}`, {
-            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          });
+          const res = await fetch(
+            `${API_BASE}/api/payment-types?martId=${martId}`,
+            {
+              headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+            },
+          );
           if (res.ok) {
-              const list = await res.json().catch(() => []);
-              if (Array.isArray(list)) {
-                const normalized = list.map((p: any) => {
-                  if (typeof p === 'string') return { id: String(p), label: String(p) };
-                  const id = String(p._id || p.id || p.name || '');
-                  const label = String(p.label || p.name || id || '');
-                  return { id, label };
-                });
-                serverItems.push(...normalized);
-              }
+            const list = await res.json().catch(() => []);
+            if (Array.isArray(list)) {
+              const normalized = list.map((p: any) => {
+                if (typeof p === "string")
+                  return { id: String(p), label: String(p) };
+                const id = String(p._id || p.id || p.name || "");
+                const label = String(p.label || p.name || id || "");
+                return { id, label };
+              });
+              serverItems.push(...normalized);
             }
+          }
         }
         const localItems = loadLocalPaymentTypes(auth?.martId);
         const items = [...localItems, ...serverItems];
@@ -233,6 +250,8 @@ export default function ExpenseManagement() {
   const [currentPage, setCurrentPage] = useState(1); // ✅ Pagination state
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingDeleteExpense, setPendingDeleteExpense] =
+    useState<Expense | null>(null);
 
   const [form, setForm] = useState({
     category: "miscellaneous" as ExpenseCategory,
@@ -282,8 +301,13 @@ export default function ExpenseManagement() {
     })
     .reduce((sum, e) => sum + e.amount, 0);
 
-  const { categories: productCategories, fetchCategories: fetchProductCategories } = useProductStore();
-  const [savedExpenseCategories, setSavedExpenseCategories] = useState<{ id: string; label: string }[]>([]);
+  const {
+    categories: productCategories,
+    fetchCategories: fetchProductCategories,
+  } = useProductStore();
+  const [savedExpenseCategories, setSavedExpenseCategories] = useState<
+    { id: string; label: string }[]
+  >([]);
 
   useEffect(() => {
     let mounted = true;
@@ -292,28 +316,50 @@ export default function ExpenseManagement() {
         const token = auth?.token;
         const martId = auth?.martId;
         if (!API_BASE || !martId) return;
-        const res = await fetch(`${API_BASE}/api/expense-categories?martId=${martId}`, {
-          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        });
+        const res = await fetch(
+          `${API_BASE}/api/expense-categories?martId=${martId}`,
+          {
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          },
+        );
         if (!res.ok) return;
         const list = await res.json().catch(() => []);
         if (!mounted || !Array.isArray(list)) return;
-        setSavedExpenseCategories(list.map((c: any) => ({ id: String(c._id || c.id || c.name), label: c.name })));
+        setSavedExpenseCategories(
+          list.map((c: any) => ({
+            id: String(c._id || c.id || c.name),
+            label: c.name,
+          })),
+        );
       } catch (err) {
         // ignore
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [API_BASE, auth?.martId]);
 
   const categoryItems = (
     [
       // include predefined expense categories as options
-      ...expenseCategories.map((c) => ({ id: c.value, label: t(c.label), value: c.value })),
+      ...expenseCategories.map((c) => ({
+        id: c.value,
+        label: t(c.label),
+        value: c.value,
+      })),
       // include server-saved expense categories
-      ...savedExpenseCategories.map((c) => ({ id: c.id, label: c.label, value: c.label })),
+      ...savedExpenseCategories.map((c) => ({
+        id: c.id,
+        label: c.label,
+        value: c.label,
+      })),
       // include product categories fetched from productStore
-      ...(productCategories || []).map((c) => ({ id: c.id, label: c.name, value: c.name })),
+      ...(productCategories || []).map((c) => ({
+        id: c.id,
+        label: c.name,
+        value: c.name,
+      })),
     ] as { id: string; label: string; value: string }[]
   ).filter((v, i, arr) => arr.findIndex((x) => x.value === v.value) === i);
 
@@ -330,10 +376,18 @@ export default function ExpenseManagement() {
   const expensesByCategory = Array.from(allCategoryValues)
     .map((catValue) => {
       const predefined = expenseCategories.find((c) => c.value === catValue);
-      const productCat = (productCategories || []).find((p) => p.name === catValue);
-      const saved = (savedExpenseCategories || []).find((s) => s.label === catValue);
-      const name = predefined ? t(predefined.label) : productCat?.name || saved?.label || catValue;
-      const color = predefined ? predefined.color : "hsl(var(--muted-foreground))";
+      const productCat = (productCategories || []).find(
+        (p) => p.name === catValue,
+      );
+      const saved = (savedExpenseCategories || []).find(
+        (s) => s.label === catValue,
+      );
+      const name = predefined
+        ? t(predefined.label)
+        : productCat?.name || saved?.label || catValue;
+      const color = predefined
+        ? predefined.color
+        : "hsl(var(--muted-foreground))";
       const value = expenses
         .filter((e) => String(e.category) === String(catValue))
         .reduce((sum, e) => sum + e.amount, 0);
@@ -562,9 +616,7 @@ export default function ExpenseManagement() {
     } catch (err) {
       console.error(err);
       toast.error(
-        editingExpenseId
-          ? t("failed_update_expense")
-          : t("failed_add_expense")
+        editingExpenseId ? t("failed_update_expense") : t("failed_add_expense"),
       );
     } finally {
       setIsSubmitting(false);
@@ -676,14 +728,22 @@ export default function ExpenseManagement() {
 
   const downloadExpensePdf = async () => {
     if (filteredExpenses.length === 0) {
-      toast(t("no_expenses_to_export", { defaultValue: "No expenses to export" }));
+      toast(
+        t("no_expenses_to_export", { defaultValue: "No expenses to export" }),
+      );
       return;
     }
 
     try {
-      toast.info(t("generating_pdf_wait", { defaultValue: "Generating PDF, please wait..." }));
+      toast.info(
+        t("generating_pdf_wait", {
+          defaultValue: "Generating PDF, please wait...",
+        }),
+      );
 
-      const loadImage = (url: string | null): Promise<HTMLImageElement | null> => {
+      const loadImage = (
+        url: string | null,
+      ): Promise<HTMLImageElement | null> => {
         return new Promise((resolve) => {
           if (!url) return resolve(null);
           const img = new Image();
@@ -695,11 +755,23 @@ export default function ExpenseManagement() {
       };
 
       const [loadedItemImages, loadedScreenshotImages] = await Promise.all([
-        Promise.all(filteredExpenses.map(e => (e as any).productPicture ? loadImage((e as any).productPicture) : Promise.resolve(null))),
-        Promise.all(filteredExpenses.map(e => {
-          const s = (Array.isArray((e as any).screenshots) && (e as any).screenshots[0]) || (e as any).paymentScreenshot || null;
-          return s ? loadImage(s) : Promise.resolve(null);
-        }))
+        Promise.all(
+          filteredExpenses.map((e) =>
+            (e as any).productPicture
+              ? loadImage((e as any).productPicture)
+              : Promise.resolve(null),
+          ),
+        ),
+        Promise.all(
+          filteredExpenses.map((e) => {
+            const s =
+              (Array.isArray((e as any).screenshots) &&
+                (e as any).screenshots[0]) ||
+              (e as any).paymentScreenshot ||
+              null;
+            return s ? loadImage(s) : Promise.resolve(null);
+          }),
+        ),
       ]);
 
       const bodyRows: string[][] = filteredExpenses.map((expense, idx) => [
@@ -729,7 +801,12 @@ export default function ExpenseManagement() {
       });
       doc.setFont("helvetica", "bold");
       doc.setFontSize(14);
-      doc.text(t("expense_report", { defaultValue: "Expense Report" }), 105, 14, { align: "center" });
+      doc.text(
+        t("expense_report", { defaultValue: "Expense Report" }),
+        105,
+        14,
+        { align: "center" },
+      );
 
       autoTable(doc, {
         startY: 18,
@@ -767,16 +844,25 @@ export default function ExpenseManagement() {
           5: { cellWidth: 30 },
         },
         didParseCell: (data) => {
-          if (data.section === "body" && data.row.index < filteredExpenses.length) {
+          if (
+            data.section === "body" &&
+            data.row.index < filteredExpenses.length
+          ) {
             data.cell.styles.minCellHeight = 22;
           }
-          if (data.section === "body" && data.row.index === filteredExpenses.length) {
+          if (
+            data.section === "body" &&
+            data.row.index === filteredExpenses.length
+          ) {
             data.cell.styles.fillColor = [240, 240, 240];
             data.cell.styles.fontStyle = "bold";
           }
         },
         didDrawCell: (data) => {
-          if (data.section !== "body" || data.row.index >= filteredExpenses.length)
+          if (
+            data.section !== "body" ||
+            data.row.index >= filteredExpenses.length
+          )
             return;
 
           const padding = 1.5;
@@ -802,10 +888,16 @@ export default function ExpenseManagement() {
 
       const filenameMonth = monthFilter || "all-months";
       doc.save(`expense-${filenameMonth}.pdf`);
-      toast.success(t("pdf_generated_success", { defaultValue: "PDF generated successfully" }));
+      toast.success(
+        t("pdf_generated_success", {
+          defaultValue: "PDF generated successfully",
+        }),
+      );
     } catch (err) {
       console.error("downloadExpensePdf error", err);
-      toast.error(t("failed_download_pdf", { defaultValue: "Failed to download PDF" }));
+      toast.error(
+        t("failed_download_pdf", { defaultValue: "Failed to download PDF" }),
+      );
     }
   };
 
@@ -828,7 +920,9 @@ export default function ExpenseManagement() {
                   {editingExpenseId ? t("edit_expense") : t("add_expense")}
                 </DialogTitle>
                 <DialogDescription>
-                  {editingExpenseId ? t("edit_expense_description") : t("add_expense_description")}
+                  {editingExpenseId
+                    ? t("edit_expense_description")
+                    : t("add_expense_description")}
                 </DialogDescription>
               </DialogHeader>
               <form
@@ -839,34 +933,65 @@ export default function ExpenseManagement() {
                   <AutoComplete<{ id: string; label: string; value: string }>
                     id="expense-category-autocomplete"
                     label={t("expense_category")}
-                    placeholder={t("select_or_create_category", { defaultValue: "Select or create category" })}
+                    placeholder={t("select_or_create_category", {
+                      defaultValue: "Select or create category",
+                    })}
                     items={categoryItems}
                     getItemLabel={(it) => it.label}
                     getItemValue={(it) => it.value}
-                    onSelect={(it) => setForm({ ...form, category: it.value as unknown as ExpenseCategory })}
+                    onSelect={(it) =>
+                      setForm({
+                        ...form,
+                        category: it.value as unknown as ExpenseCategory,
+                      })
+                    }
                     allowCreate
                     onCreateOption={async (query) => {
                       const q = String(query || "").trim();
-                      if (!q) return { id: `cat-${Date.now()}`, label: q, value: q };
+                      if (!q)
+                        return { id: `cat-${Date.now()}`, label: q, value: q };
                       try {
                         const token = auth?.token;
                         if (API_BASE) {
-                          const res = await fetch(`${API_BASE}/api/expense-categories`, {
-                            method: "POST",
-                            headers: {
-                              "Content-Type": "application/json",
-                              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                          const res = await fetch(
+                            `${API_BASE}/api/expense-categories`,
+                            {
+                              method: "POST",
+                              headers: {
+                                "Content-Type": "application/json",
+                                ...(token
+                                  ? { Authorization: `Bearer ${token}` }
+                                  : {}),
+                              },
+                              body: JSON.stringify({
+                                name: q,
+                                martId: auth?.martId,
+                              }),
                             },
-                            body: JSON.stringify({ name: q, martId: auth?.martId }),
-                          });
+                          );
                           if (res.ok) {
-                            const created = await res.json().catch(() => ({ name: q, _id: `cat-${Date.now()}` }));
-                            const item = { id: String(created._id || created.id || q), label: q };
+                            const created = await res
+                              .json()
+                              .catch(() => ({
+                                name: q,
+                                _id: `cat-${Date.now()}`,
+                              }));
+                            const item = {
+                              id: String(created._id || created.id || q),
+                              label: q,
+                            };
                             setSavedExpenseCategories((cur) => {
                               if (cur.find((c) => c.label === q)) return cur;
-                              return [...cur, { id: item.id, label: item.label }];
+                              return [
+                                ...cur,
+                                { id: item.id, label: item.label },
+                              ];
                             });
-                            return { id: String(created._id || created.id || q), label: q, value: q };
+                            return {
+                              id: String(created._id || created.id || q),
+                              label: q,
+                              value: q,
+                            };
                           }
                         }
                       } catch (err) {
@@ -892,7 +1017,9 @@ export default function ExpenseManagement() {
                   <AutoComplete<{ id: string; label: string }>
                     id="payment-type-autocomplete"
                     label={t("payment_type")}
-                    placeholder={t("payment_type", { defaultValue: "Payment type" })}
+                    placeholder={t("payment_type", {
+                      defaultValue: "Payment type",
+                    })}
                     items={paymentOptions}
                     getItemLabel={(it) => it.label}
                     getItemValue={(it) => it.id}
@@ -901,20 +1028,36 @@ export default function ExpenseManagement() {
                     onCreateOption={async (query) => {
                       const q = String(query || "").trim();
                       if (!q) return null;
-                      const local = { id: q.toLowerCase().replace(/\s+/g, "_"), label: q };
+                      const local = {
+                        id: q.toLowerCase().replace(/\s+/g, "_"),
+                        label: q,
+                      };
                       try {
                         const token = auth?.token;
-                        const res = await fetch(`${API_BASE}/api/payment-types`, {
-                          method: "POST",
-                          headers: {
-                            "Content-Type": "application/json",
-                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                        const res = await fetch(
+                          `${API_BASE}/api/payment-types`,
+                          {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json",
+                              ...(token
+                                ? { Authorization: `Bearer ${token}` }
+                                : {}),
+                            },
+                            body: JSON.stringify({
+                              name: q,
+                              martId: auth?.martId,
+                            }),
                           },
-                          body: JSON.stringify({ name: q, martId: auth?.martId }),
-                        });
+                        );
                         if (res.ok) {
                           const saved = await res.json().catch(() => null);
-                          const item = saved ? { id: String(saved._id || saved.id || q), label: saved.label || saved.name || q } : local;
+                          const item = saved
+                            ? {
+                                id: String(saved._id || saved.id || q),
+                                label: saved.label || saved.name || q,
+                              }
+                            : local;
                           setPaymentOptions((cur) => [...cur, item]);
                           saveLocalPaymentType(auth?.martId, item);
                           setForm((f) => ({ ...f, paymentType: item.id }));
@@ -987,9 +1130,7 @@ export default function ExpenseManagement() {
                       variant="outline"
                       size="icon"
                       onClick={() =>
-                        document
-                          .getElementById("productPictureCamera")
-                          ?.click()
+                        document.getElementById("productPictureCamera")?.click()
                       }
                       aria-label={t("take_photo", "Take photo")}
                     >
@@ -1301,14 +1442,14 @@ export default function ExpenseManagement() {
                           return (
                             <TableRow key={expense.id}>
                               <TableCell className="w-20">
-                                    {(expense as any).productPicture ? (
-                                      <img
-                                        src={(expense as any).productPicture}
-                                        className="w-16 h-16 object-cover rounded"
-                                        alt="product"
-                                      />
-                                    ) : null}
-                                  </TableCell>
+                                {(expense as any).productPicture ? (
+                                  <img
+                                    src={(expense as any).productPicture}
+                                    className="w-16 h-16 object-cover rounded"
+                                    alt="product"
+                                  />
+                                ) : null}
+                              </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-2">
                                   <Icon className="h-4 w-4 text-muted-foreground" />
@@ -1323,11 +1464,11 @@ export default function ExpenseManagement() {
                               </TableCell>
                               <TableCell>{expense.description}</TableCell>
                               <TableCell className="capitalize">
-                                {(
-                                  paymentOptions.find((p) => p.id === (expense as any).paymentType)?.label ||
+                                {paymentOptions.find(
+                                  (p) => p.id === (expense as any).paymentType,
+                                )?.label ||
                                   t((expense as any).paymentType) ||
-                                  "-"
-                                )}
+                                  "-"}
                               </TableCell>
                               <TableCell className="w-24">
                                 {(expense as any).paymentScreenshot ? (
@@ -1359,7 +1500,9 @@ export default function ExpenseManagement() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  onClick={() => handleDelete(expense.id)}
+                                  onClick={() =>
+                                    setPendingDeleteExpense(expense)
+                                  }
                                   className="text-destructive hover:text-destructive"
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -1445,6 +1588,37 @@ export default function ExpenseManagement() {
             </Card>
           </motion.div>
         </div>
+
+        <AlertDialog
+          open={Boolean(pendingDeleteExpense)}
+          onOpenChange={(open) => {
+            if (!open) setPendingDeleteExpense(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this expense?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {pendingDeleteExpense
+                  ? `This will permanently delete expense \"${pendingDeleteExpense.description || "Unnamed expense"}\".`
+                  : "This action will permanently delete the selected expense."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => {
+                  if (!pendingDeleteExpense) return;
+                  handleDelete(pendingDeleteExpense.id);
+                  setPendingDeleteExpense(null);
+                }}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </RoleLayout>
   );
