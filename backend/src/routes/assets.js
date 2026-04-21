@@ -103,6 +103,24 @@ async function createAssetApprovalRequest({
   return reqDoc;
 }
 
+function deriveAssetStatus(rawAssetStatus, rawConditions) {
+  const normalizedAssetStatus = String(rawAssetStatus || "")
+    .trim()
+    .toLowerCase();
+  if (["broken", "unbroken"].includes(normalizedAssetStatus)) {
+    return normalizedAssetStatus;
+  }
+
+  const normalizedCondition = String(rawConditions || "")
+    .trim()
+    .toLowerCase();
+  if (["damaged", "lost", "broken"].includes(normalizedCondition)) {
+    return "broken";
+  }
+
+  return "unbroken";
+}
+
 // List assets. Query ?martId=... allowed for systemAdmin, otherwise scoped to req.user.martId
 router.get("/", authenticate, async (req, res) => {
   try {
@@ -133,6 +151,7 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
       sizeOrType,
       purchaseDate,
       status,
+      asset_status,
       conditions,
       assignedTo,
       quantity,
@@ -166,6 +185,8 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
       }
     }
 
+    const normalizedAssetStatus = deriveAssetStatus(asset_status, conditions);
+
     const requesterIsOwnerOrManager = isOwner(req.user) || isManager(req.user);
     if (requesterIsOwnerOrManager) {
       const requestDoc = await createAssetApprovalRequest({
@@ -179,6 +200,7 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
           sizeOrType,
           purchaseDate,
           status,
+          asset_status: normalizedAssetStatus,
           conditions,
           assignedTo,
           quantity: Number(quantity),
@@ -208,6 +230,7 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
       sizeOrType,
       purchaseDate,
       status,
+      asset_status: normalizedAssetStatus,
       conditions,
       assignedTo,
       quantity: Number(quantity),
@@ -233,6 +256,7 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
       sizeOrType,
       purchaseDate,
       status,
+      asset_status,
       conditions,
       assignedTo,
       quantity,
@@ -272,6 +296,9 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
     if (sizeOrType != null) changes.sizeOrType = sizeOrType;
     if (purchaseDate != null) changes.purchaseDate = purchaseDate;
     if (status != null) changes.status = status;
+    if (asset_status != null || conditions != null) {
+      changes.asset_status = deriveAssetStatus(asset_status, conditions);
+    }
     if (conditions != null) changes.conditions = conditions;
     if (assignedTo != null) changes.assignedTo = assignedTo;
     if (quantity != null) changes.quantity = Number(quantity);

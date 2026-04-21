@@ -14,6 +14,12 @@ const AssetSchema = new mongoose.Schema(
     sizeOrType: { type: String },
     purchaseDate: { type: Date },
     status: { type: String }, // e.g. "new", "old"
+    asset_status: {
+      type: String,
+      enum: ["unbroken", "broken"],
+      default: "unbroken",
+      index: true,
+    },
     conditions: { type: String },
     assignedTo: { type: String },
     purchasePrice: { type: Number, default: 0 },
@@ -22,7 +28,7 @@ const AssetSchema = new mongoose.Schema(
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     isDeleted: { type: Boolean, default: false, index: true },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("Asset", AssetSchema);

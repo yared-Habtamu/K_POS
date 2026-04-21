@@ -11,6 +11,25 @@ const {
 
 const JWT_SECRET = process.env.JWT_SECRET || "changeme";
 
+async function ensureUniqueMartRole({ martId, role, excludeUserId = null }) {
+  if (!martId) return null;
+  if (!["manager", "storeKeeper"].includes(String(role || ""))) return null;
+
+  const query = {
+    martId,
+    role,
+    isDeleted: { $ne: true },
+  };
+  if (excludeUserId) query._id = { $ne: excludeUserId };
+
+  const existing = await User.findOne(query).select("_id name role").lean();
+  if (existing) {
+    return `${role} already exists for this mart`;
+  }
+
+  return null;
+}
+
 // Login endpoint
 router.post("/login", async (req, res) => {
   const { username, password } = req.body;
@@ -175,6 +194,8 @@ router.post("/register", authenticate, async (req, res) => {
       : normalizedRoleInput === "system_admin"
         ? "systemAdmin"
         : normalizedRoleInput;
+  const effectiveMartId =
+    requesterRole === "systemadmin" ? martId : req.user.martId;
 
   if (
     !name ||
@@ -188,6 +209,9 @@ router.post("/register", authenticate, async (req, res) => {
     return res.status(400).json({ message: "Passwords do not match" });
   if (!["manager", "cashier", "storeKeeper"].includes(normalizedTargetRole))
     return res.status(400).json({ message: "Invalid role" });
+
+  if (!effectiveMartId)
+    return res.status(400).json({ message: "martId is required" });
   // only systemAdmin, owner, or manager are allowed to register employees
   if (!["systemadmin", "owner", "manager"].includes(requesterRole)) {
     return res
@@ -212,6 +236,14 @@ router.post("/register", authenticate, async (req, res) => {
       .json({ message: "Managers can only create cashier accounts" });
   }
 
+  const uniquenessError = await ensureUniqueMartRole({
+    martId: effectiveMartId,
+    role: normalizedTargetRole,
+  });
+  if (uniquenessError) {
+    return res.status(409).json({ message: uniquenessError });
+  }
+
   const exists = await User.findOne({ username });
   if (exists)
     return res.status(409).json({ message: "Username already exists" });
@@ -221,7 +253,7 @@ router.post("/register", authenticate, async (req, res) => {
     username,
     passwordHash,
     role: normalizedTargetRole,
-    martId,
+    martId: effectiveMartId,
     phone,
     email,
     salary,
@@ -393,6 +425,17 @@ router.put("/users/:id", authenticate, async (req, res) => {
         return res
           .status(403)
           .json({ message: "Insufficient permissions to set that role" });
+    }
+
+    const nextRole = update.role || target.role;
+    const nextMartId = update.martId || target.martId;
+    const updateUniquenessError = await ensureUniqueMartRole({
+      martId: nextMartId,
+      role: nextRole,
+      excludeUserId: target._id,
+    });
+    if (updateUniquenessError) {
+      return res.status(409).json({ message: updateUniquenessError });
     }
 
     const user = await User.findByIdAndUpdate(id, update, { new: true }).select(

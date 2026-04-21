@@ -3,6 +3,7 @@ const router = express.Router();
 const Sale = require("../models/sale.model");
 const Expense = require("../models/expense.model");
 const Product = require("../models/product.model");
+const Asset = require("../models/asset.model");
 const { authenticate } = require("../middleware/auth");
 
 // GET /api/reports/daily?martId=...&date=YYYY-MM-DD
@@ -377,11 +378,32 @@ router.get("/mart", authenticate, async (req, res) => {
       }
     }
 
-    // Fetch expenses
-    const expenses = await Expense.find({
-      martId: targetMartId,
-      date: { $gte: startDate, $lte: endDate },
-    }).lean();
+    // Fetch expenses and operational health signals
+    const [expenses, expiredProducts, brokenAssets] = await Promise.all([
+      Expense.find({
+        martId: targetMartId,
+        date: { $gte: startDate, $lte: endDate },
+      }).lean(),
+      Product.find({
+        martId: targetMartId,
+        isDeleted: { $ne: true },
+        expiryDate: { $exists: true, $lt: now },
+      })
+        .select("name expiryDate quantity storeQuantity supermarketQuantity")
+        .sort({ expiryDate: 1 })
+        .lean(),
+      Asset.find({
+        martId: targetMartId,
+        isDeleted: { $ne: true },
+        $or: [
+          { asset_status: "broken" },
+          { conditions: { $regex: /^(damaged|lost|broken)$/i } },
+        ],
+      })
+        .select("name assetId asset_status conditions quantity")
+        .sort({ updatedAt: -1 })
+        .lean(),
+    ]);
     const totalExpenses = expenses.reduce((s, x) => s + (x.amount || 0), 0);
 
     const profit = totalSales - cogs - totalExpenses;
@@ -504,6 +526,25 @@ router.get("/mart", authenticate, async (req, res) => {
         .sort((a, b) => b.total - a.total),
       topProducts,
       totalItemsSold,
+      expiredProductsCount: expiredProducts.length,
+      expiredProducts: expiredProducts.map((p) => ({
+        id: p._id,
+        name: p.name,
+        expiryDate: p.expiryDate,
+        quantity:
+          Number(p.quantity || 0) +
+          Number(p.storeQuantity || 0) +
+          Number(p.supermarketQuantity || 0),
+      })),
+      brokenAssetsCount: brokenAssets.length,
+      brokenAssets: brokenAssets.map((a) => ({
+        id: a._id,
+        name: a.name,
+        assetId: a.assetId,
+        asset_status: a.asset_status || "broken",
+        conditions: a.conditions || "",
+        quantity: Number(a.quantity || 0),
+      })),
       series,
     });
   } catch (err) {
@@ -524,7 +565,9 @@ router.get("/admin-analytics", authenticate, async (req, res) => {
     const [allMarts, allProducts, allUsers] = await Promise.all([
       Mart.find({ isDeleted: { $ne: true } }).lean(),
       Product.find({ isDeleted: { $ne: true } }).lean(),
-      User.find({ isDeleted: { $ne: true } }).select("martId role").lean(),
+      User.find({ isDeleted: { $ne: true } })
+        .select("martId role")
+        .lean(),
     ]);
 
     const now = new Date();
@@ -579,9 +622,7 @@ router.get("/admin-analytics", authenticate, async (req, res) => {
         };
       }
 
-      const qty =
-        Number(p.quantity || 0) +
-        Number(p.storeQuantity || 0);
+      const qty = Number(p.quantity || 0) + Number(p.storeQuantity || 0);
       const purchasePrice = Number(p.purchasePrice || 0);
       const sellingPrice = Number(p.sellingPrice || 0);
       const invValue = purchasePrice * qty;
@@ -632,9 +673,10 @@ router.get("/admin-analytics", authenticate, async (req, res) => {
           avgMargin: Math.round(avgMargin * 100) / 100,
           monthlySales: Math.round((salesByMart[mid] || 0) * 100) / 100,
           monthlyExpenses: Math.round((expensesByMart[mid] || 0) * 100) / 100,
-          profit: Math.round(
-            ((salesByMart[mid] || 0) - (expensesByMart[mid] || 0)) * 100
-          ) / 100,
+          profit:
+            Math.round(
+              ((salesByMart[mid] || 0) - (expensesByMart[mid] || 0)) * 100,
+            ) / 100,
           userCount: usersByMart[mid] || 0,
         };
       })
