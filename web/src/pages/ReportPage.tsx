@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import { toast } from "sonner";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -68,6 +69,7 @@ const ReportPage: React.FC = () => {
     start: "2025-11-01",
     end: "2025-11-30",
   });
+  const TOP_PRODUCTS_CHART_SIZE = 10;
 
   const getDateRangeLabel = () => {
     const today = new Date();
@@ -140,13 +142,11 @@ const ReportPage: React.FC = () => {
     const revenue = Number(localData.revenue || 0);
     const cogs = Number(localData.cogs || 0);
     const grossProfit = revenue - cogs;
-    const grossMargin =
-      revenue > 0 ? ((grossProfit / revenue) * 100).toFixed(1) : "0.0";
     const netProfit =
       grossProfit -
       Number(localData.taxes || 0) -
       Number(localData.discounts || 0);
-    return { grossProfit, grossMargin, netProfit };
+    return { grossProfit, netProfit };
   }, [localData.revenue, localData.cogs, localData.taxes, localData.discounts]);
 
   const paymentTotal = React.useMemo(() => {
@@ -174,9 +174,137 @@ const ReportPage: React.FC = () => {
     [localData.paymentMethods],
   );
 
-  // ─── Excel export ──────────────────────────────────────────────────────────
+  const topProducts = React.useMemo(
+    () =>
+      Array.isArray(localData.topProducts) ? localData.topProducts : [],
+    [localData.topProducts],
+  );
 
-  const exportToExcel = () => {
+  const topProductsChart = React.useMemo(
+    () => topProducts.slice(0, TOP_PRODUCTS_CHART_SIZE),
+    [topProducts],
+  );
+
+  const topProductsRows = React.useMemo(
+    () =>
+      topProducts.map((item: any, index: number) => ({
+        id: item.id || item.productId || item.name || `top-product-${index}`,
+        rank: index + 1,
+        name: item.name,
+        sold: Number(item.sold || 0),
+        revenue: Number(item.revenue || 0),
+      })),
+    [topProducts],
+  );
+
+  const topProductsColumns = React.useMemo<
+    Array<DataTableColumn<{
+      id: string;
+      rank: number;
+      name: string;
+      sold: number;
+      revenue: number;
+    }>>
+  >(
+    () => [
+      {
+        key: "rank",
+        header: "#",
+        accessor: "rank",
+        headerClassName: "w-16 text-muted-foreground",
+        className: "text-muted-foreground",
+      },
+      {
+        key: "name",
+        header: t("product"),
+        accessor: "name",
+        sortable: true,
+        searchable: true,
+        className: "font-medium",
+      },
+      {
+        key: "sold",
+        header: t("units_sold"),
+        accessor: "sold",
+        sortable: true,
+        className: "text-right",
+        headerClassName: "text-right",
+        cell: (row) => fmtN(row.sold),
+        sortValue: (row) => row.sold,
+      },
+      {
+        key: "revenue",
+        header: t("revenue"),
+        accessor: "revenue",
+        sortable: true,
+        className: "text-right font-semibold",
+        headerClassName: "text-right",
+        cell: (row) => fmt(row.revenue),
+        sortValue: (row) => row.revenue,
+      },
+    ],
+    [t],
+  );
+
+  // ─── Excel export ──────────────────────────────────────────────────────────
+  // Ensure products list is loaded for mart-scoped users (owner/manager)
+  const ensureProductsLoaded = async (): Promise<any[]> => {
+    try {
+      if (Array.isArray(localData.products) && localData.products.length > 0) return localData.products;
+      if (!user) return;
+      if (!(user.role === "owner" || user.role === "manager")) return;
+
+      // Prefer products included in reportsData if available (avoids extra fetch)
+      if (reportsData && Array.isArray((reportsData as any).products) && (reportsData as any).products.length > 0) {
+        const list = (reportsData as any).products;
+        setLocalData((ld) => ({ ...ld, products: list }));
+        return list;
+      }
+
+      // Try to proactively refresh reports if products are missing (user may have clicked export immediately)
+      try {
+        if (typeof refetch === "function") {
+          // Await the refetch to get freshest data from server
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+          // @ts-ignore
+          await refetch();
+        }
+      } catch (e) {
+        // ignore refetch errors
+      }
+
+      // Wait briefly for reportsData to be populated after refetch
+      const start = Date.now();
+      while (Date.now() - start < 2500) {
+        if (reportsData && Array.isArray((reportsData as any).products) && (reportsData as any).products.length > 0) {
+          setLocalData((ld) => ({ ...ld, products: (reportsData as any).products }));
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 150));
+      }
+
+      // Fallback: fetch all products from API with a large limit to avoid pagination truncation
+      const martId = user.martId;
+      if (!martId) return [];
+      const API_BASE = import.meta.env.VITE_API_URL || "";
+      const url = `${API_BASE}/api/products?martId=${encodeURIComponent(String(martId))}&limit=10000`;
+      const res = await fetch(url, {
+        headers: { Authorization: user.token ? `Bearer ${user.token}` : "" },
+      });
+      if (!res.ok) return [];
+      const list = await res.json();
+      if (!Array.isArray(list)) return [];
+      setLocalData((ld) => ({ ...ld, products: list }));
+      return list;
+    } catch (e) {
+      // ignore fetch failure; exports will proceed without products
+      console.error("Failed to load products for export", e);
+      return [];
+    }
+  };
+
+  const exportToExcel = async () => {
+    const productsList = await ensureProductsLoaded();
     const wb = XLSX.utils.book_new();
     const dl = getDateRangeLabel();
     const salesData = [
@@ -217,6 +345,28 @@ const ReportPage: React.FC = () => {
       ),
       "3. Top Products",
     );
+    // ── 4b All Products (product name, stock qty, mart qty, selling price)
+    const productsForExport = Array.isArray(productsList) && productsList.length > 0 ? productsList : (Array.isArray(localData.products) ? localData.products : []);
+    if (productsForExport.length > 0) {
+      XLSX.utils.book_append_sheet(
+        wb,
+        XLSX.utils.json_to_sheet(
+          productsForExport.map((p: any) => {
+            const selling = Number(p.sellingPrice || p.selling || p.price || 0);
+            const stockQty = Number(p.storeQuantity || p.store_qty || 0);
+            // mart quantity: prefer supermarketQuantity, fall back to quantity
+            const martQty = Number(p.supermarketQuantity || p.supermarket_qty || p.quantity || 0);
+            return {
+              [t("product")]: p.name,
+              [t("stock_quantity") || "Stock Quantity"]: fmtN(stockQty),
+              [t("mart_quantity") || "Mart Quantity"]: fmtN(martQty),
+              [t("selling_price") || "Selling Price"]: fmt(selling),
+            };
+          }),
+        ),
+        "4. All Products",
+      );
+    }
     XLSX.utils.book_append_sheet(
       wb,
       XLSX.utils.json_to_sheet([
@@ -235,22 +385,17 @@ const ReportPage: React.FC = () => {
           Quantity: a.quantity,
         })),
       ]),
-      "4. Expired & Broken",
+      "5. Expired & Broken",
     );
     XLSX.utils.book_append_sheet(
       wb,
       XLSX.utils.json_to_sheet([
         { Metric: t("revenue"), Value: fmt(localData.revenue) },
-        { Metric: t("cogs"), Value: fmt(localData.cogs) },
         ...(user?.role === "owner"
           ? [
               {
                 Metric: t("gross_profit"),
                 Value: fmt(derivedFinancials.grossProfit),
-              },
-              {
-                Metric: t("gross_margin_percent"),
-                Value: `${derivedFinancials.grossMargin}%`,
               },
               {
                 Metric: t("net_profit"),
@@ -259,7 +404,7 @@ const ReportPage: React.FC = () => {
             ]
           : []),
       ]),
-      "4. Financial",
+      "6. Financial",
     );
     XLSX.writeFile(wb, `SmartPOS_Report_${period}.xlsx`);
     toast.success("Excel exported");
@@ -267,7 +412,8 @@ const ReportPage: React.FC = () => {
 
   // ─── PDF export ────────────────────────────────────────────────────────────
 
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
+    const productsList = await ensureProductsLoaded();
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     const lm = 14;
@@ -388,42 +534,15 @@ const ReportPage: React.FC = () => {
       },
     });
 
-    // ── 3. Financial Summary ──
-    const y2 = (doc as any).lastAutoTable.finalY + 8;
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(30, 30, 30);
-    doc.text("3. Financial Summary", lm, y2);
-    autoTable(doc, {
-      startY: y2 + 3,
-      head: [["Metric", "Value"]],
-      body: [
-        [t("revenue"), fmt(localData.revenue)],
-        [t("cogs"), fmt(localData.cogs)],
-        ...(user?.role === "owner"
-          ? [
-              [t("gross_profit"), fmt(derivedFinancials.grossProfit)],
-              [t("gross_margin_percent"), `${derivedFinancials.grossMargin}%`],
-              [t("net_profit"), fmt(derivedFinancials.netProfit)],
-            ]
-          : []),
-      ],
-      theme: "grid",
-      headStyles,
-      styles,
-      columnStyles: {
-        0: { cellWidth: 80 },
-        1: { cellWidth: 50, halign: "right" },
-      },
-    });
+    // Financial summary will be rendered later as section 6
 
-    // ── 4. Top Products ──
+    // ── 3. Top Products ──
     if (localData.topProducts.length > 0) {
       const y3 = (doc as any).lastAutoTable.finalY + 8;
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(30, 30, 30);
-      doc.text("4. Top Selling Products", lm, y3);
+      doc.text("3. Top Selling Products", lm, y3);
       autoTable(doc, {
         startY: y3 + 3,
         head: [["#", "Product", "Units Sold", "Revenue"]],
@@ -445,32 +564,37 @@ const ReportPage: React.FC = () => {
       });
     }
 
-    // ── 5. Tax Summary ──
-    if (localData.taxByCategory.length > 0) {
-      const y4 = (doc as any).lastAutoTable.finalY + 8;
+    // ── 4. All Products (product, stock qty, mart qty, selling price) ──
+    const productsForExport = Array.isArray(productsList) && productsList.length > 0 ? productsList : (Array.isArray(localData.products) ? localData.products : []);
+    if (productsForExport.length > 0) {
+      const yAll = (doc as any).lastAutoTable.finalY + 8;
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(30, 30, 30);
-      doc.text("5. Tax Summary", lm, y4);
+      doc.text("4. All Products", lm, yAll);
       autoTable(doc, {
-        startY: y4 + 3,
-        head: [[t("category"), t("tax_amount")]],
-        body: [
-          ...localData.taxByCategory.map((item: any) => [
-            item.category,
-            fmt(item.tax),
-          ]),
-          ["Total", fmt(localData.totalTax)],
-        ],
+        startY: yAll + 3,
+        head: [["#", t("product"), t("stock_quantity") || "Stock Qty", t("mart_quantity") || "Mart Qty", t("selling_price") || "Selling Price"]],
+        body: productsForExport.map((p: any, i: number) => {
+          const selling = Number(p.sellingPrice || p.selling || p.price || 0);
+          const stockQty = Number(p.storeQuantity || p.store_qty || 0);
+          const martQty = Number(p.supermarketQuantity || p.supermarket_qty || p.quantity || 0);
+          return [i + 1, p.name || "-", fmtN(stockQty), fmtN(martQty), fmt(selling)];
+        }),
         theme: "grid",
         headStyles,
         styles,
         columnStyles: {
-          0: { cellWidth: 80 },
-          1: { cellWidth: 50, halign: "right" },
+          0: { cellWidth: 10, halign: "center" },
+          1: { cellWidth: 70 },
+          2: { cellWidth: 30, halign: "right" },
+          3: { cellWidth: 30, halign: "right" },
+          4: { cellWidth: 40, halign: "right" },
         },
       });
     }
+
+    // taxByCategory will be included under Financial (section 6)
 
     const issues = [
       ...(localData.expiredProducts || []).map((p: any) => [
@@ -491,7 +615,7 @@ const ReportPage: React.FC = () => {
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(30, 30, 30);
-      doc.text("6. Expired and Broken Items", lm, y5);
+      doc.text("5. Expired and Broken Items", lm, y5);
       autoTable(doc, {
         startY: y5 + 3,
         head: [["Type", "Name", "Status/Date", "Quantity"]],
@@ -499,6 +623,57 @@ const ReportPage: React.FC = () => {
         theme: "grid",
         headStyles,
         styles,
+      });
+    }
+
+    // ── 6. Financial (includes taxes) ──
+    const yFin = (doc as any).lastAutoTable.finalY + 8;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 30, 30);
+    doc.text("6. Financial", lm, yFin);
+    autoTable(doc, {
+      startY: yFin + 3,
+      head: [["Metric", "Value"]],
+      body: [
+        [t("revenue"), fmt(localData.revenue)],
+        [t("taxes"), fmt(localData.totalTax || localData.taxes)],
+        ...(user?.role === "owner"
+          ? [
+              [t("gross_profit"), fmt(derivedFinancials.grossProfit)],
+              [t("net_profit"), fmt(derivedFinancials.netProfit)],
+            ]
+          : []),
+      ],
+      theme: "grid",
+      headStyles,
+      styles,
+      columnStyles: {
+        0: { cellWidth: 80 },
+        1: { cellWidth: 50, halign: "right" },
+      },
+    });
+
+    if (localData.taxByCategory && localData.taxByCategory.length > 0) {
+      const yTax = (doc as any).lastAutoTable.finalY + 6;
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 30, 30);
+      doc.text("Tax Breakdown", lm, yTax);
+      autoTable(doc, {
+        startY: yTax + 3,
+        head: [[t("category"), t("tax_amount")]],
+        body: [
+          ...localData.taxByCategory.map((item: any) => [item.category, fmt(item.tax)]),
+          ["Total", fmt(localData.totalTax)],
+        ],
+        theme: "grid",
+        headStyles,
+        styles,
+        columnStyles: {
+          0: { cellWidth: 80 },
+          1: { cellWidth: 50, halign: "right" },
+        },
       });
     }
 
@@ -794,10 +969,10 @@ const ReportPage: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {localData.topProducts.length > 0 ? (
+              {topProducts.length > 0 ? (
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart
-                    data={localData.topProducts}
+                    data={topProductsChart}
                     margin={{ left: 0, right: 10 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -812,7 +987,7 @@ const ReportPage: React.FC = () => {
                       fill="#10b981"
                       radius={[4, 4, 0, 0]}
                     >
-                      {localData.topProducts.map((_: any, i: number) => (
+                      {topProductsChart.map((_: any, i: number) => (
                         <Cell key={i} fill={COLORS[i % COLORS.length]} />
                       ))}
                     </Bar>
@@ -836,16 +1011,11 @@ const ReportPage: React.FC = () => {
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
               {[
                 { label: t("revenue"), value: fmt(localData.revenue) },
-                { label: t("cogs"), value: fmt(localData.cogs) },
                 ...(user?.role === "owner"
                   ? [
                       {
                         label: t("gross_profit"),
                         value: fmt(derivedFinancials.grossProfit),
-                      },
-                      {
-                        label: t("gross_margin_percent"),
-                        value: `${derivedFinancials.grossMargin}%`,
                       },
                       {
                         label: t("net_profit"),
@@ -864,54 +1034,28 @@ const ReportPage: React.FC = () => {
         </Card>
 
         {/* ── Top Products Table ── */}
-        {localData.topProducts.length > 0 && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">
-                {t("top_selling_products")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-muted/30 border-b">
-                    <tr>
-                      <th className="py-2 px-4 text-left font-semibold text-muted-foreground">
-                        #
-                      </th>
-                      <th className="py-2 px-4 text-left font-semibold text-muted-foreground">
-                        {t("product")}
-                      </th>
-                      <th className="py-2 px-4 text-right font-semibold text-muted-foreground">
-                        {t("units_sold")}
-                      </th>
-                      <th className="py-2 px-4 text-right font-semibold text-muted-foreground">
-                        {t("revenue")}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {localData.topProducts.map((p: any, i: number) => (
-                      <tr
-                        key={i}
-                        className="hover:bg-muted/20 transition-colors"
-                      >
-                        <td className="py-2 px-4 text-muted-foreground">
-                          {i + 1}
-                        </td>
-                        <td className="py-2 px-4 font-medium">{p.name}</td>
-                        <td className="py-2 px-4 text-right">{fmtN(p.sold)}</td>
-                        <td className="py-2 px-4 text-right font-semibold">
-                          {fmt(p.revenue)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <DataTable
+          columns={topProductsColumns}
+          data={topProductsRows}
+          rowKey={(row) => row.id}
+          title={
+            <div className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-muted-foreground" />
+              <span>{t("top_selling_products")}</span>
+              <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-foreground">
+                {topProductsRows.length}
+              </span>
+            </div>
+          }
+          emptyMessage={t("no_products_found", "No products found")}
+          pagination
+          initialPageSize={10}
+          pageSizeOptions={[10]}
+          paginationVariant="simple"
+          showPageSizeSelector={false}
+          showEdgeButtons={false}
+          className="overflow-hidden"
+        />
 
         {/* ── Tax Summary ── */}
         <Card>

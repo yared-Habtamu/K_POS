@@ -120,6 +120,7 @@ const ITEMS_PER_PAGE = 7;
 export default function ExpenseManagement() {
   const { t } = useTranslation();
   const [paymentOptions, setPaymentOptions] = useState([
+    { id: "open_cash", label: t("open_cash", { defaultValue: "Open Cash" }) },
     { id: "cash", label: t("cash") },
     { id: "card", label: t("card") },
     { id: "mobile", label: t("mobile") },
@@ -129,6 +130,7 @@ export default function ExpenseManagement() {
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const auth = useAuthStore((s) => s.user);
+  const setUser = useAuthStore((s) => s.setUser);
   const canDelete = auth?.role === "owner";
   const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
   // localStorage helpers for payment types so created items survive refresh
@@ -166,6 +168,26 @@ export default function ExpenseManagement() {
       const list = loadLocalPaymentTypes(martId);
       if (!list.find((l) => l.id === item.id)) list.push(item);
       localStorage.setItem(localPaymentKey(martId), JSON.stringify(list));
+    } catch {
+      // ignore
+    }
+  };
+
+  const refreshOpenCash = async () => {
+    try {
+      const token = useAuthStore.getState().user?.token;
+      if (!token) return;
+      const res = await fetch(`${API_BASE}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const me = await res.json();
+      const current = useAuthStore.getState().user;
+      if (!current) return;
+      setUser({
+        ...current,
+        openCashBalance: Number(me.openCashBalance || 0),
+      });
     } catch {
       // ignore
     }
@@ -221,6 +243,16 @@ export default function ExpenseManagement() {
       mounted = false;
     };
   }, [API_BASE, auth?.martId]);
+
+  useEffect(() => {
+    refreshOpenCash();
+    const id = window.setInterval(refreshOpenCash, 20_000);
+    window.addEventListener("focus", refreshOpenCash);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("focus", refreshOpenCash);
+    };
+  }, [API_BASE]);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [creatorFilter, setCreatorFilter] = useState<
@@ -252,7 +284,7 @@ export default function ExpenseManagement() {
     description: "",
     amount: "",
     date: new Date().toISOString().split("T")[0],
-    paymentType: "cash",
+    paymentType: "open_cash",
     paymentScreenshot: null as File | null,
     productPicture: null as File | null,
     name: "",
@@ -433,7 +465,7 @@ export default function ExpenseManagement() {
       name: (expense as any).name || "",
       reason: (expense as any).reason || "",
       screenshots: [],
-      paymentType: (expense as any).paymentType || "cash",
+      paymentType: (expense as any).paymentType || "open_cash",
       paymentScreenshot: null,
       productPicture: null,
     });
@@ -502,6 +534,12 @@ export default function ExpenseManagement() {
           return;
         }
         const saved = await res.json();
+        if (saved && saved.openCashBalance !== undefined && auth) {
+          setUser({
+            ...auth,
+            openCashBalance: Number(saved.openCashBalance || 0),
+          });
+        }
         setExpenses((prev) =>
           prev.map((e) =>
             e.id === editingExpenseId
@@ -572,7 +610,7 @@ export default function ExpenseManagement() {
             description: "",
             amount: "",
             date: new Date().toISOString().split("T")[0],
-            paymentType: "cash",
+            paymentType: "open_cash",
             paymentScreenshot: null,
             productPicture: null,
             name: "",
@@ -586,6 +624,13 @@ export default function ExpenseManagement() {
         }
 
         const saved = await res.json();
+        if (saved && saved.openCashBalance !== undefined && auth) {
+          setUser({
+            ...auth,
+            openCashBalance: Number(saved.openCashBalance || 0),
+          });
+        }
+        await refreshOpenCash();
         const newExpense: any = {
           id: saved._id || saved.id || Date.now().toString(),
           category: saved.category,
@@ -620,7 +665,7 @@ export default function ExpenseManagement() {
         description: "",
         amount: "",
         date: new Date().toISOString().split("T")[0],
-        paymentType: "cash",
+        paymentType: "open_cash",
         paymentScreenshot: null,
         productPicture: null,
         name: "",
@@ -891,7 +936,7 @@ export default function ExpenseManagement() {
   return (
     <RoleLayout allowedRoles={["manager"]}>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-2xl font-bold">{t("expenses")}</h1>
             <p className="text-muted-foreground">
@@ -899,17 +944,70 @@ export default function ExpenseManagement() {
             </p>
           </div>
 
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>
+          <div className="flex flex-wrap items-center gap-3">
+            <Card className="w-full sm:w-auto min-w-[210px]">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl bg-emerald-500/10 p-3 text-emerald-600">
+                    <Wallet className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      {t("open_cash", { defaultValue: "Open Cash" })}
+                    </p>
+                    <p className="text-lg font-semibold">
+                      {Number(auth?.openCashBalance || 0).toLocaleString()} ETB
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="w-full sm:w-auto min-w-[230px]">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-6">
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      {monthFilter
+                        ? `${format(new Date(monthFilter + "-01"), "MMMM yyyy")} ${t("expenses")}`
+                        : t("expenses")}
+                    </p>
+                    <p className="text-xl font-semibold">
+                      {totalExpensesThisMonth.toLocaleString()} ETB
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-destructive/10 p-3 text-destructive">
+                    <TrendingDown className="h-5 w-5" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="h-11 px-6">
+                  <Plus className="mr-2 h-4 w-4" />
                   {editingExpenseId ? t("edit_expense") : t("add_expense")}
-                </DialogTitle>
-              </DialogHeader>
-              <form
-                onSubmit={handleSubmit}
-                className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                </Button>
+              </DialogTrigger>
+              <Button
+                variant="outline"
+                className="h-11 px-6"
+                onClick={downloadExpensePdf}
               >
+                <FileDown className="mr-2 h-4 w-4" />
+                Download PDF
+              </Button>
+              <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>
+                    {editingExpenseId ? t("edit_expense") : t("add_expense")}
+                  </DialogTitle>
+                </DialogHeader>
+                <form
+                  onSubmit={handleSubmit}
+                  className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                >
                 <div className="space-y-2">
                   <AutoComplete<{ id: string; label: string; value: string }>
                     id="expense-category-autocomplete"
@@ -993,67 +1091,10 @@ export default function ExpenseManagement() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <AutoComplete<{ id: string; label: string }>
-                    id="payment-type-autocomplete"
-                    label={t("payment_type")}
-                    placeholder={t("payment_type", {
-                      defaultValue: "Payment type",
-                    })}
-                    items={paymentOptions}
-                    getItemLabel={(it) => it.label}
-                    getItemValue={(it) => it.id}
-                    onSelect={(it) => setForm({ ...form, paymentType: it.id })}
-                    allowCreate
-                    onCreateOption={async (query) => {
-                      const q = String(query || "").trim();
-                      if (!q) return null;
-                      const local = {
-                        id: q.toLowerCase().replace(/\s+/g, "_"),
-                        label: q,
-                      };
-                      try {
-                        const token = auth?.token;
-                        if (API_BASE) {
-                          const res = await fetch(
-                            `${API_BASE}/api/payment-types`,
-                            {
-                              method: "POST",
-                              headers: {
-                                "Content-Type": "application/json",
-                                ...(token
-                                  ? { Authorization: `Bearer ${token}` }
-                                  : {}),
-                              },
-                              body: JSON.stringify({
-                                name: q,
-                                martId: auth?.martId,
-                              }),
-                            },
-                          );
-                          if (res.ok) {
-                            const saved = await res.json().catch(() => null);
-                            const item = saved
-                              ? {
-                                  id: String(saved._id || saved.id || q),
-                                  label: saved.label || saved.name || q,
-                                }
-                              : local;
-                            setPaymentOptions((cur) => [...cur, item]);
-                            saveLocalPaymentType(auth?.martId, item);
-                            setForm((f) => ({ ...f, paymentType: item.id }));
-                            return item;
-                          }
-                        }
-                      } catch (err) {
-                        console.error("create payment type failed", err);
-                      }
-                      setPaymentOptions((cur) => [...cur, local]);
-                      saveLocalPaymentType(auth?.martId, local);
-                      setForm((f) => ({ ...f, paymentType: local.id }));
-                      return local;
-                    }}
-                    createOptionLabel={(q) => `Add "${q}"`}
-                  />
+                  <Label htmlFor="payment-type">{t("payment_type")}</Label>
+                  <div className="h-10 rounded-md border border-input bg-muted/30 px-3 flex items-center text-sm font-medium">
+                    {t("open_cash", { defaultValue: "Open Cash" })}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="amount">{t("amount")} (ETB) *</Label>
@@ -1206,48 +1247,9 @@ export default function ExpenseManagement() {
                 </div>
               </form>
             </DialogContent>
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="w-full sm:w-auto"
-            >
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between gap-6">
-                      <div>
-                        <p className="text-sm text-muted-foreground">
-                          {monthFilter
-                            ? `${format(new Date(monthFilter + "-01"), "MMMM yyyy")} ${t("expenses")}`
-                            : t("expenses")}
-                        </p>
-                        <p className="text-2xl font-bold">
-                          {totalExpensesThisMonth.toLocaleString()} ETB
-                        </p>
-                      </div>
-                      <div className="p-3 rounded-xl bg-destructive/10 text-destructive">
-                        <TrendingDown className="h-6 w-6" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                <DialogTrigger asChild>
-                  <Button className="w-full sm:w-auto">
-                    <Plus className="mr-2 h-4 w-4" />
-                    {editingExpenseId ? t("edit_expense") : t("add_expense")}
-                  </Button>
-                </DialogTrigger>
-                <Button
-                  variant="outline"
-                  className="w-full sm:w-auto"
-                  onClick={downloadExpensePdf}
-                >
-                  <FileDown className="mr-2 h-4 w-4" />
-                  Download PDF
-                </Button>
-              </div>
-            </motion.div>
           </Dialog>
+        </div>
+
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
@@ -1389,9 +1391,9 @@ export default function ExpenseManagement() {
                           {t("amount")}
                         </TableHead>
                         <TableHead>{t("date")}</TableHead>
-                        <TableHead className="text-right">
-                          {t("actions")}
-                        </TableHead>
+                        {canDelete && (
+                          <TableHead className="text-right">{t("actions")}</TableHead>
+                        )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1448,34 +1450,32 @@ export default function ExpenseManagement() {
                               <TableCell>
                                 {format(new Date(expense.date), "MMM dd, yyyy")}
                               </TableCell>
-                              <TableCell className="text-right">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleEdit(expense)}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                {canDelete && (
+                              {canDelete && (
+                                <TableCell className="text-right">
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={() =>
-                                      setPendingDeleteExpense(expense)
-                                    }
+                                    onClick={() => handleEdit(expense)}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setPendingDeleteExpense(expense)}
                                     className="text-destructive hover:text-destructive"
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
-                                )}
-                              </TableCell>
+                                </TableCell>
+                              )}
                             </TableRow>
                           );
                         })
                       ) : (
                         <TableRow>
                           <TableCell
-                            colSpan={8}
+                            colSpan={canDelete ? 8 : 7}
                             className="text-center py-4 text-muted-foreground"
                           >
                             {search || categoryFilter !== "all"

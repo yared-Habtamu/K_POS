@@ -1,8 +1,10 @@
+
 const express = require("express");
 const router = express.Router();
 const Expense = require("../models/expense.model");
 const ExpenseActionRequest = require("../models/expenseActionRequest.model");
 const User = require("../models/user.model");
+const mongoose = require("mongoose");
 const { authenticate } = require("../middleware/auth");
 const { createNotification } = require("../services/notification.service");
 const multer = require("multer");
@@ -151,15 +153,17 @@ router.post(
         console.warn("Failed to attach uploaded files", e);
       }
 
-      // Managers cannot directly create expenses; route through owner approval.
+      // Managers can only spend from Open Cash and it requires owner approval.
       if (req.user.role === "manager") {
+        const amountNumber = Number(amount);
+        if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
+          return res.status(400).json({ message: "Invalid amount" });
+        }
         const owners = await getMartOwners(targetMartId);
         if (!owners || owners.length === 0) {
           return res
             .status(400)
-            .json({
-              message: "No owner found for this mart to approve the expense",
-            });
+            .json({ message: "No owner found for this mart to approve" });
         }
 
         const reqDoc = new ExpenseActionRequest({
@@ -172,14 +176,14 @@ router.post(
           payload: {
             category,
             description,
-            name: name || undefined,
-            reason: reason || undefined,
-            amount: Number(amount),
+            amount: amountNumber,
             date,
-            paymentType: paymentType || undefined,
+            paymentType: "open_cash",
+            name,
+            reason,
             paymentScreenshot: attachmentPayload.paymentScreenshot,
             productPicture: attachmentPayload.productPicture,
-            screenshots: attachmentPayload.screenshots,
+            screenshots: attachmentPayload.screenshots || [],
           },
         });
 
@@ -196,7 +200,7 @@ router.post(
               metadata: {
                 requestId: reqDoc._id,
                 action: "create",
-                amount: Number(amount),
+                amount: amountNumber,
                 description,
               },
             }),

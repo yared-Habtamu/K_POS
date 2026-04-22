@@ -17,6 +17,7 @@ import {
   Package,
   ArrowUpRight,
   ArrowDownRight,
+  Wallet,
 } from "lucide-react";
 import {
   LineChart,
@@ -42,6 +43,8 @@ export default function OwnerDashboard() {
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const { products, getLowStockProducts, searchProducts } = useProductStore();
   const [search, setSearch] = useState("");
+  const auth = useAuthStore((s) => s.user);
+  const setUser = useAuthStore((s) => s.setUser);
 
   const API_BASE =
     import.meta.env.VITE_API_URL || import.meta.env.NEXT_PUBLIC_API_URL || "";
@@ -108,6 +111,36 @@ export default function OwnerDashboard() {
       window.removeEventListener("focus", fetchMetrics);
     };
   }, [range, API_BASE]);
+
+  useEffect(() => {
+    let mounted = true;
+    const refreshOpenCash = async () => {
+      try {
+        const token = useAuthStore.getState().user?.token;
+        if (!token) return;
+        const res = await fetch(`${API_BASE}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const me = await res.json();
+        if (!mounted || !auth) return;
+        setUser({
+          ...auth,
+          openCashBalance: Number(me.openCashBalance || 0),
+        });
+      } catch (err) {
+        // ignore
+      }
+    };
+    refreshOpenCash();
+    const id = window.setInterval(refreshOpenCash, 20_000);
+    window.addEventListener("focus", refreshOpenCash);
+    return () => {
+      mounted = false;
+      window.clearInterval(id);
+      window.removeEventListener("focus", refreshOpenCash);
+    };
+  }, [API_BASE, auth, setUser]);
 
   // Fallback: if metrics not available, fetch raw sales and compute series/topProducts client-side
   useEffect(() => {
@@ -237,6 +270,14 @@ export default function OwnerDashboard() {
       trend: "up",
       icon: DollarSign,
       color: "text-primary",
+    },
+    {
+      title: t("open_cash", { defaultValue: "Open Cash" }),
+      value: Number(auth?.openCashBalance || 0).toLocaleString(),
+      change: t("available", { defaultValue: "Available" }),
+      trend: "up",
+      icon: Wallet,
+      color: "text-emerald-600",
     },
     {
       title: t("transactions"),
