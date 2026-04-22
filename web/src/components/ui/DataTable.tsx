@@ -67,6 +67,9 @@ export interface DataTableProps<TData> {
   pagination?: boolean;
   initialPageSize?: number;
   pageSizeOptions?: number[];
+  paginationVariant?: "default" | "simple";
+  showPageSizeSelector?: boolean;
+  showEdgeButtons?: boolean;
   defaultSort?: {
     columnKey: string;
     direction?: "asc" | "desc";
@@ -157,6 +160,9 @@ export function DataTable<TData>({
   pagination = false,
   initialPageSize = 10,
   pageSizeOptions = [10, 25, 50],
+  paginationVariant = "default",
+  showPageSizeSelector = true,
+  showEdgeButtons = true,
   defaultSort,
   onView,
   onEdit,
@@ -439,53 +445,90 @@ export function DataTable<TData>({
             <span>{resolvedLoadingMessage}</span>
           </div>
         ) : pagination ? (
-          <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm text-muted-foreground">
-              {t("showing")} <span className="font-medium text-foreground">{firstRowNumber}</span> {t("to")} <span className="font-medium text-foreground">{lastRowNumber}</span> {t("of")} <span className="font-medium text-foreground">{totalRows}</span> {t("entries")}
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span>{t("rows")}</span>
-                <select
-                  value={pageSize}
-                  onChange={(event) => setPageSize(Number(event.target.value))}
-                  className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  {pageSizeOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="flex items-center gap-1">
-                <Button type="button" variant="outline" size="icon" onClick={() => setPage(1)} disabled={currentPage === 1} aria-label={t("first_page")}>
-                  <ChevronsLeft className="h-4 w-4" />
-                </Button>
-                <Button type="button" variant="outline" size="icon" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={currentPage === 1} aria-label={t("previous_page")}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="px-3 text-sm text-muted-foreground">
-                  {t("page")} <span className="font-medium text-foreground">{currentPage}</span> {t("of")} <span className="font-medium text-foreground">{totalPages}</span>
-                </span>
+          paginationVariant === "simple" ? (
+            <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-muted-foreground">
+                {t("showing")} <span className="font-medium text-foreground">{firstRowNumber}</span> {t("to")} <span className="font-medium text-foreground">{lastRowNumber}</span> {t("of")} <span className="font-medium text-foreground">{totalRows}</span> {t("entries")}
+              </div>
+              <div className="flex items-center gap-2">
                 <Button
                   type="button"
                   variant="outline"
-                  size="icon"
+                  size="sm"
+                  onClick={() => setPage((value) => Math.max(1, value - 1))}
+                  disabled={currentPage === 1}
+                >
+                  {t("previous", "Prev")}
+                </Button>
+                <Button type="button" variant="default" size="sm" disabled>
+                  {currentPage}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
                   disabled={currentPage === totalPages}
-                  aria-label={t("next_page")}
                 >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-                <Button type="button" variant="outline" size="icon" onClick={() => setPage(totalPages)} disabled={currentPage === totalPages} aria-label={t("last_page")}>
-                  <ChevronsRight className="h-4 w-4" />
+                  {t("next", "Next")}
                 </Button>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-muted-foreground">
+                {t("showing")} <span className="font-medium text-foreground">{firstRowNumber}</span> {t("to")} <span className="font-medium text-foreground">{lastRowNumber}</span> {t("of")} <span className="font-medium text-foreground">{totalRows}</span> {t("entries")}
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                {showPageSizeSelector ? (
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span>{t("rows")}</span>
+                    <select
+                      value={pageSize}
+                      onChange={(event) => setPageSize(Number(event.target.value))}
+                      className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      {pageSizeOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+
+                <div className="flex items-center gap-1">
+                  {showEdgeButtons ? (
+                    <Button type="button" variant="outline" size="icon" onClick={() => setPage(1)} disabled={currentPage === 1} aria-label={t("first_page")}>
+                      <ChevronsLeft className="h-4 w-4" />
+                    </Button>
+                  ) : null}
+                  <Button type="button" variant="outline" size="icon" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={currentPage === 1} aria-label={t("previous_page")}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="px-3 text-sm text-muted-foreground">
+                    {t("page")} <span className="font-medium text-foreground">{currentPage}</span> {t("of")} <span className="font-medium text-foreground">{totalPages}</span>
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                    disabled={currentPage === totalPages}
+                    aria-label={t("next_page")}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  {showEdgeButtons ? (
+                    <Button type="button" variant="outline" size="icon" onClick={() => setPage(totalPages)} disabled={currentPage === totalPages} aria-label={t("last_page")}>
+                      <ChevronsRight className="h-4 w-4" />
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          )
         ) : null}
       </CardContent>
     </Card>

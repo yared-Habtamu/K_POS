@@ -13,6 +13,7 @@ export interface User {
   phone?: string;
   role: UserRole;
   salary?: number;
+  openCashBalance?: number;
   shopId?: string;
   martId?: string;
   permissions?: string[];

@@ -6,6 +6,15 @@ const ProductEditRequest = require("../models/productEditRequest.model");
 const Product = require("../models/product.model");
 const { createNotification } = require("../services/notification.service");
 
+function normalizeExpiryDate(value) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const str = String(value).trim();
+  if (!str || str.toLowerCase() === "null") return null;
+  const parsed = new Date(str);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function isSystemAdmin(user) {
   return String(user.role || "").toLowerCase() === "systemadmin";
 }
@@ -110,7 +119,10 @@ router.put("/:id/approve", authenticate, async (req, res) => {
     session.startTransaction();
     try {
       // Apply changes to product
-      const update = reqDoc.changes || {};
+      const update = { ...(reqDoc.changes || {}) };
+      if (Object.prototype.hasOwnProperty.call(update, "expiryDate")) {
+        update.expiryDate = normalizeExpiryDate(update.expiryDate);
+      }
       const product = await Product.findOneAndUpdate(
         { _id: reqDoc.productId, martId: reqDoc.martId },
         update,

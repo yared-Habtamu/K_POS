@@ -14,6 +14,7 @@ type AuthUser = {
   role: UserRole;
   token: string;
   permissions?: string[]; // optional permissions granted to the user
+  openCashBalance?: number;
 };
 
 interface AuthState {
@@ -87,6 +88,7 @@ export const useAuthStore = create<AuthState>()(
                 role: normalizedRole,
                 token: data.token,
                 permissions: Array.isArray(data.user.permissions) ? data.user.permissions : [],
+                openCashBalance: Number(data.user.openCashBalance || 0),
               },
 
               isAuthenticated: true,

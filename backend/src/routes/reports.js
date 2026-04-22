@@ -477,9 +477,9 @@ router.get("/mart", authenticate, async (req, res) => {
         prodAgg[key].revenue += Number(lineRevenue || 0);
       }
     }
-    const topProducts = Object.values(prodAgg)
-      .sort((a, b) => b.sold - a.sold)
-      .slice(0, 10);
+    const topProducts = Object.values(prodAgg).sort(
+      (a, b) => b.sold - a.sold,
+    );
 
     // Build series totals per day between startDate and endDate
     const series = [];

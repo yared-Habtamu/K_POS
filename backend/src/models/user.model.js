@@ -11,6 +11,7 @@ const UserSchema = new mongoose.Schema(
     passwordHash: { type: String },
     role: { type: String, enum: ['systemAdmin', 'owner', 'manager', 'cashier', 'storeKeeper', 'other'], default: 'other', index: true },
     salary: { type: Number },
+    openCashBalance: { type: Number, default: 0 },
     permissions: { type: [String], default: [] },
     active: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false, index: true },

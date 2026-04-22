@@ -9,6 +9,15 @@ const { authenticate } = require("../middleware/auth");
 const multer = require("multer");
 const { uploadBuffer } = require("../utils/cloudinary");
 
+function normalizeExpiryDate(value) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const str = String(value).trim();
+  if (!str || str.toLowerCase() === "null") return null;
+  const parsed = new Date(str);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 // Use memory storage so we can send buffer directly to Cloudinary for media storage
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -414,6 +423,10 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
     ];
     for (const k of allowed)
       if (req.body[k] !== undefined) update[k] = req.body[k];
+
+    if (Object.prototype.hasOwnProperty.call(update, "expiryDate")) {
+      update.expiryDate = normalizeExpiryDate(update.expiryDate);
+    }
 
     // If an image file was uploaded, upload it to Cloudinary and set imageUrl
     if (req.file && req.file.buffer) {

@@ -225,9 +225,12 @@ export default function ExpenseManagement() {
     "all" | "owner" | "manager"
   >("all");
   const [managerFilter, setManagerFilter] = useState("all");
-  const [managers, setManagers] = useState<Array<{ id: string; name: string }>>(
-    [],
-  );
+  const [managers, setManagers] = useState<
+    Array<{ id: string; name: string; openCashBalance: number }>
+  >([]);
+  const [openCashTargetId, setOpenCashTargetId] = useState<string>("");
+  const [openCashAmount, setOpenCashAmount] = useState<string>("");
+  const [isUpdatingOpenCash, setIsUpdatingOpenCash] = useState(false);
   // month filter formatted as YYYY-MM; empty = all
   const [monthFilter, setMonthFilter] = useState<string>(() =>
     new Date().toISOString().slice(0, 7),
@@ -628,6 +631,64 @@ export default function ExpenseManagement() {
     addExpense();
   };
 
+  const selectedOpenCashManager = managers.find(
+    (m) => m.id === openCashTargetId,
+  );
+
+  const updateOpenCash = async (mode: "add" | "set") => {
+    if (!openCashTargetId) {
+      toast(t("select_manager", { defaultValue: "Select a manager" }));
+      return;
+    }
+    const amount = Number(openCashAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast(
+        t("enter_valid_amount", { defaultValue: "Enter a valid amount" }),
+      );
+      return;
+    }
+    setIsUpdatingOpenCash(true);
+    try {
+      const token = auth?.token;
+      const res = await fetch(
+        `${API_BASE}/api/employees/${encodeURIComponent(openCashTargetId)}/open-cash`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ amount, mode }),
+        },
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast(err.message || t("failed_update_open_cash"));
+        return;
+      }
+      const updated = await res.json();
+      setManagers((cur) =>
+        cur.map((m) =>
+          m.id === openCashTargetId
+            ? {
+                ...m,
+                openCashBalance: Number(updated.openCashBalance || 0),
+              }
+            : m,
+        ),
+      );
+      setOpenCashAmount("");
+      toast(
+        t("open_cash_updated", { defaultValue: "Open Cash updated" }),
+      );
+    } catch (err) {
+      console.error("update open cash error", err);
+      toast(t("failed_update_open_cash", { defaultValue: "Update failed" }));
+    } finally {
+      setIsUpdatingOpenCash(false);
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -690,6 +751,7 @@ export default function ExpenseManagement() {
           .map((u: any) => ({
             id: String(u._id || u.id || ""),
             name: String(u.name || u.username || "Unnamed"),
+            openCashBalance: Number(u.openCashBalance || 0),
           }))
           .filter((u: any) => u.id);
         setManagers(managerList);
@@ -1268,6 +1330,93 @@ export default function ExpenseManagement() {
             </motion.div>
           </Dialog>
         </div>
+
+        <Card className="border-border/60 bg-gradient-to-br from-background via-background to-muted/40">
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-emerald-500/10 p-2 text-emerald-600">
+                <Wallet className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle>{t("open_cash", { defaultValue: "Open Cash" })}</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {t("allocate_open_cash", { defaultValue: "Allocate and track manager spending limits." })}
+                </p>
+              </div>
+            </div>
+            {selectedOpenCashManager ? (
+              <div className="rounded-full border border-emerald-200/60 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                {t("current_balance", { defaultValue: "Current balance" })}: {Number(selectedOpenCashManager.openCashBalance || 0).toLocaleString()} ETB
+              </div>
+            ) : null}
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr_auto]">
+              <div className="space-y-2">
+                <Label>{t("manager", { defaultValue: "Manager" })}</Label>
+                <Select
+                  value={openCashTargetId}
+                  onValueChange={(val) => setOpenCashTargetId(val)}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue
+                      placeholder={t("select_manager", {
+                        defaultValue: "Select manager",
+                      })}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {managers.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {t("open_cash_note", { defaultValue: "Managers can only spend from this balance." })}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="open-cash-amount">
+                  {t("amount", { defaultValue: "Amount" })} (ETB)
+                </Label>
+                <Input
+                  id="open-cash-amount"
+                  type="number"
+                  value={openCashAmount}
+                  onChange={(e) => setOpenCashAmount(e.target.value)}
+                  placeholder="0"
+                  className="h-11"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t("open_cash_amount_hint", { defaultValue: "Use Add to top up or Set to overwrite the balance." })}
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2 justify-end">
+                <Button
+                  type="button"
+                  className="h-11"
+                  onClick={() => updateOpenCash("add")}
+                  disabled={isUpdatingOpenCash}
+                >
+                  {t("add_open_cash", { defaultValue: "Add Open Cash" })}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11"
+                  onClick={() => updateOpenCash("set")}
+                  disabled={isUpdatingOpenCash}
+                >
+                  {t("set_balance", { defaultValue: "Set Balance" })}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Chart & Filters */}
         <div className="grid gap-6 lg:grid-cols-3">

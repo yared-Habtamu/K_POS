@@ -163,8 +163,32 @@ router.post("/login", async (req, res) => {
       role: user.role,
       martId: user.martId,
       permissions: user.permissions || [],
+      openCashBalance: Number(user.openCashBalance || 0),
     },
   });
+});
+
+// Current user profile
+router.get("/me", authenticate, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("-passwordHash -__v");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    return res.json({
+      id: user._id,
+      username: user.username,
+      name: user.name,
+      email: user.email || "",
+      phone: user.phone || "",
+      profilePictureUrl: user.profilePictureUrl || "",
+      role: user.role,
+      martId: user.martId,
+      permissions: user.permissions || [],
+      openCashBalance: Number(user.openCashBalance || 0),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 // Register endpoint
@@ -270,6 +294,7 @@ router.post("/register", authenticate, async (req, res) => {
       profilePictureUrl: user.profilePictureUrl || "",
       role: user.role,
       martId: user.martId,
+      openCashBalance: Number(user.openCashBalance || 0),
     },
   });
 });

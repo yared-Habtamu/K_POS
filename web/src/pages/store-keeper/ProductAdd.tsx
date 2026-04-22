@@ -347,7 +347,11 @@ export default function ProductAdd() {
       "lowStockThreshold",
       String(parseInt(form.lowStockThreshold || "10")),
     );
-    if (form.expiryDate) formData.append("expiryDate", form.expiryDate);
+    if (editingProductId) {
+      formData.append("expiryDate", form.expiryDate || "");
+    } else if (form.expiryDate) {
+      formData.append("expiryDate", form.expiryDate);
+    }
     // One barcode per product: prefer input box value, otherwise existing saved one.
     const pendingBarcode = (form.barcodeInput || "").trim();
     const existingBarcode =

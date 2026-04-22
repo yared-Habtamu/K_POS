@@ -114,17 +114,43 @@ router.put("/:id/approve", authenticate, async (req, res) => {
         .json({ message: "Request payload missing required expense fields" });
     }
 
+    const amountNumber = Number(payload.amount);
+    if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
+      return res.status(400).json({ message: "Invalid expense amount" });
+    }
+
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
+      let updatedRequester = null;
+      if (reqDoc.requesterRole === "manager") {
+        updatedRequester = await User.findOneAndUpdate(
+          {
+            _id: reqDoc.requesterId,
+            martId: reqDoc.martId,
+            openCashBalance: { $gte: amountNumber },
+          },
+          { $inc: { openCashBalance: -amountNumber } },
+          { new: true, session },
+        );
+
+        if (!updatedRequester) {
+          await session.abortTransaction();
+          session.endSession();
+          return res
+            .status(400)
+            .json({ message: "Insufficient open cash balance" });
+        }
+      }
+
       const expense = new Expense({
         martId: reqDoc.martId,
         category: payload.category || "miscellaneous",
         description: payload.description,
         name: payload.name || undefined,
         reason: payload.reason || undefined,
-        amount: Number(payload.amount),
+        amount: amountNumber,
         date: new Date(payload.date),
         createdBy: reqDoc.requesterId,
         createdByRole:
@@ -134,7 +160,10 @@ router.put("/:id/approve", authenticate, async (req, res) => {
               ? "manager"
               : "other",
         createdByName: reqDoc.requesterName || undefined,
-        paymentType: payload.paymentType || undefined,
+        paymentType:
+          reqDoc.requesterRole === "manager"
+            ? "open_cash"
+            : payload.paymentType || undefined,
         paymentScreenshot: payload.paymentScreenshot || undefined,
         productPicture: payload.productPicture || undefined,
         screenshots: Array.isArray(payload.screenshots)
@@ -169,7 +198,14 @@ router.put("/:id/approve", authenticate, async (req, res) => {
       await session.commitTransaction();
       session.endSession();
 
-      return res.json({ message: "Expense request approved", expense });
+      const responsePayload = { message: "Expense request approved", expense };
+      if (updatedRequester) {
+        responsePayload.openCashBalance = Number(
+          updatedRequester.openCashBalance || 0,
+        );
+      }
+
+      return res.json(responsePayload);
     } catch (err) {
       await session.abortTransaction();
       session.endSession();
