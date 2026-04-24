@@ -41,7 +41,12 @@ export function BarcodePrintDialog({
   const resolvedDataUrl = externalDataUrl || generatedDataUrl;
 
   const handlePrint = () => {
-    printBarcodeLabel({ barcode });
+    printBarcodeLabel({
+      barcode,
+      productName,
+      price,
+      shopName: t("kiya_pos_system"),
+    });
   };
 
   const handleDownload = () => {

@@ -7,6 +7,153 @@ const Customer = require("../models/customer.model");
 const mongoose = require("mongoose");
 const { authenticate } = require("../middleware/auth");
 
+const PENDING_RECEIPT_TTL_MS = 24 * 60 * 60 * 1000;
+const pendingReceipts = new Map();
+
+function prunePendingReceipts() {
+  const now = Date.now();
+  for (const [key, entry] of pendingReceipts.entries()) {
+    if (!entry || Number(entry.expiresAt) <= now) pendingReceipts.delete(key);
+  }
+}
+
+function normalizePendingReceipt(payload) {
+  if (!payload || typeof payload !== "object") return null;
+  const id = String(payload.id || "").trim();
+  if (!id) return null;
+
+  const items = Array.isArray(payload.items)
+    ? payload.items.map((item) => {
+        const qty = Number(item?.quantity) || 0;
+        const price = Number(item?.product?.sellingPrice ?? item?.price) || 0;
+        const lineTotal = Number(item?.subtotal ?? item?.total) || price * qty;
+        return {
+          name: String(item?.product?.name || item?.name || "Item"),
+          quantity: qty,
+          price,
+          total: lineTotal,
+        };
+      })
+    : [];
+
+  const extraCharges = Array.isArray(payload.extraCharges)
+    ? payload.extraCharges.map((charge) => ({
+        name: String(charge?.name || "Charge"),
+        amount: Number(charge?.amount) || 0,
+      }))
+    : [];
+
+  const discount = payload.discount
+    ? {
+        type: payload.discount.type,
+        value: Number(payload.discount.value) || 0,
+        amount: Number(payload.discount.amount) || 0,
+      }
+    : undefined;
+
+  return {
+    id,
+    saleId: String(payload.saleId || ""),
+    shopName: String(payload.shopName || "Shop"),
+    shopAddress: String(payload.shopAddress || "").trim() || undefined,
+    shopPhone: String(payload.shopPhone || "").trim() || undefined,
+    items,
+    subtotal: Number(payload.subtotal) || 0,
+    discount,
+    extraCharges,
+    tax: Number(payload.tax) || 0,
+    taxRate: Number(payload.taxRate) || 0,
+    total: Number(payload.total) || 0,
+    paymentMethod: String(payload.paymentMethod || ""),
+    cashierName: String(payload.cashierName || ""),
+    date: payload.date || new Date(),
+    receiptHeader: String(payload.receiptHeader || "").trim() || undefined,
+    receiptSlogan: String(payload.receiptSlogan || "").trim() || undefined,
+  };
+}
+
+function buildMartAddress(mart) {
+  if (!mart || typeof mart !== "object") return "";
+  const directAddress = String(mart.address || "").trim();
+  if (directAddress) return directAddress;
+
+  return [mart.city, mart.region, mart.country]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function formatQuantity(value) {
+  const qty = Number(value);
+  if (!Number.isFinite(qty)) return "0";
+  if (Number.isInteger(qty)) return String(qty);
+  return qty.toFixed(2).replace(/\.00$/, "");
+}
+
+async function buildReceiptViewModel(receiptId) {
+  prunePendingReceipts();
+
+  const sale = await Sale.findOne({ receiptId }).sort({ date: -1 }).lean();
+  if (!sale) {
+    const cached = pendingReceipts.get(receiptId);
+    if (cached && Number(cached.expiresAt) > Date.now()) {
+      return cached.receipt;
+    }
+    return null;
+  }
+
+  const mart = sale.martId
+    ? await Mart.findById(sale.martId)
+        .select(
+          "martName address city region country phone receiptHeader receiptMessage",
+        )
+        .lean()
+    : null;
+
+  const items = Array.isArray(sale.items)
+    ? sale.items.map((item) => {
+        const qty = Number(item?.quantity) || 0;
+        const rowTotal = Number(item?.total) || 0;
+        const unitPrice = qty > 0 ? rowTotal / qty : Number(item?.price) || 0;
+        return {
+          name: String(item?.name || "Item"),
+          quantity: qty,
+          price: unitPrice,
+          total: rowTotal,
+        };
+      })
+    : [];
+
+  return {
+    id: String(sale.receiptId || sale._id || ""),
+    saleId: String(sale._id || ""),
+    shopName: String(mart?.martName || "Shop"),
+    shopAddress: buildMartAddress(mart),
+    shopPhone: String(mart?.phone || "").trim() || undefined,
+    items,
+    subtotal: Number(sale.subtotal) || 0,
+    discount: sale.discount || undefined,
+    extraCharges: Array.isArray(sale.extraCharges) ? sale.extraCharges : [],
+    tax: Number(sale.tax) || 0,
+    taxRate: Number(sale.taxRate) || 0,
+    total: Number(sale.total) || 0,
+    paymentMethod: String(sale.paymentMethod || ""),
+    cashierName: String(sale.cashierName || ""),
+    date: sale.date || sale.createdAt || new Date(),
+    receiptHeader: String(mart?.receiptHeader || "").trim() || undefined,
+    receiptSlogan: String(mart?.receiptMessage || "").trim() || undefined,
+  };
+}
+
 // Create a sale (record transaction)
 router.post("/", authenticate, async (req, res) => {
   try {
@@ -217,6 +364,7 @@ router.post("/", authenticate, async (req, res) => {
 
           await session.commitTransaction();
           session.endSession();
+          if (receiptId) pendingReceipts.delete(String(receiptId));
           res.status(201).json(savedSale);
           return;
         } catch (err) {
@@ -248,6 +396,7 @@ router.post("/", authenticate, async (req, res) => {
     });
 
     await sale.save();
+    if (receiptId) pendingReceipts.delete(String(receiptId));
     // If credit sale, update customer totals (non-transactional path)
     if (String(paymentMethod) === "wallet" && payload.customerId) {
       try {
@@ -275,6 +424,184 @@ router.post("/", authenticate, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Cache a generated receipt preview so QR scans can work before final sale save.
+router.post("/receipt-cache", authenticate, async (req, res) => {
+  try {
+    prunePendingReceipts();
+    const normalized = normalizePendingReceipt(req.body?.receipt || req.body);
+    if (!normalized) {
+      return res.status(400).json({ message: "Valid receipt payload is required" });
+    }
+
+    pendingReceipts.set(normalized.id, {
+      receipt: normalized,
+      expiresAt: Date.now() + PENDING_RECEIPT_TTL_MS,
+    });
+
+    return res.status(201).json({ ok: true, receiptId: normalized.id });
+  } catch (err) {
+    console.error("Failed to cache receipt", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Public receipt lookup by receipt id (for QR scans)
+router.get("/receipt/:receiptId", async (req, res) => {
+  try {
+    const receiptId = String(req.params.receiptId || "").trim();
+    if (!receiptId)
+      return res.status(400).json({ message: "receiptId is required" });
+
+    const receipt = await buildReceiptViewModel(receiptId);
+    if (!receipt)
+      return res.status(404).json({ message: "Receipt not found" });
+
+    return res.json(receipt);
+  } catch (err) {
+    console.error("Receipt lookup failed", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Public HTML receipt page for direct QR opening
+router.get("/receipt/:receiptId/view", async (req, res) => {
+  try {
+    const providerPhone =
+      String(
+        process.env.RECEIPT_PROVIDER_PHONE ||
+          process.env.SUPPORT_PHONE ||
+          "+251930201388",
+      ).trim() || "+251930201388";
+
+    const receiptId = String(req.params.receiptId || "").trim();
+    if (!receiptId) {
+      return res
+        .status(400)
+        .type("text/html")
+        .send("<h1>Invalid receipt id</h1>");
+    }
+
+    const receipt = await buildReceiptViewModel(receiptId);
+    if (!receipt) {
+      return res
+        .status(404)
+        .type("text/html")
+        .send("<h1>Receipt not found</h1>");
+    }
+
+    const itemRows = receipt.items
+      .map(
+        (item) => `
+          <tr>
+            <td style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(item.name)}</td>
+            <td style="text-align:center;">${formatQuantity(item.quantity)}</td>
+            <td style="text-align:right;">${Number(item.price).toFixed(2)} ETB</td>
+            <td style="text-align:right;">${Number(item.total).toFixed(2)} ETB</td>
+          </tr>`,
+      )
+      .join("");
+
+    const extraChargeRows = (receipt.extraCharges || [])
+      .map((charge) => {
+        const name = escapeHtml(String(charge?.name || "Charge"));
+        const amount = Number(charge?.amount) || 0;
+        return `<div class="row"><span>${name}</span><span>+${amount.toFixed(2)} ETB</span></div>`;
+      })
+      .join("");
+
+    const discountRow = receipt.discount
+      ? `<div class="row discount"><span>Discount</span><span>-${Number(receipt.discount.amount || 0).toFixed(2)} ETB</span></div>`
+      : "";
+
+    const paymentLabel = escapeHtml(
+      String(receipt.paymentMethod || "").replace(/_/g, " ").toUpperCase(),
+    );
+
+    const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>Receipt ${escapeHtml(receipt.id)}</title>
+    <style>
+      html, body { color-scheme: light !important; background: #ffffff !important; }
+      body { font-family: Arial, sans-serif; margin: 0; padding: 16px; color: #111827 !important; -webkit-font-smoothing: antialiased; }
+      .paper { max-width: 390px; margin: 0 auto; background: #fff !important; border: 1px solid #d1d5db; border-radius: 12px; padding: 18px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+      .center { text-align: center; }
+      .muted { color: #6b7280; font-size: 12px; }
+      .sep { border-top: 1px dashed #9ca3af; margin: 12px 0; }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      th, td { padding: 6px 2px; border-bottom: 1px solid #f3f4f6; }
+      th { text-align: left; font-size: 12px; color: #6b7280; }
+      .row { display: flex; justify-content: space-between; margin: 6px 0; font-size: 14px; }
+      .discount { color: #047857; }
+      .total { font-weight: 700; font-size: 32px; border-top: 1px solid #9ca3af; padding-top: 10px; margin-top: 8px; line-height: 1.1; }
+      .meta { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+      .section-title { font-weight: 700; font-size: 12px; color: #374151; }
+      @media (prefers-color-scheme: dark) {
+        html, body, .paper { background: #ffffff !important; color: #111827 !important; }
+        .muted, th { color: #6b7280 !important; }
+      }
+      @media (max-width: 640px) {
+        .paper { padding: 14px; max-width: 360px; }
+        .meta { flex-direction: column; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="paper">
+      <div class="center">
+        <h2 style="margin: 0;">${escapeHtml(receipt.shopName)}</h2>
+        ${receipt.shopAddress ? `<div class="muted">${escapeHtml(receipt.shopAddress)}</div>` : ""}
+        ${receipt.shopPhone ? `<div class="muted">${escapeHtml(receipt.shopPhone)}</div>` : ""}
+        ${receipt.receiptHeader ? `<div class="muted" style="margin-top:6px;">${escapeHtml(receipt.receiptHeader)}</div>` : ""}
+      </div>
+      <div class="sep"></div>
+      <div class="meta">
+        <div>
+          <div><strong>Receipt:</strong> ${escapeHtml(receipt.id)}</div>
+          <div><strong>Cashier:</strong> ${escapeHtml(receipt.cashierName || "N/A")}</div>
+        </div>
+        <div style="text-align:right;">
+          <div>${escapeHtml(new Date(receipt.date).toLocaleDateString())}</div>
+          <div>${escapeHtml(new Date(receipt.date).toLocaleTimeString())}</div>
+        </div>
+      </div>
+      <div class="sep"></div>
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th style="text-align:center;">Qty</th>
+            <th style="text-align:right;">Price</th>
+            <th style="text-align:right;">Total</th>
+          </tr>
+        </thead>
+        <tbody>${itemRows}</tbody>
+      </table>
+      <div class="sep"></div>
+      <div class="row"><span>Subtotal</span><span>${Number(receipt.subtotal).toFixed(2)} ETB</span></div>
+      ${discountRow}
+      ${extraChargeRows}
+      <div class="row"><span>VAT (${Number(receipt.taxRate).toFixed(2)}%)</span><span>${Number(receipt.tax).toFixed(2)} ETB</span></div>
+      <div class="row total"><span>TOTAL</span><span>${Number(receipt.total).toFixed(2)} ETB</span></div>
+      <div class="row"><span>Payment</span><span>${paymentLabel}</span></div>
+      ${receipt.receiptSlogan ? `<p class="center muted" style="margin-top:12px;">${escapeHtml(receipt.receiptSlogan)}</p>` : ""}
+      <p class="center muted" style="margin-top:8px;">Powered by Smart POS</p>
+      <p class="center muted" style="margin-top:2px;">${escapeHtml(providerPhone)}</p>
+    </div>
+  </body>
+</html>`;
+
+    return res.status(200).type("text/html").send(html);
+  } catch (err) {
+    console.error("Receipt page render failed", err);
+    return res.status(500).type("text/html").send("<h1>Server error</h1>");
   }
 });
 

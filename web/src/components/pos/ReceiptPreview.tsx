@@ -14,13 +14,18 @@ import { useAuthStore } from "@/stores/authStore";
 import { toast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import type { Receipt } from "@/types";
-import { Printer, Download, MessageSquare } from "lucide-react";
+import { Printer, Download, MessageSquare, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
 
 interface ReceiptPreviewProps {
   receipt: Receipt;
   onDone: () => void;
 }
+
+const SYSTEM_PROVIDER_PHONE =
+  (import.meta.env.VITE_RECEIPT_PROVIDER_PHONE as string | undefined)?.trim() ||
+  (import.meta.env.VITE_SUPPORT_PHONE as string | undefined)?.trim() ||
+  "+251930201388";
 
 export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
   const { t } = useTranslation();
@@ -244,6 +249,9 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
         <p className="text-center text-xs mt-2 text-gray-500">
           {t("powered_by_smart_pos")}
         </p>
+        <p className="text-center text-xs mt-1 text-gray-500">
+          {SYSTEM_PROVIDER_PHONE}
+        </p>
       </div>
 
       {/* Actions */}
@@ -269,6 +277,7 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
           SMS
         </Button>
         <Button onClick={onDone} className="flex-1">
+          <CheckCircle2 className="mr-2 h-4 w-4" />
           {t("done") || "Done"}
         </Button>
       </div>

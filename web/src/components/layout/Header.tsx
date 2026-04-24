@@ -39,6 +39,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const role = user?.role;
   const navigate = useNavigate();
+  const isAmharic = i18n.resolvedLanguage?.startsWith('am') ?? i18n.language.startsWith('am');
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -55,7 +56,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 
 
   const toggleLanguage = () => {
-    i18n.changeLanguage(i18n.language === 'en' ? 'am' : 'en');
+    i18n.changeLanguage(isAmharic ? 'en' : 'am');
   };
 
   const toggleTheme = () => {
@@ -103,7 +104,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
           className="gap-2"
         >
           <Globe className="h-4 w-4" />
-          <span className="hidden sm:inline">{i18n.language === 'en' ? 'EN' : 'አማ'}</span>
+          <span className="hidden sm:inline">{isAmharic ? 'አማ' : 'EN'}</span>
         </Button>
 
         <Button

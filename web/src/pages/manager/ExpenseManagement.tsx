@@ -1338,12 +1338,12 @@ export default function ExpenseManagement() {
                       }
                     >
                       <SelectTrigger className="w-36">
-                        <SelectValue placeholder="Created by" />
+                        <SelectValue placeholder={t("created_by", "Created by")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All creators</SelectItem>
-                        <SelectItem value="owner">Owner</SelectItem>
-                        <SelectItem value="manager">Manager</SelectItem>
+                        <SelectItem value="all">{t("all_creators", "All creators")}</SelectItem>
+                        <SelectItem value="owner">{t("owner")}</SelectItem>
+                        <SelectItem value="manager">{t("manager")}</SelectItem>
                       </SelectContent>
                     </Select>
                     <Select
@@ -1382,6 +1382,7 @@ export default function ExpenseManagement() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-12 text-center">{t("no", "No")}</TableHead>
                         <TableHead>{t("product_picture")}</TableHead>
                         <TableHead>{t("expense_category")}</TableHead>
                         <TableHead>{t("description")}</TableHead>
@@ -1398,10 +1399,13 @@ export default function ExpenseManagement() {
                     </TableHeader>
                     <TableBody>
                       {paginatedExpenses.length > 0 ? (
-                        paginatedExpenses.map((expense) => {
+                        paginatedExpenses.map((expense, index) => {
                           const Icon = getCategoryIcon(expense.category);
                           return (
                             <TableRow key={expense.id}>
+                              <TableCell className="text-center text-muted-foreground">
+                                {startIndex + index + 1}
+                              </TableCell>
                               <TableCell className="w-20">
                                 {(expense as any).productPicture ? (
                                   <img
@@ -1475,7 +1479,7 @@ export default function ExpenseManagement() {
                       ) : (
                         <TableRow>
                           <TableCell
-                            colSpan={canDelete ? 8 : 7}
+                            colSpan={canDelete ? 9 : 8}
                             className="text-center py-4 text-muted-foreground"
                           >
                             {search || categoryFilter !== "all"

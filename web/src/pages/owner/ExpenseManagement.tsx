@@ -1570,6 +1570,7 @@ export default function ExpenseManagement() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-12 text-center">No</TableHead>
                         <TableHead>{t("product_picture")}</TableHead>
                         <TableHead>{t("expense_category")}</TableHead>
                         <TableHead>{t("description")}</TableHead>
@@ -1586,10 +1587,13 @@ export default function ExpenseManagement() {
                     </TableHeader>
                     <TableBody>
                       {paginatedExpenses.length > 0 ? (
-                        paginatedExpenses.map((expense) => {
+                        paginatedExpenses.map((expense, index) => {
                           const Icon = getCategoryIcon(expense.category);
                           return (
                             <TableRow key={expense.id}>
+                              <TableCell className="text-center text-muted-foreground">
+                                {startIndex + index + 1}
+                              </TableCell>
                               <TableCell className="w-20">
                                 {(expense as any).productPicture ? (
                                   <img
@@ -1663,7 +1667,7 @@ export default function ExpenseManagement() {
                       ) : (
                         <TableRow>
                           <TableCell
-                            colSpan={8}
+                            colSpan={9}
                             className="text-center py-4 text-muted-foreground"
                           >
                             {search || categoryFilter !== "all"

@@ -1174,6 +1174,7 @@ export default function ProductManagement() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12 text-center">No</TableHead>
                     <TableHead className="w-12">{t("image")}</TableHead>
                     <TableHead>{t("product_name")}</TableHead>
                     <TableHead>{t("category")}</TableHead>
@@ -1192,8 +1193,11 @@ export default function ProductManagement() {
                 </TableHeader>
                 <TableBody>
                   {filteredProducts.length > 0 ? (
-                    filteredProducts.map((product) => (
+                    filteredProducts.map((product, index) => (
                       <TableRow key={product.id}>
+                        <TableCell className="text-center text-muted-foreground">
+                          {startIndex + index + 1}
+                        </TableCell>
                         <TableCell>
                           {product.pictureUrl ? (
                             <img
@@ -1260,7 +1264,8 @@ export default function ProductManagement() {
                                 setActiveScannerProduct(product);
                                 setIsRowScannerOpen(true);
                               }}
-                              title="Scan Barcode"
+                              title={t("scan_barcode_action")}
+                              aria-label={t("scan_barcode_action")}
                             >
                               <ScanBarcode className="h-4 w-4" />
                             </Button>
@@ -1268,6 +1273,8 @@ export default function ProductManagement() {
                               variant="ghost"
                               size="icon"
                               onClick={() => handleEdit(product)}
+                              title={t("edit")}
+                              aria-label={t("edit")}
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
@@ -1279,6 +1286,8 @@ export default function ProductManagement() {
                                 setIsDeleteOpen(true);
                               }}
                               className="text-destructive hover:text-destructive"
+                              title={t("delete")}
+                              aria-label={t("delete")}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -1289,7 +1298,7 @@ export default function ProductManagement() {
                   ) : (
                     <TableRow>
                       <TableCell
-                        colSpan={8}
+                        colSpan={9}
                         className="text-center py-4 text-muted-foreground"
                       >
                         {Object.values(filterValues).some((value) =>

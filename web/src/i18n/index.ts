@@ -1,4 +1,6 @@
+import Approvals from "@/pages/manager/Approvals";
 import i18n from "i18next";
+import { Download } from "lucide-react";
 import { initReactI18next } from "react-i18next";
 
 const resources = {
@@ -56,6 +58,7 @@ const resources = {
       // POS
       pos: "Point of Sale",
       scan_barcode: "Scan barcode or search product",
+      scan_barcode_action: "Scan Barcode",
       cart: "Cart",
       items: "Items",
       quantity: "Quantity",
@@ -187,6 +190,8 @@ const resources = {
       click_to_upload_image: "Click or drag to upload image",
       change_image: "Change Image",
 
+      // approval
+      approval: "approval",
       // Shop/Store
       shop: "Shop",
       subscriptions: "Subscriptions",
@@ -252,10 +257,12 @@ const resources = {
       units_of: "units of",
       request_sent_for: "Request sent for",
       awaiting_manager_approval: "Awaiting manager approval.",
+      awaiting_storekeeper_approval: "Awaiting store keeper approval.",
       please_try_again: "Please try again",
       could_not_submit_transfer: "Could not submit transfer",
       add_stock_subtitle:
         "Transferring from warehouse stock to supermarket/mart quantity",
+      transfer_to_store: "Transfer To Store",
       inventory_subtitle: "Manage store and supermarket stock levels",
       search_by_name_or_barcode: "Search by name or barcode...",
       loading_products: "Loading products...",
@@ -266,8 +273,11 @@ const resources = {
       no_products_match_current_filters:
         "No products match the current filters",
       search_and_filter_inventory: "Search and filter inventory",
+      search_and_filter_stock_transfers: "Search and filter stock transfers",
       find_products_by_name_barcode_category_stock_level_or_sort_order:
         "Find products by name, barcode, category, stock level, or sort order.",
+      find_stock_transfers_by_name_barcode_category_and_sort_order:
+        "Find transfer products by name, barcode, category, and sort order.",
       search_by_name_barcode_or_category:
         "Search by name, barcode, or category",
       all_categories: "All categories",
@@ -328,6 +338,8 @@ const resources = {
       warehouse: "Warehouse",
       supermarket: "Supermarket",
       transfer_stock: "Transfer Stock",
+      quantity_to_transfer: "Quantity to Transfer (Store -> Supermarket)",
+      quantity_to_transfer_back: "Quantity to Transfer (Supermarket -> Store)",
       valid_name_min2: "Please enter a valid name (min 2 characters)",
       valid_phone_required: "Please enter a valid phone number",
       fix_validation_errors: "Please fix validation errors",
@@ -359,6 +371,15 @@ const resources = {
       barcode_management: "Barcode Management",
       generate_scan_print_barcodes:
         "Generate, scan, and print product barcodes",
+      cart_is_empty: "Cart is empty",
+      scan_or_search_products_to_add: "Scan or search products to add",
+      product_filters: "Product filters",
+      pos_product_filters_description:
+        "Search the product catalog, narrow by category or stock state, and control the POS list sort order.",
+      detailed_product_list: "Detailed product list",
+      detailed_product_list_description:
+        "Add products to the cart from the same detailed inventory table layout used elsewhere in the app.",
+      no_mart_discount_policy_configured: "No mart discount policy configured.",
       barcode_scanner: "Barcode Scanner",
       scan_or_enter_barcode: "Scan or enter barcode...",
       no_barcode: "No Barcode",
@@ -573,6 +594,131 @@ const resources = {
       invalid_product_data: "Invalid product data",
       failed_generate_barcode: "Failed to generate barcode",
 
+      // Scanner
+      invalid_barcode: "Invalid barcode",
+      no_camera_found: "No camera found",
+      camera_permission_denied: "Camera permission denied",
+      flash_not_supported: "Flash not supported",
+      restarting_scanner: "Restarting scanner",
+      no_camera: "No camera",
+      scanner_active: "Scanner active",
+      initializing: "Initializing",
+      use_external_scanner: "Use external scanner",
+      use_external_scanner_hint: "Use a physical barcode scanner device",
+      align_barcode_hint: "Align the barcode within the frame",
+      scanning_automatic_hint: "Scanning happens automatically",
+      flash: "Flash",
+      style: "Style",
+
+      // Notifications extended
+      all_notifications: "All Notifications",
+      mark_all_read: "Mark all as read",
+
+      // POS extended
+      stock_limit_reached: "Stock limit reached",
+      out_of_stock: "Out of stock",
+      receipt_ready: "Receipt ready",
+      customer: "Customer",
+      no_customers: "No customers",
+      copy: "Copy",
+      copied: "Copied",
+      in_stock: "In Stock",
+      image: "Image",
+      no_image: "No image",
+      today: "Today",
+      overview: "Overview",
+      any: "Any",
+      previous: "Previous",
+      no: "No",
+      available: "Available",
+      status: "Status",
+      qty: "Qty",
+      others: "Others",
+
+      // Credit / Customer
+      select_customer_for_credit: "Select customer for credit",
+      select_customer_for_credit_desc: "Select a customer to apply credit to this sale",
+      saved_accounts: "Saved Accounts",
+      not_configured: "Not configured",
+
+      // Cashier Dashboard
+      cashier_dashboard: "Cashier Dashboard",
+      quick_overview_today: "Quick overview of today",
+      top_items_by_sales: "Top items by sales",
+      top_6: "Top 6",
+      no_sales_yet: "No sales yet",
+      sales_share: "Sales Share",
+      distribution: "Distribution",
+      no_data: "No data",
+      sold_by: "Sold by",
+      no_items_match_filters: "No items match filters",
+      no_top_items_yet: "No top items yet",
+
+      // Login extended
+      remember_me: "Remember me",
+      forgot_password: "Forgot password?",
+      authenticate: "Authenticate",
+
+      // Dashboard extended
+      alerts_summary: "Alerts Summary",
+
+      // Assets extended
+      size_or_type: "Size/Type",
+      assigned_to: "Assigned to",
+      purchase_date: "Purchase Date",
+
+      // Open Cash
+      open_cash: "Open Cash",
+      allocate_open_cash: "Allocate Open Cash",
+      current_balance: "Current Balance",
+      open_cash_note: "Note",
+      open_cash_amount_hint: "Enter the amount to add",
+      add_open_cash: "Add Open Cash",
+      set_balance: "Set Balance",
+      enter_valid_amount: "Enter valid amount",
+      failed_update_open_cash: "Failed to update open cash",
+      open_cash_updated: "Open cash updated",
+
+      // Transfer
+      transfer: "Transfer",
+
+      // Expenses extended
+      no_expenses_to_export: "No expenses to export",
+      generating_pdf_wait: "Generating PDF, please wait...",
+      expense_report: "Expense Report",
+      edit_expense_description: "Edit expense details",
+      add_expense_description: "Add new expense record",
+      item_image: "Item Image",
+      screenshots: "Screenshots",
+      pdf_generated_success: "PDF generated successfully",
+      failed_download_pdf: "Failed to download PDF",
+      download_pdf: "Download PDF",
+
+      // Product extended
+      select_or_create_category: "Select or create category",
+      select_or_create_unit: "Select or create unit",
+      product_add_description: "Add a new product to your inventory",
+      created_by: "Created by",
+      all_creators: "All creators",
+      barcodes: "Barcodes",
+      barcode_conflict: "Barcode conflict",
+      barcode_already_assigned: "Barcode already assigned",
+      barcode_replaced: "Barcode replaced",
+      only_one_barcode_allowed: "Only one barcode allowed",
+      add_barcode: "Add Barcode",
+      current_barcodes: "Current Barcodes",
+      no_barcodes_yet: "No barcodes yet",
+      save_changes: "Save Changes",
+      select_manager: "Select Manager",
+      stock_quantity: "Stock Quantity",
+      mart_quantity: "Mart Quantity",
+      currency: "Currency",
+      warehouse_stock: "Warehouse Stock",
+      supermarket_stock: "Supermarket Stock",
+      enter_quantity: "Enter quantity",
+      max_available: "Max available",
+      units: "Units",
+
       // Currency
       etb: "ETB",
     },
@@ -602,6 +748,7 @@ const resources = {
       actions: "ድርጊቶች",
       view: "ተመልከት",
       print: "አትም",
+      profile: "ፕሮፋይል",
       download: "አውርድ",
       image: "ምስል",
       get_started: "ይጀምሩ",
@@ -632,6 +779,7 @@ const resources = {
       // POS
       pos: "የሽያጭ ቦታ",
       scan_barcode: "ባርኮድ ያስነብቡ ወይም ምርት ይፈልጉ",
+      scan_barcode_action: "ባርኮድ ስካን",
       cart: "ጋሪ",
       items: "እቃዎች",
       quantity: "ብዛት",
@@ -819,10 +967,26 @@ const resources = {
       units_of: "ክፍሎች የ",
       request_sent_for: "ጥያቄ ተልኳል ለ",
       awaiting_manager_approval: "የሥራ አስኪያጅ ፈቃድ በመጠባበቅ ላይ።",
+      awaiting_storekeeper_approval: "የመጋዘን ኃላፊ ፈቃድ በመጠባበቅ ላይ።",
       please_try_again: "እባክዎ እንደገና ይሞክሩ",
       could_not_submit_transfer: "የዝውውር ጥያቄ መላክ አልተቻለም",
       add_stock_subtitle: "ከመጋዘን ወደ ሱፐርማርኬት/ማርት ብዛት በማስተላለፍ ላይ",
+      transfer_to_store: "ወደ መጋዘን አስተላልፍ",
       inventory_subtitle: "የመጋዘንና የሱፐርማርኬት ክምችት ደረጃ ያስተዳድሩ",
+      search_and_filter_inventory: "ኢንቨንተሪን ፈልግ እና አጣራ",
+      search_and_filter_products: "ምርቶችን ፈልግ እና አጣራ",
+      find_products_by_name_barcode_category_stock_level_or_sort_order:
+        "ምርቶችን በስም፣ ባርኮድ፣ ምድብ፣ የክምችት ደረጃ ወይም የማስደርደሪያ ቅደም ተከተል ይፈልጉ።",
+      all_stock_levels: "ሁሉም የክምችት ደረጃዎች",
+      search_and_filter_stock_transfers: "የክምችት ዝውውሮችን ፈልግ እና አጣራ",
+      find_stock_transfers_by_name_barcode_category_and_sort_order:
+        "የዝውውር ምርቶችን በስም፣ ባርኮድ፣ ምድብ እና የማስደርደሪያ ቅደም ተከተል ይፈልጉ።",
+      "Search and filter products": "ምርቶችን ፈልግ እና አጣራ",
+      "Find products by name, barcode, category, stock state, or sort order.":
+        "ምርቶችን በስም፣ ባርኮድ፣ ምድብ፣ የክምችት ሁኔታ ወይም የማስደርደሪያ ቅደም ተከተል ይፈልጉ።",
+      "Search and filter inventory": "ኢንቨንተሪን ፈልግ እና አጣራ",
+      "Stock levels": "የክምችት ደረጃዎች",
+      "All stock levels": "ሁሉም የክምችት ደረጃዎች",
       search_by_name_or_barcode: "በስም ወይም ባርኮድ ይፈልጉ...",
       loading_products: "ምርቶች በመጫን ላይ...",
       no_products_found: "ምንም ምርት አልተገኘም",
@@ -862,6 +1026,7 @@ const resources = {
       warehouse_stock: "የመጋዘን ክምችት",
       supermarket_stock: "የሱፐርማርኬት ክምችት",
       quantity_to_transfer: "የሚተላለፍ ብዛት (መጋዘን -> ሱፐርማርኬት)",
+      quantity_to_transfer_back: "የሚተላለፍ ብዛት (ሱፐርማርኬት -> መጋዘን)",
       enter_quantity: "ብዛት ያስገቡ",
       max_available: "ከፍተኛ የሚገኝ",
       units: "ክፍሎች",
@@ -899,12 +1064,22 @@ const resources = {
       new_barcode: "አዲስ ባርኮድ",
       barcode_management: "የባርኮድ አስተዳደር",
       generate_scan_print_barcodes: "የምርት ባርኮዶችን ፍጠር፣ አስነብብ እና አትም",
+      cart_is_empty: "ጋሪው ባዶ ነው",
+      scan_or_search_products_to_add: "ለመጨመር ይስካን ወይም ምርቶችን ይፈልጉ",
+      product_filters: "የምርት ማጣሪያዎች",
+      pos_product_filters_description:
+        "የምርት ዝርዝርን ይፈልጉ፣ በምድብ ወይም በክምችት ሁኔታ ያጣሩ፣ እና በPOS ዝርዝር የማስደርደሪያ ቅደም ተከተል ይቆጣጠሩ።",
+      detailed_product_list: "ዝርዝር የምርት ዝርዝር",
+      detailed_product_list_description:
+        "ከመተግበሪያው ሌሎች ክፍሎች ጋር ተመሳሳይ ከሆነው ዝርዝር የክምችት ሰንጠረዥ ምርቶችን ወደ ጋሪ ያክሉ።",
+      no_mart_discount_policy_configured: "ለማርት የቅናሽ ፖሊሲ አልተቀናበረም።",
       barcode_scanner: "ባርኮድ ስካነር",
       scan_or_enter_barcode: "ባርኮድ ያስነብቡ ወይም ያስገቡ...",
       no_barcode: "ባርኮድ የለም",
       no_barcode_assigned: "ባርኮድ አልተመደበም",
       regenerate: "እንደገና ፍጠር",
       generate: "ፍጠር",
+      approval: "ማጽደቅ",
       print_label: "መለያ አትም",
       not_found: "አልተገኘም",
       no_product_found_barcode: "በዚህ ባርኮድ ምንም ምርት አልተገኘም",
@@ -1107,19 +1282,205 @@ const resources = {
       invalid_product_data: "ልክ ያልሆነ የምርት መረጃ",
       failed_generate_barcode: "ባርኮድ መፍጠር አልተሳካም",
 
+      // Scanner
+      invalid_barcode: "የተሳሳተ ባርኮድ",
+      no_camera_found: "ካሜራ አልተገኘም",
+      camera_permission_denied: "የካሜራ ፍቃድ ተከልክሏል",
+      flash_not_supported: "ፍላሽ አይደገፍም",
+      restarting_scanner: "ስካነር እየተጀመረ ነው",
+      no_camera: "ካሜራ የለም",
+      scanner_active: "ስካነር ንቁ ነው",
+      initializing: "በመጀመር ላይ",
+      use_external_scanner: "ውጭ ስካነር ተጠቀም",
+      use_external_scanner_hint: "የተለየ የባርኮድ ስካነር መሳሪያ ይጠቀሙ",
+      align_barcode_hint: "ባርኮዱን በፍሬም ውስጥ አስቀምጥ",
+      scanning_automatic_hint: "ስካን በራሱ ይከናወናል",
+      flash: "ፍላሽ",
+      style: "ቅጥ",
+
+      // Notifications extended
+      all_notifications: "ሁሉም ማሳወቂያዎች",
+      mark_all_read: "ሁሉንም እንደተነበበ ምልክት አድርግ",
+
+      // POS extended
+      stock_limit_reached: "የክምችት ገደብ ደርሷል",
+      out_of_stock: "እቃ አልቋል",
+      receipt_ready: "ደረሰኝ ዝግጁ ነው",
+      customer: "ደንበኛ",
+      no_customers: "ደንበኞች የሉም",
+      copy: "ቅዳ",
+      copied: "ተቀድቷል",
+      in_stock: "በክምችት ውስጥ",
+      image: "ምስል",
+      no_image: "ምስል የለም",
+      today: "ዛሬ",
+      overview: "አጠቃላይ እይታ",
+      any: "ማንኛውም",
+      previous: "ቀዳሚ",
+      no: "አይ",
+      available: "ይገኛል",
+      status: "ሁኔታ",
+      qty: "ብዛት",
+      others: "ሌሎች",
+
+      // Credit / Customer
+      select_customer_for_credit: "ለክሬዲት ደንበኛ ይምረጡ",
+      select_customer_for_credit_desc: "ለዚህ ሽያጭ ክሬዲት ለመተግበር ደንበኛ ይምረጡ",
+      saved_accounts: "የተቀመጡ መለያዎች",
+      not_configured: "አልተዋቀረም",
+
+      // Cashier Dashboard
+      cashier_dashboard: "የገንዘብ ያዥ ዳሽቦርድ",
+      quick_overview_today: "የዛሬ አጭር ማጠቃለያ",
+      top_items_by_sales: "ከፍተኛ ሽያጭ ያላቸው እቃዎች",
+      top_6: "ከፍተኛ 6",
+      no_sales_yet: "እስካሁን ሽያጭ የለም",
+      sales_share: "የሽያጭ ድርሻ",
+      distribution: "ስርጭት",
+      no_data: "መረጃ የለም",
+      sold_by: "የተሸጠ በ",
+      no_items_match_filters: "ከማጣሪያው ጋር የሚዛመድ እቃ የለም",
+      no_top_items_yet: "እስካሁን ከፍተኛ ሽያጭ ያላቸው እቃዎች የሉም",
+
+      // Login extended
+      remember_me: "አስታውሰኝ",
+      forgot_password: "የይለፍ ቃል ረሱ?",
+      authenticate: "አረጋግጥ",
+
+      // Dashboard extended
+      alerts_summary: "የማስጠንቀቂያ ማጠቃለያ",
+
+      // Assets extended
+      size_or_type: "መጠን/ዓይነት",
+      assigned_to: "የተመደበለት",
+      purchase_date: "የግዢ ቀን",
+
+      // Open Cash
+      open_cash: "ክፍት ገንዘብ",
+      allocate_open_cash: "ክፍት ገንዘብ መድብ",
+      current_balance: "ያለው ቀሪ ሂሳብ",
+      open_cash_note: "ማስታወሻ",
+      open_cash_amount_hint: "የሚጨመር መጠን ያስገቡ",
+      add_open_cash: "ክፍት ገንዘብ ጨምር",
+      set_balance: "ቀሪ ሂሳብ አስቀምጥ",
+      enter_valid_amount: "ትክክለኛ መጠን ያስገቡ",
+      failed_update_open_cash: "ክፍት ገንዘብ ማዘመን አልተሳካም",
+      open_cash_updated: "ክፍት ገንዘብ ተዘምኗል",
+
+      // Transfer
+      transfer: "ዝውውር",
+
+      // Expenses extended
+      no_expenses_to_export: "የሚላክ ወጪ የለም",
+      generating_pdf_wait: "PDF በመፍጠር ላይ፣ እባክዎ ይጠብቁ...",
+      expense_report: "የወጪ ሪፖርት",
+      edit_expense_description: "የወጪ ዝርዝሮችን አርትዕ",
+      add_expense_description: "አዲስ የወጪ መዝገብ ጨምር",
+      item_image: "የእቃ ምስል",
+      screenshots: "ስክሪንሾቶች",
+      pdf_generated_success: "PDF በተሳካ ሁኔታ ተፈጥሯል",
+      failed_download_pdf: "PDF ማውረድ አልተሳካም",
+      download_pdf: "PDF አውርድ",
+
+
+      // Product extended
+      select_or_create_category: "ምድብ ይምረጡ ወይም ይፍጠሩ",
+      select_or_create_unit: "አሃድ ይምረጡ ወይም ይፍጠሩ",
+      product_add_description: "አዲስ ምርት ወደ ክምችትዎ ጨምር",
+      created_by: "የተፈጠረ በ",
+      all_creators: "ሁሉም ፈጣሪዎች",
+      barcodes: "ባርኮዶች",
+      barcode_conflict: "የባርኮድ ግጭት",
+      barcode_already_assigned: "ባርኮድ ቀድሞ ተመድቧል",
+      barcode_replaced: "ባርኮድ ተተክቷል",
+      only_one_barcode_allowed: "አንድ ባርኮድ ብቻ ይፈቀዳል",
+      add_barcode: "ባርኮድ ጨምር",
+      current_barcodes: "ያሉ ባርኮዶች",
+      no_barcodes_yet: "እስካሁን ባርኮድ የለም",
+      save_changes: "ለውጦችን አስቀምጥ",
+      select_manager: "ሥራ አስኪያጅ ይምረጡ",
+      stock_quantity: "የክምችት ብዛት",
+      mart_quantity: "የማርት ብዛት",
+      currency: "ምንዛሬ",
+
+      // Sort/Filter keys
+      name_a_to_z: "ስም ሀ -> ፐ",
+      name_z_to_a: "ስም ፐ -> ሀ",
+      sort_by: "በሚከተለው አስደርድር",
+      most_sold_first: "ከፍተኛ ሽያጭ ቅድሚያ",
+      city_a_to_z: "ከተማ ሀ -> ፐ",
+      city_z_to_a: "ከተማ ፐ -> ሀ",
+      credit_low_to_high: "ክሬዲት ዝቅተኛ -> ከፍተኛ",
+      credit_high_to_low: "ክሬዲት ከፍተኛ -> ዝቅተኛ",
+      paid: "የተከፈለ",
+      unpaid: "ያልተከፈለ",
+      paid_low_to_high: "የተከፈለ ዝቅተኛ -> ከፍተኛ",
+      paid_high_to_low: "የተከፈለ ከፍተኛ -> ዝቅተኛ",
+      balance_low_to_high: "ቀሪ ዝቅተኛ -> ከፍተኛ",
+      balance_high_to_low: "ቀሪ ከፍተኛ -> ዝቅተኛ",
+      balance_status: "የቀሪ ሂሳብ ሁኔታ",
+      high_debt: "ከፍተኛ ዕዳ",
+      remaining_low_to_high: "ቀሪ ዝቅተኛ -> ከፍተኛ",
+      remaining_high_to_low: "ቀሪ ከፍተኛ -> ዝቅተኛ",
+      category_a_to_z: "ምድብ ሀ -> ፐ",
+      all_categories: "ሁሉም ምድቦች",
+      all_stock_levels: "ሁሉም የክምችት ደረጃዎች",
+      search_by_name_barcode_or_category: "በስም፣ ባርኮድ ወይም ምድብ ይፈልጉ",
+      no_products_available: "ምንም ምርት አይገኝም",
+      no_products_match_current_filters: "ከአሁኑ ማጣሪያ ጋር የሚዛመድ ምርት የለም",
+      search_and_filter_inventory: "ኢንቨንተሪን ፈልግ እና አጣራ",
+
       // Currency
       etb: "ብር",
+
+      // Common literal labels used by filter UIs
+      "Search products": "ምርቶችን ፈልግ",
+      "Search by name, category, or barcode": "በስም፣ በምድብ ወይም በባርኮድ ይፈልጉ",
+      "All categories": "ሁሉም ምድቦች",
+      "Stock status": "የክምችት ሁኔታ",
+      "All stock states": "ሁሉም የክምችት ሁኔታዎች",
+      "Sort by": "በሚከተለው አስደርድር",
+      "Name A-Z": "ስም A-Z",
+      "Name Z-A": "ስም Z-A",
+      "In stock": "በክምችት ውስጥ",
+      "Low stock": "ዝቅተኛ ክምችት",
+      "Out of stock": "ከክምችት ውጭ",
+      Apply: "ተግብር",
+      Clear: "አጽዳ",
+      Any: "ማንኛውም",
     },
   },
 };
 
+// Ensure every Amharic key exists so the UI has complete translation coverage.
+// Amharic values override English defaults where available.
+resources.am.translation = {
+  ...resources.en.translation,
+  ...resources.am.translation,
+};
+
+const LANGUAGE_STORAGE_KEY = "kiya_pos_language";
+
+const getInitialLanguage = () => {
+  if (typeof window === "undefined") return "en";
+  const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+  if (saved === "am" || saved === "en") return saved;
+  return "en";
+};
+
 i18n.use(initReactI18next).init({
   resources,
-  lng: "en",
+  lng: getInitialLanguage(),
   fallbackLng: "en",
   interpolation: {
     escapeValue: false,
   },
+});
+
+i18n.on("languageChanged", (language) => {
+  if (typeof window === "undefined") return;
+  const normalized = language.startsWith("en") ? "am" : "en";
+  window.localStorage.setItem(LANGUAGE_STORAGE_KEY, normalized);
 });
 
 export default i18n;

@@ -68,8 +68,14 @@ const defaultFilterValues: AdvancedFilterValues = {
 
 export default function ManagerProductManagement() {
   const { t } = useTranslation();
-  const { products, categories, addProduct, updateProduct, deleteProduct } =
-    useProductStore();
+  const {
+    products,
+    categories,
+    addProduct,
+    updateProduct,
+    deleteProduct,
+    fetchCategories,
+  } = useProductStore();
   const { user, isAuthenticated } = useAuthStore();
   const isOwner = user?.role === "owner";
   const canSetPurchase =
@@ -88,6 +94,7 @@ export default function ManagerProductManagement() {
   useEffect(() => {
     (async () => {
       try {
+        await (fetchCategories?.() as Promise<void>);
         await (useProductStore
           .getState()
           .fetchProducts?.(1, ITEMS_PER_PAGE) as Promise<void>);
@@ -95,7 +102,7 @@ export default function ManagerProductManagement() {
         // ignore
       }
     })();
-  }, []);
+  }, [fetchCategories]);
 
   useEffect(() => {
     let mounted = true;
@@ -180,11 +187,13 @@ export default function ManagerProductManagement() {
   });
 
   const categoryOptions = useMemo(
-    () =>
-      categories.map((category) => ({
+    () => [
+      { label: "All categories", value: "__all__" },
+      ...categories.map((category) => ({
         label: category.name,
         value: category.name,
       })),
+    ],
     [categories],
   );
 
@@ -997,7 +1006,15 @@ export default function ManagerProductManagement() {
             },
           ]}
           values={filterValues}
-          onValuesChange={setFilterValues}
+          onValuesChange={(nextValues) =>
+            setFilterValues({
+              ...nextValues,
+              category:
+                String(nextValues.category || "") === "__all__"
+                  ? ""
+                  : nextValues.category,
+            })
+          }
           onReset={() => setFilterValues(defaultFilterValues)}
           showActiveBadges={false}
         />
@@ -1018,6 +1035,7 @@ export default function ManagerProductManagement() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12 text-center">No</TableHead>
                     <TableHead className="w-12">{t("image")}</TableHead>
                     <TableHead>{t("product_name")}</TableHead>
                     <TableHead>{t("category")}</TableHead>
@@ -1038,8 +1056,11 @@ export default function ManagerProductManagement() {
                 </TableHeader>
                 <TableBody>
                   {filteredProducts.length > 0 ? (
-                    filteredProducts.map((product) => (
+                    filteredProducts.map((product, index) => (
                       <TableRow key={product.id}>
+                        <TableCell className="text-center text-muted-foreground">
+                          {startIndex + index + 1}
+                        </TableCell>
                         <TableCell>
                           {product.pictureUrl ? (
                             <img
@@ -1107,7 +1128,8 @@ export default function ManagerProductManagement() {
                                 setActiveScannerProduct(product);
                                 setIsRowScannerOpen(true);
                               }}
-                              title="Scan Barcode"
+                              title={t("scan_barcode_action")}
+                              aria-label={t("scan_barcode_action")}
                             >
                               <ScanBarcode className="h-4 w-4" />
                             </Button>
@@ -1115,6 +1137,8 @@ export default function ManagerProductManagement() {
                               variant="ghost"
                               size="icon"
                               onClick={() => handleEdit(product)}
+                              title={t("edit")}
+                              aria-label={t("edit")}
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
@@ -1124,6 +1148,8 @@ export default function ManagerProductManagement() {
                                 size="icon"
                                 onClick={() => handleDelete(product.id)}
                                 className="text-destructive hover:text-destructive"
+                                title={t("delete")}
+                                aria-label={t("delete")}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -1135,7 +1161,7 @@ export default function ManagerProductManagement() {
                   ) : (
                     <TableRow>
                       <TableCell
-                        colSpan={8}
+                        colSpan={isOwner ? 9 : 8}
                         className="text-center py-4 text-muted-foreground"
                       >
                         {Object.values(filterValues).some((value) =>

@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/hooks/use-toast";
 import { useProductStore } from "@/stores/productStore";
 import { ReceiptPreview } from "./ReceiptPreview";
@@ -142,12 +143,9 @@ export function PaymentPanel() {
   const [newChargeCustomName, setNewChargeCustomName] = useState("");
   const [newChargeAmount, setNewChargeAmount] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isFinalizingReceipt, setIsFinalizingReceipt] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
+  const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false);
   const [currentReceipt, setCurrentReceipt] = useState<Receipt | null>(null);
-  const [savedSalePayload, setSavedSalePayload] = useState<SaleRequest | null>(
-    null,
-  );
   const [paymentAccounts, setPaymentAccounts] = useState<
     Record<string, string>
   >({});
@@ -262,6 +260,131 @@ export function PaymentPanel() {
     }
   };
 
+  const persistSalePayload = async (salePayload: SaleRequest) => {
+    const queueOfflineSale = async (details?: string) => {
+      const desktopApi = (
+        window as Window & {
+          posApi?: {
+            saveSale?: (sale: Record<string, unknown>) => Promise<unknown>;
+          };
+        }
+      ).posApi;
+
+      if (!desktopApi?.saveSale) {
+        throw new Error("Desktop local database bridge unavailable");
+      }
+
+      await desktopApi.saveSale({
+        ...salePayload,
+        _authToken: user?.token,
+        queuedAt: new Date().toISOString(),
+      });
+
+      await useProductStore.getState().applyLocalSale?.(
+        Array.isArray(salePayload.items)
+          ? (
+              salePayload.items as Array<{
+                productId: string;
+                quantity: number;
+              }>
+            ).map((item) => ({
+              productId: String(item.productId || ""),
+              quantity: Number(item.quantity || 0),
+            }))
+          : [],
+      );
+
+      toast({
+        title: t("sale_complete"),
+        description:
+          details ||
+          "Sale saved locally and queued for sync when internet is available.",
+      });
+    };
+
+    try {
+      const API_BASE = import.meta.env.VITE_API_URL || "";
+      const token = user?.token;
+      const res = await fetch(`${API_BASE}/api/sales`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(salePayload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.warn("Failed to record sale", err);
+
+        if (res.status >= 400 && res.status < 500) {
+          toast({
+            title: t("failed_to_save_sale"),
+            description:
+              err && err.message
+                ? String(err.message)
+                : "Sale could not be recorded.",
+            variant: "destructive",
+          });
+          return false;
+        }
+
+        await queueOfflineSale(
+          err && err.message
+            ? `${err.message}. Saved locally for sync.`
+            : "Server unavailable. Sale saved locally for sync.",
+        );
+        clearCart();
+        return true;
+      }
+
+      toast({
+        title: t("sale_complete"),
+        description: `${t("receipt_label")}: ${salePayload.receiptId}`,
+      });
+
+      await useProductStore.getState().applyLocalSale?.(
+        Array.isArray(salePayload.items)
+          ? (
+              salePayload.items as Array<{
+                productId: string;
+                quantity: number;
+              }>
+            ).map((item) => ({
+              productId: String(item.productId || ""),
+              quantity: Number(item.quantity || 0),
+            }))
+          : [],
+      );
+
+      useProductStore
+        .getState()
+        .fetchProducts?.()
+        .catch(() => {
+          // ignore refresh errors
+        });
+
+      clearCart();
+      return true;
+    } catch (err) {
+      console.error("Record sale error", err);
+      try {
+        await queueOfflineSale("Network unavailable. Sale saved locally for sync.");
+        clearCart();
+        return true;
+      } catch (queueErr) {
+        console.error("Failed to queue sale locally", queueErr);
+        toast({
+          title: t("failed_to_save_sale"),
+          description: String(queueErr),
+          variant: "destructive",
+        });
+        return false;
+      }
+    }
+  };
+
   const handleCompleteSale = async () => {
     if (configuredPaymentMethods.length === 0) {
       toast({
@@ -296,34 +419,13 @@ export function PaymentPanel() {
 
     setIsProcessing(true);
 
-    // Re-sync product stock right before receipt generation so receipt is not
-    // shown for quantities that are no longer available.
-    try {
-      await useProductStore.getState().fetchProducts?.();
-    } catch (err) {
-      // continue with current in-memory products if refresh fails
-      console.warn("Stock refresh before receipt failed", err);
-    }
-
-    const latestProducts = useProductStore.getState().products || [];
-    const latestById = new Map(
-      latestProducts.map((product) => [String(product.id), product]),
-    );
-
     const invalidStockItems = items
       .map((item) => {
-        const latest = latestById.get(String(item.product.id));
-        const available = latest
-          ? Number(latest.quantity ?? latest.supermarketQuantity ?? 0)
-          : getMartQuantityForSaleItem(item as any);
-        const safeAvailable = Number.isFinite(available)
-          ? Math.max(0, available)
-          : 0;
-
+        const available = getMartQuantityForSaleItem(item as any);
         return {
           item,
-          available: safeAvailable,
-          invalid: safeAvailable <= 0 || item.quantity > safeAvailable,
+          available,
+          invalid: available <= 0 || item.quantity > available,
         };
       })
       .filter((entry) => entry.invalid);
@@ -342,24 +444,26 @@ export function PaymentPanel() {
       return;
     }
 
-    // Simulate processing
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    const latestBranding = await fetchMartBranding(true);
+    const latestBranding =
+      martBranding.shopName !== "Shop"
+        ? martBranding
+        : await fetchMartBranding(false);
 
     const saleId = `SALE-${Date.now()}`;
     const receiptId = `RCP-${Date.now().toString(36).toUpperCase()}`;
+    const receiptApiBase = (
+      (import.meta.env.VITE_RECEIPT_PUBLIC_BASE_URL as string | undefined)
+        ?.trim() ||
+      (import.meta.env.VITE_API_URL as string | undefined) ||
+      "http://localhost:4000"
+    ).replace(/\/+$/, "");
+    const receiptPublicUrl = `${receiptApiBase}/api/sales/receipt/${encodeURIComponent(receiptId)}/view`;
 
     // Create receipt
     const receipt: Receipt = {
       id: receiptId,
       saleId,
-      qrCodeData: JSON.stringify({
-        receiptId,
-        total: getTotal(),
-        date: new Date().toISOString(),
-        shop: latestBranding.shopName || "Shop",
-      }),
+      qrCodeData: receiptPublicUrl,
       shopName: latestBranding.shopName || "Shop",
       shopAddress: latestBranding.shopAddress,
       shopPhone: latestBranding.shopPhone,
@@ -403,7 +507,33 @@ export function PaymentPanel() {
       paymentMethod: receipt.paymentMethod,
     };
 
-    setSavedSalePayload(salePayload);
+    try {
+      const API_BASE = import.meta.env.VITE_API_URL || "";
+      const token = user?.token;
+      if (API_BASE && token) {
+        fetch(`${API_BASE}/api/sales/receipt-cache`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ receipt }),
+        }).catch((cacheErr) => {
+          // Do not block cashier flow if preview cache fails.
+          console.warn("Failed to cache receipt preview", cacheErr);
+        });
+      }
+    } catch (cacheErr) {
+      // Do not block cashier flow if preview cache setup fails.
+      console.warn("Failed to start receipt preview cache", cacheErr);
+    }
+
+    const saved = await persistSalePayload(salePayload);
+    if (!saved) {
+      setIsProcessing(false);
+      return;
+    }
+
     setCurrentReceipt(receipt);
     setShowReceipt(true);
     setIsProcessing(false);
@@ -415,152 +545,8 @@ export function PaymentPanel() {
   };
 
   const handleDoneReceipt = async () => {
-    if (isFinalizingReceipt) return;
-
-    // Save the sale to backend when Done is pressed on the receipt.
-    if (!savedSalePayload) {
-      // nothing to save, just close
-      setShowReceipt(false);
-      setCurrentReceipt(null);
-      return;
-    }
-
-    setIsFinalizingReceipt(true);
-    setIsProcessing(true);
-
-    // immediate feedback so cashier sees action started
-    toast({
-      title: t("saving_sale") || "Saving...",
-      description: t("saving_sale_desc") || "Recording sale, please wait...",
-    });
-
-    const queueOfflineSale = async (details?: string) => {
-      const desktopApi = (
-        window as Window & {
-          posApi?: {
-            saveSale?: (sale: Record<string, unknown>) => Promise<unknown>;
-          };
-        }
-      ).posApi;
-
-      try {
-        if (!desktopApi?.saveSale) {
-          throw new Error("Desktop local database bridge unavailable");
-        }
-
-        await desktopApi.saveSale({
-          ...savedSalePayload,
-          _authToken: user?.token,
-          queuedAt: new Date().toISOString(),
-        });
-
-        await useProductStore.getState().applyLocalSale?.(
-          Array.isArray(savedSalePayload.items)
-            ? (
-                savedSalePayload.items as Array<{
-                  productId: string;
-                  quantity: number;
-                }>
-              ).map((item) => ({
-                productId: String(item.productId || ""),
-                quantity: Number(item.quantity || 0),
-              }))
-            : [],
-        );
-
-        toast({
-          title: t("sale_complete"),
-          description:
-            details ||
-            "Sale saved locally and queued for sync when internet is available.",
-        });
-
-        setShowReceipt(false);
-        setCurrentReceipt(null);
-        setSavedSalePayload(null);
-        clearCart();
-      } catch (queueErr) {
-        console.error("Failed to queue sale locally", queueErr);
-        toast({
-          title: t("failed_to_save_sale"),
-          description: String(queueErr),
-          variant: "destructive",
-        });
-      }
-    };
-
-    try {
-      const API_BASE = import.meta.env.VITE_API_URL || "";
-      const token = user?.token;
-      const res = await fetch(`${API_BASE}/api/sales`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(savedSalePayload),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        console.warn("Failed to record sale", err);
-
-        if (res.status >= 400 && res.status < 500) {
-          toast({
-            title: t("failed_to_save_sale"),
-            description:
-              err && err.message
-                ? String(err.message)
-                : "Sale could not be recorded.",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        await queueOfflineSale(
-          err && err.message
-            ? `${err.message}. Saved locally for sync.`
-            : "Server unavailable. Sale saved locally for sync.",
-        );
-        return;
-      }
-
-      toast({
-        title: t("sale_complete"),
-        description: `${t("receipt_label")}: ${savedSalePayload.receiptId}`,
-      });
-      await useProductStore.getState().applyLocalSale?.(
-        Array.isArray(savedSalePayload.items)
-          ? (
-              savedSalePayload.items as Array<{
-                productId: string;
-                quantity: number;
-              }>
-            ).map((item) => ({
-              productId: String(item.productId || ""),
-              quantity: Number(item.quantity || 0),
-            }))
-          : [],
-      );
-      // refresh products so UI reflects updated quantities
-      try {
-        await useProductStore.getState().fetchProducts?.();
-      } catch (e) {
-        // ignore refresh errors
-      }
-      // clear cart and close receipt
-      setShowReceipt(false);
-      setCurrentReceipt(null);
-      setSavedSalePayload(null);
-      clearCart();
-    } catch (err) {
-      console.error("Record sale error", err);
-      await queueOfflineSale(
-        "Network unavailable. Sale saved locally for sync.",
-      );
-    } finally {
-      setIsFinalizingReceipt(false);
-      setIsProcessing(false);
-    }
+    setShowReceipt(false);
+    setCurrentReceipt(null);
   };
 
   // Fetch mart settings (payment accounts, currency, tax) and normalize keys
@@ -1205,7 +1191,7 @@ export function PaymentPanel() {
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            No mart discount policy configured.
+            {t("no_mart_discount_policy_configured")}
           </p>
         )}
       </div>
@@ -1277,7 +1263,7 @@ export function PaymentPanel() {
       <div className="space-y-2 pt-4">
         <Button
           className="w-full h-14 text-lg font-bold"
-          onClick={handleCompleteSale}
+          onClick={() => setConfirmCompleteOpen(true)}
           disabled={
             items.length === 0 ||
             isProcessing ||
@@ -1330,6 +1316,37 @@ export function PaymentPanel() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Complete Sale Confirmation */}
+      <Modal
+        isOpen={confirmCompleteOpen}
+        onClose={() => setConfirmCompleteOpen(false)}
+        title={t("complete_sale") || "Complete Sale"}
+        type="warning"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Confirm and continue to receipt preview?
+          </p>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              variant="outline"
+              onClick={() => setConfirmCompleteOpen(false)}
+            >
+              {t("cancel") || "Cancel"}
+            </Button>
+            <Button
+              onClick={async () => {
+                setConfirmCompleteOpen(false);
+                await handleCompleteSale();
+              }}
+            >
+              {t("ok") || "OK"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

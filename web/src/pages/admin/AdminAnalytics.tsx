@@ -512,7 +512,6 @@ export default function AdminAnalytics() {
               <Table>
                 <TableHeader className="bg-muted/30">
                   <TableRow className="hover:bg-transparent border-border/50">
-                    <TableHead className="w-12 text-center text-xs font-semibold">#</TableHead>
                     <TableHead className="text-xs font-semibold">Product</TableHead>
                     <TableHead className="text-xs font-semibold">Category</TableHead>
                     <TableHead className="text-xs font-semibold">Mart</TableHead>
@@ -526,7 +525,6 @@ export default function AdminAnalytics() {
                 <TableBody>
                   {paginatedProducts.map((pr, i) => (
                     <TableRow key={pr._id} className="border-border/40 hover:bg-muted/20 transition-colors">
-                      <TableCell className="text-muted-foreground text-[10px] text-center">{(page - 1) * ROWS_PER_PAGE + i + 1}</TableCell>
                       <TableCell className="font-medium text-sm">{pr.name}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-[10px] font-normal border-border/50">{pr.category}</Badge>
@@ -553,7 +551,7 @@ export default function AdminAnalytics() {
                   ))}
                   {paginatedProducts.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-muted-foreground py-12">
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-12">
                         <div className="flex flex-col items-center gap-2">
                           <Package className="h-8 w-8 opacity-20" />
                           <p>No products found matching your filters</p>

@@ -28,6 +28,7 @@ const roleDashboards: Record<UserRole, string> = {
 
 export default function Login() {
   const { t, i18n } = useTranslation();
+  const isAmharic = i18n.resolvedLanguage?.startsWith("am") ?? i18n.language.startsWith("am");
   const navigate = useNavigate();
   const { login, isLoading } = useAuthStore();
 
@@ -78,7 +79,7 @@ export default function Login() {
   };
 
   const toggleLanguage = () => {
-    i18n.changeLanguage(i18n.language === "en" ? "am" : "en");
+    i18n.changeLanguage(isAmharic ? "en" : "am");
   };
 
   return (
@@ -111,7 +112,7 @@ export default function Login() {
             onClick={toggleLanguage}
             className="gap-2"
           >
-            {i18n.language === "en" ? "🇪🇹 አማርኛ" : "🇺🇸 English"}
+            {isAmharic ? "🇺🇸 English" : "🇪🇹 አማርኛ"}
           </Button>
         </div>
 

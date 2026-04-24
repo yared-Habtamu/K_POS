@@ -208,13 +208,6 @@ const ReportPage: React.FC = () => {
   >(
     () => [
       {
-        key: "rank",
-        header: "#",
-        accessor: "rank",
-        headerClassName: "w-16 text-muted-foreground",
-        className: "text-muted-foreground",
-      },
-      {
         key: "name",
         header: t("product"),
         accessor: "name",

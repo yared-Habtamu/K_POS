@@ -31,6 +31,7 @@ export default function Index() {
   const { isAuthenticated, user } = useAuthStore();
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
+  const isAmharic = i18n.resolvedLanguage?.startsWith('am') ?? i18n.language.startsWith('am');
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -71,8 +72,8 @@ export default function Index() {
 
         <div className="relative container mx-auto px-4 py-20 md:py-32">
           <div className="flex justify-end mb-8">
-            <Button variant="outline" size="sm" onClick={() => i18n.changeLanguage(i18n.language === 'en' ? 'am' : 'en')}>
-              {i18n.language === 'en' ? '🇪🇹 አማርኛ' : '🇺🇸 English'}
+            <Button variant="outline" size="sm" onClick={() => i18n.changeLanguage(isAmharic ? 'en' : 'am')}>
+              {isAmharic ? '🇺🇸 English' : '🇪🇹 አማርኛ'}
             </Button>
           </div>
 

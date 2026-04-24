@@ -141,6 +141,8 @@ const App = () => {
             <Route path="/owner/products" element={<ProductManagement />} />
             <Route path="/owner/products/add" element={<ProductAdd />} />
             <Route path="/owner/inventory" element={<StockManagement />} />
+            <Route path="/owner/add-stock" element={<StockManagement />} />
+            <Route path="/owner/addstock" element={<StockManagement />} />
             <Route
               path="/owner/employees"
               element={<OwnerEmployeeManagement />}

@@ -5,7 +5,10 @@ import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 
 const SUPPORT_EMAIL = (import.meta.env.VITE_SUPPORT_EMAIL) || 'support@smartpos.example';
-const SUPPORT_PHONE = (import.meta.env.VITE_SUPPORT_PHONE) || '+251-900-000-000';
+const SUPPORT_PHONE =
+  (import.meta.env.VITE_REGISTER_SUPPORT_PHONE as string | undefined) ||
+  (import.meta.env.VITE_SUPPORT_PHONE as string | undefined) ||
+  '+251-900-000-000';
 
 export default function RegisterWaiting() {
   const { id } = useParams();

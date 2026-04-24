@@ -233,7 +233,8 @@ export function DataTable<TData>({
   const pagedRows = pagination ? sortedRows.slice(startIndex, startIndex + pageSize) : sortedRows;
   const firstRowNumber = totalRows === 0 ? 0 : startIndex + 1;
   const lastRowNumber = pagination ? Math.min(startIndex + pageSize, totalRows) : totalRows;
-  const colSpan = columns.length + (hasBuiltInActions ? 1 : 0);
+  const showNumberColumn = pagination;
+  const colSpan = columns.length + (showNumberColumn ? 1 : 0) + (hasBuiltInActions ? 1 : 0);
 
   const updateSearch = (value: string) => {
     if (onSearchChange) {
@@ -316,6 +317,7 @@ export function DataTable<TData>({
           <Table className={cn("min-w-full", tableClassName)}>
           <TableHeader>
             <TableRow className="bg-muted/30 hover:bg-muted/30">
+              {showNumberColumn ? <TableHead className="w-14 text-center">No</TableHead> : null}
               {columns.map((column) => {
                 const isSorted = sortState?.columnKey === column.key;
 
@@ -367,6 +369,11 @@ export function DataTable<TData>({
                   className={cn("group", onRowClick && "cursor-pointer hover:bg-muted/50 transition-colors")}
                   onClick={() => onRowClick?.(row)}
                 >
+                  {showNumberColumn ? (
+                    <TableCell className="text-center text-muted-foreground">
+                      {startIndex + index + 1}
+                    </TableCell>
+                  ) : null}
                   {columns.map((column) => (
                     <TableCell key={column.key} className={cn(column.className)}>
                       {column.cell ? column.cell(row) : String(getRowValue(row, column.accessor) ?? "—")}
