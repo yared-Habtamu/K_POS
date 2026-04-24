@@ -51,7 +51,7 @@ export function printBarcodeLabel(params: {
   price?: string | number;
   shopName?: string;
 }) {
-  const { barcode } = params;
+  const { barcode, productName, price, shopName } = params;
   if (!barcode) return;
 
   const dataUrl = generateBarcodeDataUrl(barcode);
@@ -74,6 +74,15 @@ export function printBarcodeLabel(params: {
   }
 
   iframeDoc.open();
+  const safeShopName = String(shopName || "").trim();
+  const safeProductName = String(productName || "").trim();
+  const parsedPrice =
+    typeof price === "number"
+      ? price
+      : Number(String(price || "").trim());
+  const showPrice = Number.isFinite(parsedPrice);
+  const priceLabel = showPrice ? `${parsedPrice.toFixed(2)} ETB` : "";
+
   iframeDoc.write(`
     <!DOCTYPE html>
     <html>
@@ -86,23 +95,60 @@ export function printBarcodeLabel(params: {
           }
           body {
             margin: 0;
-            padding: 0;
+            padding: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
             width: 100%;
             height: 100%;
+            font-family: Arial, sans-serif;
+            color: #111111;
+            background: #ffffff;
+          }
+          .label {
+            width: 280px;
+            text-align: center;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 8px 10px;
+            box-sizing: border-box;
+          }
+          .shop {
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 4px;
           }
           img {
             max-width: 100%;
             height: auto;
             display: block;
-            margin: auto;
+            margin: 0 auto;
+          }
+          .meta {
+            margin-top: 6px;
+            line-height: 1.35;
+          }
+          .product {
+            font-size: 12px;
+            font-weight: 600;
+            word-break: break-word;
+          }
+          .price {
+            font-size: 13px;
+            font-weight: 700;
+            margin-top: 2px;
           }
         </style>
       </head>
       <body>
-        <img src="${dataUrl}" alt="Barcode" />
+        <div class="label">
+          ${safeShopName ? `<div class="shop">${safeShopName}</div>` : ""}
+          <img src="${dataUrl}" alt="Barcode" />
+          <div class="meta">
+            ${safeProductName ? `<div class="product">${safeProductName}</div>` : ""}
+            ${showPrice ? `<div class="price">${priceLabel}</div>` : ""}
+          </div>
+        </div>
       </body>
     </html>
   `);

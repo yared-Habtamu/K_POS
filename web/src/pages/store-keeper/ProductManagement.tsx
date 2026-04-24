@@ -222,6 +222,7 @@ export default function StoreKeeperProductManagement() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12 text-center">No</TableHead>
                     <TableHead className="w-12">{t("image")}</TableHead>
                     <TableHead>{t("product_name")}</TableHead>
                     <TableHead>{t("category")}</TableHead>
@@ -232,8 +233,11 @@ export default function StoreKeeperProductManagement() {
                 </TableHeader>
                 <TableBody>
                   {filteredProducts.length > 0 ? (
-                    filteredProducts.map((product) => (
+                    filteredProducts.map((product, index) => (
                       <TableRow key={product.id}>
+                        <TableCell className="text-center text-muted-foreground">
+                          {startIndex + index + 1}
+                        </TableCell>
                         <TableCell>
                           {product.pictureUrl ? (
                             <img
@@ -272,7 +276,7 @@ export default function StoreKeeperProductManagement() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="py-4 text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="py-4 text-center text-muted-foreground">
                         {Object.values(filterValues).some((value) => Boolean(value)) ? "No products found" : "No products yet."}
                       </TableCell>
                     </TableRow>

@@ -387,15 +387,8 @@ export const useProductStore = create<ProductState>((set, get) => ({
       set((state) => ({ products: [...state.products, newProduct] }));
       return { status: res.status, data: newProduct };
     } catch (err) {
-      console.warn("addProduct failed, falling back to mock add", err);
-      const newProduct: Product = {
-        ...productData,
-        id: `prod-${Date.now()}`,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      } as Product;
-      set((state) => ({ products: [...state.products, newProduct] }));
-      return { status: 201, data: newProduct };
+      console.error("addProduct failed:", err);
+      throw err;
     }
   },
 

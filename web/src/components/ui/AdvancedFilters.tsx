@@ -127,21 +127,6 @@ function getEmptyValue(field: AdvancedFilterField): AdvancedFilterFieldValue {
   return "";
 }
 
-function getFieldBadgeLabel(field: AdvancedFilterField, value: AdvancedFilterFieldValue) {
-  if (field.type === "date-range" && isDateRangeValue(value)) {
-    const from = value.from || "Any";
-    const to = value.to || "Any";
-    return `${String(field.label)}: ${from} - ${to}`;
-  }
-
-  if (field.type === "select") {
-    const selectedOption = field.options.find((option) => option.value === value);
-    return `${String(field.label)}: ${selectedOption?.label ?? value}`;
-  }
-
-  return `${String(field.label)}: ${String(value)}`;
-}
-
 export function AdvancedFilters({
   title,
   description,
@@ -159,12 +144,29 @@ export function AdvancedFilters({
   className,
 }: AdvancedFiltersProps) {
   const { t } = useTranslation();
+  const translateText = React.useCallback(
+    (value?: string) => (value ? t(value, { defaultValue: value }) : ""),
+    [t],
+  );
+  const resolveNode = React.useCallback(
+    (value: React.ReactNode) =>
+      typeof value === "string" ? translateText(value) : value,
+    [translateText],
+  );
+  const resolveNodeText = React.useCallback(
+    (value: React.ReactNode) => {
+      if (typeof value === "string") return translateText(value);
+      if (typeof value === "number") return String(value);
+      return "";
+    },
+    [translateText],
+  );
   const [internalValues, setInternalValues] = React.useState<AdvancedFilterValues>(defaultValues);
   const [isExpanded, setIsExpanded] = React.useState(defaultExpanded);
-  const resolvedTitle = title ?? t("advanced_filters");
-  const resolvedDescription = description ?? t("advanced_filters_description");
-  const resolvedApplyLabel = applyLabel ?? t("apply_filters");
-  const resolvedResetLabel = resetLabel ?? t("reset");
+  const resolvedTitle = resolveNode(title ?? t("advanced_filters"));
+  const resolvedDescription = resolveNode(description ?? t("advanced_filters_description"));
+  const resolvedApplyLabel = resolveNode(applyLabel ?? t("apply_filters"));
+  const resolvedResetLabel = resolveNode(resetLabel ?? t("reset"));
 
   const filterValues = values ?? internalValues;
 
@@ -228,7 +230,26 @@ export function AdvancedFilters({
           <div className="flex flex-wrap gap-2">
             {activeFields.map((field) => (
               <Badge key={field.key} variant="outline" className="gap-2 px-3 py-1">
-                <span>{getFieldBadgeLabel(field, filterValues[field.key])}</span>
+                <span>
+                  {(() => {
+                    const value = filterValues[field.key];
+                    const labelText = resolveNodeText(field.label);
+
+                    if (field.type === "date-range" && isDateRangeValue(value)) {
+                      const from = value.from || t("any", { defaultValue: "Any" });
+                      const to = value.to || t("any", { defaultValue: "Any" });
+                      return `${labelText}: ${from} - ${to}`;
+                    }
+
+                    if (field.type === "select") {
+                      const selectedOption = field.options.find((option) => option.value === value);
+                      const optionLabel = translateText(selectedOption?.label ?? String(value ?? ""));
+                      return `${labelText}: ${optionLabel}`;
+                    }
+
+                    return `${labelText}: ${String(value ?? "")}`;
+                  })()}
+                </span>
                 <button
                   type="button"
                   className="inline-flex items-center"
@@ -251,7 +272,7 @@ export function AdvancedFilters({
 
               return (
                 <div key={field.key} className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">{field.label}</label>
+                  <label className="text-sm font-medium text-foreground">{resolveNode(field.label)}</label>
 
                   {field.type === "search" ? (
                     <div className="relative">
@@ -259,7 +280,7 @@ export function AdvancedFilters({
                       <Input
                         value={typeof value === "string" ? value : ""}
                         onChange={(event) => setFieldValue(field.key, event.target.value)}
-                        placeholder={field.placeholder}
+                        placeholder={translateText(field.placeholder)}
                         className="pl-10"
                       />
                     </div>
@@ -268,12 +289,12 @@ export function AdvancedFilters({
                   {field.type === "select" ? (
                     <Select value={typeof value === "string" ? value : ""} onValueChange={(nextValue) => setFieldValue(field.key, nextValue)}>
                       <SelectTrigger>
-                        <SelectValue placeholder={field.placeholder ?? t("select_option")} />
+                        <SelectValue placeholder={translateText(field.placeholder) || t("select_option")} />
                       </SelectTrigger>
                       <SelectContent>
                         {field.options.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
-                            {option.label}
+                            {translateText(option.label)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -327,7 +348,7 @@ export function AdvancedFilters({
                       })
                     : null}
 
-                  {field.helperText ? <p className="text-xs text-muted-foreground">{field.helperText}</p> : null}
+                  {field.helperText ? <p className="text-xs text-muted-foreground">{resolveNode(field.helperText)}</p> : null}
                 </div>
               );
             })}

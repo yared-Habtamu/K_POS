@@ -174,7 +174,8 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
         {
           label: "add_stock",
           icon: ClipboardList,
-          path: "/store-keeper/add-stock",
+          path: "/owner/add-stock",
+          activePaths: ["/store-keeper/add-stock"],
         },
       ],
     },

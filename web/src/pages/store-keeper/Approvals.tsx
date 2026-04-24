@@ -24,11 +24,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuthStore } from "@/stores/authStore";
 import { toast } from "@/hooks/use-toast";
-import type { ProductAddRequest, ProductEditRequest } from "@/types";
+import type {
+  ProductAddRequest,
+  ProductEditRequest,
+  StockTransferRequest,
+} from "@/types";
 import { Check, ClipboardList, Loader2, RotateCw, X } from "lucide-react";
 
 type ApprovalDecision = {
-  type: "add" | "edit";
+  type: "add" | "edit" | "transfer";
   id: string;
   action: "approve" | "reject";
   itemLabel: string;
@@ -40,6 +44,9 @@ export default function StoreKeeperApprovals() {
 
   const [addRequests, setAddRequests] = useState<ProductAddRequest[]>([]);
   const [editRequests, setEditRequests] = useState<ProductEditRequest[]>([]);
+  const [transferRequests, setTransferRequests] = useState<
+    StockTransferRequest[]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<
     "pending" | "approved" | "rejected" | "all"
@@ -53,25 +60,34 @@ export default function StoreKeeperApprovals() {
       const qs = new URLSearchParams();
       if (statusFilter !== "all") qs.append("status", statusFilter);
 
-      const [addRes, editRes] = await Promise.all([
+      const [addRes, editRes, transferRes] = await Promise.all([
         fetch(`${API_BASE}/api/product-add-requests?${qs.toString()}`, {
           headers: { Authorization: token ? `Bearer ${token}` : "" },
         }),
         fetch(`${API_BASE}/api/product-edit-requests?${qs.toString()}`, {
           headers: { Authorization: token ? `Bearer ${token}` : "" },
         }),
+        fetch(
+          `${API_BASE}/api/stock-transfer-requests?${qs.toString()}&approvalRole=store_keeper`,
+          {
+            headers: { Authorization: token ? `Bearer ${token}` : "" },
+          },
+        ),
       ]);
 
       const addData = addRes.ok ? await addRes.json() : [];
       const editData = editRes.ok ? await editRes.json() : [];
+      const transferData = transferRes.ok ? await transferRes.json() : [];
 
       setAddRequests(Array.isArray(addData) ? addData : []);
       setEditRequests(Array.isArray(editData) ? editData : []);
+      setTransferRequests(Array.isArray(transferData) ? transferData : []);
     } catch (err) {
       console.error("Failed to load store keeper approvals", err);
       toast({ title: "Failed to load approvals", variant: "destructive" });
       setAddRequests([]);
       setEditRequests([]);
+      setTransferRequests([]);
     } finally {
       setLoading(false);
     }
@@ -83,13 +99,17 @@ export default function StoreKeeperApprovals() {
   }, [statusFilter]);
 
   const actOnRequest = async (
-    type: "add" | "edit",
+    type: "add" | "edit" | "transfer",
     id: string,
     action: "approve" | "reject",
   ) => {
     try {
       const basePath =
-        type === "edit" ? "product-edit-requests" : "product-add-requests";
+        type === "edit"
+          ? "product-edit-requests"
+          : type === "transfer"
+            ? "stock-transfer-requests"
+            : "product-add-requests";
       const res = await fetch(`${API_BASE}/api/${basePath}/${id}/${action}`, {
         method: "PUT",
         headers: {
@@ -133,8 +153,11 @@ export default function StoreKeeperApprovals() {
     const editPending = editRequests.filter(
       (request) => request.status === "pending",
     ).length;
-    return addPending + editPending;
-  }, [addRequests, editRequests]);
+    const transferPending = transferRequests.filter(
+      (request) => request.status === "pending",
+    ).length;
+    return addPending + editPending + transferPending;
+  }, [addRequests, editRequests, transferRequests]);
 
   return (
     <RoleLayout allowedRoles={["store_keeper"]}>
@@ -192,6 +215,128 @@ export default function StoreKeeperApprovals() {
             <div className="md:col-span-2 flex items-center gap-2 text-sm text-muted-foreground">
               <Badge variant="secondary">Pending: {pendingCount}</Badge>
               <span>These requests are assigned to Store Keeper approval.</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ClipboardList className="h-5 w-5" />
+              Stock Transfer Requests
+              <Badge variant="secondary">{transferRequests.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product</TableHead>
+                    <TableHead>Direction</TableHead>
+                    <TableHead className="text-right">Quantity</TableHead>
+                    <TableHead>Requester</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {transferRequests.length > 0 ? (
+                    transferRequests.map((request) => {
+                      const id = String(request._id || request.id || "");
+                      const isPending = request.status === "pending";
+                      const productLabel =
+                        typeof request.productId === "object" &&
+                        request.productId !== null &&
+                        "name" in request.productId
+                          ? String(request.productId.name || "-")
+                          : String(request.productId || "-");
+                      const fromLabel =
+                        request.fromLocation === "mart" ? "Mart" : "Store";
+                      const toLabel =
+                        request.toLocation === "store" ? "Store" : "Mart";
+
+                      return (
+                        <TableRow key={id}>
+                          <TableCell className="font-medium">
+                            {productLabel}
+                          </TableCell>
+                          <TableCell>{`${fromLabel} -> ${toLabel}`}</TableCell>
+                          <TableCell className="text-right">
+                            {Number(request.quantity || 0)}
+                          </TableCell>
+                          <TableCell>
+                            {request.requesterName || "Owner"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={
+                                request.status === "approved"
+                                  ? "default"
+                                  : request.status === "rejected"
+                                    ? "destructive"
+                                    : "secondary"
+                              }
+                            >
+                              {request.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {isPending ? (
+                              <div className="inline-flex items-center gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    setPendingDecision({
+                                      type: "transfer",
+                                      id,
+                                      action: "reject",
+                                      itemLabel: "this transfer request",
+                                    })
+                                  }
+                                >
+                                  <X className="mr-1 h-4 w-4" />
+                                  Reject
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() =>
+                                    setPendingDecision({
+                                      type: "transfer",
+                                      id,
+                                      action: "approve",
+                                      itemLabel: "this transfer request",
+                                    })
+                                  }
+                                >
+                                  <Check className="mr-1 h-4 w-4" />
+                                  Approve
+                                </Button>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">
+                                {request.approverName
+                                  ? `By ${request.approverName}`
+                                  : "Processed"}
+                              </span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell
+                        colSpan={6}
+                        className="py-6 text-center text-muted-foreground"
+                      >
+                        No stock transfer requests found.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
             </div>
           </CardContent>
         </Card>

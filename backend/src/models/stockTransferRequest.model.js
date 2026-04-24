@@ -7,6 +7,7 @@ const StockTransferRequestSchema = new mongoose.Schema(
     quantity: { type: Number, required: true },
     fromLocation: { type: String, default: 'store' },
     toLocation: { type: String, default: 'mart' },
+    approvalRole: { type: String, enum: ['manager', 'store_keeper'], default: 'manager', index: true },
     requesterId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     requesterName: { type: String },
     status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },

@@ -1436,6 +1436,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-12 text-center">No</TableHead>
                         <TableHead>{t("employee_name")}</TableHead>
                         <TableHead>{t("phone")}</TableHead>
                         <TableHead>{t("role")}</TableHead>
@@ -1450,8 +1451,11 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                     </TableHeader>
                     <TableBody>
                       {paginatedEmployees.length > 0 ? (
-                        paginatedEmployees.map((e) => (
+                        paginatedEmployees.map((e, index) => (
                           <TableRow key={e.id}>
+                            <TableCell className="text-center text-muted-foreground">
+                              {employeeStartIndex + index + 1}
+                            </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-3">
                                 <Avatar className="h-9 w-9">
@@ -1533,7 +1537,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                       ) : (
                         <TableRow>
                           <TableCell
-                            colSpan={6}
+                            colSpan={7}
                             className="text-center py-4 text-muted-foreground"
                           >
                             {search || roleFilter !== "all"

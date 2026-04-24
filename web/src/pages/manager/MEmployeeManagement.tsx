@@ -1392,6 +1392,7 @@ export default function MEmployeeManagement(): JSX.Element {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-12 text-center">No</TableHead>
                         <TableHead>{t("employee_name") || "Name"}</TableHead>
                         <TableHead>{t("phone") || "Phone"}</TableHead>
                         <TableHead>{t("role") || "Role"}</TableHead>
@@ -1405,8 +1406,11 @@ export default function MEmployeeManagement(): JSX.Element {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {paginatedEmployees.map((e) => (
+                      {paginatedEmployees.map((e, index) => (
                         <TableRow key={e.id}>
+                          <TableCell className="text-center text-muted-foreground">
+                            {employeeStartIndex + index + 1}
+                          </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <Avatar className="h-9 w-9">

@@ -69,6 +69,8 @@ function getMartQuantity(product: Product) {
   return Number(product.quantity ?? product.supermarketQuantity ?? 0);
 }
 
+type TransferType = "store_to_mart" | "mart_to_store";
+
 function getSoldQuantity(product: Product) {
   return Math.max(0, Number(product._sold || 0));
 }
@@ -104,6 +106,7 @@ export default function StockManagement() {
   const [filterValues, setFilterValues] = useState<AdvancedFilterValues>(defaultFilterValues);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [addQuantity, setAddQuantity] = useState("");
+  const [transferType, setTransferType] = useState<TransferType>("store_to_mart");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [barcodeEditOpen, setBarcodeEditOpen] = useState(false);
   const [barcodeValue, setBarcodeValue] = useState("");
@@ -187,13 +190,43 @@ export default function StockManagement() {
     if (qty <= 0) return;
     const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
     try {
+      // Pre-submit: fetch latest product quantities to avoid submitting stale data
+      try {
+        const latestRes = await fetch(`${API_BASE}/api/products/${selectedProduct.id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (latestRes.ok) {
+          const latest = await latestRes.json().catch(() => null);
+          if (latest) {
+            const latestStore = Number(latest.storeQuantity ?? 0);
+            const latestMart = Number(latest.supermarketQuantity ?? latest.quantity ?? 0);
+            if (transferType === "mart_to_store" && latestMart < qty) {
+              throw new Error("Not enough stock in mart to transfer");
+            }
+            if (transferType === "store_to_mart" && latestStore < qty) {
+              throw new Error("Not enough stock in store to transfer");
+            }
+          }
+        }
+      } catch (preErr) {
+        // If pre-check fails with an explicit error, show it and abort submission
+        if (preErr instanceof Error && /Not enough stock/.test(preErr.message)) {
+          toast({ title: t("could_not_submit_transfer"), description: preErr.message, variant: "destructive" });
+          return;
+        }
+        // otherwise ignore pre-check errors and continue to server submit
+      }
       const res = await fetch(`${API_BASE}/api/stock-transfer-requests`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: token ? `Bearer ${token}` : "",
         },
-        body: JSON.stringify({ productId: selectedProduct.id, quantity: qty }),
+        body: JSON.stringify({
+          productId: selectedProduct.id,
+          quantity: qty,
+          transferType,
+        }),
       });
       const body = await res.json().catch(() => null);
       console.debug("stock transfer response", res.status, body);
@@ -211,7 +244,7 @@ export default function StockManagement() {
       } else {
         toast({
           title: t("transfer_submitted"),
-          description: `${t("request_sent_for")} ${qty} ${t("units_of")} ${selectedProduct.name}. ${t("awaiting_manager_approval")}`,
+          description: `${t("request_sent_for")} ${qty} ${t("units_of")} ${selectedProduct.name}. ${transferType === "mart_to_store" ? t("awaiting_storekeeper_approval") : t("awaiting_manager_approval")}`,
         });
       }
       try {
@@ -229,6 +262,7 @@ export default function StockManagement() {
       setIsDialogOpen(false);
       setSelectedProduct(null);
       setAddQuantity("");
+      setTransferType("store_to_mart");
     } catch (err: unknown) {
       let msg = t("please_try_again");
       if (err instanceof Error && err.message) msg = err.message;
@@ -242,6 +276,14 @@ export default function StockManagement() {
   };
 
   const openAddStockDialog = (product: Product) => {
+    setTransferType("store_to_mart");
+    setSelectedProduct(product);
+    setAddQuantity("");
+    setIsDialogOpen(true);
+  };
+
+  const openTransferToStoreDialog = (product: Product) => {
+    setTransferType("mart_to_store");
     setSelectedProduct(product);
     setAddQuantity("");
     setIsDialogOpen(true);
@@ -445,8 +487,18 @@ export default function StockManagement() {
         {/* Dashboard stats removed from inventory page to avoid duplication; inventory page focuses on stock management */}
 
         <AdvancedFilters
-          title={isAddStockPage ? "Search and filter stock transfers" : "Search and filter inventory"}
-          description="Search products by name, barcode, category, stock level, and sort order."
+          title={
+            isAddStockPage
+              ? t("search_and_filter_stock_transfers")
+              : t("search_and_filter_inventory")
+          }
+          description={
+            isAddStockPage
+              ? t("find_stock_transfers_by_name_barcode_category_and_sort_order")
+              : t(
+                  "find_products_by_name_barcode_category_stock_level_or_sort_order",
+                )
+          }
           fields={[
             {
               key: "query",
@@ -576,6 +628,16 @@ export default function StockManagement() {
                         icon: Plus,
                         disabled: !canTransfer,
                       },
+                      ...(isOwner
+                        ? [
+                            {
+                              label: t("transfer_to_store"),
+                              onSelect: () => openTransferToStoreDialog(product),
+                              icon: ArrowRight,
+                              disabled: !canTransfer,
+                            },
+                          ]
+                        : []),
                       {
                         label: t("edit_barcodes"),
                         onSelect: () => openBarcodeEditor(product),
@@ -598,8 +660,9 @@ export default function StockManagement() {
             setIsDialogOpen(false);
             setSelectedProduct(null);
             setAddQuantity("");
+            setTransferType("store_to_mart");
           }}
-          title={t("add_stock")}
+          title={transferType === "mart_to_store" ? t("transfer_to_store") : t("add_stock")}
           size="lg"
           type="info"
         >
@@ -656,19 +719,31 @@ export default function StockManagement() {
 
                 {/* Add Quantity */}
                 <div className="space-y-2">
-                  <Label htmlFor="addQty">{t("quantity_to_transfer")}</Label>
+                  <Label htmlFor="addQty">
+                    {transferType === "mart_to_store"
+                      ? t("quantity_to_transfer_back")
+                      : t("quantity_to_transfer")}
+                  </Label>
                   <Input
                     id="addQty"
                     type="number"
                     placeholder={t("enter_quantity")}
                     value={addQuantity}
                     onChange={(e) => setAddQuantity(e.target.value)}
-                    max={selectedProduct.storeQuantity}
+                    max={
+                      transferType === "mart_to_store"
+                        ? getMartQuantity(selectedProduct)
+                        : selectedProduct.storeQuantity
+                    }
                     min={1}
                   />
-                  {selectedProduct.storeQuantity > 0 && (
+                  {(transferType === "mart_to_store"
+                    ? getMartQuantity(selectedProduct)
+                    : selectedProduct.storeQuantity) > 0 && (
                     <p className="text-xs text-muted-foreground">
-                      {t("max_available")}: {selectedProduct.storeQuantity}{" "}
+                      {t("max_available")}: {transferType === "mart_to_store"
+                        ? getMartQuantity(selectedProduct)
+                        : selectedProduct.storeQuantity}{" "}
                       {t("units")}
                     </p>
                   )}
@@ -681,19 +756,37 @@ export default function StockManagement() {
                       {t("after_transfer")}
                     </p>
                     <div className="flex items-center justify-between text-sm">
-                      <span>
-                        {t("warehouse")}:{" "}
-                        {Math.max(
-                          0,
-                          selectedProduct.storeQuantity - parseInt(addQuantity),
-                        )}
-                      </span>
-                      <ArrowRight className="w-4 h-4" />
-                      <span>
-                        {t("supermarket")}:{" "}
-                        {getMartQuantity(selectedProduct) +
-                          parseInt(addQuantity)}
-                      </span>
+                      {transferType === "mart_to_store" ? (
+                        <>
+                          <span>
+                            {t("supermarket")}: {" "}
+                            {Math.max(
+                              0,
+                              getMartQuantity(selectedProduct) - parseInt(addQuantity),
+                            )}
+                          </span>
+                          <ArrowRight className="w-4 h-4" />
+                          <span>
+                            {t("warehouse")}: {" "}
+                            {selectedProduct.storeQuantity + parseInt(addQuantity)}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span>
+                            {t("warehouse")}: {" "}
+                            {Math.max(
+                              0,
+                              selectedProduct.storeQuantity - parseInt(addQuantity),
+                            )}
+                          </span>
+                          <ArrowRight className="w-4 h-4" />
+                          <span>
+                            {t("supermarket")}: {" "}
+                            {getMartQuantity(selectedProduct) + parseInt(addQuantity)}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}
@@ -705,6 +798,7 @@ export default function StockManagement() {
                       setIsDialogOpen(false);
                       setSelectedProduct(null);
                       setAddQuantity("");
+                      setTransferType("store_to_mart");
                     }}
                   >
                     {t("cancel")}
@@ -714,7 +808,10 @@ export default function StockManagement() {
                     disabled={
                       !addQuantity ||
                       parseInt(addQuantity) <= 0 ||
-                      parseInt(addQuantity) > selectedProduct.storeQuantity ||
+                      parseInt(addQuantity) >
+                        (transferType === "mart_to_store"
+                          ? getMartQuantity(selectedProduct)
+                          : selectedProduct.storeQuantity) ||
                       (user &&
                         user.role === "store_keeper" &&
                         !(

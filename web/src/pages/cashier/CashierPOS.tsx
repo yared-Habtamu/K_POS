@@ -399,8 +399,8 @@ export default function CashierPOS() {
             transition={{ delay: 0.1 }}
           >
             <AdvancedFilters
-              title="Product filters"
-              description="Search the product catalog, narrow by category or stock state, and control the POS list sort order."
+              title={t("product_filters")}
+              description={t("pos_product_filters_description")}
               fields={[
                 {
                   key: "query",
@@ -473,8 +473,8 @@ export default function CashierPOS() {
               columns={productColumns}
               data={filteredProducts}
               rowKey="id"
-              title="Detailed product list"
-              description="Add products to the cart from the same detailed inventory table layout used elsewhere in the app."
+              title={t("detailed_product_list")}
+              description={t("detailed_product_list_description")}
               isLoading={isLoading}
               loadingMessage="Loading products..."
               emptyMessage={

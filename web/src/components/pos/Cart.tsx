@@ -109,8 +109,8 @@ export function Cart() {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground py-12">
         <ShoppingCart className="w-16 h-16 mb-4 opacity-50" />
-        <p className="text-lg font-medium">{t("cart")} is empty</p>
-        <p className="text-sm">Scan or search products to add</p>
+        <p className="text-lg font-medium">{t("cart_is_empty")}</p>
+        <p className="text-sm">{t("scan_or_search_products_to_add")}</p>
       </div>
     );
   }

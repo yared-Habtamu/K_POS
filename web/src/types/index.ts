@@ -148,8 +148,11 @@ export interface StockTransferRequest {
   id?: string;
   _id?: string;
   martId: string;
-  productId: string;
+  productId: string | { _id?: string; name?: string };
   quantity: number;
+  fromLocation?: "store" | "mart";
+  toLocation?: "store" | "mart";
+  approvalRole?: "manager" | "store_keeper";
   requesterId: string;
   requesterName?: string;
   status: "pending" | "approved" | "rejected";
