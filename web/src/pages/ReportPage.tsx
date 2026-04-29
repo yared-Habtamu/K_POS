@@ -107,6 +107,7 @@ const ReportPage: React.FC = () => {
     totalOrders: 0,
     totalItemsSold: 0,
     avgOrderValue: "0.00",
+    expenses: "0.00",
     grossSales: "0.00",
     netSales: "0.00",
     discounts: "0.00",
@@ -142,12 +143,12 @@ const ReportPage: React.FC = () => {
     const revenue = Number(localData.revenue || 0);
     const cogs = Number(localData.cogs || 0);
     const grossProfit = revenue - cogs;
-    const netProfit =
-      grossProfit -
-      Number(localData.taxes || 0) -
-      Number(localData.discounts || 0);
+    // Prefer server-provided netProfit (matches dashboard). Otherwise compute as grossProfit - expenses.
+    const serverNet = Number(localData.netProfit || 0);
+    const expensesVal = Number(localData.expenses || 0);
+    const netProfit = serverNet !== 0 ? serverNet : grossProfit - expensesVal;
     return { grossProfit, netProfit };
-  }, [localData.revenue, localData.cogs, localData.taxes, localData.discounts]);
+  }, [localData.revenue, localData.cogs, localData.netProfit, localData.expenses]);
 
   const paymentTotal = React.useMemo(() => {
     const pm = localData.paymentMethods || {};
@@ -305,7 +306,7 @@ const ReportPage: React.FC = () => {
       { Metric: t("total_sales"), Value: fmt(localData.totalSales) },
       { Metric: t("total_orders"), Value: fmtN(localData.totalOrders) },
       { Metric: t("total_items_sold"), Value: fmtN(localData.totalItemsSold) },
-      { Metric: t("avg_order_value"), Value: fmt(localData.avgOrderValue) },
+      { Metric: t("total_expenses"), Value: fmt(localData.expenses) },
       { Metric: t("gross_sales"), Value: fmt(localData.grossSales) },
       { Metric: t("net_sales"), Value: fmt(localData.netSales) },
       { Metric: t("discounts"), Value: fmt(localData.discounts) },
@@ -461,7 +462,7 @@ const ReportPage: React.FC = () => {
         [t("total_sales"), fmt(localData.totalSales)],
         [t("total_orders"), fmtN(localData.totalOrders)],
         [t("total_items_sold"), fmtN(localData.totalItemsSold)],
-        [t("avg_order_value"), fmt(localData.avgOrderValue)],
+        [t("total_expenses"), fmt(localData.expenses)],
         [t("gross_sales"), fmt(localData.grossSales)],
         [t("net_sales"), fmt(localData.netSales)],
         [t("discounts"), fmt(localData.discounts)],
@@ -725,9 +726,9 @@ const ReportPage: React.FC = () => {
         ]
       : []),
     {
-      title: t("avg_order_value"),
-      value: fmt(localData.avgOrderValue),
-      Icon: CreditCard,
+      title: t("total_expenses"),
+      value: fmt(localData.expenses),
+      Icon: AlertTriangle,
       color: "text-rose-500",
     },
     ...(user?.role === "owner"
@@ -828,19 +829,20 @@ const ReportPage: React.FC = () => {
         </Card>
 
         {/* ── Summary Cards ── */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        {/* Use 3 columns so 6 cards form 2 rows on larger screens */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
           {summaryCards.map(({ title, value, Icon, color }, i) => (
             <Card key={i} className="hover:shadow-md transition-shadow">
               <CardContent className="pt-4">
                 <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground leading-tight">
-                      {title}
-                    </p>
-                    <p className="text-lg font-bold mt-1 leading-tight">
-                      {value}
-                    </p>
-                  </div>
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted-foreground leading-tight truncate">
+                        {title}
+                      </p>
+                      <p className="text-2xl font-bold mt-1 leading-tight">
+                        {value}
+                      </p>
+                    </div>
                   <div className={`p-2 rounded-lg bg-muted ${color}`}>
                     <Icon className="h-4 w-4" />
                   </div>

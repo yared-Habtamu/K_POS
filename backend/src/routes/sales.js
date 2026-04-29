@@ -6,6 +6,7 @@ const Product = require("../models/product.model");
 const Customer = require("../models/customer.model");
 const mongoose = require("mongoose");
 const { authenticate } = require("../middleware/auth");
+const PDFDocument = require("pdfkit");
 
 const PENDING_RECEIPT_TTL_MS = 24 * 60 * 60 * 1000;
 const pendingReceipts = new Map();
@@ -35,21 +36,6 @@ function normalizePendingReceipt(payload) {
         };
       })
     : [];
-
-  const extraCharges = Array.isArray(payload.extraCharges)
-    ? payload.extraCharges.map((charge) => ({
-        name: String(charge?.name || "Charge"),
-        amount: Number(charge?.amount) || 0,
-      }))
-    : [];
-
-  const discount = payload.discount
-    ? {
-        type: payload.discount.type,
-        value: Number(payload.discount.value) || 0,
-        amount: Number(payload.discount.amount) || 0,
-      }
-    : undefined;
 
   return {
     id,
@@ -559,7 +545,7 @@ router.get("/receipt/:receiptId/view", async (req, res) => {
         <h2 style="margin: 0;">${escapeHtml(receipt.shopName)}</h2>
         ${receipt.shopAddress ? `<div class="muted">${escapeHtml(receipt.shopAddress)}</div>` : ""}
         ${receipt.shopPhone ? `<div class="muted">${escapeHtml(receipt.shopPhone)}</div>` : ""}
-        ${receipt.receiptHeader ? `<div class="muted" style="margin-top:6px;">${escapeHtml(receipt.receiptHeader)}</div>` : ""}
+        ${receipt.receiptSlogan ? `<div class="muted" style="margin-top:6px;">${escapeHtml(receipt.receiptSlogan)}</div>` : (receipt.receiptHeader ? `<div class="muted" style="margin-top:6px;">${escapeHtml(receipt.receiptHeader)}</div>` : "")}
       </div>
       <div class="sep"></div>
       <div class="meta">
@@ -591,9 +577,8 @@ router.get("/receipt/:receiptId/view", async (req, res) => {
       <div class="row"><span>VAT (${Number(receipt.taxRate).toFixed(2)}%)</span><span>${Number(receipt.tax).toFixed(2)} ETB</span></div>
       <div class="row total"><span>TOTAL</span><span>${Number(receipt.total).toFixed(2)} ETB</span></div>
       <div class="row"><span>Payment</span><span>${paymentLabel}</span></div>
-      ${receipt.receiptSlogan ? `<p class="center muted" style="margin-top:12px;">${escapeHtml(receipt.receiptSlogan)}</p>` : ""}
-      <p class="center muted" style="margin-top:8px;">Powered by Smart POS</p>
-      <p class="center muted" style="margin-top:2px;">${escapeHtml(providerPhone)}</p>
+      <p class="center" style="margin-top:8px; color:#111; font-size:11px; font-weight:700;">Powered by Kiya POS System</p>
+      <p class="center" style="margin-top:2px; color:#111; font-size:10px; font-weight:600;">${escapeHtml(providerPhone)}</p>
     </div>
   </body>
 </html>`;
@@ -602,6 +587,113 @@ router.get("/receipt/:receiptId/view", async (req, res) => {
   } catch (err) {
     console.error("Receipt page render failed", err);
     return res.status(500).type("text/html").send("<h1>Server error</h1>");
+  }
+});
+
+// PDF receipt endpoint (generates a printer-friendly PDF server-side)
+router.get("/receipt/:receiptId/pdf", async (req, res) => {
+  try {
+    const receiptId = String(req.params.receiptId || "").trim();
+    if (!receiptId) return res.status(400).json({ message: "receiptId is required" });
+
+    const receipt = await buildReceiptViewModel(receiptId);
+    if (!receipt) return res.status(404).json({ message: "Receipt not found" });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename=receipt-${receiptId}.pdf`,
+    );
+
+    // Use 80mm width for thermal receipt printers (convert mm to points: 1mm = 2.8346456693pt)
+    const mmToPt = (mm) => mm * 2.8346456693;
+    const receiptWidthPt = Math.round(mmToPt(80));
+    const doc = new PDFDocument({ size: [receiptWidthPt, 1400], margins: { top: 10, bottom: 10, left: 10, right: 10 } });
+    doc.pipe(res);
+
+    const pageW = doc.page.width;
+    const left = doc.page.margins.left;
+    const right = doc.page.margins.right;
+    const contentW = pageW - left - right;
+
+    // Header: big shop name centered
+    doc.font("Helvetica-Bold").fontSize(18).text(String(receipt.shopName || ""), left, doc.y, { align: "center", width: contentW });
+    if (receipt.shopAddress) doc.font("Helvetica").fontSize(9).text(String(receipt.shopAddress), left, doc.y, { align: "center", width: contentW });
+    if (receipt.shopPhone) doc.font("Helvetica").fontSize(9).text(String(receipt.shopPhone), left, doc.y, { align: "center", width: contentW });
+    if (receipt.receiptSlogan) doc.font("Helvetica").fontSize(10).text(String(receipt.receiptSlogan), left, doc.y, { align: "center", width: contentW });
+    doc.moveDown(0.5);
+
+    // Meta rows (left aligned)
+    doc.font("Helvetica").fontSize(9);
+    doc.text(`Receipt: ${receipt.id}`, left, doc.y);
+    doc.moveDown(0.15);
+    doc.text(`Cashier: ${receipt.cashierName || "N/A"}`, left, doc.y);
+    doc.moveDown(0.15);
+    doc.text(`Date: ${new Date(receipt.date).toLocaleString()}`, left, doc.y);
+    doc.moveDown(0.25);
+
+    // Separator
+    doc.moveTo(left, doc.y).lineTo(pageW - right, doc.y).strokeColor('#cccccc').stroke();
+    doc.moveDown(0.4);
+
+    // Items: for each item print name (left), total (right) on same line, then qty x price below name
+    const rightColW = Math.floor(contentW * 0.3);
+    const leftColW = contentW - rightColW;
+    for (const item of receipt.items || []) {
+      const name = String(item.name || "");
+      const qty = Number(item.quantity || 0);
+      const price = Number(item.price || 0).toFixed(2);
+      const total = Number(item.total || item.subtotal || (qty * Number(price))).toFixed(2);
+
+      // Name left
+      doc.font("Helvetica").fontSize(9).text(name, left, doc.y, { width: leftColW });
+      // Total right on same y
+      const itemLineY = doc.y - 12; // adjust to previous baseline where name was printed
+      doc.text(`${total} ETB`, left + leftColW, itemLineY, { width: rightColW, align: 'right' });
+      doc.moveDown(0.4);
+
+      // qty x price line
+      doc.fontSize(9).fillColor('#333').text(`${qty} x ${Number(price).toFixed(2)} ETB`, left, doc.y, { width: leftColW });
+      doc.moveDown(0.3);
+    }
+
+    // Separator
+    doc.moveTo(left, doc.y).lineTo(pageW - right, doc.y).strokeColor('#cccccc').stroke();
+    doc.moveDown(0.4);
+
+    // Totals (right aligned)
+    doc.font("Helvetica").fontSize(9).fillColor('#000');
+    if (receipt.subtotal != null) {
+      doc.text(`Subtotal: ${Number(receipt.subtotal).toFixed(2)} ETB`, left, doc.y, { width: contentW, align: 'right' });
+      doc.moveDown(0.2);
+    }
+    if (receipt.discount && receipt.discount.amount != null) {
+      doc.text(`Discount: -${Number(receipt.discount.amount).toFixed(2)} ETB`, left, doc.y, { width: contentW, align: 'right' });
+      doc.moveDown(0.2);
+    }
+    for (const ch of receipt.extraCharges || []) {
+      doc.text(`${ch.name}: +${Number(ch.amount || 0).toFixed(2)} ETB`, left, doc.y, { width: contentW, align: 'right' });
+      doc.moveDown(0.2);
+    }
+    if (receipt.tax != null) {
+      doc.text(`Tax: ${Number(receipt.tax).toFixed(2)} ETB`, left, doc.y, { width: contentW, align: 'right' });
+      doc.moveDown(0.3);
+    }
+
+    // Grand total
+    doc.font("Helvetica-Bold").fontSize(14).text(`TOTAL: ${Number(receipt.total || 0).toFixed(2)} ETB`, left, doc.y, { width: contentW, align: 'right' });
+    doc.moveDown(0.6);
+
+    // Footer branding
+    doc.moveTo(left, doc.y).lineTo(pageW - right, doc.y).strokeColor('#eeeeee').stroke();
+    doc.moveDown(0.4);
+    doc.font("Helvetica").fontSize(10).fillColor('#000').text('Powered by Kiya POS System', left, doc.y, { align: 'center', width: contentW });
+    if (receipt.shopPhone) doc.fontSize(9).text(String(receipt.shopPhone || ''), left, doc.y, { align: 'center', width: contentW });
+
+    doc.end();
+  } catch (err) {
+    console.error("Failed to generate PDF receipt", err);
+    if (!res.headersSent) res.status(500).json({ message: "Server error" });
   }
 });
 
