@@ -27,6 +27,11 @@ app.use(express.json({ limit: "15mb" }));
 app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 app.use(morgan("dev"));
 
+app.get("/health", (req, res) => {
+  console.log("Health check ping received:", new Date());
+  res.status(200).send("Server is running");
+});
+
 // Serve local uploaded images (development fallback)
 const path = require("path");
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
