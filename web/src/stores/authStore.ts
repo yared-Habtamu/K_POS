@@ -1,7 +1,8 @@
-﻿import { create } from 'zustand';
+import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { UserRole } from '@/types';
 import { useCartStore } from './cartStore';
+import { useProductStore } from './productStore';
 
 type AuthUser = {
   id?: string;
@@ -109,6 +110,10 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         useCartStore.getState().clearCart();
+        useProductStore.setState({ products: [], totalProducts: 0 });
+        try {
+          (window as any).posApi?.setCachedProducts?.([]);
+        } catch (e) {}
         set({ user: null, isAuthenticated: false });
       },
 
