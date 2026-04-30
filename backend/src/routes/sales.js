@@ -140,6 +140,7 @@ async function buildReceiptViewModel(receiptId) {
   };
 }
 
+
 // Create a sale (record transaction)
 router.post("/", authenticate, async (req, res) => {
   try {
@@ -590,6 +591,7 @@ router.get("/receipt/:receiptId/view", async (req, res) => {
   }
 });
 
+
 // PDF receipt endpoint (generates a printer-friendly PDF server-side)
 router.get("/receipt/:receiptId/pdf", async (req, res) => {
   try {
@@ -696,6 +698,7 @@ router.get("/receipt/:receiptId/pdf", async (req, res) => {
     if (!res.headersSent) res.status(500).json({ message: "Server error" });
   }
 });
+
 
 // List sales for a mart and optional date (date in YYYY-MM-DD)
 router.get("/", authenticate, async (req, res) => {
