@@ -314,10 +314,12 @@ export const useProductStore = create<ProductState>((set, get) => ({
         _sold: soldMap[p.id] || soldMap[p._id] || 0,
       }));
 
-      try {
-        await window.posApi?.setCachedProducts?.(withSold as any[]);
-      } catch (cacheErr) {
-        console.warn("failed to persist local product cache", cacheErr);
+      if (withSold.length > 0) {
+        try {
+          await window.posApi?.setCachedProducts?.(withSold as any[]);
+        } catch (cacheErr) {
+          console.warn("failed to persist local product cache", cacheErr);
+        }
       }
 
       set({ products: withSold, isLoading: false, fetchError: null });
