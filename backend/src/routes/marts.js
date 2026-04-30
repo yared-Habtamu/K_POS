@@ -536,30 +536,21 @@ router.delete("/:id", authenticate, async (req, res) => {
     const mart = await Mart.findById(id);
     if (!mart) return res.status(404).json({ message: "Mart not found" });
 
-    try {
-      // First, delete all related data based on martId
-      const modelFiles = [
-        "asset", "assetActionRequest", "attendance", "category", "customer",
-        "dailyReport", "expense", "expenseActionRequest", "expenseCategory",
-        "notification", "paymentType", "product", "productAddRequest",
-        "productEditRequest", "sale", "stockTransferRequest"
-      ];
-      
-      for (const file of modelFiles) {
-        try {
-          const Model = require(`../models/${file}.model`);
-          await Model.deleteMany({ martId: mart._id });
-        } catch(e) {
-          console.warn(`Failed to delete related records for ${file}:`, e.message);
+    // If mart has an ownerId and the owner user is linked to this mart, delete the owner user
+    if (mart.ownerId) {
+      try {
+        const owner = await User.findById(mart.ownerId);
+        if (
+          owner &&
+          String(owner.martId) === String(mart._id) &&
+          owner.role === "owner"
+        ) {
+          await User.findByIdAndDelete(owner._id);
+          console.log(`Deleted owner user ${owner._id} for mart ${mart._id}`);
         }
+      } catch (e) {
+        console.error("Failed to delete owner user during mart deletion", e);
       }
-      
-      // Delete all users belonging to this mart (including the owner)
-      await User.deleteMany({ martId: mart._id });
-      console.log(`Deleted all users and related records for mart ${mart._id}`);
-      
-    } catch (e) {
-      console.error("Failed to delete related data during mart deletion", e);
     }
 
     // Remove the mart record entirely so its identifying fields can be reused

@@ -463,7 +463,6 @@ export function PaymentPanel() {
     const receipt: Receipt = {
       id: receiptId,
       saleId,
-      qrCodeData: receiptPublicUrl,
       shopName: latestBranding.shopName || "Shop",
       shopAddress: latestBranding.shopAddress,
       shopPhone: latestBranding.shopPhone,
