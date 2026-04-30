@@ -64,40 +64,27 @@ router.post("/login", async (req, res) => {
   // Block login for deleted or deactivated users
   if (user.isDeleted || user.active === false) {
     console.info(`Login blocked: user is deleted or inactive (id=${user._id})`);
-    return res.status(403).json({
-      message: "Account is deactivated or deleted. Contact an administrator.",
-    });
+    return res.status(401).json({ message: "Invalid username or password" });
   }
 
-  // Owners may only login once their mart is approved
-  if (user.role === "owner") {
+  // Users tied to a mart may only login if their mart is approved and active
+  if (user.role !== "systemAdmin") {
     if (!user.martId) {
-      console.warn(`Owner login blocked: no martId for user id=${user._id}`);
-      return res.status(403).json({
-        message:
-          "Owner account has no mart assigned. Create a mart first or contact an administrator.",
-      });
+      console.warn(`Login blocked: no martId for user id=${user._id}`);
+      return res.status(401).json({ message: "Invalid username or password" });
     }
     // include isDeleted flag so deleted marts cannot be used to login
     const mart = await Mart.findById(user.martId).select("status isDeleted");
     if (!mart) {
-      console.warn(
-        `Owner login blocked: mart not found for martId=${user.martId}`,
-      );
-      return res
-        .status(403)
-        .json({ message: "Owner's mart not found. Contact an administrator." });
+      console.warn(`Login blocked: mart not found for martId=${user.martId}`);
+      return res.status(401).json({ message: "Invalid username or password" });
     }
     if (mart.isDeleted) {
-      console.info(
-        `Owner login blocked: mart is deleted for martId=${user.martId}`,
-      );
-      return res.status(403).json({
-        message: "Your mart has been deleted. Contact an administrator.",
-      });
+      console.info(`Login blocked: mart is deleted for martId=${user.martId}`);
+      return res.status(401).json({ message: "Invalid username or password" });
     }
 
-    // Re-evaluate subscription status before allowing owner access.
+    // Re-evaluate subscription status before allowing access.
     try {
       await runSubscriptionCheckForMart(user.martId, { persist: true });
     } catch (subscriptionErr) {
@@ -112,31 +99,18 @@ router.post("/login", async (req, res) => {
 
     // Specific messaging for mart status
     if (effectiveStatus === "pending") {
-      console.info(
-        `Owner login blocked: mart pending for martId=${user.martId}`,
-      );
-      return res
-        .status(403)
-        .json({ message: "Your mart registration is pending approval." });
+      console.info(`Login blocked: mart pending for martId=${user.martId}`);
+      return res.status(403).json({ message: "Pending Mart not approved yet" });
     }
 
     if (effectiveStatus === "disabled" || effectiveStatus === "suspended") {
-      console.info(
-        `Owner login blocked: mart suspended for martId=${user.martId}`,
-      );
-      return res.status(403).json({
-        message:
-          "Your mart is suspended due to subscription policy. Contact an administrator.",
-      });
+      console.info(`Login blocked: mart suspended for martId=${user.martId}`);
+      return res.status(403).json({ message: "Mart suspended contact an administrator" });
     }
 
     if (effectiveStatus === "rejected") {
-      console.info(
-        `Owner login blocked: mart rejected for martId=${user.martId}`,
-      );
-      return res
-        .status(403)
-        .json({ message: "Your mart registration was rejected." });
+      console.info(`Login blocked: mart rejected for martId=${user.martId}`);
+      return res.status(401).json({ message: "Invalid username or password" });
     }
   }
 
