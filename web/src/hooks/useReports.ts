@@ -162,14 +162,37 @@ export function useReports(opts: UseReportsOptions = {}) {
         cogs: (summaryJson.cogs || 0).toFixed
           ? summaryJson.cogs.toFixed(2)
           : String(summaryJson.cogs || "0.00"),
-        grossProfit: (summaryJson.grossSales || summaryJson.grossProfit || 0)
-          .toFixed
-          ? (summaryJson.grossSales || summaryJson.grossProfit || 0).toFixed(2)
-          : String(summaryJson.grossSales || summaryJson.grossProfit || "0.00"),
+        // Gross profit: prefer explicit grossSales/grossProfit, otherwise compute from totalSales - cogs
+        grossProfit: (() => {
+          const gp =
+            summaryJson.grossSales || summaryJson.grossProfit ||
+            (summaryJson.totalSales != null && summaryJson.cogs != null
+              ? summaryJson.totalSales - summaryJson.cogs
+              : undefined);
+          return gp != null
+            ? (Number(gp) || 0).toFixed(2)
+            : "0.00";
+        })(),
         grossMargin: summaryJson.grossMargin || 0,
-        netProfit: (summaryJson.profit || summaryJson.netProfit || 0).toFixed
-          ? (summaryJson.profit || summaryJson.netProfit || 0).toFixed(2)
-          : String(summaryJson.profit || summaryJson.netProfit || "0.00"),
+        // Expenses: mart endpoint returns `expenses`; summary endpoint may not
+        expenses: (summaryJson.expenses || summaryJson.totalExpenses || 0).toFixed
+          ? (summaryJson.expenses || summaryJson.totalExpenses || 0).toFixed(2)
+          : String(summaryJson.expenses || summaryJson.totalExpenses || "0.00"),
+        // Net profit: prefer explicit profit (mart endpoint), otherwise grossProfit - expenses
+        netProfit: (() => {
+          if (summaryJson.profit != null || summaryJson.netProfit != null)
+            return (summaryJson.profit || summaryJson.netProfit || 0).toFixed
+              ? (summaryJson.profit || summaryJson.netProfit || 0).toFixed(2)
+              : String(summaryJson.profit || summaryJson.netProfit || "0.00");
+          const gpVal =
+            summaryJson.grossSales || summaryJson.grossProfit ||
+            (summaryJson.totalSales != null && summaryJson.cogs != null
+              ? summaryJson.totalSales - summaryJson.cogs
+              : 0);
+          const expensesVal = summaryJson.expenses || summaryJson.totalExpenses || 0;
+          const net = (Number(gpVal || 0) - Number(expensesVal || 0)) || 0;
+          return Number(net).toFixed(2);
+        })(),
         totalTax: (summaryJson.totalTax || 0).toFixed
           ? (summaryJson.totalTax || 0).toFixed(2)
           : String(summaryJson.totalTax || "0.00"),
