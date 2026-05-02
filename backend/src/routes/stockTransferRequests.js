@@ -97,11 +97,11 @@ router.post('/', authenticate, async (req, res) => {
       }
     }
 
-    const product = await Product.findById(productId);
+    const productFilter = { _id: productId };
+    if (user.role !== 'systemAdmin') productFilter.martId = user.martId;
+
+    const product = await Product.findOne(productFilter);
     if (!product) return res.status(404).json({ message: 'Product not found' });
-    if (user.role !== 'systemAdmin' && String(product.martId) !== String(user.martId)) {
-      return res.status(403).json({ message: 'Cannot transfer product from another mart' });
-    }
 
     const qty = Number(quantity);
     if (!Number.isFinite(qty) || qty <= 0) return res.status(400).json({ message: 'Quantity must be positive' });
@@ -136,7 +136,7 @@ router.post('/', authenticate, async (req, res) => {
       session.startTransaction();
       try {
         // Re-fetch product in session
-        const prod = await Product.findById(productId).session(session);
+        const prod = await Product.findOne({ _id: productId, martId: product.martId }).session(session);
         if (!prod) throw new Error('Product not found');
 
         if (isMartToStore) {
@@ -265,7 +265,7 @@ router.put('/:id/approve', authenticate, async (req, res) => {
     const session = await mongoose.startSession();
     session.startTransaction();
     try {
-      const product = await Product.findById(reqDoc.productId).session(session);
+      const product = await Product.findOne({ _id: reqDoc.productId, martId: reqDoc.martId }).session(session);
       if (!product) throw new Error('Product not found');
 
       const qty = Number(reqDoc.quantity || 0);

@@ -100,10 +100,14 @@ async function buildReceiptViewModel(receiptId) {
   const mart = sale.martId
     ? await Mart.findById(sale.martId)
         .select(
-          "martName address city region country phone receiptHeader receiptMessage",
+          "martName address city region country phone receiptHeader receiptMessage status isDeleted",
         )
         .lean()
     : null;
+
+  if (!mart || mart.isDeleted || mart.status !== "approved") {
+    return null;
+  }
 
   const items = Array.isArray(sale.items)
     ? sale.items.map((item) => {
@@ -182,12 +186,10 @@ router.post("/", authenticate, async (req, res) => {
       );
     }
 
-    // compute extra charges sum
     const extraSum = Array.isArray(extraCharges)
       ? extraCharges.reduce((s, e) => s + (Number(e.amount) || 0), 0)
       : 0;
 
-    // Apply mart-level discount policy server-side.
     const itemCount = Array.isArray(items)
       ? items.reduce((sum, it) => sum + (Number(it?.quantity) || 0), 0)
       : 0;
@@ -224,7 +226,6 @@ router.post("/", authenticate, async (req, res) => {
         }
       : undefined;
 
-    // taxable base: subtotal - discount + extra charges
     const taxableBase = computedSubtotal - discountAmt + extraSum;
     const taxAmount =
       Math.round((taxableBase * (taxRate / 100) + Number.EPSILON) * 100) / 100;
@@ -232,181 +233,109 @@ router.post("/", authenticate, async (req, res) => {
     const computedTotal =
       Math.round((taxableBase + taxAmount + Number.EPSILON) * 100) / 100;
 
-    // Validate stock: aggregate quantities per productId
-    if (Array.isArray(items) && items.length > 0) {
-      const qtyMap = {};
-      items.forEach((it) => {
-        if (it && it.productId) {
-          const q = Number(it.quantity) || 0;
-          qtyMap[it.productId] = (qtyMap[it.productId] || 0) + q;
-        }
-      });
-
-      const productIds = Object.keys(qtyMap);
-      if (productIds.length > 0) {
-        const products = await Product.find({
-          _id: { $in: productIds },
+    // --- Atomic Transactional Sale Execution ---
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      // 1. Check for duplicate receiptId within the mart
+      if (receiptId) {
+        const existingSale = await Sale.findOne({
           martId: targetMartId,
-        }).lean();
-
-        // check for missing products
-        if (products.length !== productIds.length) {
-          const foundIds = products.map((p) => String(p._id));
-          const missing = productIds.filter(
-            (id) => !foundIds.includes(String(id)),
-          );
-          return res
-            .status(400)
-            .json({ message: "Some products not found in this mart", missing });
-        }
-
-        const insufficient = products
-          .filter((p) => {
-            const available = Number(
-              p.quantity ?? p.supermarketQuantity ?? p.storeQuantity ?? 0,
-            );
-            return (qtyMap[String(p._id)] || 0) > available;
-          })
-          .map((p) => ({
-            productId: p._id,
-            name: p.name,
-            available: Number(
-              p.quantity ?? p.supermarketQuantity ?? p.storeQuantity ?? 0,
-            ),
-            requested: qtyMap[String(p._id)],
-          }));
-
-        if (insufficient.length) {
-          return res.status(400).json({
-            message: "Insufficient stock for some products",
-            insufficient,
-          });
-        }
-
-        // perform atomic decrement using transaction if available
-        const session = await mongoose.startSession();
-        session.startTransaction();
-        try {
-          const sale = new Sale({
-            martId: targetMartId,
-            cashierId: req.user.id,
-            cashierName: req.user.username,
-            receiptId,
-            items,
-            subtotal: computedSubtotal,
-            discount: appliedDiscount,
-            extraCharges,
-            tax: taxAmount,
-            taxRate,
-            total: computedTotal,
-            paymentMethod,
-            date: new Date(),
-          });
-
-          const savedSale = await sale.save({ session });
-
-          // If this was a credit sale, update the customer's totals within the same transaction
-          if (String(paymentMethod) === "wallet" && payload.customerId) {
-            const cust = await Customer.findById(payload.customerId).session(
-              session,
-            );
-            if (!cust) throw new Error("Customer not found for credit sale");
-            if (String(cust.martId) !== String(targetMartId)) {
-              throw new Error("Customer does not belong to this mart");
-            }
-            cust.totalCredit =
-              Number(cust.totalCredit || 0) + Number(computedTotal || 0);
-            // keep totalPaid as-is; recompute unpaid
-            cust.totalUnpaid =
-              Number(cust.totalCredit || 0) - Number(cust.totalPaid || 0);
-            await cust.save({ session });
-          }
-
-          for (const pid of productIds) {
-            const qty = qtyMap[pid];
-            const product = await Product.findOne({
-              _id: pid,
-              martId: targetMartId,
-            }).session(session);
-
-            if (!product) {
-              throw new Error(`Product ${pid} not found during sale update`);
-            }
-
-            const available = Number(
-              product.quantity ?? product.supermarketQuantity ?? 0,
-            );
-            if (available < qty) {
-              throw new Error(
-                `Insufficient stock for product ${product.name || pid} during update`,
-              );
-            }
-
-            const nextMartQuantity = Math.max(0, available - qty);
-            product.supermarketQuantity = nextMartQuantity;
-            product.quantity = nextMartQuantity;
-            await product.save({ session });
-          }
-
-          await session.commitTransaction();
-          session.endSession();
-          if (receiptId) pendingReceipts.delete(String(receiptId));
-          res.status(201).json(savedSale);
-          return;
-        } catch (err) {
-          await session.abortTransaction();
-          session.endSession();
-          console.error(err);
-          return res
-            .status(400)
-            .json({ message: err.message || "Stock update failed" });
+          receiptId,
+        }).session(session);
+        if (existingSale) {
+          throw new Error(`Receipt ${receiptId} already exists for this mart`);
         }
       }
-    }
 
-    // Fallback: no stock-managed items, just save sale
-    const sale = new Sale({
-      martId: targetMartId,
-      cashierId: req.user.id,
-      cashierName: req.user.username,
-      receiptId,
-      items,
-      subtotal: computedSubtotal,
-      discount: appliedDiscount,
-      extraCharges,
-      tax: taxAmount,
-      taxRate,
-      total: computedTotal,
-      paymentMethod,
-      date: new Date(),
-    });
+      // 2. Prepare stock updates if items have productIds
+      const qtyMap = {};
+      if (Array.isArray(items)) {
+        items.forEach((it) => {
+          if (it && it.productId) {
+            const q = Number(it.quantity) || 0;
+            if (q > 0) {
+              qtyMap[it.productId] = (qtyMap[it.productId] || 0) + q;
+            }
+          }
+        });
+      }
 
-    await sale.save();
-    if (receiptId) pendingReceipts.delete(String(receiptId));
-    // If credit sale, update customer totals (non-transactional path)
-    if (String(paymentMethod) === "wallet" && payload.customerId) {
-      try {
-        const cust = await Customer.findById(payload.customerId);
-        if (!cust)
-          return res
-            .status(400)
-            .json({ message: "Customer not found for credit sale" });
+      const productIds = Object.keys(qtyMap);
+
+      // 3. Deduct stock atomically and check for insufficiency
+      for (const pid of productIds) {
+        const qty = qtyMap[pid];
+        // Use findOneAndUpdate with a condition to ensure atomicity and prevent race conditions
+        const updatedProduct = await Product.findOneAndUpdate(
+          {
+            _id: pid,
+            martId: targetMartId,
+            supermarketQuantity: { $gte: qty },
+            quantity: { $gte: qty },
+          },
+          {
+            $inc: {
+              supermarketQuantity: -qty,
+              quantity: -qty,
+            },
+          },
+          { session, new: true },
+        );
+
+        if (!updatedProduct) {
+          const p = await Product.findById(pid).session(session);
+          const name = p ? p.name : pid;
+          throw new Error(`Insufficient stock for product: ${name}`);
+        }
+      }
+
+      // 4. Update customer credit if applicable
+      if (String(paymentMethod) === "wallet" && payload.customerId) {
+        const cust = await Customer.findById(payload.customerId).session(
+          session,
+        );
+        if (!cust) throw new Error("Customer not found for credit sale");
         if (String(cust.martId) !== String(targetMartId)) {
-          return res
-            .status(403)
-            .json({ message: "Customer does not belong to this mart" });
+          throw new Error("Customer does not belong to this mart");
         }
         cust.totalCredit =
           Number(cust.totalCredit || 0) + Number(computedTotal || 0);
         cust.totalUnpaid =
           Number(cust.totalCredit || 0) - Number(cust.totalPaid || 0);
-        await cust.save();
-      } catch (err) {
-        console.error("Failed to update customer credit", err);
-        // continue — the sale was recorded; inform client if desired
+        await cust.save({ session });
       }
+
+      // 5. Save the Sale record
+      const sale = new Sale({
+        martId: targetMartId,
+        cashierId: req.user.id,
+        cashierName: req.user.username,
+        receiptId,
+        items,
+        subtotal: computedSubtotal,
+        discount: appliedDiscount,
+        extraCharges,
+        tax: taxAmount,
+        taxRate,
+        total: computedTotal,
+        paymentMethod,
+        date: new Date(),
+      });
+
+      const savedSale = await sale.save({ session });
+
+      await session.commitTransaction();
+      session.endSession();
+
+      if (receiptId) pendingReceipts.delete(String(receiptId));
+      return res.status(201).json(savedSale);
+    } catch (err) {
+      await session.abortTransaction();
+      session.endSession();
+      console.error("[Sale Error]", err.message);
+      return res.status(400).json({ message: err.message || "Sale failed" });
     }
-    res.status(201).json(sale);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });

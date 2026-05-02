@@ -20,7 +20,9 @@ router.get("/", authenticate, async (req, res) => {
 
     const targetMartId = filter.martId;
     const [savedCategories, productCategories] = await Promise.all([
-      Category.find(filter).sort({ name: 1 }).lean(),
+      Category.find({ ...filter, isDeleted: { $ne: true } })
+        .sort({ name: 1 })
+        .lean(),
       targetMartId
         ? Product.distinct("category", { martId: targetMartId, category: { $nin: [null, ""] } })
         : Promise.resolve([]),

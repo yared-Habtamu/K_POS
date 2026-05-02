@@ -718,23 +718,25 @@ router.delete("/:id", authenticate, async (req, res) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const product = await Product.findOneAndUpdate(
-      { _id: id, isDeleted: { $ne: true } },
-      { isDeleted: true },
-      { new: true },
-    );
+
+    const filter = { _id: id, isDeleted: { $ne: true } };
+    if (user.role !== "systemAdmin") {
+      filter.martId = user.martId;
+    }
+
+    const product = await Product.findOne(filter);
     if (!product) return res.status(404).json({ message: "Product not found" });
 
     // Only systemAdmin or owner of the mart can delete
     if (user.role !== "systemAdmin") {
-      if (
-        String(user.martId) !== String(product.martId) ||
-        user.role !== "owner"
-      ) {
-        // Rollback? No, we should checks permissions first.
-        // Let's refactor to check permissions BEFORE updating.
+      if (user.role !== "owner") {
+        return res.status(403).json({ message: "Only owners can delete products" });
       }
     }
+
+    product.isDeleted = true;
+    await product.save();
+
     res.json({ message: "Product deleted" });
   } catch (err) {
     console.error(err);
