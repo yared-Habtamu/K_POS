@@ -66,6 +66,14 @@ import {
 } from "lucide-react";
 import type { UserRole } from "@/types";
 
+const escapeHtml = (value: unknown) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 // ✅ PDF Dependencies (install: npm install jspdf html2canvas)
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -1138,11 +1146,11 @@ export default function OwnerEmployeeManagement(): JSX.Element {
         const emp = employees.find((e) => e.id === rec.employeeId);
         const row = document.createElement("tr");
         row.innerHTML = `
-          <td style="border: 1px solid #e5e7eb; padding: 10px;">${emp?.name || "Unknown"}</td>
-          <td style="border: 1px solid #e5e7eb; padding: 10px;">${rec.date}</td>
-          <td style="border: 1px solid #e5e7eb; padding: 10px;">${new Date(rec.clockIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td>
-          <td style="border: 1px solid #e5e7eb; padding: 10px;">${rec.clockOut ? new Date(rec.clockOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-          <td style="border: 1px solid #e5e7eb; padding: 10px;">${rec.durationMinutes ? `${rec.durationMinutes} min` : "—"}</td>
+          <td style="border: 1px solid #e5e7eb; padding: 10px;">${escapeHtml(emp?.name || "Unknown")}</td>
+          <td style="border: 1px solid #e5e7eb; padding: 10px;">${escapeHtml(rec.date)}</td>
+          <td style="border: 1px solid #e5e7eb; padding: 10px;">${escapeHtml(new Date(rec.clockIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</td>
+          <td style="border: 1px solid #e5e7eb; padding: 10px;">${escapeHtml(rec.clockOut ? new Date(rec.clockOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—")}</td>
+          <td style="border: 1px solid #e5e7eb; padding: 10px;">${escapeHtml(rec.durationMinutes ? `${rec.durationMinutes} min` : "—")}</td>
         `;
         tbody.appendChild(row);
       });

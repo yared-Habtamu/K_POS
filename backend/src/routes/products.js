@@ -18,7 +18,11 @@ function normalizeExpiryDate(value) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-// Use memory storage so we can send buffer directly to Cloudinary for media storage 
+function escapeRegex(value = "") {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Use memory storage so we can send buffer directly to Cloudinary for media storage
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -147,10 +151,11 @@ async function createProductFromRequest(req, res, options = {}) {
     expiryDate: expiryDate || null,
     barcodes: (Array.isArray(barcodes)
       ? barcodes
-      : (barcodes || barcode)
+      : barcodes || barcode
         ? [String(barcodes || barcode)]
-        : [])
-      .map(b => String(b).trim())
+        : []
+    )
+      .map((b) => String(b).trim())
       .filter(Boolean),
     imageUrl: finalImageUrl || "",
     createdBy: user.id,
@@ -268,8 +273,8 @@ async function createProductFromRequest(req, res, options = {}) {
             title: "Product creation requested",
             message: `${reqDoc.requesterName || "Owner"} requested to add product ${name}`,
             metadata: { requestId: reqDoc._id, name, approvalRole },
-          })
-        )
+          }),
+        ),
       );
     } else {
       await createNotification({
@@ -344,7 +349,7 @@ router.get("/", authenticate, async (req, res) => {
     }
 
     if (category) filter.category = category;
-    if (name) filter.name = new RegExp(name, "i");
+    if (name) filter.name = new RegExp(escapeRegex(name), "i");
     if (lowStock === "true")
       filter.$expr = { $lt: ["$quantity", "$lowStockThreshold"] };
 
@@ -377,7 +382,10 @@ router.get("/:id", authenticate, async (req, res) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const product = await Product.findOne({ _id: id, isDeleted: { $ne: true } });
+    const product = await Product.findOne({
+      _id: id,
+      isDeleted: { $ne: true },
+    });
     if (!product) return res.status(404).json({ message: "Product not found" });
 
     if (
@@ -647,8 +655,8 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
                 approvalRole,
                 requestedChanges: reqDoc.changes,
               },
-            })
-          )
+            }),
+          ),
         );
       };
 
