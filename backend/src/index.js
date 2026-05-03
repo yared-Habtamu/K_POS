@@ -9,6 +9,29 @@ const morgan = require("morgan");
 const mongoose = require("mongoose");
 const dns = require("dns");
 
+let server = null;
+
+function shutdown(code = 1) {
+  if (server) {
+    try {
+      server.close(() => process.exit(code));
+      return;
+    } catch (e) {
+      // fall through to immediate exit
+    }
+  }
+  process.exit(code);
+}
+
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err);
+  shutdown(1);
+});
+
 // Prefer well-known public DNS servers for SRV resolution when local
 // DNS may refuse SRV queries (works around environments where the
 // system DNS blocks SRV/UDP queries). These are fallbacks and can be
@@ -32,6 +55,23 @@ app.get("/health", (req, res) => {
   res.status(200).send("Server is running");
 });
 
+// DB health endpoint: reports mongoose connection state and retry status
+app.get("/health/db", (req, res) => {
+  const state =
+    mongoose &&
+    mongoose.connection &&
+    typeof mongoose.connection.readyState === "number"
+      ? mongoose.connection.readyState
+      : 0;
+  const states = ["disconnected", "connected", "connecting", "disconnecting"];
+  const status = states[state] || "unknown";
+  res.json({
+    configured: !!process.env.MONGODB_URI,
+    readyState: state,
+    status,
+    retryScheduled: !!mongoRetryTimer,
+  });
+});
 // Serve local uploaded images (development fallback)
 const path = require("path");
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
@@ -90,18 +130,36 @@ app.use("/api/expense-action-requests", expenseActionRequestsRouter);
 app.use("/api/customers", customersRouter);
 app.use("/api/notifications", notificationsRouter);
 
-const PORT = process.env.PORT || 4000;
+app.use((err, req, res, next) => {
+  console.error("Request handling error:", err);
+  if (res.headersSent) {
+    return next(err);
+  }
+  res.status(err.status || 500).json({
+    message: err.message || "Internal server error",
+  });
+});
 
-async function start() {
+const PORT = process.env.PORT || 4000;
+const MONGO_RETRY_INTERVAL_MS = Number(
+  process.env.MONGODB_RETRY_INTERVAL_MS || 30000,
+);
+
+let mongoRetryTimer = null;
+
+async function initializeDatabase() {
   const uri = process.env.MONGODB_URI;
   if (!uri) {
-    console.error("MONGODB_URI not set in environment");
-    process.exit(1);
+    console.warn(
+      "MONGODB_URI not set; starting server without MongoDB connection",
+    );
+    return false;
   }
 
   try {
     await mongoose.connect(uri, { dbName: "pos" });
     console.log("Connected to MongoDB");
+
     // Ensure default system admin exists
     const User = require("./models/user.model");
     const bcrypt = require("bcrypt");
@@ -149,6 +207,8 @@ async function start() {
       },
       Number.isFinite(intervalMs) && intervalMs > 0 ? intervalMs : 3600000,
     );
+
+    return true;
   } catch (err) {
     console.error("Failed to connect to MongoDB", err);
 
@@ -182,12 +242,28 @@ async function start() {
       // ignore
     }
 
-    process.exit(1);
-  }
+    if (!mongoRetryTimer) {
+      const retryDelay =
+        Number.isFinite(MONGO_RETRY_INTERVAL_MS) && MONGO_RETRY_INTERVAL_MS > 0
+          ? MONGO_RETRY_INTERVAL_MS
+          : 30000;
+      console.warn(
+        `Will retry MongoDB connection in ${retryDelay}ms while keeping the server online.`,
+      );
+      mongoRetryTimer = setTimeout(async () => {
+        mongoRetryTimer = null;
+        await initializeDatabase();
+      }, retryDelay);
+    }
 
+    return false;
+  }
+}
+
+async function start() {
   // Create HTTP server and upgrade to socket.io
   const http = require("http");
-  const server = http.createServer(app);
+  server = http.createServer(app);
   const { Server } = require("socket.io");
   const io = new Server(server, { cors: { origin: "*" } });
 
@@ -198,6 +274,8 @@ async function start() {
   server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });
+
+  await initializeDatabase();
 }
 
 // Global Error Handler
