@@ -1304,8 +1304,8 @@ export default function ProductManagement() {
                         {Object.values(filterValues).some((value) =>
                           Boolean(value),
                         )
-                          ? "No products found"
-                          : "No products yet. Add your first product."}
+                          ? t("no_products_match_current_filters")
+                          : t("no_products_available")}
                       </TableCell>
                     </TableRow>
                   )}
