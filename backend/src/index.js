@@ -278,24 +278,4 @@ async function start() {
   await initializeDatabase();
 }
 
-// Global Error Handler
-app.use((err, req, res, next) => {
-  console.error("[Global Error Handler]", err);
-  if (res.headersSent) return next(err);
-  res.status(err.status || 500).json({
-    message: err.message || "Internal Server Error",
-    error: process.env.NODE_ENV === "development" ? err : {},
-  });
-});
-
-process.on("uncaughtException", (err) => {
-  console.error("Uncaught Exception:", err);
-  // Optional: Graceful shutdown
-  // process.exit(1);
-});
-
-process.on("unhandledRejection", (reason, promise) => {
-  console.error("Unhandled Rejection at:", promise, "reason:", reason);
-});
-
 start();

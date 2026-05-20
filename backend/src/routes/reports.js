@@ -119,6 +119,10 @@ router.get("/summary", authenticate, async (req, res) => {
     const filter = { ...filterBase, date: { $gte: startDate, $lte: endDate } };
     const sales = await Sale.find(filter).lean();
 
+    const effectiveMartId = filterBase.martId
+      ? String(filterBase.martId)
+      : null;
+
     const totalTax = sales.reduce((s, x) => s + (x.tax || 0), 0);
 
     // Build product map for tax by category
@@ -129,8 +133,10 @@ router.get("/summary", authenticate, async (req, res) => {
         ),
       ),
     );
+    const productQuery = { _id: { $in: productIds } };
+    if (effectiveMartId) productQuery.martId = effectiveMartId;
     const products = productIds.length
-      ? await Product.find({ _id: { $in: productIds }, martId: effectiveMartId }).lean()
+      ? await Product.find(productQuery).lean()
       : [];
     const productMap = {};
     for (const p of products) productMap[String(p._id)] = p;
@@ -311,7 +317,10 @@ router.get("/mart", authenticate, async (req, res) => {
       ),
     );
     const products = productIds.length
-      ? await Product.find({ _id: { $in: productIds }, martId: targetMartId }).lean()
+      ? await Product.find({
+          _id: { $in: productIds },
+          martId: targetMartId,
+        }).lean()
       : [];
     const productMap = {};
     for (const p of products) productMap[String(p._id)] = p;
@@ -477,9 +486,7 @@ router.get("/mart", authenticate, async (req, res) => {
         prodAgg[key].revenue += Number(lineRevenue || 0);
       }
     }
-    const topProducts = Object.values(prodAgg).sort(
-      (a, b) => b.sold - a.sold,
-    );
+    const topProducts = Object.values(prodAgg).sort((a, b) => b.sold - a.sold);
 
     // Build series totals per day between startDate and endDate
     const series = [];
@@ -700,7 +707,9 @@ router.get("/admin-analytics", authenticate, async (req, res) => {
                         $multiply: [
                           {
                             $divide: [
-                              { $subtract: ["$sellingPrice", "$purchasePrice"] },
+                              {
+                                $subtract: ["$sellingPrice", "$purchasePrice"],
+                              },
                               "$sellingPrice",
                             ],
                           },
@@ -863,8 +872,10 @@ router.get("/admin-analytics", authenticate, async (req, res) => {
     res.json({
       platform: {
         totalProducts: platformStats.totalProducts,
-        totalInventoryValue: Math.round(platformStats.totalInventoryValue * 100) / 100,
-        totalSellingValue: Math.round(platformStats.totalSellingValue * 100) / 100,
+        totalInventoryValue:
+          Math.round(platformStats.totalInventoryValue * 100) / 100,
+        totalSellingValue:
+          Math.round(platformStats.totalSellingValue * 100) / 100,
         overallAvgMargin:
           Math.round(
             (pResults.byMart.reduce((acc, m) => acc + (m.avgMargin || 0), 0) /
@@ -876,7 +887,8 @@ router.get("/admin-analytics", authenticate, async (req, res) => {
         totalMonthlySales: Math.round(platformMonthlySales * 100) / 100,
         totalMonthlyExpenses: Math.round(platformMonthlyExpenses * 100) / 100,
         totalMonthlyProfit:
-          Math.round((platformMonthlySales - platformMonthlyExpenses) * 100) / 100,
+          Math.round((platformMonthlySales - platformMonthlyExpenses) * 100) /
+          100,
         totalTransactions: platformTransactions,
         totalMarts: approvedMarts.length,
         totalUsers: allUsersCount,

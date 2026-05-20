@@ -39,12 +39,13 @@ async function authenticate(req, res, next) {
     // Notifications should remain reachable so owners can read suspension messages.
     const isNotificationsEndpoint = String(req.originalUrl || "").startsWith("/api/notifications");
 
-    // Block suspended/inactive/deleted marts
-    if (req.user.role !== "systemAdmin") {
-      if (!req.user.martId) {
-        return res.status(403).json({ message: "User is not assigned to any market" });
-      }
+    // Non-admin users must always be assigned to a mart
+    if (req.user.role !== "systemAdmin" && !req.user.martId) {
+      return res.status(403).json({ message: "User is not assigned to any market" });
+    }
 
+    // Block suspended/inactive/deleted marts
+    if (req.user.role !== "systemAdmin" && req.user.martId) {
       const mart = await Mart.findById(req.user.martId)
         .select("status isDeleted")
         .lean();

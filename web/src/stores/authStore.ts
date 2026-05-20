@@ -22,6 +22,7 @@ interface AuthState {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isHydrated: boolean;
   rememberMe: boolean;
   login: (username: string, password: string, rememberMe?: boolean) => Promise<{ role?: UserRole; message?: string } | false>;
   logout: () => void;
@@ -35,6 +36,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       isLoading: false,
+      isHydrated: false,
       rememberMe: true,
 
       login: async (username: string, password: string, rememberMe: boolean = true) => {
@@ -123,6 +125,9 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
+      onRehydrateStorage: () => () => {
+        set({ isHydrated: true });
+      },
       storage: createJSONStorage(() => ({
         getItem: (name) => {
           return sessionStorage.getItem(name) || localStorage.getItem(name) || null;

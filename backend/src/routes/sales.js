@@ -45,8 +45,8 @@ function normalizePendingReceipt(payload) {
     shopPhone: String(payload.shopPhone || "").trim() || undefined,
     items,
     subtotal: Number(payload.subtotal) || 0,
-    discount,
-    extraCharges,
+    discount: payload.discount != null ? payload.discount : undefined,
+    extraCharges: Array.isArray(payload.extraCharges) ? payload.extraCharges : [],
     tax: Number(payload.tax) || 0,
     taxRate: Number(payload.taxRate) || 0,
     total: Number(payload.total) || 0,
@@ -100,12 +100,12 @@ async function buildReceiptViewModel(receiptId) {
   const mart = sale.martId
     ? await Mart.findById(sale.martId)
         .select(
-          "martName address city region country phone receiptHeader receiptMessage status isDeleted",
+          "martName address city region country phone receiptHeader receiptMessage isDeleted",
         )
         .lean()
     : null;
 
-  if (!mart || mart.isDeleted || mart.status !== "approved") {
+  if (!mart || mart.isDeleted) {
     return null;
   }
 
