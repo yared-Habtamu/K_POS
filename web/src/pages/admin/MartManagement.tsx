@@ -347,9 +347,17 @@ export default function MartManagement() {
   };
 
   const mapBackendToShop = (m: any): Shop => {
-    const ownerName = (m.ownerId && (m.ownerId.name || m.ownerId)) || "Owner";
-    const ownerId = m.ownerId ? m.ownerId._id || m.ownerId : undefined;
-    const ownerUsername = m.ownerId ? m.ownerId.username : undefined;
+    const ownerRecord = m.owner || m.ownerId || null;
+    const ownerName =
+      (ownerRecord && (ownerRecord.name || ownerRecord.username)) ||
+      m.ownerName ||
+      m.ownerUsername ||
+      (typeof ownerRecord === "string" ? ownerRecord : "Owner");
+    const ownerId =
+      (ownerRecord && (ownerRecord.id || ownerRecord._id)) ||
+      (typeof ownerRecord === "string" ? ownerRecord : undefined);
+    const ownerUsername =
+      (ownerRecord && ownerRecord.username) || m.ownerUsername;
     const statusMap: Record<string, Shop["status"]> = {
       pending: "pending",
       approved: "active",

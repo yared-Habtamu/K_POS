@@ -21,6 +21,7 @@ const martRepository = {
     return prisma.mart.findMany({
       where,
       ...(options.select ? { select: options.select } : {}),
+      ...(options.include ? { include: options.include } : {}),
       ...(options.orderBy ? { orderBy: options.orderBy } : {}),
       ...(options.skip !== undefined ? { skip: options.skip } : {}),
       ...(options.take !== undefined ? { take: options.take } : {}),

@@ -65,6 +65,13 @@ export default function Approvals() {
 
   const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
+  const formatRequestDate = (value?: string | Date | null) => {
+    if (!value) return "-";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "-";
+    return parsed.toLocaleDateString();
+  };
+
   const fetchAll = async () => {
     setLoading(true);
     try {
@@ -320,15 +327,9 @@ export default function Approvals() {
                     return (
                       <TableRow key={r._id || r.id}>
                         <TableCell>
-                          {r.decidedAt ? (
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(
-                                r.decidedAt as any,
-                              ).toLocaleDateString()}
-                            </span>
-                          ) : (
-                            "-"
-                          )}
+                          <span className="text-xs text-muted-foreground">
+                            {formatRequestDate(r.createdAt || r.decidedAt)}
+                          </span>
                         </TableCell>
                         <TableCell>
                           <div className="font-medium">
@@ -437,18 +438,12 @@ export default function Approvals() {
                     return (
                       <TableRow key={r._id || r.id}>
                         <TableCell>
-                          {r.decidedAt ? (
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(
-                                r.decidedAt as any,
-                              ).toLocaleDateString()}
-                            </span>
-                          ) : (
-                            "-"
-                          )}
+                          <span className="text-xs text-muted-foreground">
+                            {formatRequestDate(r.createdAt || r.decidedAt)}
+                          </span>
                         </TableCell>
                         <TableCell>
-                          {(r as any).productId?.name || r.productId}
+                          {(r as any).product?.name || r.productId}
                         </TableCell>
                         <TableCell>{r.requesterName || "Owner"}</TableCell>
                         <TableCell>{qty}</TableCell>
@@ -467,7 +462,7 @@ export default function Approvals() {
                                     id: String(r._id || r.id),
                                     action: "reject",
                                     itemLabel: String(
-                                      (r as any).productId?.name ||
+                                      (r as any).product?.name ||
                                         r.productId ||
                                         "product edit request",
                                     ),
@@ -484,7 +479,7 @@ export default function Approvals() {
                                     id: String(r._id || r.id),
                                     action: "approve",
                                     itemLabel: String(
-                                      (r as any).productId?.name ||
+                                      (r as any).product?.name ||
                                         r.productId ||
                                         "product edit request",
                                     ),
@@ -547,18 +542,12 @@ export default function Approvals() {
                     return (
                       <TableRow key={r._id || r.id}>
                         <TableCell>
-                          {r.decidedAt ? (
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(
-                                r.decidedAt as any,
-                              ).toLocaleDateString()}
-                            </span>
-                          ) : (
-                            "-"
-                          )}
+                          <span className="text-xs text-muted-foreground">
+                            {formatRequestDate(r.createdAt || r.decidedAt)}
+                          </span>
                         </TableCell>
                         <TableCell>
-                          {(r as any).productId?.name || r.productId}
+                          {(r as any).product?.name || r.productId}
                         </TableCell>
                         <TableCell>{r.quantity}</TableCell>
                         <TableCell>
@@ -579,7 +568,7 @@ export default function Approvals() {
                                     id: String(r._id || r.id),
                                     action: "reject",
                                     itemLabel: String(
-                                      (r as any).productId?.name ||
+                                      (r as any).product?.name ||
                                         r.productId ||
                                         "stock transfer request",
                                     ),
@@ -596,7 +585,7 @@ export default function Approvals() {
                                     id: String(r._id || r.id),
                                     action: "approve",
                                     itemLabel: String(
-                                      (r as any).productId?.name ||
+                                      (r as any).product?.name ||
                                         r.productId ||
                                         "stock transfer request",
                                     ),
@@ -670,15 +659,9 @@ export default function Approvals() {
                     return (
                       <TableRow key={r._id || r.id}>
                         <TableCell>
-                          {r.decidedAt ? (
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(
-                                r.decidedAt as any,
-                              ).toLocaleDateString()}
-                            </span>
-                          ) : (
-                            "-"
-                          )}
+                          <span className="text-xs text-muted-foreground">
+                            {formatRequestDate(r.createdAt || r.decidedAt)}
+                          </span>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">{r.action}</Badge>

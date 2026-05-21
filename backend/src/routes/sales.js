@@ -746,6 +746,14 @@ router.get("/", authenticate, async (req, res) => {
     const list = await prisma.sale.findMany({
       where: filter,
       orderBy: { date: "desc" },
+      include: {
+        items: {
+          select: {
+            productId: true,
+            quantity: true,
+          },
+        },
+      },
     });
     res.json(list);
   } catch (err) {

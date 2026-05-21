@@ -151,7 +151,6 @@ router.get("/summary", authenticate, async (req, res) => {
       const paymentMethod = String(s.paymentMethod || "unknown");
       paymentMethodsMap[paymentMethod] =
         (paymentMethodsMap[paymentMethod] || 0) + Number(s.total || 0);
-      if (!saleTax) continue;
 
       const items = s.items || [];
       const itemTotals = items.map((it) => {
@@ -162,7 +161,6 @@ router.get("/summary", authenticate, async (req, res) => {
       });
       const computedSubtotal = itemTotals.reduce((acc, v) => acc + v, 0);
       const saleSubtotal = Number(s.subtotal || computedSubtotal || 0);
-      if (!saleSubtotal) continue;
 
       for (let i = 0; i < items.length; i++) {
         const it = items[i] || {};
@@ -173,11 +171,15 @@ router.get("/summary", authenticate, async (req, res) => {
             : "Uncategorized";
         const itemTotal = itemTotals[i] || 0;
         if (!itemTotal) continue;
+
         categorySalesMap[category] =
           (categorySalesMap[category] || 0) + itemTotal;
-        const itemTax = (itemTotal / saleSubtotal) * saleTax;
-        taxByCategoryMap[category] =
-          (taxByCategoryMap[category] || 0) + itemTax;
+
+        if (saleTax && saleSubtotal) {
+          const itemTax = (itemTotal / saleSubtotal) * saleTax;
+          taxByCategoryMap[category] =
+            (taxByCategoryMap[category] || 0) + itemTax;
+        }
       }
     }
     const totalSales = sales.reduce((s, x) => s + (x.total || 0), 0);
@@ -335,7 +337,6 @@ router.get("/mart", authenticate, async (req, res) => {
       const paymentMethod = String(s.paymentMethod || "unknown");
       paymentMethodsMap[paymentMethod] =
         (paymentMethodsMap[paymentMethod] || 0) + Number(s.total || 0);
-      if (!saleTax) continue;
 
       const items = s.items || [];
       const itemTotals = items.map((it) => {
@@ -346,7 +347,6 @@ router.get("/mart", authenticate, async (req, res) => {
       });
       const computedSubtotal = itemTotals.reduce((acc, v) => acc + v, 0);
       const saleSubtotal = Number(s.subtotal || computedSubtotal || 0);
-      if (!saleSubtotal) continue;
 
       for (let i = 0; i < items.length; i++) {
         const it = items[i] || {};
@@ -357,11 +357,15 @@ router.get("/mart", authenticate, async (req, res) => {
             : "Uncategorized";
         const itemTotal = itemTotals[i] || 0;
         if (!itemTotal) continue;
+
         categorySalesMap[category] =
           (categorySalesMap[category] || 0) + itemTotal;
-        const itemTax = (itemTotal / saleSubtotal) * saleTax;
-        taxByCategoryMap[category] =
-          (taxByCategoryMap[category] || 0) + itemTax;
+
+        if (saleTax && saleSubtotal) {
+          const itemTax = (itemTotal / saleSubtotal) * saleTax;
+          taxByCategoryMap[category] =
+            (taxByCategoryMap[category] || 0) + itemTax;
+        }
       }
     }
     const taxByCategory = Object.entries(taxByCategoryMap)
@@ -390,6 +394,9 @@ router.get("/mart", authenticate, async (req, res) => {
     }
 
     // Fetch expenses and operational health signals
+    const expiryCutoff = new Date(now);
+    expiryCutoff.setHours(23, 59, 59, 999);
+
     const [expenses, expiredProducts, brokenAssets] = await Promise.all([
       expenseRepository.findMany({
         martId: targetMartId,
@@ -399,7 +406,7 @@ router.get("/mart", authenticate, async (req, res) => {
         {
           martId: targetMartId,
           isDeleted: false,
-          expiryDate: { not: null, lt: now },
+          expiryDate: { not: null, lte: expiryCutoff },
         },
         {
           select: {

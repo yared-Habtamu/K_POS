@@ -100,7 +100,7 @@ export default function Login() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/", { replace: true })}
             className="gap-2 hover:bg-white/10 dark:hover:bg-black/10 transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
