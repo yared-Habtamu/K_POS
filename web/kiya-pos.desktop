@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Kiya POS
+Comment=Open Kiya POS in app mode
+Exec=google-chrome --app=http://localhost:7080
+Terminal=false
+Type=Application
+Icon=/home/%u/DEV/kiya/POS/web/public/favicon.png
+Categories=Office;Finance;
+StartupNotify=true
