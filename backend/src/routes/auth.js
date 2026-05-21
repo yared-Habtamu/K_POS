@@ -220,7 +220,7 @@ router.post("/register", authenticate, async (req, res) => {
   // owners and managers can only create users within their mart
   if (
     (requesterRole === "owner" || requesterRole === "manager") &&
-    String(req.user.martId) !== String(martId)
+    String(req.user.martId) !== String(effectiveMartId)
   ) {
     return res
       .status(403)
