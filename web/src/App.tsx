@@ -32,6 +32,7 @@ import TodaysSales from "./pages/TodaysSales";
 import CashierPOS from "./pages/cashier/CashierPOS";
 import DailyReport from "./pages/cashier/DailyReport";
 import CustomerManagement from "./pages/cashier/CustomerManagement";
+import CashierSettings from "./pages/cashier/Settings";
 
 // Owner Pages
 import OwnerDashboard from "./pages/owner/OwnerDashboard";
@@ -54,12 +55,14 @@ import ManagerProductManagement from "./pages/manager/ProductManagement";
 import MEmployeeManagement from "./pages/manager/MEmployeeManagement";
 import ManagerApprovals from "./pages/manager/Approvals";
 import ManagerExpenseManagement from "./pages/manager/ExpenseManagement";
+import ManagerSettings from "./pages/manager/Settings";
 // Store Keeper Pages
 import StockManagement from "./pages/store-keeper/StockManagement";
 import BarcodeManagement from "./pages/store-keeper/BarcodeManagement";
 import ProductAdd from "./pages/store-keeper/ProductAdd";
 import StoreKeeperProductManagement from "./pages/store-keeper/ProductManagement";
 import StoreKeeperApprovals from "./pages/store-keeper/Approvals";
+import StoreKeeperSettings from "./pages/store-keeper/Settings";
 
 // Admin Pages
 import MainAdmin from "./pages/admin/MainAdmin";
@@ -67,6 +70,7 @@ import MartManagement from "./pages/admin/MartManagement";
 import AdminRegisterMart from "./pages/admin/RegisterMart";
 import AdminAnalytics from "./pages/admin/AdminAnalytics";
 import AdminSubscriptions from "./pages/admin/AdminSubscriptions";
+import AdminSettings from "./pages/admin/AdminSettings";
 import MartDetails from "./pages/admin/MartDetails";
 import { NotificationService } from "./components/notifications/NotificationService";
 
@@ -134,6 +138,7 @@ const App = () => {
             <Route path="/cashier/report" element={<DailyReport />} />
             <Route path="/cashier/today-sales" element={<TodaysSales />} />
             <Route path="/cashier/customers" element={<CustomerManagement />} />
+            <Route path="/cashier/settings" element={<CashierSettings />} />
 
             {/* Owner Routes */}
             <Route path="/owner" element={<OwnerDashboard />} />
@@ -183,6 +188,7 @@ const App = () => {
               path="/manager/expenses"
               element={<ManagerExpenseManagement />}
             />
+            <Route path="/manager/settings" element={<ManagerSettings />} />
 
             {/* Store Keeper Routes */}
             <Route path="/store-keeper" element={<Inventory />} />
@@ -207,6 +213,10 @@ const App = () => {
               path="/store-keeper/approvals"
               element={<StoreKeeperApprovals />}
             />
+            <Route
+              path="/store-keeper/settings"
+              element={<StoreKeeperSettings />}
+            />
 
             {/* Generic Inventory route (top-level) */}
             <Route path="/inventory" element={<Inventory />} />
@@ -214,6 +224,7 @@ const App = () => {
             {/* Admin Routes */}
             <Route path="/admin" element={<MainAdmin />} />
             <Route path="/admin/analytics" element={<AdminAnalytics />} />
+            <Route path="/admin/settings" element={<AdminSettings />} />
             <Route
               path="/admin/subscriptions"
               element={<AdminSubscriptions />}

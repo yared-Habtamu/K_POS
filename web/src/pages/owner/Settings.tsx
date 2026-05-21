@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/stores/authStore";
 import {
@@ -34,6 +35,7 @@ import {
   Trash2,
   Wallet,
 } from "lucide-react";
+import { PrinterSettingsCard } from "@/components/settings/PrinterSettingsCard";
 
 type ConfiguredPaymentType = {
   _id: string;
@@ -628,423 +630,499 @@ export default function OwnerSettings() {
   return (
     <RoleLayout allowedRoles={["owner"]}>
       <div className="max-w-3xl mx-auto space-y-6">
-        {/* Branding Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("branding")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 gap-4">
-              <div>
-                <p className="text-sm font-medium">{t("supermarket_name")}</p>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={t("enter_name")}
-                  className="mt-2"
-                />
-              </div>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold">{t("settings")}</h1>
+          <p className="text-muted-foreground">
+            Configure owner settings by section using tabs.
+          </p>
+        </div>
 
-              <div>
-                <p className="text-sm font-medium">{t("slogan")}</p>
-                <Input
-                  value={slogan}
-                  onChange={(e) => setSlogan(e.target.value)}
-                  placeholder={t("enter_slogan")}
-                  className="mt-2"
-                />
-              </div>
+        <Tabs defaultValue="branding" className="w-full">
+          <div className="w-full overflow-x-auto pb-1">
+            <TabsList className="inline-flex min-w-max justify-start gap-2">
+              <TabsTrigger value="branding" className="shrink-0">
+                {t("branding")}
+              </TabsTrigger>
+              <TabsTrigger value="payments" className="shrink-0">
+                {t("payments_and_currency")}
+              </TabsTrigger>
+              <TabsTrigger value="tax" className="shrink-0">
+                {t("tax")}
+              </TabsTrigger>
+              <TabsTrigger value="discount" className="shrink-0">
+                Discount
+              </TabsTrigger>
+              <TabsTrigger value="printer" className="shrink-0">
+                Printer
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-              <div>
-                <p className="text-sm font-medium">{t("phone")}</p>
-                <Input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder={t("phone")}
-                  className="mt-2"
-                />
-              </div>
-
-              <div>
-                <p className="text-sm font-medium">Address</p>
-                <Input
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Enter receipt address"
-                  className="mt-2"
-                />
-              </div>
-
-              <div className="flex justify-end pt-2">
-                <Button onClick={saveBranding}>{t("save_branding")}</Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Payments & Currency Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("payments_and_currency")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 gap-4">
-              <div>
-                <p className="text-sm font-medium">{t("currency")}</p>
-                <Select value={currency} onValueChange={(v) => setCurrency(v)}>
-                  <SelectTrigger className="mt-2 w-44">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ETB">ETB</SelectItem>
-                    <SelectItem value="USD">USD</SelectItem>
-                    <SelectItem value="Shilling">{t("shilling")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <p className="text-sm font-medium">{t("payment_system")}</p>
-                <Select
-                  value={paymentSystem || ""}
-                  onValueChange={(v) => setPaymentSystem(v)}
-                >
-                  <SelectTrigger className="mt-2 w-44">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cash">{t("cash")}</SelectItem>
-                    <SelectItem value="telebirr">{t("telebirr")}</SelectItem>
-                    <SelectItem value="cbe_bank">{t("cbe_bank")}</SelectItem>
-                    <SelectItem value="card">{t("card")}</SelectItem>
-                    <SelectItem value="credit">{t("credit")}</SelectItem>
-                    <SelectItem value="other">{t("other")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <p className="text-sm font-medium">
-                  {t("payment_account_identifier")}
-                </p>
-                {paymentSystem !== "other" ? (
-                  <Input
-                    value={
-                      customPaymentFields.find((p) => p.key === paymentSystem)
-                        ?.value || ""
-                    }
-                    onChange={(e) =>
-                      onAccountChange(paymentSystem || "", e.target.value)
-                    }
-                    placeholder={
-                      paymentSystem === "telebirr"
-                        ? t("enter_telebirr_number")
-                        : paymentSystem === "cbe_bank"
-                          ? t("enter_cbe_account_number")
-                          : paymentSystem === "card"
-                            ? t("enter_card_merchant_account")
-                            : paymentSystem === "credit" ||
-                                paymentSystem === "wallet"
-                              ? t("enter_credit_number")
-                              : t("enter_account_identifier")
-                    }
-                    className="mt-2"
-                  />
-                ) : (
-                  <div className="grid grid-cols-1 gap-2">
+          {/* Branding Section */}
+          <TabsContent value="branding" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("branding")}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <p className="text-sm font-medium">
+                      {t("supermarket_name")}
+                    </p>
                     <Input
-                      value={
-                        customPaymentFields.find((p) => p.key === "other_name")
-                          ?.value || ""
-                      }
-                      onChange={(e) => setOtherBankName(e.target.value)}
-                      placeholder={t("bank_name_example")}
-                      className="mt-2"
-                    />
-                    <Input
-                      value={
-                        customPaymentFields.find((p) => p.key === "other")
-                          ?.value || ""
-                      }
-                      onChange={(e) => setOtherBankIdentifier(e.target.value)}
-                      placeholder={t("account_identifier_number")}
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder={t("enter_name")}
                       className="mt-2"
                     />
                   </div>
-                )}
-              </div>
 
-              {/* Show quick list of saved accounts */}
-              {displayPaymentFields && displayPaymentFields.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium">{t("saved_accounts")}</p>
-                  <div className="mt-2 space-y-2">
-                    {displayPaymentFields.map((f) => (
-                      <div
-                        key={f.key}
-                        className="flex items-center justify-between gap-2"
-                      >
-                        <div className="text-sm">{f.key}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {f.value}
-                        </div>
-                      </div>
-                    ))}
+                  <div>
+                    <p className="text-sm font-medium">{t("slogan")}</p>
+                    <Input
+                      value={slogan}
+                      onChange={(e) => setSlogan(e.target.value)}
+                      placeholder={t("enter_slogan")}
+                      className="mt-2"
+                    />
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-medium">{t("phone")}</p>
+                    <Input
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder={t("phone")}
+                      className="mt-2"
+                    />
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-medium">Address</p>
+                    <Input
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder="Enter receipt address"
+                      className="mt-2"
+                    />
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <Button onClick={saveBranding}>{t("save_branding")}</Button>
                   </div>
                 </div>
-              )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-              <div className="flex justify-end pt-2">
-                <Button onClick={savePayments}>
-                  {t("save_payment_settings")}
-                </Button>
-              </div>
-
-              <div className="border-t pt-4 space-y-4">
-                <p className="text-sm font-semibold">POS Payment Methods</p>
-                <p className="text-xs text-muted-foreground">
-                  Add the payment methods that should appear on the POS screen.
-                  Only methods listed here will be shown to cashier and manager.
-                </p>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* Payments & Currency Section */}
+          <TabsContent value="payments" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("payments_and_currency")}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 gap-4">
                   <div>
-                    <p className="text-sm font-medium">Method</p>
+                    <p className="text-sm font-medium">{t("currency")}</p>
                     <Select
-                      value={selectedPosPaymentMethod}
-                      onValueChange={(value) => {
-                        setSelectedPosPaymentMethod(value);
-                        setSelectedPosPaymentIcon(
-                          defaultIconByPaymentMethod[value] || "Wallet",
-                        );
-                      }}
+                      value={currency}
+                      onValueChange={(v) => setCurrency(v)}
                     >
-                      <SelectTrigger className="mt-2">
+                      <SelectTrigger className="mt-2 w-44">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {paymentMethodOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {t(option.labelKey) || option.fallback}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="ETB">ETB</SelectItem>
+                        <SelectItem value="USD">USD</SelectItem>
+                        <SelectItem value="Shilling">
+                          {t("shilling")}
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div>
-                    <p className="text-sm font-medium">Icon</p>
+                    <p className="text-sm font-medium">{t("payment_system")}</p>
                     <Select
-                      value={selectedPosPaymentIcon}
-                      onValueChange={setSelectedPosPaymentIcon}
+                      value={paymentSystem || ""}
+                      onValueChange={(v) => setPaymentSystem(v)}
                     >
-                      <SelectTrigger className="mt-2">
+                      <SelectTrigger className="mt-2 w-44">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {paymentIconOptions.map(({ value, label, Icon }) => (
-                          <SelectItem key={value} value={value}>
-                            <span className="inline-flex items-center gap-2">
-                              <Icon className="h-4 w-4" />
-                              <span>{label}</span>
-                            </span>
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="cash">{t("cash")}</SelectItem>
+                        <SelectItem value="telebirr">
+                          {t("telebirr")}
+                        </SelectItem>
+                        <SelectItem value="cbe_bank">
+                          {t("cbe_bank")}
+                        </SelectItem>
+                        <SelectItem value="card">{t("card")}</SelectItem>
+                        <SelectItem value="credit">{t("credit")}</SelectItem>
+                        <SelectItem value="other">{t("other")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
-                  <div className="flex items-end">
-                    <Button
-                      className="w-full"
-                      onClick={upsertPosPaymentType}
-                      disabled={isSavingPosPaymentMethod}
-                    >
-                      {isSavingPosPaymentMethod ? "Saving..." : "Add / Update"}
+                  <div>
+                    <p className="text-sm font-medium">
+                      {t("payment_account_identifier")}
+                    </p>
+                    {paymentSystem !== "other" ? (
+                      <Input
+                        value={
+                          customPaymentFields.find(
+                            (p) => p.key === paymentSystem,
+                          )?.value || ""
+                        }
+                        onChange={(e) =>
+                          onAccountChange(paymentSystem || "", e.target.value)
+                        }
+                        placeholder={
+                          paymentSystem === "telebirr"
+                            ? t("enter_telebirr_number")
+                            : paymentSystem === "cbe_bank"
+                              ? t("enter_cbe_account_number")
+                              : paymentSystem === "card"
+                                ? t("enter_card_merchant_account")
+                                : paymentSystem === "credit" ||
+                                    paymentSystem === "wallet"
+                                  ? t("enter_credit_number")
+                                  : t("enter_account_identifier")
+                        }
+                        className="mt-2"
+                      />
+                    ) : (
+                      <div className="grid grid-cols-1 gap-2">
+                        <Input
+                          value={
+                            customPaymentFields.find(
+                              (p) => p.key === "other_name",
+                            )?.value || ""
+                          }
+                          onChange={(e) => setOtherBankName(e.target.value)}
+                          placeholder={t("bank_name_example")}
+                          className="mt-2"
+                        />
+                        <Input
+                          value={
+                            customPaymentFields.find((p) => p.key === "other")
+                              ?.value || ""
+                          }
+                          onChange={(e) =>
+                            setOtherBankIdentifier(e.target.value)
+                          }
+                          placeholder={t("account_identifier_number")}
+                          className="mt-2"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Show quick list of saved accounts */}
+                  {displayPaymentFields && displayPaymentFields.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium">
+                        {t("saved_accounts")}
+                      </p>
+                      <div className="mt-2 space-y-2">
+                        {displayPaymentFields.map((f) => (
+                          <div
+                            key={f.key}
+                            className="flex items-center justify-between gap-2"
+                          >
+                            <div className="text-sm">{f.key}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {f.value}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end pt-2">
+                    <Button onClick={savePayments}>
+                      {t("save_payment_settings")}
                     </Button>
                   </div>
-                </div>
 
-                <div className="space-y-2">
-                  {(configuredPaymentTypes || []).length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      No POS payment methods configured yet.
+                  <div className="border-t pt-4 space-y-4">
+                    <p className="text-sm font-semibold">POS Payment Methods</p>
+                    <p className="text-xs text-muted-foreground">
+                      Add the payment methods that should appear on the POS
+                      screen. Only methods listed here will be shown to cashier
+                      and manager.
                     </p>
-                  ) : (
-                    configuredPaymentTypes
-                      .slice()
-                      .sort((a, b) => a.name.localeCompare(b.name))
-                      .map((item) => {
-                        const iconName =
-                          String(item.icon || "").trim() ||
-                          defaultIconByPaymentMethod[item.name] ||
-                          "Wallet";
-                        const IconComp =
-                          paymentIconOptions.find((it) => it.value === iconName)
-                            ?.Icon || Wallet;
 
-                        return (
-                          <div
-                            key={item._id}
-                            className="flex items-center justify-between rounded-md border p-2"
-                          >
-                            <div className="inline-flex items-center gap-2 text-sm">
-                              <IconComp className="h-4 w-4" />
-                              <span>
-                                {resolvePaymentMethodLabel(item.name, t)}
-                              </span>
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                setPendingDeletePaymentType({
-                                  id: item._id,
-                                  name: resolvePaymentMethodLabel(item.name, t),
-                                })
-                              }
-                              disabled={deletingPaymentTypeId === item._id}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        );
-                      })
-                  )}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <p className="text-sm font-medium">Method</p>
+                        <Select
+                          value={selectedPosPaymentMethod}
+                          onValueChange={(value) => {
+                            setSelectedPosPaymentMethod(value);
+                            setSelectedPosPaymentIcon(
+                              defaultIconByPaymentMethod[value] || "Wallet",
+                            );
+                          }}
+                        >
+                          <SelectTrigger className="mt-2">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {paymentMethodOptions.map((option) => (
+                              <SelectItem
+                                key={option.value}
+                                value={option.value}
+                              >
+                                {t(option.labelKey) || option.fallback}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <p className="text-sm font-medium">Icon</p>
+                        <Select
+                          value={selectedPosPaymentIcon}
+                          onValueChange={setSelectedPosPaymentIcon}
+                        >
+                          <SelectTrigger className="mt-2">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {paymentIconOptions.map(
+                              ({ value, label, Icon }) => (
+                                <SelectItem key={value} value={value}>
+                                  <span className="inline-flex items-center gap-2">
+                                    <Icon className="h-4 w-4" />
+                                    <span>{label}</span>
+                                  </span>
+                                </SelectItem>
+                              ),
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex items-end">
+                        <Button
+                          className="w-full"
+                          onClick={upsertPosPaymentType}
+                          disabled={isSavingPosPaymentMethod}
+                        >
+                          {isSavingPosPaymentMethod
+                            ? "Saving..."
+                            : "Add / Update"}
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {(configuredPaymentTypes || []).length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          No POS payment methods configured yet.
+                        </p>
+                      ) : (
+                        configuredPaymentTypes
+                          .slice()
+                          .sort((a, b) => a.name.localeCompare(b.name))
+                          .map((item) => {
+                            const iconName =
+                              String(item.icon || "").trim() ||
+                              defaultIconByPaymentMethod[item.name] ||
+                              "Wallet";
+                            const IconComp =
+                              paymentIconOptions.find(
+                                (it) => it.value === iconName,
+                              )?.Icon || Wallet;
+
+                            return (
+                              <div
+                                key={item._id}
+                                className="flex items-center justify-between rounded-md border p-2"
+                              >
+                                <div className="inline-flex items-center gap-2 text-sm">
+                                  <IconComp className="h-4 w-4" />
+                                  <span>
+                                    {resolvePaymentMethodLabel(item.name, t)}
+                                  </span>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    setPendingDeletePaymentType({
+                                      id: item._id,
+                                      name: resolvePaymentMethodLabel(
+                                        item.name,
+                                        t,
+                                      ),
+                                    })
+                                  }
+                                  disabled={deletingPaymentTypeId === item._id}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            );
+                          })
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        {/* Tax Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("tax")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 gap-4">
-              <div>
-                <p className="text-sm font-medium">
-                  {t("tax_setting_percent")}
-                </p>
-                <Input
-                  type="number"
-                  value={tax}
-                  onChange={(e) => setTax(e.target.value)}
-                  placeholder={t("enter_tax_rate")}
-                  className="mt-2 w-44"
-                />
-              </div>
+          {/* Tax Section */}
+          <TabsContent value="tax" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("tax")}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <p className="text-sm font-medium">
+                      {t("tax_setting_percent")}
+                    </p>
+                    <Input
+                      type="number"
+                      value={tax}
+                      onChange={(e) => setTax(e.target.value)}
+                      placeholder={t("enter_tax_rate")}
+                      className="mt-2 w-44"
+                    />
+                  </div>
 
-              <div className="flex justify-end pt-2">
-                <Button onClick={saveTax}>{t("save_tax")}</Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                  <div className="flex justify-end pt-2">
+                    <Button onClick={saveTax}>{t("save_tax")}</Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        {/* Global Discount Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Global Discount</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 gap-4">
-              <div>
-                <p className="text-sm font-medium">Discount Type</p>
-                <Select
-                  value={globalDiscountType}
-                  onValueChange={(v) =>
-                    setGlobalDiscountType(v as "percentage" | "fixed")
-                  }
-                >
-                  <SelectTrigger className="mt-2 w-56">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="percentage">Percentage (%)</SelectItem>
-                    <SelectItem value="fixed">Fixed Amount</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          {/* Global Discount Section */}
+          <TabsContent value="discount" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Global Discount</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <p className="text-sm font-medium">Discount Type</p>
+                    <Select
+                      value={globalDiscountType}
+                      onValueChange={(v) =>
+                        setGlobalDiscountType(v as "percentage" | "fixed")
+                      }
+                    >
+                      <SelectTrigger className="mt-2 w-56">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="percentage">
+                          Percentage (%)
+                        </SelectItem>
+                        <SelectItem value="fixed">Fixed Amount</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <div>
-                <p className="text-sm font-medium">
-                  {globalDiscountType === "percentage"
-                    ? "Discount Rate (%)"
-                    : "Discount Value (ETB)"}
-                </p>
-                <Input
-                  type="number"
-                  value={globalDiscountRate}
-                  onChange={(e) => setGlobalDiscountRate(e.target.value)}
-                  placeholder={
-                    globalDiscountType === "percentage"
-                      ? "Enter discount percentage"
-                      : "Enter fixed discount value"
-                  }
-                  className="mt-2 w-44"
-                />
-              </div>
+                  <div>
+                    <p className="text-sm font-medium">
+                      {globalDiscountType === "percentage"
+                        ? "Discount Rate (%)"
+                        : "Discount Value (ETB)"}
+                    </p>
+                    <Input
+                      type="number"
+                      value={globalDiscountRate}
+                      onChange={(e) => setGlobalDiscountRate(e.target.value)}
+                      placeholder={
+                        globalDiscountType === "percentage"
+                          ? "Enter discount percentage"
+                          : "Enter fixed discount value"
+                      }
+                      className="mt-2 w-44"
+                    />
+                  </div>
 
-              <div className="space-y-3 rounded-lg border p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium">
-                    Apply when total items exceed X
+                  <div className="space-y-3 rounded-lg border p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium">
+                        Apply when total items exceed X
+                      </p>
+                      <Switch
+                        checked={enableDiscountByItems}
+                        onCheckedChange={(checked) =>
+                          setEnableDiscountByItems(Boolean(checked))
+                        }
+                      />
+                    </div>
+                    {enableDiscountByItems && (
+                      <Input
+                        type="number"
+                        value={discountMinItems}
+                        onChange={(e) => setDiscountMinItems(e.target.value)}
+                        placeholder="Enter item threshold"
+                        className="w-44"
+                      />
+                    )}
+                  </div>
+
+                  <div className="space-y-3 rounded-lg border p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium">
+                        Apply when subtotal exceeds X amount
+                      </p>
+                      <Switch
+                        checked={enableDiscountByAmount}
+                        onCheckedChange={(checked) =>
+                          setEnableDiscountByAmount(Boolean(checked))
+                        }
+                      />
+                    </div>
+                    {enableDiscountByAmount && (
+                      <Input
+                        type="number"
+                        value={discountMinAmount}
+                        onChange={(e) => setDiscountMinAmount(e.target.value)}
+                        placeholder="Enter amount threshold"
+                        className="w-44"
+                      />
+                    )}
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    Discount is auto-applied when at least one enabled condition
+                    is met.
                   </p>
-                  <Switch
-                    checked={enableDiscountByItems}
-                    onCheckedChange={(checked) =>
-                      setEnableDiscountByItems(Boolean(checked))
-                    }
-                  />
+
+                  <div className="flex justify-end pt-2">
+                    <Button onClick={saveDiscountPolicy}>Save Discount</Button>
+                  </div>
                 </div>
-                {enableDiscountByItems && (
-                  <Input
-                    type="number"
-                    value={discountMinItems}
-                    onChange={(e) => setDiscountMinItems(e.target.value)}
-                    placeholder="Enter item threshold"
-                    className="w-44"
-                  />
-                )}
-              </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-              <div className="space-y-3 rounded-lg border p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium">
-                    Apply when subtotal exceeds X amount
-                  </p>
-                  <Switch
-                    checked={enableDiscountByAmount}
-                    onCheckedChange={(checked) =>
-                      setEnableDiscountByAmount(Boolean(checked))
-                    }
-                  />
-                </div>
-                {enableDiscountByAmount && (
-                  <Input
-                    type="number"
-                    value={discountMinAmount}
-                    onChange={(e) => setDiscountMinAmount(e.target.value)}
-                    placeholder="Enter amount threshold"
-                    className="w-44"
-                  />
-                )}
-              </div>
-
-              <p className="text-xs text-muted-foreground">
-                Discount is auto-applied when at least one enabled condition is
-                met.
-              </p>
-
-              <div className="flex justify-end pt-2">
-                <Button onClick={saveDiscountPolicy}>Save Discount</Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          <TabsContent value="printer" className="mt-4">
+            <PrinterSettingsCard
+              role="owner"
+              title="Owner Printer"
+              description="Set the printer used for owner actions on this device."
+            />
+          </TabsContent>
+        </Tabs>
 
         <AlertDialog
           open={Boolean(pendingDeletePaymentType)}

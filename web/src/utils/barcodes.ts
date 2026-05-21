@@ -1,4 +1,7 @@
 import JsBarcode from "jsbarcode";
+import qzBridge from "@/services/printBridge/qzBridge";
+import { useSettingsStore } from "@/stores/settingsStore";
+import { useAuthStore } from "@/stores/authStore";
 
 export async function generateUniqueBarcode(
   findExisting: (code: string) => Promise<unknown | null>,
@@ -77,9 +80,7 @@ export function printBarcodeLabel(params: {
   const safeShopName = String(shopName || "").trim();
   const safeProductName = String(productName || "").trim();
   const parsedPrice =
-    typeof price === "number"
-      ? price
-      : Number(String(price || "").trim());
+    typeof price === "number" ? price : Number(String(price || "").trim());
   const showPrice = Number.isFinite(parsedPrice);
   const priceLabel = showPrice ? `${parsedPrice.toFixed(2)} ETB` : "";
 
@@ -157,16 +158,39 @@ export function printBarcodeLabel(params: {
   // Wait for image to load in iframe, then print
   const img = iframeDoc.querySelector("img");
   const doPrint = () => {
-    try {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-    } catch (e) {
-      console.error("iframe print failed:", e);
-    }
-    // Clean up after a brief delay
-    setTimeout(() => {
-      document.body.removeChild(iframe);
-    }, 1000);
+    (async () => {
+      try {
+        // Try using QZ bridge raw printing for direct printer output
+        const preferredPrinter = useSettingsStore
+          .getState()
+          .getPreferredPrinter(useAuthStore.getState().user?.role || null);
+        const connected = await qzBridge.connect();
+        if (connected) {
+          // print the iframe's HTML as simple HTML payload
+          const html =
+            iframeDoc.documentElement?.outerHTML ||
+            iframeDoc.body?.outerHTML ||
+            "";
+          await qzBridge.printHtml(html, {
+            printer: preferredPrinter || undefined,
+          });
+        } else {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        }
+      } catch (e) {
+        console.error("iframe print failed:", e);
+        try {
+          iframe.contentWindow?.print();
+        } catch (_) {}
+      }
+      // Clean up after a brief delay
+      setTimeout(() => {
+        try {
+          document.body.removeChild(iframe);
+        } catch (e) {}
+      }, 1000);
+    })();
   };
 
   if (img?.complete) {

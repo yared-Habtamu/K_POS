@@ -149,6 +149,9 @@ importers:
       qrcode.react:
         specifier: ^4.2.0
         version: 4.2.0(react@18.3.1)
+      qz-tray:
+        specifier: ^2.2.6
+        version: 2.2.6
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -2499,6 +2502,9 @@ packages:
 
   queue-microtask@1.2.3:
     resolution: {integrity: sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A==}
+
+  qz-tray@2.2.6:
+    resolution: {integrity: sha512-b9w0vcjHSdKiOq1jL/KXfb3IvgaIc/BeQv9JuJ3nTEoqSUZfIGKLAyKTS+akHSXrR64R0UwEDmw20GvD2di/Pg==}
 
   raf@3.4.1:
     resolution: {integrity: sha512-Sq4CW4QhwOHE8ucn6J34MqtZCeWFP2aQSmrlroYgqAV1PjStIhJXxYuTgUIfkEk7zTLjmIjLmU5q+fbD1NnOJA==}
@@ -5020,6 +5026,8 @@ snapshots:
       react: 18.3.1
 
   queue-microtask@1.2.3: {}
+
+  qz-tray@2.2.6: {}
 
   raf@3.4.1:
     dependencies:

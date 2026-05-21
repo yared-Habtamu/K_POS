@@ -16,6 +16,8 @@ import { Separator } from "@/components/ui/separator";
 import type { Receipt } from "@/types";
 import { Printer, Download, MessageSquare, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
+import qzBridge from "@/services/printBridge/qzBridge";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 interface ReceiptPreviewProps {
   receipt: Receipt;
@@ -29,15 +31,20 @@ const SYSTEM_PROVIDER_PHONE =
 
 export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
   const { t } = useTranslation();
+  const currentRole = useAuthStore.getState().user?.role || null;
 
   const handlePrint = () => {
     try {
-      const el = document.querySelector(".receipt-preview") as HTMLElement | null;
+      const el = document.querySelector(
+        ".receipt-preview",
+      ) as HTMLElement | null;
       if (!el) return window.print();
 
       const html = el.outerHTML;
       // Collect page styles but inject a focused print stylesheet for 80mm thermal paper
-      const pageStyles = Array.from(document.querySelectorAll("style, link[rel='stylesheet']"))
+      const pageStyles = Array.from(
+        document.querySelectorAll("style, link[rel='stylesheet']"),
+      )
         .map((n) => n.outerHTML)
         .join("\n");
 
@@ -67,26 +74,48 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
         </style>
       `;
 
-      const w = window.open("", "_blank", "toolbar=0,location=0,menubar=0");
-      if (!w) return window.print();
-
       const docHtml = `<!doctype html><html><head><meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"/>${pageStyles}${printStyles}</head><body>${html}</body></html>`;
-      w.document.open();
-      w.document.write(docHtml);
-      w.document.close();
-      // Wait for content to render before printing
-      w.focus();
-      setTimeout(() => {
+
+      // Try QZ Tray silent print first if available
+      const preferredPrinter = useSettingsStore
+        .getState()
+        .getPreferredPrinter(currentRole);
+      (async () => {
         try {
-          w.print();
+          const connected = await qzBridge.connect();
+          if (connected) {
+            await qzBridge.printHtml(docHtml, {
+              printer: preferredPrinter || undefined,
+            });
+            return;
+          }
         } catch (e) {
-          console.error("print failed", e);
+          console.warn(
+            "QZ bridge print failed, falling back to window.print()",
+            e,
+          );
         }
-        // Optionally close window after print
-        try {
-          w.close();
-        } catch (e) {}
-      }, 300);
+
+        // fallback to opening window and using browser print
+        const w = window.open("", "_blank", "toolbar=0,location=0,menubar=0");
+        if (!w) return window.print();
+        w.document.open();
+        w.document.write(docHtml);
+        w.document.close();
+        // Wait for content to render before printing
+        w.focus();
+        setTimeout(() => {
+          try {
+            w.print();
+          } catch (e) {
+            console.error("print failed", e);
+          }
+          // Optionally close window after print
+          try {
+            w.close();
+          } catch (e) {}
+        }, 300);
+      })();
     } catch (err) {
       console.error("Print receipt failed", err);
       window.print();
@@ -99,8 +128,9 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
         const API_BASE =
           (import.meta.env.VITE_API_URL as string | undefined) ||
           (import.meta.env.NEXT_PUBLIC_API_URL as string | undefined) ||
-          (window.location?.origin || "");
-        const url = `${API_BASE.replace(/\/+$/,'')}/api/sales/receipt/${encodeURIComponent(receipt.id)}/pdf`;
+          window.location?.origin ||
+          "";
+        const url = `${API_BASE.replace(/\/+$/, "")}/api/sales/receipt/${encodeURIComponent(receipt.id)}/pdf`;
         const token = useAuthStore.getState().user?.token;
         const headers: Record<string, string> = {};
         if (token) headers.Authorization = `Bearer ${token}`;
@@ -114,7 +144,11 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
           // fallback: open HTML receipt view so user can print/download manually
           try {
             const API_BASE =
-              (import.meta.env.VITE_RECEIPT_PUBLIC_BASE_URL as string | undefined)?.trim() ||
+              (
+                import.meta.env.VITE_RECEIPT_PUBLIC_BASE_URL as
+                  | string
+                  | undefined
+              )?.trim() ||
               (import.meta.env.VITE_API_URL as string | undefined) ||
               (import.meta.env.NEXT_PUBLIC_API_URL as string | undefined) ||
               "";
@@ -250,7 +284,9 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
           {receipt.receiptSlogan ? (
             <p className="text-xs mt-2">{receipt.receiptSlogan}</p>
           ) : (
-            receipt.receiptHeader && <p className="text-xs mt-2">{receipt.receiptHeader}</p>
+            receipt.receiptHeader && (
+              <p className="text-xs mt-2">{receipt.receiptHeader}</p>
+            )
           )}
         </div>
 
@@ -338,13 +374,17 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
 
         {/* QR Code */}
         <div className="flex flex-col items-center">
-            {/* QR code removed */}
+          {/* QR code removed */}
         </div>
 
         {/* Footer */}
         {/* Footer slogan removed to avoid duplicate; slogan shown at top instead */}
-        <p className="receipt-powered-by text-center mt-2">{t("powered_by_smart_pos")}</p>
-        <p className="receipt-provider-phone text-center mt-1">{SYSTEM_PROVIDER_PHONE}</p>
+        <p className="receipt-powered-by text-center mt-2">
+          {t("powered_by_smart_pos")}
+        </p>
+        <p className="receipt-provider-phone text-center mt-1">
+          {SYSTEM_PROVIDER_PHONE}
+        </p>
       </div>
 
       {/* Actions */}
