@@ -1,8 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const Asset = require("../models/asset.model");
-const AssetActionRequest = require("../models/assetActionRequest.model");
-const User = require("../models/user.model");
+const assetRepository = require("../repositories/assetRepository");
+const { assetActionRequestRepository } = require("../repositories/requestRepositories");
+const userRepository = require("../repositories/userRepository");
 const { authenticate } = require("../middleware/auth");
 const multer = require("multer");
 const { uploadBuffer } = require("../utils/cloudinary");
@@ -15,10 +15,10 @@ const upload = multer({
 
 // Helper to generate next Asset ID: AST0001
 async function generateAssetId(martId) {
-  const lastAsset = await Asset.findOne({ martId, assetId: /^AST\d+$/ })
-    .sort({ createdAt: -1 })
-    .select("assetId")
-    .lean();
+  const lastAsset = await assetRepository.findOne(
+    { martId, NOT: { assetId: null } },
+    { orderBy: { createdAt: "desc" }, select: { assetId: true } }
+  );
 
   let nextNum = 1;
   if (lastAsset && lastAsset.assetId) {
@@ -40,16 +40,24 @@ function isManager(user) {
 
 async function getMartManagers(martId) {
   if (!martId) return [];
-  return User.find({ martId, role: { $regex: /^manager$/i } })
-    .select("_id username name")
-    .lean();
+  return userRepository.findMany(
+    { 
+      martId, 
+      role: { equals: "manager", mode: "insensitive" } 
+    },
+    { select: { id: true, username: true, name: true } }
+  );
 }
 
 async function getMartOwners(martId) {
   if (!martId) return [];
-  return User.find({ martId, role: { $regex: /^owner$/i } })
-    .select("_id username name")
-    .lean();
+  return userRepository.findMany(
+    { 
+      martId, 
+      role: { equals: "owner", mode: "insensitive" } 
+    },
+    { select: { id: true, username: true, name: true } }
+  );
 }
 
 async function createAssetApprovalRequest({
@@ -68,7 +76,7 @@ async function createAssetApprovalRequest({
 
   const requesterRole = String(user?.role || "").toLowerCase();
 
-  const reqDoc = new AssetActionRequest({
+  const reqDoc = await assetActionRequestRepository.create({
     martId,
     requesterId: user.id,
     requesterName: user.username || user.name,
@@ -76,21 +84,19 @@ async function createAssetApprovalRequest({
     approvalRole,
     assetId: assetId || null,
     action,
-    payload,
+    payload: payload || undefined,
   });
-
-  await reqDoc.save();
 
   await Promise.all(
     approvers.map((approver) =>
       createNotification({
         martId,
-        userId: approver._id,
+        userId: approver.id,
         type: "asset_action_request",
         title: "Asset action requested",
         message: `${reqDoc.requesterName || "User"} requested asset ${action} approval`,
         metadata: {
-          requestId: reqDoc._id,
+          requestId: reqDoc.id,
           action,
           approvalRole,
           assetId: assetId || null,
@@ -125,7 +131,7 @@ function deriveAssetStatus(rawAssetStatus, rawConditions) {
 router.get("/", authenticate, async (req, res) => {
   try {
     const { martId } = req.query;
-    const filter = {};
+    const filter = { isDeleted: false };
     if (req.user.role === "systemAdmin") {
       if (martId) filter.martId = martId;
     } else {
@@ -135,7 +141,7 @@ router.get("/", authenticate, async (req, res) => {
           .status(403)
           .json({ message: "Cannot list assets for another mart" });
     }
-    const list = await Asset.find(filter).sort({ createdAt: -1 }).lean();
+    const list = await assetRepository.findMany(filter, { orderBy: { createdAt: "desc" } });
     res.json(list);
   } catch (err) {
     console.error(err);
@@ -198,7 +204,7 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
           name,
           image: finalImageUrl,
           sizeOrType,
-          purchaseDate,
+          purchaseDate: purchaseDate ? new Date(purchaseDate) : null,
           status,
           asset_status: normalizedAssetStatus,
           conditions,
@@ -214,7 +220,7 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
           message: isOwner(req.user)
             ? "Asset registration submitted for manager approval"
             : "Asset registration submitted for owner approval",
-          requestId: requestDoc._id,
+          requestId: requestDoc.id,
         });
       }
     }
@@ -222,13 +228,13 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
     // Auto-generate assetId on backend
     const assetId = await generateAssetId(targetMartId);
 
-    const asset = new Asset({
+    const asset = await assetRepository.create({
       martId: targetMartId,
       name,
       assetId,
       image: finalImageUrl,
       sizeOrType,
-      purchaseDate,
+      purchaseDate: purchaseDate ? new Date(purchaseDate) : null,
       status,
       asset_status: normalizedAssetStatus,
       conditions,
@@ -238,7 +244,6 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
       description,
       createdBy: req.user.id,
     });
-    await asset.save();
     res.status(201).json(asset);
   } catch (err) {
     console.error(err);
@@ -263,7 +268,7 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
       description,
       purchasePrice,
     } = req.body;
-    const asset = await Asset.findById(id);
+    const asset = await assetRepository.findById(id);
     if (!asset) return res.status(404).json({ message: "Asset not found" });
 
     if (req.user.role !== "systemAdmin") {
@@ -274,6 +279,7 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
     }
 
     // Handle image update
+    let finalImageUrl = asset.image;
     if (req.file && req.file.buffer) {
       try {
         const uploaded = await uploadBuffer(
@@ -281,20 +287,20 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
           req.file.originalname,
           `${req.protocol}://${req.get("host")}`,
         );
-        asset.image = uploaded.secure_url || uploaded.url || asset.image;
+        finalImageUrl = uploaded.secure_url || uploaded.url || finalImageUrl;
       } catch (uploadErr) {
         console.error("Asset image update error:", uploadErr);
         return res.status(500).json({ message: "Image upload failed" });
       }
     } else if (req.body.image !== undefined) {
-      asset.image = req.body.image;
+      finalImageUrl = req.body.image;
     }
 
     const changes = {};
     if (name != null) changes.name = name;
     if (assetId != null) changes.assetId = assetId;
     if (sizeOrType != null) changes.sizeOrType = sizeOrType;
-    if (purchaseDate != null) changes.purchaseDate = purchaseDate;
+    if (purchaseDate != null) changes.purchaseDate = purchaseDate ? new Date(purchaseDate) : null;
     if (status != null) changes.status = status;
     if (asset_status != null || conditions != null) {
       changes.asset_status = deriveAssetStatus(asset_status, conditions);
@@ -304,7 +310,7 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
     if (quantity != null) changes.quantity = Number(quantity);
     if (purchasePrice != null) changes.purchasePrice = Number(purchasePrice);
     if (description != null) changes.description = description;
-    if (asset.image != null) changes.image = asset.image;
+    if (finalImageUrl != null) changes.image = finalImageUrl;
 
     const requesterIsOwnerOrManager = isOwner(req.user) || isManager(req.user);
     if (requesterIsOwnerOrManager) {
@@ -312,7 +318,7 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
         martId: asset.martId,
         user: req.user,
         action: "update",
-        assetId: asset._id,
+        assetId: asset.id,
         approvalRole: isOwner(req.user) ? "manager" : "owner",
         payload: changes,
       });
@@ -322,18 +328,13 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
           message: isOwner(req.user)
             ? "Asset update submitted for manager approval"
             : "Asset update submitted for owner approval",
-          requestId: requestDoc._id,
+          requestId: requestDoc.id,
         });
       }
     }
 
-    // allow partial updates
-    Object.entries(changes).forEach(([k, v]) => {
-      asset[k] = v;
-    });
-
-    await asset.save();
-    res.json(asset);
+    const updatedAsset = await assetRepository.update(id, changes);
+    res.json(updatedAsset);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -344,7 +345,7 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
 router.delete("/:id", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const asset = await Asset.findById(id);
+    const asset = await assetRepository.findById(id);
     if (!asset) return res.status(404).json({ message: "Asset not found" });
     if (req.user.role !== "systemAdmin") {
       if (!req.user.martId || String(asset.martId) !== String(req.user.martId))
@@ -359,7 +360,7 @@ router.delete("/:id", authenticate, async (req, res) => {
         martId: asset.martId,
         user: req.user,
         action: "delete",
-        assetId: asset._id,
+        assetId: asset.id,
         approvalRole: isOwner(req.user) ? "manager" : "owner",
         payload: {
           name: asset.name,
@@ -372,12 +373,12 @@ router.delete("/:id", authenticate, async (req, res) => {
           message: isOwner(req.user)
             ? "Asset delete submitted for manager approval"
             : "Asset delete submitted for owner approval",
-          requestId: requestDoc._id,
+          requestId: requestDoc.id,
         });
       }
     }
 
-    await Asset.findByIdAndDelete(id);
+    await assetRepository.delete(id);
     res.json({ message: "Asset deleted" });
   } catch (err) {
     console.error(err);

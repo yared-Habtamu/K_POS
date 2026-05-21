@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const ExpenseCategory = require('../models/expenseCategory.model');
+const expenseCategoryRepository = require('../repositories/expenseCategoryRepository');
 const { authenticate } = require('../middleware/auth');
 
 // List expense categories. Optional martId for systemAdmin; others limited to their mart
 router.get('/', authenticate, async (req, res) => {
   try {
     const { martId } = req.query;
-    const filter = {};
+    const filter = { isDeleted: false };
     if (req.user.role === 'systemAdmin') {
       if (martId) filter.martId = martId;
     } else {
@@ -17,7 +17,9 @@ router.get('/', authenticate, async (req, res) => {
       }
     }
 
-    const list = await ExpenseCategory.find(filter).sort({ name: 1 }).lean();
+    const list = await expenseCategoryRepository.findMany(filter, {
+      orderBy: { name: 'asc' }
+    });
     res.json(list);
   } catch (err) {
     console.error(err);
@@ -34,15 +36,19 @@ router.post('/', authenticate, async (req, res) => {
     const targetMartId = req.user.role === 'systemAdmin' ? martId || req.user.martId : req.user.martId;
     if (!targetMartId) return res.status(400).json({ message: 'martId is required' });
 
-    const cat = await ExpenseCategory.findOneAndUpdate(
-      { name: name.trim(), martId: targetMartId },
-      { name: name.trim(), martId: targetMartId },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
+    const trimmedName = name.trim();
+    const cat = await expenseCategoryRepository.upsert(trimmedName, targetMartId);
+    
+    // If it was soft-deleted, we might want to un-delete it
+    if (cat.isDeleted) {
+      await expenseCategoryRepository.update(cat.id, { isDeleted: false });
+      cat.isDeleted = false;
+    }
+
     res.status(201).json(cat);
   } catch (err) {
     console.error(err);
-    if (err.code === 11000) {
+    if (err.code === 'P2002') {
       return res.status(409).json({ message: 'Expense category already exists' });
     }
     res.status(500).json({ message: 'Server error' });

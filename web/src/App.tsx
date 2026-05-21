@@ -80,8 +80,12 @@ const App = () => {
   const user = useAuthStore((s) => s.user);
   const clearCart = useCartStore((s) => s.clearCart);
   const previousUserKeyRef = useRef<string | null>(null);
-  const Router =
+  const Router: any =
     window.location.protocol === "file:" ? HashRouter : BrowserRouter;
+  const routerFutureFlags = {
+    v7_startTransition: true,
+    v7_relativeSplatPath: true,
+  };
 
   const currentUserKey = user
     ? String(user.id || `${user.username}:${user.role}:${user.martId || ""}`)
@@ -109,7 +113,7 @@ const App = () => {
         <NotificationService />
         <Toaster />
         <Sonner />
-        <Router>
+        <Router future={routerFutureFlags}>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />

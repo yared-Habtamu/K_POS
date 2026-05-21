@@ -57,9 +57,9 @@ const CHART_COLORS = [
   "hsl(217 60% 45%)", // Lighter Navy
   "hsl(262 80% 55%)", // Purple
   "hsl(262 80% 65%)", // Lighter Purple
-  "hsl(38 92% 50%)",  // Amber
+  "hsl(38 92% 50%)", // Amber
   "hsl(142 76% 36%)", // Green
-  "hsl(0 84% 60%)",   // Red
+  "hsl(0 84% 60%)", // Red
   "hsl(217 33% 40%)", // Muted Slate
   "hsl(217 33% 20%)", // Dark Slate
   "hsl(217 60% 20%)", // Deeper Navy
@@ -170,7 +170,9 @@ export default function AdminAnalytics() {
         setData(json);
       } catch (err: unknown) {
         console.error("Failed to load admin analytics", err);
-        setError(err instanceof Error ? err.message : "Failed to load analytics");
+        setError(
+          err instanceof Error ? err.message : "Failed to load analytics",
+        );
       } finally {
         setLoading(false);
       }
@@ -212,9 +214,8 @@ export default function AdminAnalytics() {
     if (!data) return [];
     if (!martSearch) return data.martAnalytics;
     const q = martSearch.toLowerCase();
-    return data.martAnalytics.filter(
-      (m) =>
-        m.martName.toLowerCase().includes(q)
+    return data.martAnalytics.filter((m) =>
+      m.martName.toLowerCase().includes(q),
     );
   }, [data, martSearch]);
 
@@ -295,8 +296,7 @@ export default function AdminAnalytics() {
       value: fmtCurrency(p.totalMonthlyProfit),
       icon: p.totalMonthlyProfit >= 0 ? ArrowUpRight : ArrowDownRight,
       color: p.totalMonthlyProfit >= 0 ? "text-success" : "text-destructive",
-      bg:
-        p.totalMonthlyProfit >= 0 ? "bg-success/10" : "bg-destructive/10",
+      bg: p.totalMonthlyProfit >= 0 ? "bg-success/10" : "bg-destructive/10",
     },
     {
       label: "Active Marts",
@@ -387,13 +387,28 @@ export default function AdminAnalytics() {
                       width={100}
                       tick={{ fontSize: 11 }}
                     />
-                    <Tooltip 
-                      contentStyle={tooltipStyle} 
-                      cursor={{ fill: 'hsl(var(--primary)/0.05)' }}
-                      formatter={(v: number) => [`${v.toLocaleString()} ETB`, ""]} 
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      cursor={{ fill: "hsl(var(--primary)/0.05)" }}
+                      formatter={(v: number) => [
+                        `${v.toLocaleString()} ETB`,
+                        "",
+                      ]}
                     />
-                    <Bar dataKey="monthlySales" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} name="Sales" barSize={12} />
-                    <Bar dataKey="monthlyExpenses" fill="hsl(var(--destructive))" radius={[0, 4, 4, 0]} name="Expenses" barSize={12} />
+                    <Bar
+                      dataKey="monthlySales"
+                      fill="hsl(var(--primary))"
+                      radius={[0, 4, 4, 0]}
+                      name="Sales"
+                      barSize={12}
+                    />
+                    <Bar
+                      dataKey="monthlyExpenses"
+                      fill="hsl(var(--destructive))"
+                      radius={[0, 4, 4, 0]}
+                      name="Expenses"
+                      barSize={12}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -457,7 +472,12 @@ export default function AdminAnalytics() {
             <CardTitle className="text-base flex items-center gap-2">
               <Package className="h-4 w-4 text-primary" />
               All Products
-              <Badge variant="secondary" className="ml-1 bg-primary/10 text-primary border-none">{filteredProducts.length}</Badge>
+              <Badge
+                variant="secondary"
+                className="ml-1 bg-primary/10 text-primary border-none"
+              >
+                {filteredProducts.length}
+              </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -479,18 +499,25 @@ export default function AdminAnalytics() {
                   <SelectContent>
                     <SelectItem value="all">All Marts</SelectItem>
                     {data.martAnalytics.map((m) => (
-                      <SelectItem key={m.martId} value={m.martId}>{m.martName}</SelectItem>
+                      <SelectItem key={m.martId} value={m.martId}>
+                        {m.martName}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <Select
+                  value={categoryFilter}
+                  onValueChange={setCategoryFilter}
+                >
                   <SelectTrigger className="w-[160px] bg-muted/30 border-none">
                     <SelectValue placeholder="Category" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Categories</SelectItem>
                     {data.categoryDistribution.map((c) => (
-                      <SelectItem key={c.category} value={c.category}>{c.category}</SelectItem>
+                      <SelectItem key={c.category} value={c.category}>
+                        {c.category}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -512,46 +539,100 @@ export default function AdminAnalytics() {
               <Table>
                 <TableHeader className="bg-muted/30">
                   <TableRow className="hover:bg-transparent border-border/50">
-                    <TableHead className="text-xs font-semibold">Product</TableHead>
-                    <TableHead className="text-xs font-semibold">Category</TableHead>
-                    <TableHead className="text-xs font-semibold">Mart</TableHead>
-                    <TableHead className="text-right text-xs font-semibold">Purchase</TableHead>
-                    <TableHead className="text-right text-xs font-semibold">Selling</TableHead>
-                    <TableHead className="text-right text-xs font-semibold">Margin</TableHead>
-                    <TableHead className="text-right text-xs font-semibold">Qty</TableHead>
-                    <TableHead className="text-center text-xs font-semibold">Status</TableHead>
+                    <TableHead className="text-xs font-semibold">
+                      Product
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold">
+                      Category
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold">
+                      Mart
+                    </TableHead>
+                    <TableHead className="text-right text-xs font-semibold">
+                      Purchase
+                    </TableHead>
+                    <TableHead className="text-right text-xs font-semibold">
+                      Selling
+                    </TableHead>
+                    <TableHead className="text-right text-xs font-semibold">
+                      Margin
+                    </TableHead>
+                    <TableHead className="text-right text-xs font-semibold">
+                      Qty
+                    </TableHead>
+                    <TableHead className="text-center text-xs font-semibold">
+                      Status
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedProducts.map((pr, i) => (
-                    <TableRow key={pr._id} className="border-border/40 hover:bg-muted/20 transition-colors">
-                      <TableCell className="font-medium text-sm">{pr.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-[10px] font-normal border-border/50">{pr.category}</Badge>
+                    <TableRow
+                      key={pr._id}
+                      className="border-border/40 hover:bg-muted/20 transition-colors"
+                    >
+                      <TableCell className="font-medium text-sm">
+                        {pr.name}
                       </TableCell>
-                      <TableCell className="text-sm font-medium text-primary/80">{pr.martName}</TableCell>
-                      <TableCell className="text-right text-sm">{pr.purchasePrice.toLocaleString()}</TableCell>
-                      <TableCell className="text-right font-semibold text-sm">{pr.sellingPrice.toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-normal border-border/50"
+                        >
+                          {pr.category}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm font-medium text-primary/80">
+                        {pr.martName}
+                      </TableCell>
+                      <TableCell className="text-right text-sm">
+                        {Number(pr.purchasePrice || 0).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-sm">
+                        {Number(pr.sellingPrice || 0).toLocaleString()}
+                      </TableCell>
                       <TableCell className="text-right">
-                        <span className={pr.margin >= 20 ? "text-success font-medium text-sm" : pr.margin >= 10 ? "text-warning font-medium text-sm" : "text-destructive font-medium text-sm"}>
+                        <span
+                          className={
+                            pr.margin >= 20
+                              ? "text-success font-medium text-sm"
+                              : pr.margin >= 10
+                                ? "text-warning font-medium text-sm"
+                                : "text-destructive font-medium text-sm"
+                          }
+                        >
                           {pr.margin.toFixed(1)}%
                         </span>
                       </TableCell>
-                      <TableCell className="text-right text-sm">{pr.quantity}</TableCell>
+                      <TableCell className="text-right text-sm">
+                        {pr.quantity}
+                      </TableCell>
                       <TableCell className="text-center">
                         {pr.stockStatus === "out_of_stock" ? (
-                          <Badge variant="destructive" className="text-[10px] px-2 py-0 h-5">Out</Badge>
+                          <Badge
+                            variant="destructive"
+                            className="text-[10px] px-2 py-0 h-5"
+                          >
+                            Out
+                          </Badge>
                         ) : pr.stockStatus === "low_stock" ? (
-                          <Badge className="bg-warning/10 text-warning border-warning/20 text-[10px] px-2 py-0 h-5">Low</Badge>
+                          <Badge className="bg-warning/10 text-warning border-warning/20 text-[10px] px-2 py-0 h-5">
+                            Low
+                          </Badge>
                         ) : (
-                          <Badge className="bg-success/10 text-success border-success/20 text-[10px] px-2 py-0 h-5">OK</Badge>
+                          <Badge className="bg-success/10 text-success border-success/20 text-[10px] px-2 py-0 h-5">
+                            OK
+                          </Badge>
                         )}
                       </TableCell>
                     </TableRow>
                   ))}
                   {paginatedProducts.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground py-12">
+                      <TableCell
+                        colSpan={8}
+                        className="text-center text-muted-foreground py-12"
+                      >
                         <div className="flex flex-col items-center gap-2">
                           <Package className="h-8 w-8 opacity-20" />
                           <p>No products found matching your filters</p>
@@ -566,7 +647,15 @@ export default function AdminAnalytics() {
             {totalPages > 1 && (
               <div className="flex items-center justify-between mt-6">
                 <p className="text-xs text-muted-foreground">
-                  Showing <span className="font-medium text-foreground">{paginatedProducts.length}</span> of <span className="font-medium text-foreground">{filteredProducts.length}</span> products
+                  Showing{" "}
+                  <span className="font-medium text-foreground">
+                    {paginatedProducts.length}
+                  </span>{" "}
+                  of{" "}
+                  <span className="font-medium text-foreground">
+                    {filteredProducts.length}
+                  </span>{" "}
+                  products
                 </p>
                 <div className="flex items-center gap-1">
                   <button
@@ -577,7 +666,13 @@ export default function AdminAnalytics() {
                     Prev
                   </button>
                   <div className="flex items-center px-3">
-                    <span className="text-xs text-muted-foreground">Page <span className="font-medium text-foreground">{page}</span> of {totalPages}</span>
+                    <span className="text-xs text-muted-foreground">
+                      Page{" "}
+                      <span className="font-medium text-foreground">
+                        {page}
+                      </span>{" "}
+                      of {totalPages}
+                    </span>
                   </div>
                   <button
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
@@ -608,11 +703,34 @@ export default function AdminAnalytics() {
                     layout="vertical"
                     margin={{ left: 10 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
-                    <XAxis type="number" className="text-xs" tickFormatter={(v) => `${v}%`} />
-                    <YAxis dataKey="name" type="category" width={100} className="text-[10px] font-medium" tick={{ fontSize: 10 }} />
-                    <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'hsl(var(--success)/0.05)' }} formatter={(v: number) => [`${v.toFixed(1)}%`, "Margin"]} />
-                    <Bar dataKey="margin" fill="hsl(var(--success))" radius={[0, 4, 4, 0]} barSize={16} />
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      className="stroke-border"
+                      horizontal={false}
+                    />
+                    <XAxis
+                      type="number"
+                      className="text-xs"
+                      tickFormatter={(v) => `${v}%`}
+                    />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      width={100}
+                      className="text-[10px] font-medium"
+                      tick={{ fontSize: 10 }}
+                    />
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      cursor={{ fill: "hsl(var(--success)/0.05)" }}
+                      formatter={(v: number) => [`${v.toFixed(1)}%`, "Margin"]}
+                    />
+                    <Bar
+                      dataKey="margin"
+                      fill="hsl(var(--success))"
+                      radius={[0, 4, 4, 0]}
+                      barSize={16}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -631,19 +749,38 @@ export default function AdminAnalytics() {
                 <Table>
                   <TableHeader className="bg-muted/30 sticky top-0 z-10">
                     <TableRow className="hover:bg-transparent border-border/50">
-                      <TableHead className="text-xs font-semibold">Product</TableHead>
-                      <TableHead className="text-xs font-semibold">Mart</TableHead>
-                      <TableHead className="text-right text-xs font-semibold">Purchase</TableHead>
-                      <TableHead className="text-right text-xs font-semibold">Selling</TableHead>
+                      <TableHead className="text-xs font-semibold">
+                        Product
+                      </TableHead>
+                      <TableHead className="text-xs font-semibold">
+                        Mart
+                      </TableHead>
+                      <TableHead className="text-right text-xs font-semibold">
+                        Purchase
+                      </TableHead>
+                      <TableHead className="text-right text-xs font-semibold">
+                        Selling
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {data.topExpensiveProducts.map((pr, i) => (
-                      <TableRow key={i} className="border-border/40 hover:bg-muted/20 transition-colors">
-                        <TableCell className="font-medium text-sm">{pr.name}</TableCell>
-                        <TableCell className="text-xs font-medium text-primary/70">{pr.martName}</TableCell>
-                        <TableCell className="text-right text-sm">{pr.purchasePrice.toLocaleString()}</TableCell>
-                        <TableCell className="text-right text-sm font-semibold">{pr.sellingPrice.toLocaleString()}</TableCell>
+                      <TableRow
+                        key={pr._id || i}
+                        className="border-border/40 hover:bg-muted/20 transition-colors"
+                      >
+                        <TableCell className="font-medium text-sm">
+                          {pr.name}
+                        </TableCell>
+                        <TableCell className="text-xs font-medium text-primary/70">
+                          {pr.martName}
+                        </TableCell>
+                        <TableCell className="text-right text-sm">
+                          {Number(pr.purchasePrice || 0).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right text-sm font-semibold">
+                          {Number(pr.sellingPrice || 0).toLocaleString()}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -658,7 +795,12 @@ export default function AdminAnalytics() {
             <CardTitle className="text-base flex items-center gap-2">
               <Building2 className="h-4 w-4 text-primary" />
               Mart Comparison
-              <Badge variant="secondary" className="ml-1 bg-primary/10 text-primary border-none">{filteredMarts.length}</Badge>
+              <Badge
+                variant="secondary"
+                className="ml-1 bg-primary/10 text-primary border-none"
+              >
+                {filteredMarts.length}
+              </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -666,50 +808,104 @@ export default function AdminAnalytics() {
               <Table>
                 <TableHeader className="bg-muted/30">
                   <TableRow className="hover:bg-transparent border-border/50">
-                    <TableHead className="text-xs font-semibold">Mart</TableHead>
-                    <TableHead className="text-center text-xs font-semibold">Products</TableHead>
-                    <TableHead className="text-center text-xs font-semibold">Users</TableHead>
-                    <TableHead className="text-right text-xs font-semibold">Inventory</TableHead>
-                    <TableHead className="text-right text-xs font-semibold">Selling</TableHead>
-                    <TableHead className="text-right text-xs font-semibold">Avg Margin</TableHead>
-                    <TableHead className="text-right text-xs font-semibold">Revenue</TableHead>
-                    <TableHead className="text-right text-xs font-semibold">Expenses</TableHead>
-                    <TableHead className="text-right text-xs font-semibold">Profit</TableHead>
-                    <TableHead className="text-center text-xs font-semibold">Actions</TableHead>
+                    <TableHead className="text-xs font-semibold">
+                      Mart
+                    </TableHead>
+                    <TableHead className="text-center text-xs font-semibold">
+                      Products
+                    </TableHead>
+                    <TableHead className="text-center text-xs font-semibold">
+                      Users
+                    </TableHead>
+                    <TableHead className="text-right text-xs font-semibold">
+                      Inventory
+                    </TableHead>
+                    <TableHead className="text-right text-xs font-semibold">
+                      Selling
+                    </TableHead>
+                    <TableHead className="text-right text-xs font-semibold">
+                      Avg Margin
+                    </TableHead>
+                    <TableHead className="text-right text-xs font-semibold">
+                      Revenue
+                    </TableHead>
+                    <TableHead className="text-right text-xs font-semibold">
+                      Expenses
+                    </TableHead>
+                    <TableHead className="text-right text-xs font-semibold">
+                      Profit
+                    </TableHead>
+                    <TableHead className="text-center text-xs font-semibold">
+                      Actions
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredMarts.map((m) => (
-                    <TableRow 
-                      key={m.martId} 
+                    <TableRow
+                      key={m.martId}
                       className="border-border/40 hover:bg-muted/20 transition-colors cursor-pointer"
                       onClick={() => navigate(`/admin/mart/${m.martId}`)}
                     >
-                      <TableCell className="font-semibold text-sm text-primary">{m.martName}</TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="secondary" className="text-[10px] font-medium bg-muted/60 text-foreground border-none px-2">{m.productCount}</Badge>
+                      <TableCell className="font-semibold text-sm text-primary">
+                        {m.martName}
                       </TableCell>
                       <TableCell className="text-center">
-                        <Badge variant="secondary" className="text-[10px] font-medium bg-muted/60 text-foreground border-none px-2">{m.userCount}</Badge>
+                        <Badge
+                          variant="secondary"
+                          className="text-[10px] font-medium bg-muted/60 text-foreground border-none px-2"
+                        >
+                          {m.productCount}
+                        </Badge>
                       </TableCell>
-                      <TableCell className="text-right text-xs">{m.inventoryValue.toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-xs">{m.sellingValue.toLocaleString()}</TableCell>
+                      <TableCell className="text-center">
+                        <Badge
+                          variant="secondary"
+                          className="text-[10px] font-medium bg-muted/60 text-foreground border-none px-2"
+                        >
+                          {m.userCount}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right text-xs">
+                        {m.inventoryValue.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right text-xs">
+                        {m.sellingValue.toLocaleString()}
+                      </TableCell>
                       <TableCell className="text-right">
-                        <span className={m.avgMargin >= 20 ? "text-success font-medium text-xs" : m.avgMargin >= 10 ? "text-warning font-medium text-xs" : "text-destructive font-medium text-xs"}>
+                        <span
+                          className={
+                            m.avgMargin >= 20
+                              ? "text-success font-medium text-xs"
+                              : m.avgMargin >= 10
+                                ? "text-warning font-medium text-xs"
+                                : "text-destructive font-medium text-xs"
+                          }
+                        >
                           {m.avgMargin.toFixed(1)}%
                         </span>
                       </TableCell>
-                      <TableCell className="text-right font-semibold text-sm">{m.monthlySales.toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-muted-foreground text-xs">{m.monthlyExpenses.toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-semibold text-sm">
+                        {m.monthlySales.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground text-xs">
+                        {m.monthlyExpenses.toLocaleString()}
+                      </TableCell>
                       <TableCell className="text-right">
-                        <span className={m.profit >= 0 ? "text-success font-bold text-sm" : "text-destructive font-bold text-sm"}>
+                        <span
+                          className={
+                            m.profit >= 0
+                              ? "text-success font-bold text-sm"
+                              : "text-destructive font-bold text-sm"
+                          }
+                        >
                           {m.profit.toLocaleString()}
                         </span>
                       </TableCell>
                       <TableCell className="text-center">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="h-8 w-8 hover:bg-primary/10 hover:text-primary"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -723,7 +919,12 @@ export default function AdminAnalytics() {
                   ))}
                   {filteredMarts.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center text-muted-foreground py-12">No marts found</TableCell>
+                      <TableCell
+                        colSpan={10}
+                        className="text-center text-muted-foreground py-12"
+                      >
+                        No marts found
+                      </TableCell>
                     </TableRow>
                   )}
                 </TableBody>

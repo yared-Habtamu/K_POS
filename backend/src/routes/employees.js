@@ -2,8 +2,7 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const router = express.Router();
 
-const User = require("../models/user.model");
-const Mart = require("../models/mart.model");
+const userRepository = require("../repositories/userRepository");
 const { authenticate } = require("../middleware/auth");
 
 // Helper to accept human-friendly role strings and normalize to backend values
@@ -27,11 +26,13 @@ async function ensureUniqueMartRole({ martId, role, excludeUserId = null }) {
   const query = {
     martId,
     role,
-    isDeleted: { $ne: true },
+    isDeleted: false,
   };
-  if (excludeUserId) query._id = { $ne: excludeUserId };
+  if (excludeUserId) {
+    query.id = { not: excludeUserId };
+  }
 
-  const existing = await User.findOne(query).select("_id name role").lean();
+  const existing = await userRepository.findOne(query, { select: { id: true, name: true, role: true } });
   if (existing) {
     return `${role} already exists for this mart`;
   }
@@ -43,7 +44,7 @@ router.get("/", authenticate, async (req, res) => {
   try {
     const { martId } = req.query;
     const requester = req.user;
-    const filter = {};
+    const filter = { isDeleted: false };
 
     if (requester.role === "systemAdmin") {
       if (martId) filter.martId = martId;
@@ -54,17 +55,19 @@ router.get("/", authenticate, async (req, res) => {
     }
 
     // If manager requester, exclude owner role from results.
-    // Keep manager users included so assignment dropdowns can target them.
     if (requester.role === "manager") {
-      filter.role = { $nin: ["owner"] };
+      filter.role = { notIn: ["owner"] };
     }
 
-    const users = await User.find(filter).select("-passwordHash -__v").lean();
-    // Ensure active flag present for all users (default to true)
-    const normalized = users.map((u) => ({
-      ...u,
-      active: u.active === undefined || u.active === null ? true : u.active,
-    }));
+    const users = await userRepository.findMany(filter);
+    
+    // Ensure active flag present for all users and passwordHash removed
+    const normalized = users.map((u) => {
+      const copy = { ...u };
+      delete copy.passwordHash;
+      copy.active = copy.active === undefined || copy.active === null ? true : copy.active;
+      return copy;
+    });
     res.json(normalized);
   } catch (err) {
     console.error(err);
@@ -109,7 +112,7 @@ router.post("/", authenticate, async (req, res) => {
       for (let i = 0; i < 10; i++) {
         const suffix = Math.floor(Math.random() * 9000) + 1000;
         const maybe = `${candidate}${suffix}`;
-        const exists = await User.findOne({ username: maybe });
+        const exists = await userRepository.findByUsername(maybe);
         if (!exists) {
           found = maybe;
           break;
@@ -117,7 +120,7 @@ router.post("/", authenticate, async (req, res) => {
       }
       username = found || `${base}${Date.now().toString().slice(-4)}`;
     } else {
-      const exists = await User.findOne({ username });
+      const exists = await userRepository.findByUsername(username);
       if (exists)
         return res.status(409).json({ message: "Username already exists" });
     }
@@ -133,20 +136,21 @@ router.post("/", authenticate, async (req, res) => {
     if (uniquenessError)
       return res.status(409).json({ message: uniquenessError });
 
-    const user = new User({
+    const user = await userRepository.create({
       name,
       username,
       passwordHash,
       role: normRole,
       martId: assignedMartId,
-      phone,
-      salary,
+      phone: phone || null,
+      salary: salary ? Number(salary) : null,
+      active: true,
+      isDeleted: false,
     });
-    await user.save();
 
     res.status(201).json({
       user: {
-        id: user._id,
+        id: user.id,
         username: user.username,
         name: user.name,
         role: user.role,
@@ -164,7 +168,7 @@ router.put("/:id", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const requester = req.user;
-    const target = await User.findById(id);
+    const target = await userRepository.findById(id);
     if (!target) return res.status(404).json({ message: "User not found" });
 
     // Only systemAdmin or same mart owner/manager can update
@@ -178,10 +182,19 @@ router.put("/:id", authenticate, async (req, res) => {
 
     const update = {};
     const allowed = ["name", "phone", "role", "salary", "permissions"];
-    for (const k of allowed)
-      if (req.body[k] !== undefined) update[k] = req.body[k];
-    if (req.body.password)
+    for (const k of allowed) {
+      if (req.body[k] !== undefined) {
+        if (k === "salary") {
+          update[k] = req.body[k] !== null ? Number(req.body[k]) : null;
+        } else {
+          update[k] = req.body[k];
+        }
+      }
+    }
+    
+    if (req.body.password) {
       update.passwordHash = await bcrypt.hash(req.body.password, 10);
+    }
 
     // normalize role if provided
     if (update.role) {
@@ -195,7 +208,7 @@ router.put("/:id", authenticate, async (req, res) => {
     const uniquenessError = await ensureUniqueMartRole({
       martId: nextMartId,
       role: nextRole,
-      excludeUserId: target._id,
+      excludeUserId: target.id,
     });
     if (uniquenessError)
       return res.status(409).json({ message: uniquenessError });
@@ -208,10 +221,10 @@ router.put("/:id", authenticate, async (req, res) => {
           .json({ message: "Manager cannot set this role" });
     }
 
-    const updated = await User.findByIdAndUpdate(id, update, {
-      new: true,
-    }).select("-passwordHash -__v");
-    res.json(updated);
+    const updated = await userRepository.update(id, update);
+    const copy = { ...updated };
+    delete copy.passwordHash;
+    res.json(copy);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -231,7 +244,7 @@ router.put("/:id/open-cash", authenticate, async (req, res) => {
       return res.status(403).json({ message: "Only owners can update open cash" });
     }
 
-    const target = await User.findById(id);
+    const target = await userRepository.findById(id);
     if (!target) return res.status(404).json({ message: "User not found" });
 
     if (
@@ -253,22 +266,24 @@ router.put("/:id/open-cash", authenticate, async (req, res) => {
     }
 
     const normalizedMode = String(mode || "add").toLowerCase();
-    let update = {};
+    let updated;
     if (normalizedMode === "set") {
-      update.openCashBalance = Math.max(0, parsedAmount);
+      updated = await userRepository.update(id, {
+        openCashBalance: Math.max(0, parsedAmount)
+      });
     } else {
       if (parsedAmount <= 0) {
         return res.status(400).json({ message: "Amount must be greater than 0" });
       }
-      update = { $inc: { openCashBalance: parsedAmount } };
+      updated = await userRepository.update(id, {
+        openCashBalance: {
+          increment: parsedAmount
+        }
+      });
     }
 
-    const updated = await User.findByIdAndUpdate(id, update, {
-      new: true,
-    }).select("-passwordHash -__v");
-
     return res.json({
-      userId: updated._id,
+      userId: updated.id,
       openCashBalance: Number(updated.openCashBalance || 0),
     });
   } catch (err) {
@@ -277,12 +292,12 @@ router.put("/:id/open-cash", authenticate, async (req, res) => {
   }
 });
 
-// Delete employee
+// Delete employee (soft delete to keep foreign keys intact)
 router.delete("/:id", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const requester = req.user;
-    const target = await User.findById(id);
+    const target = await userRepository.findById(id);
     if (!target) return res.status(404).json({ message: "User not found" });
 
     if (requester.role !== "systemAdmin") {
@@ -297,7 +312,7 @@ router.delete("/:id", authenticate, async (req, res) => {
           .json({ message: "Only owners can delete employees" });
     }
 
-    await User.findByIdAndDelete(id);
+    await userRepository.softDelete(id);
     res.json({ message: "User deleted" });
   } catch (err) {
     console.error(err);

@@ -1,36 +1,32 @@
-const mongoose = require("mongoose");
-const Mart = require("../models/mart.model");
-const User = require("../models/user.model");
-const Notification = require("../models/notification.model");
-const SubscriptionSettings = require("../models/subscriptionSettings.model");
+const prisma = require("../repositories/prismaClient");
+const martRepository = require("../repositories/martRepository");
+const userRepository = require("../repositories/userRepository");
+const notificationRepository = require("../repositories/notificationRepository");
+const subscriptionSettingsRepository = require("../repositories/subscriptionSettingsRepository");
 
 const BYTES_PER_MB = 1024 * 1024;
 
 const COLLECTIONS_WITH_MART = [
-  "products",
-  "sales",
-  "expenses",
-  "assets",
-  "customers",
-  "attendance",
-  "dailyreports",
-  "notifications",
-  "productaddrequests",
-  "producteditrequests",
-  "stocktransferrequests",
-  "assetactionrequests",
-  "expenseactionrequests",
-  "categories",
-  "expensecategories",
-  "paymenttypes",
+  ["product", 1.0],
+  ["sale", 1.2],
+  ["expense", 0.8],
+  ["asset", 1.0],
+  ["customer", 0.7],
+  ["attendance", 0.5],
+  ["dailyReport", 0.6],
+  ["notification", 0.5],
+  ["productAddRequest", 1.0],
+  ["productEditRequest", 1.0],
+  ["stockTransferRequest", 1.0],
+  ["assetActionRequest", 1.0],
+  ["expenseActionRequest", 1.0],
+  ["category", 0.3],
+  ["expenseCategory", 0.3],
+  ["paymentType", 0.3],
 ];
 
 async function getOrCreateSettings() {
-  const existing = await SubscriptionSettings.findOne().sort({ createdAt: -1 });
-  if (existing) return existing;
-
-  const created = await SubscriptionSettings.create({});
-  return created;
+  return await subscriptionSettingsRepository.getOrCreate();
 }
 
 function clampNumber(value, fallback, min = 0) {
@@ -42,39 +38,20 @@ function clampNumber(value, fallback, min = 0) {
 async function estimateMartStorageUsageMb(martId) {
   if (!martId) return 0;
 
-  const db = mongoose.connection.db;
-  if (!db) return 0;
-
   let totalBytes = 0;
 
-  for (const collectionName of COLLECTIONS_WITH_MART) {
+  for (const [modelName, averageKilobytes] of COLLECTIONS_WITH_MART) {
     try {
-      const result = await db
-        .collection(collectionName)
-        .aggregate([
-          { $match: { martId: new mongoose.Types.ObjectId(String(martId)) } },
-          {
-            $group: {
-              _id: null,
-              totalBytes: { $sum: { $bsonSize: "$$ROOT" } },
-            },
-          },
-        ])
-        .toArray();
-
-      totalBytes += Number(result?.[0]?.totalBytes || 0);
+      const count = await prisma[modelName].count({
+        where: { martId },
+      });
+      totalBytes += (count * averageKilobytes * BYTES_PER_MB) / 1024;
     } catch (err) {
-      // Fallback path for Mongo versions/operators that do not support $bsonSize.
-      try {
-        const docs = await db
-          .collection(collectionName)
-          .find({ martId: new mongoose.Types.ObjectId(String(martId)) })
-          .project({})
-          .toArray();
-        totalBytes += Buffer.byteLength(JSON.stringify(docs || []), "utf8");
-      } catch {
-        // Skip unavailable collections safely.
-      }
+      // Skip unavailable tables safely.
+      console.warn(
+        `[estimateMartStorageUsageMb] Failed to estimate size for ${modelName}:`,
+        err.message,
+      );
     }
   }
 
@@ -88,39 +65,40 @@ async function hasRecentNotification({
   withinHours = 24,
 }) {
   const since = new Date(Date.now() - withinHours * 60 * 60 * 1000);
-  const existing = await Notification.findOne({
+  const existing = await notificationRepository.findOne({
     userId,
     martId,
     type,
-    createdAt: { $gte: since },
-  })
-    .sort({ createdAt: -1 })
-    .lean();
+    createdAt: { gte: since },
+  });
 
   return Boolean(existing);
 }
 
 async function notifySystemAdmins({ mart, type, title, message, data }) {
-  const admins = await User.find({
-    role: "systemAdmin",
-    active: true,
-    isDeleted: { $ne: true },
-  })
-    .select("_id")
-    .lean();
+  const admins = await userRepository.findMany(
+    {
+      role: "systemAdmin",
+      active: true,
+      isDeleted: false,
+    },
+    {
+      select: { id: true },
+    },
+  );
 
   for (const admin of admins) {
     const exists = await hasRecentNotification({
-      userId: admin._id,
-      martId: mart._id,
+      userId: admin.id,
+      martId: mart.id,
       type,
       withinHours: 24,
     });
     if (exists) continue;
 
-    await Notification.create({
-      userId: admin._id,
-      martId: mart._id,
+    await notificationRepository.create({
+      userId: admin.id,
+      martId: mart.id,
       type,
       title,
       message,
@@ -130,27 +108,30 @@ async function notifySystemAdmins({ mart, type, title, message, data }) {
 }
 
 async function notifyMartOwners({ mart, type, title, message, data }) {
-  const owners = await User.find({
-    role: "owner",
-    martId: mart._id,
-    active: true,
-    isDeleted: { $ne: true },
-  })
-    .select("_id")
-    .lean();
+  const owners = await userRepository.findMany(
+    {
+      role: "owner",
+      martId: mart.id,
+      active: true,
+      isDeleted: false,
+    },
+    {
+      select: { id: true },
+    },
+  );
 
   for (const owner of owners) {
     const exists = await hasRecentNotification({
-      userId: owner._id,
-      martId: mart._id,
+      userId: owner.id,
+      martId: mart.id,
       type,
       withinHours: 24,
     });
     if (exists) continue;
 
-    await Notification.create({
-      userId: owner._id,
-      martId: mart._id,
+    await notificationRepository.create({
+      userId: owner.id,
+      martId: mart.id,
       type,
       title,
       message,
@@ -204,10 +185,16 @@ async function evaluateMartSubscription(
   const previousMartStatus = String(mart.status || "");
 
   const plan = deriveEffectivePlan(mart, settings);
-  const storageUsageMb = await estimateMartStorageUsageMb(mart._id);
+  const storageUsageMb = await estimateMartStorageUsageMb(mart.id);
 
-  const subscriptionStartDateRaw = mart.subscription?.subscriptionStartDate
-    ? new Date(mart.subscription.subscriptionStartDate)
+  // Parse JSONB subscription field
+  const subData =
+    mart.subscription && typeof mart.subscription === "object"
+      ? mart.subscription
+      : {};
+
+  const subscriptionStartDateRaw = subData.subscriptionStartDate
+    ? new Date(subData.subscriptionStartDate)
     : null;
   const hasValidStart =
     subscriptionStartDateRaw &&
@@ -215,8 +202,8 @@ async function evaluateMartSubscription(
 
   const subscriptionStartDate = hasValidStart ? subscriptionStartDateRaw : now;
 
-  const explicitEndDate = mart.subscription?.subscriptionEndDate
-    ? new Date(mart.subscription.subscriptionEndDate)
+  const explicitEndDate = subData.subscriptionEndDate
+    ? new Date(subData.subscriptionEndDate)
     : null;
   const hasExplicitEnd =
     explicitEndDate && Number.isFinite(explicitEndDate.getTime());
@@ -272,7 +259,7 @@ async function evaluateMartSubscription(
       title: "Mart suspended by subscription policy",
       message: `Your mart has been suspended: ${reason}. Please renew or contact support to restore operations.`,
       data: {
-        martId: String(mart._id),
+        martId: String(mart.id),
         martName: mart.martName,
         reason,
         daysLeft,
@@ -283,19 +270,21 @@ async function evaluateMartSubscription(
   }
 
   if (persist) {
-    mart.subscription = {
-      ...(mart.subscription || {}),
+    const updatedSub = {
+      ...subData,
       ...plan,
       storageUsageMb,
       storageUsagePercent,
-      subscriptionStartDate,
-      subscriptionEndDate,
+      subscriptionStartDate: subscriptionStartDate.toISOString(),
+      subscriptionEndDate: subscriptionEndDate.toISOString(),
       subscriptionStatus,
-      lastEvaluatedAt: now,
+      lastEvaluatedAt: now.toISOString(),
     };
 
+    let nextStatus = mart.status;
+
     if (shouldSuspend && mart.status !== "suspended") {
-      mart.status = "suspended";
+      nextStatus = "suspended";
     }
 
     if (
@@ -303,10 +292,16 @@ async function evaluateMartSubscription(
       mart.status === "suspended" &&
       subscriptionStatus !== "suspended"
     ) {
-      mart.status = "approved";
+      nextStatus = "approved";
     }
 
-    await mart.save();
+    await martRepository.update(mart.id, {
+      subscription: updatedSub,
+      status: nextStatus,
+    });
+
+    mart.subscription = updatedSub;
+    mart.status = nextStatus;
   }
 
   if (nearStorageLimit || nearTimeLimit) {
@@ -326,7 +321,7 @@ async function evaluateMartSubscription(
       title: "Subscription warning",
       message: `Your mart is nearing subscription limits: ${warningParts.join(", ")}. Please renew or upgrade to avoid suspension.`,
       data: {
-        martId: String(mart._id),
+        martId: String(mart.id),
         martName: mart.martName,
         daysLeft,
         storageUsageMb,
@@ -347,7 +342,7 @@ async function evaluateMartSubscription(
       title: "Mart suspended by subscription policy",
       message: `Your mart has been suspended: ${reason}. Please renew or contact support to restore operations.`,
       data: {
-        martId: String(mart._id),
+        martId: String(mart.id),
         martName: mart.martName,
         reason,
         daysLeft,
@@ -365,7 +360,7 @@ async function evaluateMartSubscription(
       message:
         "Your mart is no longer suspended and has been restored to active status.",
       data: {
-        martId: String(mart._id),
+        martId: String(mart.id),
         martName: mart.martName,
         daysLeft,
         storageUsageMb,
@@ -388,7 +383,7 @@ async function evaluateMartSubscription(
       title: "Subscription deadline reached",
       message: ownerMessage,
       data: {
-        martId: String(mart._id),
+        martId: String(mart.id),
         martName: mart.martName,
         daysLeft,
         subscriptionEndDate,
@@ -397,7 +392,7 @@ async function evaluateMartSubscription(
   }
 
   return {
-    martId: String(mart._id),
+    martId: String(mart.id),
     martName: mart.martName,
     status: mart.status,
     subscriptionStatus,
@@ -414,7 +409,7 @@ async function evaluateMartSubscription(
 }
 
 async function runSubscriptionCheckForMart(martId, { persist = true } = {}) {
-  const mart = await Mart.findById(martId);
+  const mart = await martRepository.findById(martId);
   if (!mart) return null;
 
   const settings = await getOrCreateSettings();
@@ -423,7 +418,7 @@ async function runSubscriptionCheckForMart(martId, { persist = true } = {}) {
 
 async function runSubscriptionChecksForAllMarts({ persist = true } = {}) {
   const settings = await getOrCreateSettings();
-  const marts = await Mart.find({ isDeleted: { $ne: true } });
+  const marts = await martRepository.findMany({ isDeleted: false });
 
   const results = [];
   for (const mart of marts) {

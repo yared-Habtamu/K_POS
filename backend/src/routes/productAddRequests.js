@@ -1,9 +1,9 @@
 const express = require("express");
-const mongoose = require("mongoose");
 const { authenticate } = require("../middleware/auth");
-const ProductAddRequest = require("../models/productAddRequest.model");
-const Product = require("../models/product.model");
+const { productAddRequestRepository } = require("../repositories/requestRepositories");
+const productRepository = require("../repositories/productRepository");
 const { createNotification } = require("../services/notification.service");
+const prisma = require("../repositories/prismaClient");
 
 const router = express.Router();
 
@@ -42,12 +42,10 @@ async function ensurePayloadBarcodes(payload, martId) {
       12,
       "0",
     );
-    const existing = await Product.findOne({
+    const existing = await productRepository.findOne({
       martId,
-      $or: [{ barcodes: candidate }, { barcode: candidate }],
-    })
-      .select("_id")
-      .lean();
+      barcodes: { has: candidate },
+    });
 
     if (!existing) {
       payload.barcodes = [candidate];
@@ -78,9 +76,9 @@ router.get("/", authenticate, async (req, res) => {
       }
 
       if (isManager(user)) {
-        filter.$or = [
+        filter.OR = [
           { approvalRole: "manager" },
-          { approvalRole: { $exists: false } },
+          { approvalRole: null },
         ];
       } else if (isStoreKeeper(user)) {
         filter.approvalRole = "store_keeper";
@@ -99,17 +97,17 @@ router.get("/", authenticate, async (req, res) => {
     // date range filter
     if (startDate || endDate) {
       filter.createdAt = {};
-      if (startDate) filter.createdAt.$gte = new Date(startDate);
+      if (startDate) filter.createdAt.gte = new Date(startDate);
       if (endDate) {
         const d = new Date(endDate);
         d.setHours(23, 59, 59, 999);
-        filter.createdAt.$lte = d;
+        filter.createdAt.lte = d;
       }
     }
 
-    const list = await ProductAddRequest.find(filter)
-      .sort({ createdAt: -1 })
-      .lean();
+    const list = await productAddRequestRepository.findMany(filter, {
+      orderBy: { createdAt: "desc" },
+    });
     res.json(list);
   } catch (err) {
     console.error(err);
@@ -123,7 +121,7 @@ router.put("/:id/approve", authenticate, async (req, res) => {
     const user = req.user;
     const { id } = req.params;
 
-    const reqDoc = await ProductAddRequest.findById(id);
+    const reqDoc = await productAddRequestRepository.findById(id);
     if (!reqDoc) return res.status(404).json({ message: "Request not found" });
     if (reqDoc.status !== "pending")
       return res.status(400).json({ message: "Request already processed" });
@@ -176,19 +174,25 @@ router.put("/:id/approve", authenticate, async (req, res) => {
         ? Math.max(0, superQty)
         : 0,
       createdBy: reqDoc.requesterId,
+      expiryDate: payload.expiryDate ? new Date(payload.expiryDate) : null,
+      purchasePrice: payload.purchasePrice ? Number(payload.purchasePrice) : 0,
+      sellingPrice: payload.sellingPrice ? Number(payload.sellingPrice) : 0,
+      lowStockThreshold: payload.lowStockThreshold ? Number(payload.lowStockThreshold) : 10,
     };
 
-    const session = await mongoose.startSession();
-    session.startTransaction();
-    try {
-      const product = new Product(productData);
-      await product.save({ session });
+    let result;
+    await prisma.$transaction(async (tx) => {
+      const product = await tx.product.create({ data: productData });
 
-      reqDoc.status = "approved";
-      reqDoc.approverId = user.id;
-      reqDoc.approverName = user.username || user.name;
-      reqDoc.decidedAt = new Date();
-      await reqDoc.save({ session });
+      const updatedReq = await tx.productAddRequest.update({
+        where: { id },
+        data: {
+          status: "approved",
+          approverId: user.id,
+          approverName: user.username || user.name,
+          decidedAt: new Date(),
+        },
+      });
 
       await createNotification(
         {
@@ -198,29 +202,23 @@ router.put("/:id/approve", authenticate, async (req, res) => {
           title: "Product request approved",
           message: `Your product request for ${payload.name} was approved`,
           metadata: {
-            requestId: reqDoc._id,
-            productId: product._id,
+            requestId: reqDoc.id,
+            productId: product.id,
             result: "approved",
           },
         },
-        session,
+        tx,
       );
 
-      await session.commitTransaction();
-      session.endSession();
+      result = { product, updatedReq };
+    });
 
-      return res.json({ message: "Product created", product });
-    } catch (err) {
-      await session.abortTransaction();
-      session.endSession();
-      console.error(err);
-      return res
-        .status(500)
-        .json({ message: err.message || "Failed to approve request" });
-    }
+    return res.json({ message: "Product created", product: result.product });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server error" });
+    return res
+      .status(500)
+      .json({ message: err.message || "Failed to approve request" });
   }
 });
 
@@ -231,7 +229,7 @@ router.put("/:id/reject", authenticate, async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body || {};
 
-    const reqDoc = await ProductAddRequest.findById(id);
+    const reqDoc = await productAddRequestRepository.findById(id);
     if (!reqDoc) return res.status(404).json({ message: "Request not found" });
     if (reqDoc.status !== "pending")
       return res.status(400).json({ message: "Request already processed" });
@@ -255,12 +253,13 @@ router.put("/:id/reject", authenticate, async (req, res) => {
         .json({ message: "Cannot reject request for another mart" });
     }
 
-    reqDoc.status = "rejected";
-    reqDoc.approverId = user.id;
-    reqDoc.approverName = user.username || user.name;
-    reqDoc.reason = reason || "";
-    reqDoc.decidedAt = new Date();
-    await reqDoc.save();
+    const updatedReq = await productAddRequestRepository.update(id, {
+      status: "rejected",
+      approverId: user.id,
+      approverName: user.username || user.name,
+      reason: reason || "",
+      decidedAt: new Date(),
+    });
 
     await createNotification({
       martId: reqDoc.martId,
@@ -268,7 +267,7 @@ router.put("/:id/reject", authenticate, async (req, res) => {
       type: "product_add_result",
       title: "Product request rejected",
       message: `Your product request for ${(reqDoc.payload && reqDoc.payload.name) || "product"} was rejected. ${reason || ""}`,
-      metadata: { requestId: reqDoc._id, result: "rejected" },
+      metadata: { requestId: reqDoc.id, result: "rejected" },
     });
 
     res.json({ message: "Request rejected" });

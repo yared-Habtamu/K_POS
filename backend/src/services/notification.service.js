@@ -1,24 +1,29 @@
-const Notification = require('../models/notification.model');
+const notificationRepository = require('../repositories/notificationRepository');
 const { sseManager } = require('../utils/sse');
 
 /**
  * Create a notification and broadcast it via SSE
  */
-async function createNotification(data, session = null) {
+async function createNotification(data, tx = null) {
   try {
     const { martId, userId, type, title, message, metadata } = data;
 
-    const notification = new Notification({
+    const notifData = {
       martId,
       userId,
       type,
       title,
       message,
-      data: metadata,
+      data: metadata || {},
       read: false,
-    });
+    };
 
-    await notification.save({ session });
+    let notification;
+    if (tx && typeof tx.notification !== 'undefined') {
+        notification = await tx.notification.create({ data: notifData });
+    } else {
+        notification = await notificationRepository.create(notifData);
+    }
 
     // Broadcast the notification
     if (userId) {
@@ -26,7 +31,7 @@ async function createNotification(data, session = null) {
       sseManager.sendToUser(userId, notification);
       
       // Send updated unread count
-      const unreadCount = await Notification.countDocuments({ userId, read: false });
+      const unreadCount = await notificationRepository.countDocuments({ userId, read: false });
       sseManager.sendUnreadCountUpdate(userId, unreadCount);
     } else if (martId) {
       // Broadcast to all users in the mart
@@ -47,7 +52,7 @@ async function createNotification(data, session = null) {
  * Get unread count for a user
  */
 async function getUnreadCount(userId) {
-  return await Notification.countDocuments({ userId, read: false });
+  return await notificationRepository.countDocuments({ userId, read: false });
 }
 
 module.exports = {

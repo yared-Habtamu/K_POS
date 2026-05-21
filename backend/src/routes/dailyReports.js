@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const DailyReport = require("../models/dailyReport.model");
+const prisma = require("../repositories/prismaClient");
 const { authenticate } = require("../middleware/auth");
 
 // POST /api/daily-reports  -- create a daily report
@@ -25,19 +25,20 @@ router.post("/", authenticate, async (req, res) => {
 
     const reportDate = new Date(String(date) + "T00:00:00.000Z");
 
-    const doc = new DailyReport({
-      martId: targetMartId,
-      cashierId: req.user.id,
-      cashierName: req.user.username || req.user.name,
-      date: reportDate,
-      totalSales: Number(totalSales) || 0,
-      cashReceived: Number(cashReceived) || 0,
-      bankTransfer: Number(bankTransfer) || 0,
-      discountsGiven: Number(discountsGiven) || 0,
-      notes: notes || "",
+    const doc = await prisma.dailyReport.create({
+      data: {
+        martId: targetMartId,
+        cashierId: req.user.id,
+        cashierName: req.user.username || req.user.name,
+        date: reportDate,
+        totalSales: Number(totalSales) || 0,
+        cashReceived: Number(cashReceived) || 0,
+        bankTransfer: Number(bankTransfer) || 0,
+        discountsGiven: Number(discountsGiven) || 0,
+        notes: notes || "",
+      }
     });
 
-    await doc.save();
     res.status(201).json(doc);
   } catch (err) {
     console.error(err);
@@ -59,12 +60,13 @@ router.get("/", authenticate, async (req, res) => {
     const start = new Date(day + "T00:00:00.000Z");
     const end = new Date(day + "T23:59:59.999Z");
 
-    const list = await DailyReport.find({
-      martId: targetMartId,
-      date: { $gte: start, $lte: end },
-    })
-      .sort({ createdAt: -1 })
-      .lean();
+    const list = await prisma.dailyReport.findMany({
+      where: {
+        martId: targetMartId,
+        date: { gte: start, lte: end },
+      },
+      orderBy: { createdAt: "desc" }
+    });
     res.json(list);
   } catch (err) {
     console.error(err);

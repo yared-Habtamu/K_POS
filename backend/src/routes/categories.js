@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const Category = require("../models/category.model");
-const Product = require("../models/product.model");
+const prisma = require("../repositories/prismaClient");
+const productRepository = require("../repositories/productRepository");
 const { authenticate } = require("../middleware/auth");
 
 // List categories, optional martId; non-systemAdmin limited to their mart
@@ -19,14 +19,20 @@ router.get("/", authenticate, async (req, res) => {
     }
 
     const targetMartId = filter.martId;
-    const [savedCategories, productCategories] = await Promise.all([
-      Category.find({ ...filter, isDeleted: { $ne: true } })
-        .sort({ name: 1 })
-        .lean(),
-      targetMartId
-        ? Product.distinct("category", { martId: targetMartId, category: { $nin: [null, ""] } })
-        : Promise.resolve([]),
-    ]);
+    const savedCategories = await prisma.category.findMany({
+      where: { ...filter, isDeleted: false },
+      orderBy: { name: "asc" }
+    });
+
+    let productCategories = [];
+    if (targetMartId) {
+      const distinctProducts = await productRepository.findMany({
+        where: { martId: targetMartId, category: { notIn: [null, ""] } },
+        select: { category: true },
+        distinct: ['category']
+      });
+      productCategories = distinctProducts.map(p => p.category);
+    }
 
     const merged = new Map();
 
@@ -41,6 +47,7 @@ router.get("/", authenticate, async (req, res) => {
       if (!merged.has(key)) {
         merged.set(key, {
           _id: `derived-${key}`,
+          id: `derived-${key}`,
           name,
           martId: targetMartId,
         });
@@ -71,17 +78,19 @@ router.post("/", authenticate, async (req, res) => {
     if (!targetMartId)
       return res.status(400).json({ message: "martId is required" });
 
-    const cat = await Category.findOneAndUpdate(
-      { name: name.trim(), martId: targetMartId },
-      { name: name.trim(), martId: targetMartId },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
+    const trimmedName = name.trim();
+    let cat = await prisma.category.findFirst({
+      where: { name: trimmedName, martId: targetMartId }
+    });
+    if (!cat) {
+        cat = await prisma.category.create({
+            data: { name: trimmedName, martId: targetMartId }
+        });
+    }
+    
     res.status(201).json(cat);
   } catch (err) {
     console.error(err);
-    if (err.code === 11000) {
-      return res.status(409).json({ message: "Category already exists" });
-    }
     res.status(500).json({ message: "Server error" });
   }
 });

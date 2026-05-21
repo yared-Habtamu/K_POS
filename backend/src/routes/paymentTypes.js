@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const PaymentType = require("../models/paymentType.model");
+const prisma = require("../repositories/prismaClient");
 const { authenticate } = require("../middleware/auth");
 
 // List payment types. Optional martId for systemAdmin; others limited to their mart
@@ -19,7 +19,10 @@ router.get("/", authenticate, async (req, res) => {
       }
     }
 
-    const list = await PaymentType.find(filter).sort({ name: 1 }).lean();
+    const list = await prisma.paymentType.findMany({
+      where: filter,
+      orderBy: { name: "asc" }
+    });
     res.json(list);
   } catch (err) {
     console.error(err);
@@ -43,29 +46,31 @@ router.post("/", authenticate, async (req, res) => {
     const normalizedName = String(name).trim().toLowerCase();
     const normalizedIcon = String(icon || "Wallet").trim() || "Wallet";
 
-    const pt = await PaymentType.findOneAndUpdate(
-      { name: normalizedName, martId: targetMartId },
-      {
-        name: normalizedName,
-        icon: normalizedIcon,
-        martId: targetMartId,
-        isDeleted: false,
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
-    );
+    let pt = await prisma.paymentType.findFirst({
+      where: { name: normalizedName, martId: targetMartId }
+    });
+
+    if (pt) {
+        pt = await prisma.paymentType.update({
+            where: { id: pt.id },
+            data: { icon: normalizedIcon, isDeleted: false }
+        });
+    } else {
+        pt = await prisma.paymentType.create({
+            data: { name: normalizedName, icon: normalizedIcon, martId: targetMartId, isDeleted: false }
+        });
+    }
+
     res.status(201).json(pt);
   } catch (err) {
     console.error(err);
-    if (err.code === 11000) {
-      return res.status(409).json({ message: "Payment type already exists" });
-    }
     res.status(500).json({ message: "Server error" });
   }
 });
 
 router.delete("/:id", authenticate, async (req, res) => {
   try {
-    const paymentType = await PaymentType.findById(req.params.id);
+    const paymentType = await prisma.paymentType.findUnique({ where: { id: req.params.id } });
     if (!paymentType || paymentType.isDeleted) {
       return res.status(404).json({ message: "Payment type not found" });
     }
@@ -79,8 +84,10 @@ router.delete("/:id", authenticate, async (req, res) => {
         .json({ message: "Cannot delete payment type for another mart" });
     }
 
-    paymentType.isDeleted = true;
-    await paymentType.save();
+    await prisma.paymentType.update({
+        where: { id: paymentType.id },
+        data: { isDeleted: true }
+    });
     return res.json({ ok: true });
   } catch (err) {
     console.error(err);

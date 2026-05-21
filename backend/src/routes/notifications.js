@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
-const Sale = require('../models/sale.model');
-const Mart = require('../models/mart.model');
-const Notification = require('../models/notification.model');
+const saleRepository = require('../repositories/saleRepository');
+const martRepository = require('../repositories/martRepository');
+const notificationRepository = require('../repositories/notificationRepository');
 const { authenticate } = require('../middleware/auth');
 const { sseManager } = require('../utils/sse');
 const { getUnreadCount } = require('../services/notification.service');
@@ -58,9 +58,10 @@ router.post('/test', authenticate, async (req, res) => {
  */
 router.get('/', authenticate, async (req, res) => {
   try {
-    const notifications = await Notification.find({ userId: req.user.id })
-      .sort({ createdAt: -1 })
-      .limit(50);
+    const notifications = await notificationRepository.findMany(
+      { userId: req.user.id },
+      { orderBy: { createdAt: 'desc' }, take: 50 }
+    );
     res.json(notifications);
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch notifications' });
@@ -73,7 +74,7 @@ router.get('/', authenticate, async (req, res) => {
  */
 router.patch('/read-all', authenticate, async (req, res) => {
   try {
-    await Notification.updateMany(
+    await notificationRepository.updateMany(
       { userId: req.user.id, read: false },
       { read: true }
     );
@@ -93,18 +94,19 @@ router.patch('/read-all', authenticate, async (req, res) => {
  */
 router.patch('/:id/read', authenticate, async (req, res) => {
   try {
-    const notification = await Notification.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user.id },
-      { read: true },
-      { new: true }
-    );
+    const notification = await notificationRepository.findOne({
+      id: req.params.id,
+      userId: req.user.id,
+    });
     if (!notification) return res.status(404).json({ message: 'Notification not found' });
+
+    const updated = await notificationRepository.update(req.params.id, { read: true });
 
     // Broadcast updated unread count
     const count = await getUnreadCount(req.user.id);
     sseManager.sendUnreadCountUpdate(req.user.id, count);
 
-    res.json(notification);
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ message: 'Failed to update notification' });
   }
@@ -113,7 +115,6 @@ router.patch('/:id/read', authenticate, async (req, res) => {
 // POST /api/notifications/sms
 // Body: { saleId, phone, name, message? }
 router.post('/sms', authenticate, async (req, res) => {
-  // ... (existing SMS code)
   try {
     const { saleId, phone, name, message } = req.body || {};
     if (!phone) return res.status(400).json({ message: 'phone required' });
@@ -125,7 +126,7 @@ router.post('/sms', authenticate, async (req, res) => {
     let text = message || '';
     let sale = null;
     if (saleId) {
-      sale = await Sale.findById(saleId).lean();
+      sale = await saleRepository.findById(saleId);
       if (!sale) return res.status(404).json({ message: 'sale not found' });
       // authorization: ensure sale belongs to user's mart unless systemAdmin
       if (req.user.role !== 'systemAdmin' && String(sale.martId) !== String(req.user.martId)) {
@@ -133,9 +134,9 @@ router.post('/sms', authenticate, async (req, res) => {
       }
 
       // build a compact receipt text
-      const mart = await Mart.findById(sale.martId).lean();
+      const mart = await martRepository.findById(sale.martId);
       const shopName = mart?.martName || 'Shop';
-      const receiptId = sale.receiptId || String(sale._id).slice(-6);
+      const receiptId = sale.receiptId || String(sale.id).slice(-6);
       const items = (sale.items || []).slice(0, 6).map(it => `${it.name || 'Item'} x${it.quantity||0} ${Number(it.total != null ? it.total : (it.quantity||0)*(it.price||0)).toFixed(0)}ETB`).join('; ');
       text = `Receipt ${receiptId} - ${shopName}. Total: ${Number(sale.total||0).toFixed(2)} ETB. Items: ${items}. Thank you!`;
     }

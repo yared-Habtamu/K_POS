@@ -921,9 +921,9 @@ export default function MartManagement() {
                 </TableHeader>
                 <TableBody>
                   {paginatedShops.length > 0 ? (
-                    paginatedShops.map((shop) => (
+                    paginatedShops.map((shop, index) => (
                       <TableRow
-                        key={shop.id}
+                        key={shop.id || `${shop.name}-${index}`}
                         className="cursor-pointer hover:bg-muted/50"
                         onClick={() => setViewShop(shop)}
                       >

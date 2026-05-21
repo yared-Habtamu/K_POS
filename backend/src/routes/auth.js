@@ -1,8 +1,8 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const User = require("../models/user.model");
-const Mart = require("../models/mart.model");
+const userRepository = require("../repositories/userRepository");
+const martRepository = require("../repositories/martRepository");
 const router = express.Router();
 const { authenticate } = require("../middleware/auth");
 const {
@@ -18,11 +18,11 @@ async function ensureUniqueMartRole({ martId, role, excludeUserId = null }) {
   const query = {
     martId,
     role,
-    isDeleted: { $ne: true },
+    isDeleted: false,
   };
-  if (excludeUserId) query._id = { $ne: excludeUserId };
+  if (excludeUserId) query.id = { not: excludeUserId };
 
-  const existing = await User.findOne(query).select("_id name role").lean();
+  const existing = await userRepository.findOne(query, { select: { id: true, name: true, role: true } });
   if (existing) {
     return `${role} already exists for this mart`;
   }
@@ -45,8 +45,8 @@ router.post("/login", async (req, res) => {
 
   // Allow users to sign in using either their username (raw or sanitized) or phone number
   const sanitizedUsername = sanitize(username);
-  const user = await User.findOne({
-    $or: [{ username }, { username: sanitizedUsername }, { phone: username }],
+  const user = await userRepository.findOne({
+    OR: [{ username }, { username: sanitizedUsername }, { phone: username }],
   });
   if (!user) {
     console.warn(`Login failed: user not found for '${username}'`);
@@ -56,25 +56,25 @@ router.post("/login", async (req, res) => {
   const valid = await bcrypt.compare(password, user.passwordHash || "");
   if (!valid) {
     console.warn(
-      `Login failed: wrong password for user '${username}' (id=${user._id})`,
+      `Login failed: wrong password for user '${username}' (id=${user.id})`,
     );
     return res.status(401).json({ message: "Invalid username or password" });
   }
 
   // Block login for deleted or deactivated users
   if (user.isDeleted || user.active === false) {
-    console.info(`Login blocked: user is deleted or inactive (id=${user._id})`);
+    console.info(`Login blocked: user is deleted or inactive (id=${user.id})`);
     return res.status(401).json({ message: "Invalid username or password" });
   }
 
   // Users tied to a mart may only login if their mart is approved and active
   if (user.role !== "systemAdmin") {
     if (!user.martId) {
-      console.warn(`Login blocked: no martId for user id=${user._id}`);
+      console.warn(`Login blocked: no martId for user id=${user.id}`);
       return res.status(401).json({ message: "Invalid username or password" });
     }
     // include isDeleted flag so deleted marts cannot be used to login
-    const mart = await Mart.findById(user.martId).select("status isDeleted");
+    const mart = await martRepository.findById(user.martId, { select: { status: true, isDeleted: true }});
     if (!mart) {
       console.warn(`Login blocked: mart not found for martId=${user.martId}`);
       return res.status(401).json({ message: "Invalid username or password" });
@@ -94,7 +94,7 @@ router.post("/login", async (req, res) => {
       );
     }
 
-    const refreshedMart = await Mart.findById(user.martId).select("status");
+    const refreshedMart = await martRepository.findById(user.martId, { select: { status: true } });
     const effectiveStatus = refreshedMart?.status || mart.status;
 
     // Specific messaging for mart status
@@ -116,7 +116,7 @@ router.post("/login", async (req, res) => {
 
   const token = jwt.sign(
     {
-      id: user._id,
+      id: user.id,
       username: user.username,
       role: user.role,
       martId: user.martId,
@@ -128,7 +128,7 @@ router.post("/login", async (req, res) => {
   res.json({
     token,
     user: {
-      id: user._id,
+      id: user.id,
       username: user.username,
       name: user.name,
       email: user.email || "",
@@ -145,10 +145,14 @@ router.post("/login", async (req, res) => {
 // Current user profile
 router.get("/me", authenticate, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select("-passwordHash -__v");
+    const user = await userRepository.findById(req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
+    
+    // Remove passwordHash
+    delete user.passwordHash;
+
     return res.json({
-      id: user._id,
+      id: user.id,
       username: user.username,
       name: user.name,
       email: user.email || "",
@@ -242,11 +246,12 @@ router.post("/register", authenticate, async (req, res) => {
     return res.status(409).json({ message: uniquenessError });
   }
 
-  const exists = await User.findOne({ username });
+  const exists = await userRepository.findOne({ username });
   if (exists)
     return res.status(409).json({ message: "Username already exists" });
+  
   const passwordHash = await bcrypt.hash(password, 10);
-  const user = new User({
+  const user = await userRepository.create({
     name,
     username,
     passwordHash,
@@ -257,10 +262,10 @@ router.post("/register", authenticate, async (req, res) => {
     salary,
     profilePictureUrl,
   });
-  await user.save();
+  
   res.status(201).json({
     user: {
-      id: user._id,
+      id: user.id,
       username: user.username,
       name: user.name,
       email: user.email || "",
@@ -277,7 +282,7 @@ router.post("/register", authenticate, async (req, res) => {
 router.get("/users", authenticate, async (req, res) => {
   try {
     const { martId, role } = req.query;
-    const filter = {};
+    const filter = { isDeleted: false };
     // system admin can query any mart (or all)
     if (req.user.role === "systemAdmin") {
       if (martId) filter.martId = martId;
@@ -290,8 +295,15 @@ router.get("/users", authenticate, async (req, res) => {
           .json({ message: "Cannot list users for another mart" });
     }
     if (role) filter.role = role;
-    const users = await User.find(filter).select("-passwordHash -__v").lean();
-    res.json(users);
+    const users = await userRepository.findMany(filter);
+    
+    // Sanitize output
+    const sanitizedUsers = users.map(u => {
+        delete u.passwordHash;
+        return u;
+    });
+
+    res.json(sanitizedUsers);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -321,7 +333,7 @@ router.put("/users/:id", authenticate, async (req, res) => {
       update.passwordHash = hash;
     }
     // fetch target user
-    const target = await User.findById(id);
+    const target = await userRepository.findById(id);
     if (!target) return res.status(404).json({ message: "User not found" });
 
     // Authorization: systemAdmin can update anyone
@@ -431,34 +443,34 @@ router.put("/users/:id", authenticate, async (req, res) => {
     const updateUniquenessError = await ensureUniqueMartRole({
       martId: nextMartId,
       role: nextRole,
-      excludeUserId: target._id,
+      excludeUserId: target.id,
     });
     if (updateUniquenessError) {
       return res.status(409).json({ message: updateUniquenessError });
     }
 
-    const user = await User.findByIdAndUpdate(id, update, { new: true }).select(
-      "-passwordHash -__v",
-    );
+    const user = await userRepository.update(id, update);
     if (!user) return res.status(404).json({ message: "User not found" });
+    
+    delete user.passwordHash;
 
     // Emit realtime notification if permissions were changed
     if (update.permissions) {
       try {
         // Log change and notify user in realtime
         console.log(
-          `Permissions updated for user ${user._id}:`,
+          `Permissions updated for user ${user.id}:`,
           user.permissions,
         );
         const socketHelper = require("../socket");
         // Include actor info so clients can show who changed permissions
         const actor = {
-          id: requester._id ? String(requester._id) : null,
+          id: requester.id ? String(requester.id) : null,
           role: requester.role || null,
           name: requester.name || requester.username || null,
         };
-        socketHelper.emitToUser(user._id.toString(), "permissions_updated", {
-          userId: user._id.toString(),
+        socketHelper.emitToUser(user.id.toString(), "permissions_updated", {
+          userId: user.id.toString(),
           permissions: user.permissions || [],
           actor,
         });
@@ -469,7 +481,7 @@ router.put("/users/:id", authenticate, async (req, res) => {
         } = require("../services/notification.service");
         await createNotification({
           martId: user.martId,
-          userId: user._id,
+          userId: user.id,
           type: "permissions_changed",
           title: "Permissions updated",
           message: `Your permissions were changed by ${actor.role || "an administrator"}`,
@@ -508,7 +520,7 @@ router.put("/change-password", authenticate, async (req, res) => {
         .json({ message: "New password must be at least 6 characters long" });
     }
 
-    const user = await User.findById(req.user.id);
+    const user = await userRepository.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -521,8 +533,8 @@ router.put("/change-password", authenticate, async (req, res) => {
       return res.status(400).json({ message: "Current password is incorrect" });
     }
 
-    user.passwordHash = await bcrypt.hash(String(newPassword), 10);
-    await user.save();
+    const passwordHash = await bcrypt.hash(String(newPassword), 10);
+    await userRepository.update(user.id, { passwordHash });
 
     return res.json({ message: "Password updated successfully" });
   } catch (err) {
@@ -561,13 +573,13 @@ router.put("/users/:id/reset-password", authenticate, async (req, res) => {
         .json({ message: "New password must be at least 6 characters long" });
     }
 
-    const targetUser = await User.findById(id);
+    const targetUser = await userRepository.findById(id);
     if (!targetUser) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    targetUser.passwordHash = await bcrypt.hash(String(newPassword), 10);
-    await targetUser.save();
+    const passwordHash = await bcrypt.hash(String(newPassword), 10);
+    await userRepository.update(id, { passwordHash });
 
     return res.json({ message: "Password reset successfully" });
   } catch (err) {
@@ -580,7 +592,7 @@ router.put("/users/:id/reset-password", authenticate, async (req, res) => {
 router.delete("/users/:id", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const target = await User.findById(id);
+    const target = await userRepository.findById(id);
     if (!target) return res.status(404).json({ message: "User not found" });
 
     const requester = req.user;
@@ -597,7 +609,7 @@ router.delete("/users/:id", authenticate, async (req, res) => {
       }
     }
 
-    await User.findByIdAndDelete(id);
+    await userRepository.softDelete(id);
     res.json({ message: "User deleted" });
   } catch (err) {
     console.error(err);

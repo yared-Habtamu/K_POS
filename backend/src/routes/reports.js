@@ -1,9 +1,11 @@
 const express = require("express");
 const router = express.Router();
-const Sale = require("../models/sale.model");
-const Expense = require("../models/expense.model");
-const Product = require("../models/product.model");
-const Asset = require("../models/asset.model");
+const prisma = require("../repositories/prismaClient");
+const saleRepository = require("../repositories/saleRepository");
+const expenseRepository = require("../repositories/expenseRepository");
+const productRepository = require("../repositories/productRepository");
+const martRepository = require("../repositories/martRepository");
+const userRepository = require("../repositories/userRepository");
 const { authenticate } = require("../middleware/auth");
 
 // GET /api/reports/daily?martId=...&date=YYYY-MM-DD
@@ -15,7 +17,7 @@ router.get("/daily", authenticate, async (req, res) => {
     const start = new Date(day + "T00:00:00.000Z");
     const end = new Date(day + "T23:59:59.999Z");
 
-    const filter = { date: { $gte: start, $lte: end } };
+    const filter = { date: { gte: start, lte: end } };
     if (req.user.role !== "systemAdmin") {
       filter.martId = req.user.martId;
     } else if (martId) {
@@ -26,7 +28,7 @@ router.get("/daily", authenticate, async (req, res) => {
       filter.cashierId = req.user.id;
     }
 
-    const sales = await Sale.find(filter).lean();
+    const sales = await saleRepository.findMany(filter);
 
     const totalSales = sales.reduce((s, x) => s + (x.total || 0), 0);
     const grossSales = sales.reduce((s, x) => s + (x.subtotal || 0), 0);
@@ -116,8 +118,8 @@ router.get("/summary", authenticate, async (req, res) => {
       endDate = new Date(last.setHours(23, 59, 59, 999));
     }
 
-    const filter = { ...filterBase, date: { $gte: startDate, $lte: endDate } };
-    const sales = await Sale.find(filter).lean();
+    const filter = { ...filterBase, date: { gte: startDate, lte: endDate } };
+    const sales = await saleRepository.findMany(filter);
 
     const effectiveMartId = filterBase.martId
       ? String(filterBase.martId)
@@ -133,13 +135,13 @@ router.get("/summary", authenticate, async (req, res) => {
         ),
       ),
     );
-    const productQuery = { _id: { $in: productIds } };
+    const productQuery = { id: { in: productIds } };
     if (effectiveMartId) productQuery.martId = effectiveMartId;
     const products = productIds.length
-      ? await Product.find(productQuery).lean()
+      ? await productRepository.findMany(productQuery)
       : [];
     const productMap = {};
-    for (const p of products) productMap[String(p._id)] = p;
+    for (const p of products) productMap[String(p.id || p._id)] = p;
 
     const taxByCategoryMap = {};
     const categorySalesMap = {};
@@ -300,10 +302,10 @@ router.get("/mart", authenticate, async (req, res) => {
     }
 
     // Fetch sales in range
-    const sales = await Sale.find({
+    const sales = await saleRepository.findMany({
       martId: targetMartId,
-      date: { $gte: startDate, $lte: endDate },
-    }).lean();
+      date: { gte: startDate, lte: endDate },
+    });
     const totalSales = sales.reduce((s, x) => s + (x.total || 0), 0);
     const transactions = sales.length;
     const totalTax = sales.reduce((s, x) => s + (x.tax || 0), 0);
@@ -317,13 +319,13 @@ router.get("/mart", authenticate, async (req, res) => {
       ),
     );
     const products = productIds.length
-      ? await Product.find({
-          _id: { $in: productIds },
+      ? await productRepository.findMany({
+          id: { in: productIds },
           martId: targetMartId,
-        }).lean()
+        })
       : [];
     const productMap = {};
-    for (const p of products) productMap[String(p._id)] = p;
+    for (const p of products) productMap[String(p.id || p._id)] = p;
 
     const taxByCategoryMap = {};
     const categorySalesMap = {};
@@ -389,29 +391,49 @@ router.get("/mart", authenticate, async (req, res) => {
 
     // Fetch expenses and operational health signals
     const [expenses, expiredProducts, brokenAssets] = await Promise.all([
-      Expense.find({
+      expenseRepository.findMany({
         martId: targetMartId,
-        date: { $gte: startDate, $lte: endDate },
-      }).lean(),
-      Product.find({
-        martId: targetMartId,
-        isDeleted: { $ne: true },
-        expiryDate: { $exists: true, $lt: now },
-      })
-        .select("name expiryDate quantity storeQuantity supermarketQuantity")
-        .sort({ expiryDate: 1 })
-        .lean(),
-      Asset.find({
-        martId: targetMartId,
-        isDeleted: { $ne: true },
-        $or: [
-          { asset_status: "broken" },
-          { conditions: { $regex: /^(damaged|lost|broken)$/i } },
-        ],
-      })
-        .select("name assetId asset_status conditions quantity")
-        .sort({ updatedAt: -1 })
-        .lean(),
+        date: { gte: startDate, lte: endDate },
+      }),
+      productRepository.findMany(
+        {
+          martId: targetMartId,
+          isDeleted: false,
+          expiryDate: { not: null, lt: now },
+        },
+        {
+          select: {
+            id: true,
+            name: true,
+            expiryDate: true,
+            quantity: true,
+            storeQuantity: true,
+            supermarketQuantity: true,
+          },
+          orderBy: { expiryDate: "asc" },
+        },
+      ),
+      prisma.asset.findMany({
+        where: {
+          martId: targetMartId,
+          isDeleted: false,
+          OR: [
+            { asset_status: "broken" },
+            { conditions: { contains: "damaged", mode: "insensitive" } },
+            { conditions: { contains: "lost", mode: "insensitive" } },
+            { conditions: { contains: "broken", mode: "insensitive" } },
+          ],
+        },
+        select: {
+          id: true,
+          name: true,
+          assetId: true,
+          asset_status: true,
+          conditions: true,
+          quantity: true,
+        },
+        orderBy: { updatedAt: "desc" },
+      }),
     ]);
     const totalExpenses = expenses.reduce((s, x) => s + (x.amount || 0), 0);
 
@@ -535,7 +557,7 @@ router.get("/mart", authenticate, async (req, res) => {
       totalItemsSold,
       expiredProductsCount: expiredProducts.length,
       expiredProducts: expiredProducts.map((p) => ({
-        id: p._id,
+        id: p.id,
         name: p.name,
         expiryDate: p.expiryDate,
         quantity:
@@ -545,7 +567,7 @@ router.get("/mart", authenticate, async (req, res) => {
       })),
       brokenAssetsCount: brokenAssets.length,
       brokenAssets: brokenAssets.map((a) => ({
-        id: a._id,
+        id: a.id,
         name: a.name,
         assetId: a.assetId,
         asset_status: a.asset_status || "broken",
@@ -562,23 +584,198 @@ router.get("/mart", authenticate, async (req, res) => {
 
 router.get("/admin-analytics", authenticate, async (req, res) => {
   try {
-    if (req.user.role !== "systemAdmin") {
-      return res.status(403).json({ message: "Insufficient permissions" });
-    }
+    if (req.user.role !== "systemAdmin")
+      return res.status(403).json({ message: "Forbidden" });
 
-    const Mart = require("../models/mart.model");
-    const User = require("../models/user.model");
-
-    // 1. Fetch Basic Totals & Marts
-    const [allMarts, allUsersCount] = await Promise.all([
-      Mart.find({ isDeleted: { $ne: true } }).lean(),
-      User.countDocuments({ isDeleted: { $ne: true } }),
+    // Fetch approved marts and all platform products once, then aggregate in JS.
+    const [
+      allUsersCount,
+      approvedMarts,
+      products,
+      monthlySalesData,
+      monthlyExpensesData,
+      usersByMartData,
+    ] = await Promise.all([
+      prisma.user.count({ where: { isDeleted: false } }),
+      prisma.mart.findMany({ where: { status: "approved", isDeleted: false } }),
+      prisma.product.findMany({
+        where: { isDeleted: false },
+        select: {
+          id: true,
+          martId: true,
+          name: true,
+          category: true,
+          purchasePrice: true,
+          sellingPrice: true,
+          quantity: true,
+          storeQuantity: true,
+          supermarketQuantity: true,
+          lowStockThreshold: true,
+        },
+      }),
+      prisma.sale.findMany({
+        where: {
+          date: {
+            gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+            lte: new Date(
+              new Date().getFullYear(),
+              new Date().getMonth() + 1,
+              0,
+              23,
+              59,
+              59,
+              999,
+            ),
+          },
+        },
+        select: { martId: true, total: true },
+      }),
+      prisma.expense.findMany({
+        where: {
+          isDeleted: false,
+          date: {
+            gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+            lte: new Date(
+              new Date().getFullYear(),
+              new Date().getMonth() + 1,
+              0,
+              23,
+              59,
+              59,
+              999,
+            ),
+          },
+        },
+        select: { martId: true, amount: true },
+      }),
+      prisma.user.groupBy({
+        by: ["martId"],
+        where: { isDeleted: false, martId: { not: null } },
+        _count: { _all: true },
+      }),
     ]);
 
-    const approvedMarts = allMarts.filter((m) => m.status === "approved");
     const martMap = {};
-    allMarts.forEach((m) => (martMap[String(m._id)] = m.martName || "Unnamed"));
+    for (const m of approvedMarts) martMap[m.id] = m.martName;
 
+    const martIds = new Set(approvedMarts.map((m) => m.id));
+    const martProducts = products.filter((p) => martIds.has(p.martId));
+
+    const calculateStock = (product) =>
+      Number(product.quantity || 0) +
+      Number(product.storeQuantity || 0) +
+      Number(product.supermarketQuantity || 0);
+
+    const calculateMarginPercent = (product) => {
+      const purchase = Number(product.purchasePrice || 0);
+      if (purchase <= 0) return 0;
+      return ((Number(product.sellingPrice || 0) - purchase) / purchase) * 100;
+    };
+
+    const platformStats = martProducts.reduce(
+      (acc, product) => {
+        const stock = calculateStock(product);
+        const purchasePrice = Number(product.purchasePrice || 0);
+        const sellingPrice = Number(product.sellingPrice || 0);
+
+        acc.totalProducts += 1;
+        acc.totalInventoryValue += stock * purchasePrice;
+        acc.totalSellingValue += stock * sellingPrice;
+        if (stock <= 0) acc.outOfStockCount += 1;
+        else if (stock <= Number(product.lowStockThreshold || 0))
+          acc.lowStockCount += 1;
+        return acc;
+      },
+      {
+        totalProducts: 0,
+        totalInventoryValue: 0,
+        totalSellingValue: 0,
+        lowStockCount: 0,
+        outOfStockCount: 0,
+      },
+    );
+
+    const byMartMap = new Map();
+    const categoryMap = new Map();
+    const productRows = [];
+
+    for (const product of martProducts) {
+      const martId = String(product.martId);
+      const stock = calculateStock(product);
+      const purchasePrice = Number(product.purchasePrice || 0);
+      const sellingPrice = Number(product.sellingPrice || 0);
+      const margin = calculateMarginPercent(product);
+      const inventoryValue = stock * purchasePrice;
+      const sellingValue = stock * sellingPrice;
+
+      const existingMart = byMartMap.get(martId) || {
+        _id: martId,
+        count: 0,
+        inventoryValue: 0,
+        sellingValue: 0,
+        marginSum: 0,
+      };
+      existingMart.count += 1;
+      existingMart.inventoryValue += inventoryValue;
+      existingMart.sellingValue += sellingValue;
+      existingMart.marginSum += margin;
+      byMartMap.set(martId, existingMart);
+
+      const categoryKey = product.category || "Uncategorized";
+      categoryMap.set(categoryKey, (categoryMap.get(categoryKey) || 0) + 1);
+
+      productRows.push({
+        _id: product.id,
+        name: product.name,
+        category: categoryKey,
+        martName: martMap[martId] || "Unknown",
+        martId,
+        purchasePrice,
+        sellingPrice,
+        margin,
+        quantity: stock,
+        stockStatus:
+          stock <= 0
+            ? "out_of_stock"
+            : stock <= Number(product.lowStockThreshold || 0)
+              ? "low_stock"
+              : "in_stock",
+      });
+    }
+
+    const topMargin = martProducts
+      .map((product) => ({
+        _id: product.id,
+        name: product.name,
+        martId: product.martId,
+        purchasePrice: Number(product.purchasePrice || 0),
+        sellingPrice: Number(product.sellingPrice || 0),
+        margin: Number(calculateMarginPercent(product).toFixed(1)),
+      }))
+      .filter((product) => product.margin > 0)
+      .sort((a, b) => b.margin - a.margin)
+      .slice(0, 10);
+
+    const byMart = Array.from(byMartMap.values());
+
+    const categories = Array.from(categoryMap.entries()).map(
+      ([category, count]) => ({
+        _id: category,
+        count,
+      }),
+    );
+
+    const topExpensive = martProducts
+      .map((product) => ({
+        _id: product.id,
+        name: product.name,
+        martId: product.martId,
+        sellingPrice: Number(product.sellingPrice || 0),
+      }))
+      .sort((a, b) => b.sellingPrice - a.sellingPrice)
+      .slice(0, 10);
+
+    // Financial and users aggregation for the current month.
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(
@@ -591,259 +788,50 @@ router.get("/admin-analytics", authenticate, async (req, res) => {
       999,
     );
 
-    // 2. Product Aggregations (Stats, Category Distribution, Top Products)
-    const productStats = await Product.aggregate([
-      { $match: { isDeleted: { $ne: true } } },
-      {
-        $facet: {
-          platformTotals: [
-            {
-              $group: {
-                _id: null,
-                totalProducts: { $sum: 1 },
-                totalInventoryValue: {
-                  $sum: {
-                    $multiply: [
-                      { $ifNull: ["$purchasePrice", 0] },
-                      {
-                        $add: [
-                          { $ifNull: ["$quantity", 0] },
-                          { $ifNull: ["$storeQuantity", 0] },
-                        ],
-                      },
-                    ],
-                  },
-                },
-                totalSellingValue: {
-                  $sum: {
-                    $multiply: [
-                      { $ifNull: ["$sellingPrice", 0] },
-                      {
-                        $add: [
-                          { $ifNull: ["$quantity", 0] },
-                          { $ifNull: ["$storeQuantity", 0] },
-                        ],
-                      },
-                    ],
-                  },
-                },
-                lowStockCount: {
-                  $sum: {
-                    $cond: [
-                      {
-                        $lte: [
-                          {
-                            $add: [
-                              { $ifNull: ["$quantity", 0] },
-                              { $ifNull: ["$storeQuantity", 0] },
-                            ],
-                          },
-                          { $ifNull: ["$lowStockThreshold", 10] },
-                        ],
-                      },
-                      1,
-                      0,
-                    ],
-                  },
-                },
-                outOfStockCount: {
-                  $sum: {
-                    $cond: [
-                      {
-                        $eq: [
-                          {
-                            $add: [
-                              { $ifNull: ["$quantity", 0] },
-                              { $ifNull: ["$storeQuantity", 0] },
-                            ],
-                          },
-                          0,
-                        ],
-                      },
-                      1,
-                      0,
-                    ],
-                  },
-                },
-              },
-            },
-          ],
-          byMart: [
-            {
-              $group: {
-                _id: "$martId",
-                count: { $sum: 1 },
-                inventoryValue: {
-                  $sum: {
-                    $multiply: [
-                      { $ifNull: ["$purchasePrice", 0] },
-                      {
-                        $add: [
-                          { $ifNull: ["$quantity", 0] },
-                          { $ifNull: ["$storeQuantity", 0] },
-                        ],
-                      },
-                    ],
-                  },
-                },
-                sellingValue: {
-                  $sum: {
-                    $multiply: [
-                      { $ifNull: ["$sellingPrice", 0] },
-                      {
-                        $add: [
-                          { $ifNull: ["$quantity", 0] },
-                          { $ifNull: ["$storeQuantity", 0] },
-                        ],
-                      },
-                    ],
-                  },
-                },
-                avgMargin: {
-                  $avg: {
-                    $cond: [
-                      { $gt: ["$sellingPrice", 0] },
-                      {
-                        $multiply: [
-                          {
-                            $divide: [
-                              {
-                                $subtract: ["$sellingPrice", "$purchasePrice"],
-                              },
-                              "$sellingPrice",
-                            ],
-                          },
-                          100,
-                        ],
-                      },
-                      null,
-                    ],
-                  },
-                },
-              },
-            },
-          ],
-          categories: [
-            {
-              $group: {
-                _id: { $ifNull: ["$category", "Uncategorized"] },
-                count: { $sum: 1 },
-              },
-            },
-            { $sort: { count: -1 } },
-            { $limit: 15 },
-          ],
-          topMargin: [
-            {
-              $project: {
-                name: 1,
-                martId: 1,
-                purchasePrice: 1,
-                sellingPrice: 1,
-                margin: {
-                  $cond: [
-                    { $gt: ["$sellingPrice", 0] },
-                    {
-                      $multiply: [
-                        {
-                          $divide: [
-                            { $subtract: ["$sellingPrice", "$purchasePrice"] },
-                            "$sellingPrice",
-                          ],
-                        },
-                        100,
-                      ],
-                    },
-                    0,
-                  ],
-                },
-              },
-            },
-            { $sort: { margin: -1 } },
-            { $limit: 10 },
-          ],
-          topExpensive: [
-            { $sort: { sellingPrice: -1 } },
-            { $limit: 10 },
-            {
-              $project: {
-                name: 1,
-                martId: 1,
-                purchasePrice: 1,
-                sellingPrice: 1,
-                category: { $ifNull: ["$category", "Uncategorized"] },
-              },
-            },
-          ],
-        },
-      },
-    ]);
-
-    const pResults = productStats[0];
-    const platformStats = pResults.platformTotals[0] || {
-      totalProducts: 0,
-      totalInventoryValue: 0,
-      totalSellingValue: 0,
-      lowStockCount: 0,
-      outOfStockCount: 0,
-    };
-
-    // 3. Monthly Sales & Expenses Aggregation
-    const [monthlySalesData, monthlyExpensesData, usersByMartData] =
-      await Promise.all([
-        Sale.aggregate([
-          { $match: { date: { $gte: monthStart, $lte: monthEnd } } },
-          {
-            $group: {
-              _id: "$martId",
-              total: { $sum: "$total" },
-              count: { $sum: 1 },
-            },
-          },
-        ]),
-        Expense.aggregate([
-          {
-            $match: {
-              date: { $gte: monthStart, $lte: monthEnd },
-              isDeleted: { $ne: true },
-            },
-          },
-          { $group: { _id: "$martId", total: { $sum: "$amount" } } },
-        ]),
-        User.aggregate([
-          { $match: { isDeleted: { $ne: true } } },
-          { $group: { _id: "$martId", count: { $sum: 1 } } },
-        ]),
-      ]);
+    const monthlySales = monthlySalesData.filter(
+      (sale) => sale.martId && martIds.has(sale.martId),
+    );
+    const monthlyExpenses = monthlyExpensesData.filter(
+      (expense) => expense.martId && martIds.has(expense.martId),
+    );
+    const monthlyTransactionsByMart = monthlySalesData.reduce((acc, sale) => {
+      if (!sale.martId || !martIds.has(sale.martId)) return acc;
+      const key = String(sale.martId);
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
 
     const salesMap = {};
     let platformMonthlySales = 0;
     let platformTransactions = 0;
-    monthlySalesData.forEach((s) => {
-      salesMap[String(s._id)] = s.total;
-      platformMonthlySales += s.total;
-      platformTransactions += s.count;
+    monthlySales.forEach((sale) => {
+      const mid = String(sale.martId);
+      salesMap[mid] = (salesMap[mid] || 0) + Number(sale.total || 0);
+      platformMonthlySales += Number(sale.total || 0);
     });
+    platformTransactions = monthlySales.length;
 
     const expensesMap = {};
     let platformMonthlyExpenses = 0;
-    monthlyExpensesData.forEach((e) => {
-      expensesMap[String(e._id)] = e.total;
-      platformMonthlyExpenses += e.total;
+    monthlyExpenses.forEach((expense) => {
+      const mid = String(expense.martId);
+      expensesMap[mid] = (expensesMap[mid] || 0) + Number(expense.amount || 0);
+      platformMonthlyExpenses += Number(expense.amount || 0);
     });
 
     const usersMap = {};
-    usersByMartData.forEach((u) => (usersMap[String(u._id)] = u.count));
+    usersByMartData.forEach((u) => {
+      if (u.martId) usersMap[String(u.martId)] = u._count._all;
+    });
 
-    // 4. Final Formatting
     const martAnalytics = approvedMarts
       .map((m) => {
-        const mid = String(m._id);
-        const pd = pResults.byMart.find((b) => String(b._id) === mid) || {
+        const mid = String(m.id);
+        const pd = byMart.find((b) => String(b._id) === mid) || {
           count: 0,
           inventoryValue: 0,
           sellingValue: 0,
-          avgMargin: 0,
+          marginSum: 0,
         };
 
         return {
@@ -852,7 +840,8 @@ router.get("/admin-analytics", authenticate, async (req, res) => {
           productCount: pd.count,
           inventoryValue: Math.round(pd.inventoryValue * 100) / 100,
           sellingValue: Math.round(pd.sellingValue * 100) / 100,
-          avgMargin: Math.round((pd.avgMargin || 0) * 100) / 100,
+          avgMargin:
+            Math.round(((pd.marginSum || 0) / (pd.count || 1)) * 100) / 100,
           monthlySales: Math.round((salesMap[mid] || 0) * 100) / 100,
           monthlyExpenses: Math.round((expensesMap[mid] || 0) * 100) / 100,
           profit:
@@ -878,8 +867,8 @@ router.get("/admin-analytics", authenticate, async (req, res) => {
           Math.round(platformStats.totalSellingValue * 100) / 100,
         overallAvgMargin:
           Math.round(
-            (pResults.byMart.reduce((acc, m) => acc + (m.avgMargin || 0), 0) /
-              (pResults.byMart.length || 1)) *
+            (byMart.reduce((acc, m) => acc + (m.marginSum || 0), 0) /
+              (byMart.reduce((acc, m) => acc + (m.count || 0), 0) || 1)) *
               100,
           ) / 100,
         lowStockCount: platformStats.lowStockCount,
@@ -894,13 +883,13 @@ router.get("/admin-analytics", authenticate, async (req, res) => {
         totalUsers: allUsersCount,
       },
       martAnalytics,
-      topMarginProducts: enrichWithMartName(pResults.topMargin),
-      topExpensiveProducts: enrichWithMartName(pResults.topExpensive),
-      categoryDistribution: pResults.categories.map((c) => ({
+      topMarginProducts: enrichWithMartName(topMargin),
+      topExpensiveProducts: enrichWithMartName(topExpensive),
+      categoryDistribution: categories.map((c) => ({
         category: c._id,
         count: c.count,
       })),
-      products: [], // We no longer return the full product list to avoid OOM
+      products: productRows.sort((a, b) => b.margin - a.margin),
     });
   } catch (err) {
     console.error("admin-analytics error", err);
@@ -917,14 +906,14 @@ router.get("/today-sales", authenticate, async (req, res) => {
     const start = new Date(day + "T00:00:00.000Z");
     const end = new Date(day + "T23:59:59.999Z");
 
-    const filter = { date: { $gte: start, $lte: end } };
+    const filter = { date: { gte: start, lte: end } };
 
     const userMartId = req.user.martId ? String(req.user.martId) : "";
     const queryMartId = martId ? String(martId) : "";
 
     // Cashiers only see their own sales
     if (req.user.role === "cashier") {
-      filter.cashierId = req.user._id || req.user.id;
+      filter.cashierId = req.user.id;
       const effectiveMartId = userMartId || queryMartId;
       if (effectiveMartId) {
         filter.martId = effectiveMartId;
@@ -944,7 +933,7 @@ router.get("/today-sales", authenticate, async (req, res) => {
       filter.martId = queryMartId;
     }
 
-    const sales = await Sale.find(filter).lean();
+    const sales = await saleRepository.findMany(filter);
 
     // Determine the effective mart for product lookups
     const effectiveMartId = filter.martId ? String(filter.martId) : null;
@@ -959,13 +948,13 @@ router.get("/today-sales", authenticate, async (req, res) => {
       ),
     );
 
-    const productQuery = { _id: { $in: productIds } };
+    const productQuery = { id: { in: productIds } };
     if (effectiveMartId) productQuery.martId = effectiveMartId;
     const products = productIds.length
-      ? await Product.find(productQuery).lean()
+      ? await productRepository.findMany(productQuery)
       : [];
     const productMap = {};
-    for (const p of products) productMap[String(p._id)] = p;
+    for (const p of products) productMap[String(p.id || p._id)] = p;
 
     for (const s of sales) {
       const paymentMethod = String(s.paymentMethod || "unknown");

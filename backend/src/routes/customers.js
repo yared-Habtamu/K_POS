@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const Customer = require('../models/customer.model');
-const Mart = require('../models/mart.model');
+const customerRepository = require('../repositories/customerRepository');
+const martRepository = require('../repositories/martRepository');
 const { authenticate } = require('../middleware/auth');
 
 // POST /api/customers - create customer (cashier creates their customers)
@@ -17,12 +17,12 @@ router.post('/', authenticate, async (req, res) => {
     }
 
     // verify mart exists
-    const martExists = await Mart.findById(targetMartId).lean();
+    const martExists = await martRepository.findById(targetMartId);
     if (!martExists) {
       return res.status(404).json({ message: `martId not found: ${targetMartId}` });
     }
 
-    const customer = new Customer({
+    const customer = await customerRepository.create({
       name,
       phoneNumber,
       city: city || '',
@@ -31,8 +31,8 @@ router.post('/', authenticate, async (req, res) => {
       totalCredit: totalCredit || 0,
       totalPaid: totalPaid || 0,
       totalUnpaid: totalUnpaid || (totalCredit || 0) - (totalPaid || 0),
+      isDeleted: false,
     });
-    await customer.save();
     res.status(201).json(customer);
   } catch (err) {
     console.error('create customer error', err);
@@ -53,11 +53,11 @@ router.get('/', authenticate, async (req, res) => {
       return res.status(400).json({ message: 'Your account is not associated with a mart. Contact administrator.' });
     }
 
-    const filter = {};
+    const filter = { isDeleted: false };
     if (req.user.role === 'systemAdmin') {
       if (martId) {
         // validate mart exists
-        const m = await Mart.findById(martId).lean();
+        const m = await martRepository.findById(martId);
         if (!m) return res.status(404).json({ message: `martId not found: ${martId}` });
         filter.martId = martId;
       }
@@ -66,7 +66,9 @@ router.get('/', authenticate, async (req, res) => {
       filter.martId = req.user.martId;
     }
 
-    const list = await Customer.find(filter).sort({ createdAt: -1 }).lean();
+    const list = await customerRepository.findMany(filter, {
+      orderBy: { createdAt: 'desc' }
+    });
     res.json(list);
   } catch (err) {
     console.error('list customers error', err);
@@ -80,42 +82,45 @@ router.patch('/:id', authenticate, async (req, res) => {
     const { id } = req.params;
     const { name, phoneNumber, city, totalCredit, totalPaid, totalUnpaid } = req.body;
 
-    const customer = await Customer.findById(id);
-    if (!customer) return res.status(404).json({ message: 'Customer not found' });
+    const customer = await customerRepository.findById(id);
+    if (!customer || customer.isDeleted) return res.status(404).json({ message: 'Customer not found' });
 
     // Ensure user has access to this customer
     if (req.user.role !== 'systemAdmin' && String(customer.martId) !== String(req.user.martId)) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    if (name) customer.name = name;
-    if (phoneNumber) customer.phoneNumber = phoneNumber;
-    if (city !== undefined) customer.city = city;
-    if (totalCredit !== undefined) customer.totalCredit = totalCredit;
-    if (totalPaid !== undefined) customer.totalPaid = totalPaid;
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (phoneNumber) updateData.phoneNumber = phoneNumber;
+    if (city !== undefined) updateData.city = city;
+    if (totalCredit !== undefined) updateData.totalCredit = totalCredit;
+    if (totalPaid !== undefined) updateData.totalPaid = totalPaid;
     
     // Auto-calculate unpaid if not explicitly provided
     if (totalUnpaid !== undefined) {
-      customer.totalUnpaid = totalUnpaid;
+      updateData.totalUnpaid = totalUnpaid;
     } else if (totalCredit !== undefined || totalPaid !== undefined) {
-      customer.totalUnpaid = customer.totalCredit - customer.totalPaid;
+      const currentCredit = totalCredit !== undefined ? totalCredit : customer.totalCredit;
+      const currentPaid = totalPaid !== undefined ? totalPaid : customer.totalPaid;
+      updateData.totalUnpaid = currentCredit - currentPaid;
     }
 
-    await customer.save();
-    res.json(customer);
+    const updated = await customerRepository.update(id, updateData);
+    res.json(updated);
   } catch (err) {
     console.error('update customer error', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// DELETE /api/customers/:id - remove customer
+// DELETE /api/customers/:id - remove customer (soft delete)
 router.delete('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const customer = await Customer.findById(id);
-    if (!customer) return res.status(404).json({ message: 'Customer not found' });
+    const customer = await customerRepository.findById(id);
+    if (!customer || customer.isDeleted) return res.status(404).json({ message: 'Customer not found' });
 
     if (
       req.user.role !== 'systemAdmin' &&
@@ -124,7 +129,7 @@ router.delete('/:id', authenticate, async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    await Customer.findByIdAndDelete(id);
+    await customerRepository.softDelete(id);
     res.json({ message: 'Customer deleted' });
   } catch (err) {
     console.error('delete customer error', err);

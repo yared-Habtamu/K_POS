@@ -1,10 +1,8 @@
-
 const express = require("express");
 const router = express.Router();
-const Expense = require("../models/expense.model");
-const ExpenseActionRequest = require("../models/expenseActionRequest.model");
-const User = require("../models/user.model");
-const mongoose = require("mongoose");
+const expenseRepository = require("../repositories/expenseRepository");
+const { expenseActionRequestRepository } = require("../repositories/requestRepositories");
+const userRepository = require("../repositories/userRepository");
 const { authenticate } = require("../middleware/auth");
 const { createNotification } = require("../services/notification.service");
 const multer = require("multer");
@@ -29,16 +27,18 @@ const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 async function getMartOwners(martId) {
   if (!martId) return [];
-  return User.find({ martId, role: { $regex: /^owner$/i } })
-    .select("_id name username")
-    .lean();
+  return userRepository.findMany({
+    martId,
+    role: "owner",
+    isDeleted: false,
+  });
 }
 
 // List expenses. Query: ?martId=... optional. Non-systemAdmin users limited to their mart.
 router.get("/", authenticate, async (req, res) => {
   try {
     const { martId, createdByRole, createdBy, createdByName } = req.query;
-    const filter = {};
+    const filter = { isDeleted: false };
 
     if (req.user.role === "systemAdmin") {
       if (martId) filter.martId = martId;
@@ -67,9 +67,12 @@ router.get("/", authenticate, async (req, res) => {
       filter.createdByName = createdByName;
     }
 
-    const list = await Expense.find(filter)
-      .sort({ date: -1, createdAt: -1 })
-      .lean();
+    const list = await expenseRepository.findMany(filter, {
+      orderBy: [
+        { date: "desc" },
+        { createdAt: "desc" }
+      ]
+    });
     res.json(list);
   } catch (err) {
     console.error(err);
@@ -116,13 +119,12 @@ router.post(
             : "other";
 
       const attachmentPayload = {
-        paymentScreenshot: undefined,
-        productPicture: undefined,
+        paymentScreenshot: null,
+        productPicture: null,
         screenshots: [],
       };
 
       // Attach uploaded files (if any) as accessible URLs.
-      // Managers also need this in request payload for owner approval.
       try {
         if (
           req.files &&
@@ -166,7 +168,7 @@ router.post(
             .json({ message: "No owner found for this mart to approve" });
         }
 
-        const reqDoc = new ExpenseActionRequest({
+        const reqDoc = await expenseActionRequestRepository.create({
           martId: targetMartId,
           requesterId: req.user.id,
           requesterName: req.user.username || req.user.name,
@@ -174,31 +176,29 @@ router.post(
           action: "create",
           approvalRole: "owner",
           payload: {
-            category,
+            category: category || "miscellaneous",
             description,
             amount: amountNumber,
-            date,
+            date: new Date(date).toISOString(),
             paymentType: "open_cash",
-            name,
-            reason,
+            name: name || null,
+            reason: reason || null,
             paymentScreenshot: attachmentPayload.paymentScreenshot,
             productPicture: attachmentPayload.productPicture,
             screenshots: attachmentPayload.screenshots || [],
           },
         });
 
-        await reqDoc.save();
-
         await Promise.all(
           owners.map((owner) =>
             createNotification({
               martId: targetMartId,
-              userId: owner._id,
+              userId: owner.id,
               type: "expense_action_request",
               title: "Expense approval requested",
               message: `${reqDoc.requesterName || "Manager"} requested expense approval`,
               metadata: {
-                requestId: reqDoc._id,
+                requestId: reqDoc.id,
                 action: "create",
                 amount: amountNumber,
                 description,
@@ -209,29 +209,28 @@ router.post(
 
         return res.status(202).json({
           message: "Expense submitted for owner approval",
-          requestId: reqDoc._id,
+          requestId: reqDoc.id,
         });
       }
 
-      const expense = new Expense({
+      const expense = await expenseRepository.create({
         martId: targetMartId,
-        category,
+        category: category || "miscellaneous",
         description,
-        name: name || undefined,
-        reason: reason || undefined,
+        name: name || null,
+        reason: reason || null,
         amount: Number(amount),
         date: new Date(date),
         createdBy: req.user.id,
         createdByRole,
-        createdByName: req.user.name || undefined,
-        paymentType: paymentType || undefined,
+        createdByName: req.user.name || null,
+        paymentType: paymentType || null,
+        paymentScreenshot: attachmentPayload.paymentScreenshot,
+        productPicture: attachmentPayload.productPicture,
+        screenshots: attachmentPayload.screenshots || [],
+        isDeleted: false,
       });
 
-      expense.paymentScreenshot = attachmentPayload.paymentScreenshot;
-      expense.productPicture = attachmentPayload.productPicture;
-      expense.screenshots = attachmentPayload.screenshots;
-
-      await expense.save();
       res.status(201).json(expense);
     } catch (err) {
       console.error(err);
@@ -255,7 +254,7 @@ router.put(
       const { category, description, amount, date, paymentType, name, reason } =
         req.body;
 
-      const expense = await Expense.findById(id);
+      const expense = await expenseRepository.findById(id);
       if (!expense)
         return res.status(404).json({ message: "Expense not found" });
 
@@ -271,14 +270,18 @@ router.put(
         }
       }
 
-      // update allowed fields
-      if (category !== undefined) expense.category = category;
-      if (description !== undefined) expense.description = description;
-      if (name !== undefined) expense.name = name;
-      if (reason !== undefined) expense.reason = reason;
-      if (amount !== undefined) expense.amount = Number(amount);
-      if (date !== undefined) expense.date = new Date(date);
-      if (paymentType !== undefined) expense.paymentType = paymentType;
+      const updateData = {};
+      if (category !== undefined) updateData.category = category;
+      if (description !== undefined) updateData.description = description;
+      if (name !== undefined) updateData.name = name;
+      if (reason !== undefined) updateData.reason = reason;
+      if (amount !== undefined) updateData.amount = Number(amount);
+      if (date !== undefined) updateData.date = new Date(date);
+      if (paymentType !== undefined) updateData.paymentType = paymentType;
+
+      let updatedPaymentScreenshot = expense.paymentScreenshot;
+      let updatedProductPicture = expense.productPicture;
+      let updatedScreenshots = expense.screenshots;
 
       // handle uploaded files: replace existing and remove old file if present
       try {
@@ -298,7 +301,7 @@ router.put(
               console.warn("Failed to delete old paymentScreenshot", e);
             }
           }
-          expense.paymentScreenshot = `${req.protocol}://${req.get("host")}/uploads/${f.filename}`;
+          updatedPaymentScreenshot = `${req.protocol}://${req.get("host")}/uploads/${f.filename}`;
         }
         if (
           req.files &&
@@ -315,7 +318,7 @@ router.put(
               console.warn("Failed to delete old productPicture", e);
             }
           }
-          expense.productPicture = `${req.protocol}://${req.get("host")}/uploads/${f.filename}`;
+          updatedProductPicture = `${req.protocol}://${req.get("host")}/uploads/${f.filename}`;
         }
         // handle screenshots array
         if (
@@ -338,7 +341,7 @@ router.put(
               }
             }
           }
-          expense.screenshots = req.files.screenshots.map(
+          updatedScreenshots = req.files.screenshots.map(
             (f) => `${req.protocol}://${req.get("host")}/uploads/${f.filename}`,
           );
         }
@@ -346,8 +349,12 @@ router.put(
         console.warn("Error handling uploaded files", e);
       }
 
-      await expense.save();
-      res.json(expense);
+      updateData.paymentScreenshot = updatedPaymentScreenshot;
+      updateData.productPicture = updatedProductPicture;
+      updateData.screenshots = updatedScreenshots;
+
+      const updatedExpense = await expenseRepository.update(id, updateData);
+      res.json(updatedExpense);
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Server error" });
@@ -355,11 +362,11 @@ router.put(
   },
 );
 
-// Delete expense
+// Delete expense (soft delete to keep foreign keys intact)
 router.delete("/:id", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const expense = await Expense.findById(id);
+    const expense = await expenseRepository.findById(id);
     if (!expense) return res.status(404).json({ message: "Expense not found" });
 
     // authorization: systemAdmin can delete any; others only within their mart
@@ -374,7 +381,7 @@ router.delete("/:id", authenticate, async (req, res) => {
       }
     }
 
-    await Expense.findByIdAndDelete(id);
+    await expenseRepository.softDelete(id);
     res.json({ message: "Expense deleted" });
   } catch (err) {
     console.error(err);

@@ -6,6 +6,7 @@
     "build": "echo 'No build step required'",
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
+    "prisma:seed": "tsx prisma/seed/seed-users.ts && tsx prisma/seed/seed-dummy-data.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "test:products": "node scripts/test-products.js"
   },
@@ -20,7 +21,8 @@
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^9.0.0",
+    "@prisma/client": "^5.0.0",
+    "prisma": "^5.0.0",
     "morgan": "^1.10.1",
     "multer": "^2.0.2",
     "socket.io": "^4.8.3"
@@ -29,8 +31,13 @@
     "pdfkit": "^0.13.0",
     "qrcode": "^1.5.1"
   },
+  "prisma": {
+    "seed": "tsx prisma/seed/seed-users.ts && tsx prisma/seed/seed-dummy-data.ts"
+  },
   "devDependencies": {
-    "nodemon": "^3.1.11"
+    "nodemon": "^3.1.11",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3"
   },
   "description": ""
 }

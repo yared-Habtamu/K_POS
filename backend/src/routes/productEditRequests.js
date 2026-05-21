@@ -1,9 +1,11 @@
 const express = require("express");
 const router = express.Router();
-const mongoose = require("mongoose");
 const { authenticate } = require("../middleware/auth");
-const ProductEditRequest = require("../models/productEditRequest.model");
-const Product = require("../models/product.model");
+const prisma = require("../repositories/prismaClient");
+const productRepository = require("../repositories/productRepository");
+const {
+  productEditRequestRepository,
+} = require("../repositories/requestRepositories");
 const { createNotification } = require("../services/notification.service");
 
 function normalizeExpiryDate(value) {
@@ -37,23 +39,19 @@ router.get("/", authenticate, async (req, res) => {
   try {
     const user = req.user;
     const { status, martId, startDate, endDate } = req.query;
-    const filter = {};
-    if (status) filter.status = status;
+    const where = {};
+    if (status) where.status = status;
     if (isSystemAdmin(user)) {
-      if (martId) filter.martId = martId;
+      if (martId) where.martId = martId;
     } else {
-      // non-admins can only see requests for their mart
-      filter.martId = user.martId;
+      where.martId = user.martId;
 
       if (isManager(user)) {
-        filter.$or = [
-          { approvalRole: "manager" },
-          { approvalRole: { $exists: false } },
-        ];
+        where.OR = [{ approvalRole: "manager" }];
       } else if (isStoreKeeper(user)) {
-        filter.approvalRole = "store_keeper";
+        where.approvalRole = "store_keeper";
       } else if (String(user.role || "").toLowerCase() === "owner") {
-        filter.requesterId = user.id;
+        where.requesterId = user.id;
       } else {
         return res
           .status(403)
@@ -65,19 +63,18 @@ router.get("/", authenticate, async (req, res) => {
     }
 
     if (startDate || endDate) {
-      filter.createdAt = {};
-      if (startDate) filter.createdAt.$gte = new Date(startDate);
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = new Date(startDate);
       if (endDate) {
         const d = new Date(endDate);
         d.setHours(23, 59, 59, 999);
-        filter.createdAt.$lte = d;
+        where.createdAt.lte = d;
       }
     }
 
-    const list = await ProductEditRequest.find(filter)
-      .populate("productId", "name")
-      .sort({ createdAt: -1 })
-      .lean();
+    const list = await productEditRequestRepository.findMany(where, {
+      include: { product: { select: { name: true } } },
+    });
     res.json(list);
   } catch (err) {
     console.error(err);
@@ -90,7 +87,7 @@ router.put("/:id/approve", authenticate, async (req, res) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const reqDoc = await ProductEditRequest.findById(id);
+    const reqDoc = await productEditRequestRepository.findById(id);
     if (!reqDoc) return res.status(404).json({ message: "Request not found" });
     if (reqDoc.status !== "pending")
       return res.status(400).json({ message: "Request already processed" });
@@ -115,52 +112,50 @@ router.put("/:id/approve", authenticate, async (req, res) => {
         .json({ message: "Cannot approve request for another mart" });
     }
 
-    const session = await mongoose.startSession();
-    session.startTransaction();
     try {
-      // Apply changes to product
-      const update = { ...(reqDoc.changes || {}) };
-      if (Object.prototype.hasOwnProperty.call(update, "expiryDate")) {
-        update.expiryDate = normalizeExpiryDate(update.expiryDate);
-      }
-      const product = await Product.findOneAndUpdate(
-        { _id: reqDoc.productId, martId: reqDoc.martId },
-        update,
-        { new: true, session },
-      );
-      if (!product) throw new Error("Product not found for update");
+      const updatedProduct = await prisma.$transaction(async (tx) => {
+        const update = { ...(reqDoc.changes || {}) };
+        if (Object.prototype.hasOwnProperty.call(update, "expiryDate")) {
+          update.expiryDate = normalizeExpiryDate(update.expiryDate);
+        }
 
-      reqDoc.status = "approved";
-      reqDoc.approverId = user.id;
-      reqDoc.approverName = user.username || user.name;
-      reqDoc.decidedAt = new Date();
-      await reqDoc.save({ session });
+        const prod = await tx.product.update({
+          where: { id: reqDoc.productId },
+          data: update,
+        });
+        if (!prod) throw new Error("Product not found for update");
 
-      // notify requester
-      // notify requester
-      await createNotification(
-        {
-          martId: reqDoc.martId,
-          userId: reqDoc.requesterId,
-          type: "product_edit_result",
-          title: "Product edit approved",
-          message: `Your requested edit for product ${String(reqDoc.productId)} was approved.`,
-          metadata: {
-            requestId: reqDoc._id,
-            productId: reqDoc.productId,
-            result: "approved",
+        await tx.productEditRequest.update({
+          where: { id: reqDoc.id },
+          data: {
+            status: "approved",
+            approverId: user.id,
+            approverName: user.username || user.name,
+            decidedAt: new Date(),
           },
-        },
-        session,
-      );
+        });
 
-      await session.commitTransaction();
-      session.endSession();
+        await createNotification(
+          {
+            martId: reqDoc.martId,
+            userId: reqDoc.requesterId,
+            type: "product_edit_result",
+            title: "Product edit approved",
+            message: `Your requested edit for product ${String(reqDoc.productId)} was approved.`,
+            metadata: {
+              requestId: reqDoc.id,
+              productId: reqDoc.productId,
+              result: "approved",
+            },
+          },
+          tx,
+        );
 
-      res.json({ message: "Request approved", product });
+        return prod;
+      });
+
+      res.json({ message: "Request approved", product: updatedProduct });
     } catch (err) {
-      await session.abortTransaction();
-      session.endSession();
       console.error(err);
       res
         .status(500)
@@ -178,7 +173,7 @@ router.put("/:id/reject", authenticate, async (req, res) => {
     const user = req.user;
     const { id } = req.params;
     const { reason } = req.body || {};
-    const reqDoc = await ProductEditRequest.findById(id);
+    const reqDoc = await productEditRequestRepository.findById(id);
     if (!reqDoc) return res.status(404).json({ message: "Request not found" });
     if (reqDoc.status !== "pending")
       return res.status(400).json({ message: "Request already processed" });
@@ -203,12 +198,13 @@ router.put("/:id/reject", authenticate, async (req, res) => {
         .json({ message: "Cannot reject request for another mart" });
     }
 
-    reqDoc.status = "rejected";
-    reqDoc.approverId = user.id;
-    reqDoc.approverName = user.username || user.name;
-    reqDoc.reason = reason || "";
-    reqDoc.decidedAt = new Date();
-    await reqDoc.save();
+    await productEditRequestRepository.update(id, {
+      status: "rejected",
+      approverId: user.id,
+      approverName: user.username || user.name,
+      reason: reason || "",
+      decidedAt: new Date(),
+    });
 
     await createNotification({
       martId: reqDoc.martId,
@@ -217,7 +213,7 @@ router.put("/:id/reject", authenticate, async (req, res) => {
       title: "Product edit rejected",
       message: `Your requested edit for product ${String(reqDoc.productId)} was rejected. ${reason || ""}`,
       metadata: {
-        requestId: reqDoc._id,
+        requestId: reqDoc.id,
         productId: reqDoc.productId,
         result: "rejected",
       },

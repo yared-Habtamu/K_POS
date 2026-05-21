@@ -1,9 +1,8 @@
 const express = require("express");
-const mongoose = require("mongoose");
+const prisma = require("../repositories/prismaClient");
 const { authenticate } = require("../middleware/auth");
-const ExpenseActionRequest = require("../models/expenseActionRequest.model");
-const Expense = require("../models/expense.model");
-const User = require("../models/user.model");
+const { expenseActionRequestRepository } = require("../repositories/requestRepositories");
+const userRepository = require("../repositories/userRepository");
 const { createNotification } = require("../services/notification.service");
 
 const router = express.Router();
@@ -26,9 +25,11 @@ function isSystemAdmin(user) {
 
 async function getMartOwners(martId) {
   if (!martId) return [];
-  return User.find({ martId, role: { $regex: /^owner$/i } })
-    .select("_id name username")
-    .lean();
+  return userRepository.findMany({
+    martId,
+    role: "owner",
+    isDeleted: false,
+  });
 }
 
 router.get("/", authenticate, async (req, res) => {
@@ -50,7 +51,7 @@ router.get("/", authenticate, async (req, res) => {
       }
 
       if (isOwner(user)) {
-        filter.$or = [{ approvalRole: "owner" }, { requesterId: user.id }];
+        filter.OR = [{ approvalRole: "owner" }, { requesterId: user.id }];
       } else if (isManager(user)) {
         filter.requesterId = user.id;
       } else {
@@ -64,17 +65,17 @@ router.get("/", authenticate, async (req, res) => {
 
     if (startDate || endDate) {
       filter.createdAt = {};
-      if (startDate) filter.createdAt.$gte = new Date(startDate);
+      if (startDate) filter.createdAt.gte = new Date(startDate);
       if (endDate) {
         const d = new Date(endDate);
         d.setHours(23, 59, 59, 999);
-        filter.createdAt.$lte = d;
+        filter.createdAt.lte = d;
       }
     }
 
-    const list = await ExpenseActionRequest.find(filter)
-      .sort({ createdAt: -1 })
-      .lean();
+    const list = await expenseActionRequestRepository.findMany(filter, {
+      orderBy: { createdAt: "desc" }
+    });
 
     res.json(list);
   } catch (err) {
@@ -88,7 +89,7 @@ router.put("/:id/approve", authenticate, async (req, res) => {
     const user = req.user;
     const { id } = req.params;
 
-    const reqDoc = await ExpenseActionRequest.findById(id);
+    const reqDoc = await expenseActionRequestRepository.findById(id);
     if (!reqDoc) return res.status(404).json({ message: "Request not found" });
     if (reqDoc.status !== "pending") {
       return res.status(400).json({ message: "Request already processed" });
@@ -119,96 +120,93 @@ router.put("/:id/approve", authenticate, async (req, res) => {
       return res.status(400).json({ message: "Invalid expense amount" });
     }
 
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
     try {
-      let updatedRequester = null;
-      if (reqDoc.requesterRole === "manager") {
-        updatedRequester = await User.findOneAndUpdate(
-          {
-            _id: reqDoc.requesterId,
-            martId: reqDoc.martId,
-            openCashBalance: { $gte: amountNumber },
-          },
-          { $inc: { openCashBalance: -amountNumber } },
-          { new: true, session },
-        );
+      const responsePayload = await prisma.$transaction(async (tx) => {
+        let updatedRequester = null;
+        if (reqDoc.requesterRole === "manager") {
+          const reqUser = await tx.user.findUnique({
+            where: { id: reqDoc.requesterId }
+          });
+          if (!reqUser || reqUser.martId !== reqDoc.martId || reqUser.openCashBalance < amountNumber) {
+            throw new Error("Insufficient open cash balance");
+          }
 
-        if (!updatedRequester) {
-          await session.abortTransaction();
-          session.endSession();
-          return res
-            .status(400)
-            .json({ message: "Insufficient open cash balance" });
+          updatedRequester = await tx.user.update({
+            where: { id: reqDoc.requesterId },
+            data: {
+              openCashBalance: {
+                decrement: amountNumber
+              }
+            }
+          });
         }
-      }
 
-      const expense = new Expense({
-        martId: reqDoc.martId,
-        category: payload.category || "miscellaneous",
-        description: payload.description,
-        name: payload.name || undefined,
-        reason: payload.reason || undefined,
-        amount: amountNumber,
-        date: new Date(payload.date),
-        createdBy: reqDoc.requesterId,
-        createdByRole:
-          reqDoc.requesterRole === "owner"
-            ? "owner"
-            : reqDoc.requesterRole === "manager"
-              ? "manager"
-              : "other",
-        createdByName: reqDoc.requesterName || undefined,
-        paymentType:
-          reqDoc.requesterRole === "manager"
-            ? "open_cash"
-            : payload.paymentType || undefined,
-        paymentScreenshot: payload.paymentScreenshot || undefined,
-        productPicture: payload.productPicture || undefined,
-        screenshots: Array.isArray(payload.screenshots)
-          ? payload.screenshots
-          : [],
-      });
-      await expense.save({ session });
+        const expense = await tx.expense.create({
+          data: {
+            martId: reqDoc.martId,
+            category: payload.category || "miscellaneous",
+            description: payload.description,
+            name: payload.name || null,
+            reason: payload.reason || null,
+            amount: amountNumber,
+            date: new Date(payload.date),
+            createdBy: reqDoc.requesterId,
+            createdByRole:
+              reqDoc.requesterRole === "owner"
+                ? "owner"
+                : reqDoc.requesterRole === "manager"
+                  ? "manager"
+                  : "other",
+            createdByName: reqDoc.requesterName || null,
+            paymentType:
+              reqDoc.requesterRole === "manager"
+                ? "open_cash"
+                : payload.paymentType || null,
+            paymentScreenshot: payload.paymentScreenshot || null,
+            productPicture: payload.productPicture || null,
+            screenshots: Array.isArray(payload.screenshots)
+              ? payload.screenshots
+              : [],
+            isDeleted: false,
+          }
+        });
 
-      reqDoc.status = "approved";
-      reqDoc.approverId = user.id;
-      reqDoc.approverName = user.username || user.name;
-      reqDoc.decidedAt = new Date();
-      await reqDoc.save({ session });
+        await tx.expenseActionRequest.update({
+          where: { id: reqDoc.id },
+          data: {
+            status: "approved",
+            approverId: user.id,
+            approverName: user.username || user.name,
+            decidedAt: new Date(),
+          }
+        });
 
-      await createNotification(
-        {
-          martId: reqDoc.martId,
-          userId: reqDoc.requesterId,
-          type: "expense_action_result",
-          title: "Expense request approved",
-          message: "Your expense request was approved",
-          metadata: {
-            requestId: reqDoc._id,
-            expenseId: expense._id,
-            action: "create",
-            result: "approved",
+        await createNotification(
+          {
+            martId: reqDoc.martId,
+            userId: reqDoc.requesterId,
+            type: "expense_action_result",
+            title: "Expense request approved",
+            message: "Your expense request was approved",
+            metadata: {
+              requestId: reqDoc.id,
+              expenseId: expense.id,
+              action: "create",
+              result: "approved",
+            },
           },
-        },
-        session,
-      );
-
-      await session.commitTransaction();
-      session.endSession();
-
-      const responsePayload = { message: "Expense request approved", expense };
-      if (updatedRequester) {
-        responsePayload.openCashBalance = Number(
-          updatedRequester.openCashBalance || 0,
+          tx,
         );
-      }
+
+        const resObj = { message: "Expense request approved", expense };
+        if (updatedRequester) {
+          resObj.openCashBalance = Number(updatedRequester.openCashBalance || 0);
+        }
+        return resObj;
+      });
 
       return res.json(responsePayload);
     } catch (err) {
-      await session.abortTransaction();
-      session.endSession();
       console.error(err);
       return res
         .status(500)
@@ -226,7 +224,7 @@ router.put("/:id/reject", authenticate, async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body || {};
 
-    const reqDoc = await ExpenseActionRequest.findById(id);
+    const reqDoc = await expenseActionRequestRepository.findById(id);
     if (!reqDoc) return res.status(404).json({ message: "Request not found" });
     if (reqDoc.status !== "pending") {
       return res.status(400).json({ message: "Request already processed" });
@@ -245,12 +243,13 @@ router.put("/:id/reject", authenticate, async (req, res) => {
         .json({ message: "Cannot reject request for another mart" });
     }
 
-    reqDoc.status = "rejected";
-    reqDoc.approverId = user.id;
-    reqDoc.approverName = user.username || user.name;
-    reqDoc.reason = reason || "";
-    reqDoc.decidedAt = new Date();
-    await reqDoc.save();
+    const updated = await expenseActionRequestRepository.update(id, {
+      status: "rejected",
+      approverId: user.id,
+      approverName: user.username || user.name,
+      reason: reason || "",
+      decidedAt: new Date(),
+    });
 
     await createNotification({
       martId: reqDoc.martId,
@@ -259,7 +258,7 @@ router.put("/:id/reject", authenticate, async (req, res) => {
       title: "Expense request rejected",
       message: `Your expense request was rejected. ${reason || ""}`,
       metadata: {
-        requestId: reqDoc._id,
+        requestId: reqDoc.id,
         action: "create",
         result: "rejected",
       },
@@ -315,7 +314,7 @@ router.post("/request", authenticate, async (req, res) => {
         });
     }
 
-    const reqDoc = new ExpenseActionRequest({
+    const reqDoc = await expenseActionRequestRepository.create({
       martId: targetMartId,
       requesterId: user.id,
       requesterName: user.username || user.name,
@@ -323,31 +322,29 @@ router.post("/request", authenticate, async (req, res) => {
       action: "create",
       approvalRole: "owner",
       payload: {
-        category,
+        category: category || "miscellaneous",
         description,
         amount: Number(amount),
-        date,
-        paymentType,
-        name,
-        reason,
-        paymentScreenshot,
-        productPicture,
+        date: new Date(date).toISOString(),
+        paymentType: paymentType || "open_cash",
+        name: name || null,
+        reason: reason || null,
+        paymentScreenshot: paymentScreenshot || null,
+        productPicture: productPicture || null,
         screenshots: Array.isArray(screenshots) ? screenshots : [],
       },
     });
-
-    await reqDoc.save();
 
     await Promise.all(
       owners.map((owner) =>
         createNotification({
           martId: targetMartId,
-          userId: owner._id,
+          userId: owner.id,
           type: "expense_action_request",
           title: "Expense approval requested",
           message: `${reqDoc.requesterName || "Manager"} requested expense approval`,
           metadata: {
-            requestId: reqDoc._id,
+            requestId: reqDoc.id,
             action: "create",
             amount: Number(amount),
             description,
@@ -358,7 +355,7 @@ router.post("/request", authenticate, async (req, res) => {
 
     return res.status(202).json({
       message: "Expense submitted for owner approval",
-      requestId: reqDoc._id,
+      requestId: reqDoc.id,
     });
   } catch (err) {
     console.error(err);

@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const Mart = require("../models/mart.model");
+const martRepository = require("../repositories/martRepository");
 const { authenticate } = require("../middleware/auth");
 const {
   getOrCreateSettings,
@@ -38,14 +38,19 @@ router.put("/settings", authenticate, requireSystemAdmin, async (req, res) => {
       "autoSuspendEnabled",
     ];
 
+    const updatedData = {};
     for (const key of allowed) {
       if (Object.prototype.hasOwnProperty.call(req.body, key)) {
-        settings[key] = req.body[key];
+        updatedData[key] = req.body[key];
       }
     }
 
-    await settings.save();
-    return res.json(settings);
+    const prisma = require("../repositories/prismaClient");
+    const updatedSettings = await prisma.subscriptionSettings.update({
+        where: { id: settings.id },
+        data: updatedData
+    });
+    return res.json(updatedSettings);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Server error" });
@@ -103,7 +108,7 @@ router.put(
   requireSystemAdmin,
   async (req, res) => {
     try {
-      const mart = await Mart.findById(req.params.id);
+      const mart = await martRepository.findById(req.params.id);
       if (!mart) {
         return res.status(404).json({ message: "Mart not found" });
       }
@@ -118,14 +123,16 @@ router.put(
         "subscriptionEndDate",
       ];
 
-      mart.subscription = mart.subscription || {};
+      const subData = mart.subscription && typeof mart.subscription === 'object' ? mart.subscription : {};
+      const updatedSub = { ...subData };
       for (const key of allowed) {
         if (Object.prototype.hasOwnProperty.call(req.body, key)) {
-          mart.subscription[key] = req.body[key];
+          updatedSub[key] = req.body[key];
         }
       }
 
-      await mart.save();
+      await martRepository.update(mart.id, { subscription: updatedSub });
+
       const result = await runSubscriptionCheckForMart(req.params.id, {
         persist: true,
       });

@@ -2,12 +2,10 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const router = express.Router();
 
-const Mart = require("../models/mart.model");
-const User = require("../models/user.model");
+const martRepository = require("../repositories/martRepository");
+const userRepository = require("../repositories/userRepository");
+const prisma = require("../repositories/prismaClient");
 const { authenticate } = require("../middleware/auth");
-
-const escapeRegex = (value = "") =>
-  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // Register a new mart and owner user
 router.post("/register", async (req, res) => {
@@ -61,37 +59,15 @@ router.post("/register", async (req, res) => {
       existingMartName,
       existingEmail,
     ] = await Promise.all([
-      User.findOne({
-        name: {
-          $regex: `^${escapeRegex(normalizedOwnerName)}$`,
-          $options: "i",
-        },
-      }).lean(),
-      normalizedOwnerPhone
-        ? User.findOne({ phone: normalizedOwnerPhone }).lean()
-        : null,
-      normalizedOwnerPhone
-        ? Mart.findOne({ phone: normalizedOwnerPhone }).lean()
-        : null,
-      Mart.findOne({
-        martName: {
-          $regex: `^${escapeRegex(normalizedMartName)}$`,
-          $options: "i",
-        },
-      }).lean(),
-      normalizedEmail
-        ? Mart.findOne({
-            email: {
-              $regex: `^${escapeRegex(normalizedEmail)}$`,
-              $options: "i",
-            },
-          }).lean()
-        : null,
+      userRepository.findOne({ name: { equals: normalizedOwnerName, mode: 'insensitive' } }),
+      normalizedOwnerPhone ? userRepository.findOne({ phone: normalizedOwnerPhone }) : null,
+      normalizedOwnerPhone ? martRepository.findOne({ phone: normalizedOwnerPhone }) : null,
+      martRepository.findOne({ martName: { equals: normalizedMartName, mode: 'insensitive' } }),
+      normalizedEmail ? martRepository.findOne({ email: { equals: normalizedEmail, mode: 'insensitive' } }) : null,
     ]);
 
     if (existingOwnerName) duplicateMessages.push("Owner Name already exists");
-    if (existingPhoneInUsers || existingPhoneInMarts)
-      duplicateMessages.push("Phone already exists");
+    if (existingPhoneInUsers || existingPhoneInMarts) duplicateMessages.push("Phone already exists");
     if (existingMartName) duplicateMessages.push("Mart Name already exists");
     if (existingEmail) duplicateMessages.push("Email already exists");
 
@@ -114,9 +90,7 @@ router.post("/register", async (req, res) => {
       if (!proposed)
         return res.status(400).json({ message: "Invalid owner username" });
 
-      const existingUsername = await User.findOne({
-        username: proposed,
-      }).lean();
+      const existingUsername = await userRepository.findByUsername(proposed);
       if (existingUsername) duplicateMessages.push("Username already exists");
 
       username = proposed;
@@ -125,7 +99,7 @@ router.post("/register", async (req, res) => {
       let baseUsername = sanitize(ownerName) || `owner${Date.now() % 10000}`;
       username = baseUsername;
       let suffix = 0;
-      while (await User.findOne({ username })) {
+      while (await userRepository.findByUsername(username)) {
         suffix += 1;
         username = `${baseUsername}${suffix}`;
         if (suffix > 50) {
@@ -143,21 +117,22 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    const owner = new User({
+    // Since mart and owner depend on each other, create owner first without martId,
+    // then mart, then update owner.
+    const owner = await userRepository.create({
       name: normalizedOwnerName,
       username,
       phone: normalizedOwnerPhone,
       passwordHash,
       role: "owner",
     });
-    await owner.save();
 
     const parsedTaxRate = Number(taxRate);
-    const mart = new Mart({
-      ownerId: owner._id,
+    const mart = await martRepository.create({
+      ownerId: owner.id,
       martName: normalizedMartName,
       phone: normalizedOwnerPhone,
-      email: normalizedEmail,
+      email: normalizedEmail || null,
       country,
       region,
       city,
@@ -172,32 +147,15 @@ router.post("/register", async (req, res) => {
       status: "pending",
     });
 
-    await mart.save();
-
     // update owner's martId
-    owner.martId = mart._id;
-    await owner.save();
+    await userRepository.update(owner.id, { martId: mart.id });
+    owner.martId = mart.id;
+    delete owner.passwordHash;
 
     // Return assigned username explicitly so clients can show it (useful if sanitized/altered)
     return res.status(201).json({ mart, owner, assignedUsername: username });
   } catch (err) {
     console.error(err);
-    // Better error responses for validation and duplicate key errors
-    if (err && err.name === "ValidationError") {
-      const details = Object.keys(err.errors || {}).reduce((acc, k) => {
-        acc[k] = err.errors[k].message;
-        return acc;
-      }, {});
-      return res.status(400).json({ message: "Validation error", details });
-    }
-
-    if (err && err.code === 11000) {
-      // duplicate key
-      return res
-        .status(409)
-        .json({ message: "Duplicate resource", key: err.keyValue });
-    }
-
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -268,39 +226,17 @@ router.post("/admin-register", authenticate, async (req, res) => {
       existingMartName,
       existingEmail,
     ] = await Promise.all([
-      User.findOne({
-        name: {
-          $regex: `^${escapeRegex(normalizedOwnerName)}$`,
-          $options: "i",
-        },
-      }).lean(),
-      User.findOne({ username: normalizedUsername }).lean(),
-      normalizedOwnerPhone
-        ? User.findOne({ phone: normalizedOwnerPhone }).lean()
-        : null,
-      normalizedOwnerPhone
-        ? Mart.findOne({ phone: normalizedOwnerPhone }).lean()
-        : null,
-      Mart.findOne({
-        martName: {
-          $regex: `^${escapeRegex(normalizedMartName)}$`,
-          $options: "i",
-        },
-      }).lean(),
-      normalizedEmail
-        ? Mart.findOne({
-            email: {
-              $regex: `^${escapeRegex(normalizedEmail)}$`,
-              $options: "i",
-            },
-          }).lean()
-        : null,
+      userRepository.findOne({ name: { equals: normalizedOwnerName, mode: 'insensitive' } }),
+      userRepository.findByUsername(normalizedUsername),
+      normalizedOwnerPhone ? userRepository.findOne({ phone: normalizedOwnerPhone }) : null,
+      normalizedOwnerPhone ? martRepository.findOne({ phone: normalizedOwnerPhone }) : null,
+      martRepository.findOne({ martName: { equals: normalizedMartName, mode: 'insensitive' } }),
+      normalizedEmail ? martRepository.findOne({ email: { equals: normalizedEmail, mode: 'insensitive' } }) : null,
     ]);
 
     if (existingOwnerName) duplicateMessages.push("Owner Name already exists");
     if (existingUsername) duplicateMessages.push("Username already exists");
-    if (existingPhoneInUsers || existingPhoneInMarts)
-      duplicateMessages.push("Phone already exists");
+    if (existingPhoneInUsers || existingPhoneInMarts) duplicateMessages.push("Phone already exists");
     if (existingMartName) duplicateMessages.push("Mart Name already exists");
     if (existingEmail) duplicateMessages.push("Email already exists");
 
@@ -313,22 +249,21 @@ router.post("/admin-register", authenticate, async (req, res) => {
 
     const passwordHash = await bcrypt.hash(ownerPassword, 10);
 
-    const owner = new User({
+    const owner = await userRepository.create({
       name: normalizedOwnerName,
       username: normalizedUsername,
       phone: normalizedOwnerPhone,
-      email: normalizedEmail || undefined,
+      email: normalizedEmail || null,
       passwordHash,
       role: "owner",
     });
-    await owner.save();
 
     const parsedTaxRate = Number(taxRate);
-    const mart = new Mart({
-      ownerId: owner._id,
+    const mart = await martRepository.create({
+      ownerId: owner.id,
       martName: normalizedMartName,
       phone: normalizedOwnerPhone,
-      email: normalizedEmail,
+      email: normalizedEmail || null,
       country,
       region,
       city,
@@ -342,10 +277,10 @@ router.post("/admin-register", authenticate, async (req, res) => {
         : [],
       status: "approved",
     });
-    await mart.save();
 
-    owner.martId = mart._id;
-    await owner.save();
+    await userRepository.update(owner.id, { martId: mart.id });
+    owner.martId = mart.id;
+    delete owner.passwordHash;
 
     return res.status(201).json({
       mart,
@@ -355,18 +290,6 @@ router.post("/admin-register", authenticate, async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    if (err && err.name === "ValidationError") {
-      const details = Object.keys(err.errors || {}).reduce((acc, k) => {
-        acc[k] = err.errors[k].message;
-        return acc;
-      }, {});
-      return res.status(400).json({ message: "Validation error", details });
-    }
-    if (err && err.code === 11000) {
-      return res
-        .status(409)
-        .json({ message: "Duplicate resource", key: err.keyValue });
-    }
     return res.status(500).json({ message: "Server error" });
   }
 });
@@ -376,9 +299,13 @@ router.get("/pending", authenticate, async (req, res) => {
   try {
     if (req.user.role !== "systemAdmin")
       return res.status(403).json({ message: "Insufficient permissions" });
-    const list = await Mart.find({ status: "pending" })
-      .sort({ createdAt: -1 })
-      .populate("ownerId", "name username phone");
+    const list = await martRepository.findMany(
+      { status: "pending" }, 
+      { 
+        include: { owner: { select: { name: true, username: true, phone: true } } },
+        orderBy: { createdAt: "desc" }
+      }
+    );
     res.json(list);
   } catch (err) {
     console.error(err);
@@ -393,23 +320,18 @@ router.put("/:id/approve", authenticate, async (req, res) => {
       return res.status(403).json({ message: "Insufficient permissions" });
 
     const { id } = req.params;
-    const mart = await Mart.findByIdAndUpdate(
-      id,
-      { status: "approved" },
-      { new: true },
-    );
+    const mart = await martRepository.update(id, { status: "approved" });
     if (!mart) return res.status(404).json({ message: "Mart not found" });
 
     // Ensure owner has martId set (in case owner existed before registration)
     try {
       if (mart.ownerId) {
-        const owner = await User.findById(mart.ownerId);
+        const owner = await userRepository.findById(mart.ownerId);
         if (
           owner &&
-          (!owner.martId || String(owner.martId) !== String(mart._id))
+          (!owner.martId || String(owner.martId) !== String(mart.id))
         ) {
-          owner.martId = mart._id;
-          await owner.save();
+          await userRepository.update(owner.id, { martId: mart.id });
           console.log("Assigned mart to owner after approval", owner.username);
         }
       }
@@ -430,11 +352,7 @@ router.put("/:id/disable", authenticate, async (req, res) => {
     if (req.user.role !== "systemAdmin")
       return res.status(403).json({ message: "Insufficient permissions" });
     const { id } = req.params;
-    const mart = await Mart.findByIdAndUpdate(
-      id,
-      { status: "disabled" },
-      { new: true },
-    );
+    const mart = await martRepository.update(id, { status: "disabled" });
     if (!mart) return res.status(404).json({ message: "Mart not found" });
     res.json(mart);
   } catch (err) {
@@ -447,10 +365,7 @@ router.put("/:id/disable", authenticate, async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const mart = await Mart.findById(id).populate(
-      "ownerId",
-      "name username phone",
-    );
+    const mart = await martRepository.findById(id, { include: { owner: { select: { name: true, username: true, phone: true } } } });
     if (!mart) return res.status(404).json({ message: "Mart not found" });
     res.json(mart);
   } catch (err) {
@@ -498,7 +413,7 @@ router.put("/:id", authenticate, async (req, res) => {
       }
     }
 
-    const mart = await Mart.findByIdAndUpdate(id, updates, { new: true });
+    const mart = await martRepository.update(id, updates);
     if (!mart) return res.status(404).json({ message: "Mart not found" });
     res.json(mart);
   } catch (err) {
@@ -515,10 +430,15 @@ router.get("/", async (req, res) => {
     if (status) filter.status = status;
     // By default exclude soft-deleted marts. Client can request deleted records
     // via `?includeDeleted=true` when intentional.
-    if (req.query.includeDeleted !== "true") filter.isDeleted = { $ne: true };
-    const list = await Mart.find(filter)
-      .sort({ createdAt: -1 })
-      .populate("ownerId", "name username phone");
+    if (req.query.includeDeleted !== "true") filter.isDeleted = false;
+    
+    const list = await martRepository.findMany(
+      filter, 
+      { 
+        include: { owner: { select: { name: true, username: true, phone: true } } },
+        orderBy: { createdAt: "desc" }
+      }
+    );
     res.json(list);
   } catch (err) {
     console.error(err);
@@ -533,37 +453,33 @@ router.delete("/:id", authenticate, async (req, res) => {
       return res.status(403).json({ message: "Insufficient permissions" });
 
     const { id } = req.params;
-    const mart = await Mart.findById(id);
+    const mart = await martRepository.findById(id);
     if (!mart) return res.status(404).json({ message: "Mart not found" });
 
     try {
       // First, delete all related data based on martId
       const modelFiles = [
-        "asset", "assetActionRequest", "attendance", "category", "customer",
-        "dailyReport", "expense", "expenseActionRequest", "expenseCategory",
-        "notification", "paymentType", "product", "productAddRequest",
-        "productEditRequest", "sale", "stockTransferRequest"
+        "Asset", "AssetActionRequest", "Attendance", "Category", "Customer",
+        "DailyReport", "Expense", "ExpenseActionRequest", "ExpenseCategory",
+        "Notification", "PaymentType", "Product", "ProductAddRequest",
+        "ProductEditRequest", "Sale", "StockTransferRequest", "User"
       ];
       
-      for (const file of modelFiles) {
-        try {
-          const Model = require(`../models/${file}.model`);
-          await Model.deleteMany({ martId: mart._id });
-        } catch(e) {
-          console.warn(`Failed to delete related records for ${file}:`, e.message);
-        }
-      }
-      
-      // Delete all users belonging to this mart (including the owner)
-      await User.deleteMany({ martId: mart._id });
-      console.log(`Deleted all users and related records for mart ${mart._id}`);
+      await prisma.$transaction(async (tx) => {
+         for (const modelName of modelFiles) {
+            const clientProp = modelName.charAt(0).toLowerCase() + modelName.slice(1);
+            if (tx[clientProp]) {
+               await tx[clientProp].deleteMany({ where: { martId: mart.id } });
+            }
+         }
+         await tx.mart.delete({ where: { id: mart.id } });
+      });
+      console.log(`Deleted all users and related records for mart ${mart.id}`);
       
     } catch (e) {
       console.error("Failed to delete related data during mart deletion", e);
+      return res.status(500).json({ message: "Failed to delete related records" });
     }
-
-    // Remove the mart record entirely so its identifying fields can be reused
-    await Mart.findByIdAndDelete(mart._id);
 
     res.json({ message: "Mart permanently deleted" });
   } catch (err) {
@@ -579,11 +495,7 @@ router.put("/:id/reject", authenticate, async (req, res) => {
       return res.status(403).json({ message: "Insufficient permissions" });
 
     const { id } = req.params;
-    const mart = await Mart.findByIdAndUpdate(
-      id,
-      { status: "rejected" },
-      { new: true },
-    );
+    const mart = await martRepository.update(id, { status: "rejected" });
     if (!mart) return res.status(404).json({ message: "Mart not found" });
     res.json(mart);
   } catch (err) {

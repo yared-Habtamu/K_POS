@@ -1,0 +1,631 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  systemAdmin
+  owner
+  manager
+  cashier
+  storeKeeper
+  other
+}
+
+enum MartStatus {
+  pending
+  approved
+  disabled
+  suspended
+  rejected
+}
+
+enum AssetConditionStatus {
+  unbroken
+  broken
+}
+
+enum RequestStatus {
+  pending
+  approved
+  rejected
+}
+
+enum RequestAction {
+  create
+  update
+  delete
+}
+
+enum DiscountType {
+  percentage
+  fixed
+}
+
+enum ExpenseCreatorRole {
+  owner
+  manager
+  other
+}
+
+enum SubscriptionStatus {
+  active
+  warning
+  suspended
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id                String   @id @default(uuid())
+  martId            String?
+  name              String
+  username          String   @unique
+  email             String?
+  phone             String?
+  profilePictureUrl String   @default("")
+  passwordHash      String?
+  role              UserRole @default(other)
+  salary            Float?
+  openCashBalance   Float    @default(0)
+  permissions       String[] @default([])
+  active            Boolean  @default(true)
+  isDeleted         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  mart                  Mart?          @relation("MartEmployees", fields: [martId], references: [id])
+  ownedMarts            Mart[]         @relation("MartOwner")
+  createdProducts       Product[]      @relation("ProductCreator")
+  sales                 Sale[]         @relation("SaleCashier")
+  createdCustomers      Customer[]     @relation("CustomerCreator")
+  createdExpenses       Expense[]      @relation("ExpenseCreator")
+  createdAssets         Asset[]        @relation("AssetCreator")
+  attendancesAsEmployee Attendance[]   @relation("AttendanceEmployee")
+  attendancesCreated    Attendance[]   @relation("AttendanceCreator")
+  dailyReports          DailyReport[]  @relation("DailyReportCashier")
+  notifications         Notification[] @relation("NotificationRecipient")
+
+  // Request relations (as requester)
+  assetActionRequestsRequested   AssetActionRequest[]   @relation("AssetReqRequester")
+  assetActionRequestsApproved    AssetActionRequest[]   @relation("AssetReqApprover")
+  expenseActionRequestsRequested ExpenseActionRequest[] @relation("ExpenseReqRequester")
+  expenseActionRequestsApproved  ExpenseActionRequest[] @relation("ExpenseReqApprover")
+  productAddRequestsRequested    ProductAddRequest[]    @relation("ProdAddReqRequester")
+  productAddRequestsApproved     ProductAddRequest[]    @relation("ProdAddReqApprover")
+  productEditRequestsRequested   ProductEditRequest[]   @relation("ProdEditReqRequester")
+  productEditRequestsApproved    ProductEditRequest[]   @relation("ProdEditReqApprover")
+  stockTransferRequestsRequested StockTransferRequest[] @relation("StockTransferReqRequester")
+  stockTransferRequestsApproved  StockTransferRequest[] @relation("StockTransferReqApprover")
+
+  @@index([martId])
+  @@index([role])
+  @@index([isDeleted])
+  @@index([phone])
+  @@map("users")
+}
+
+model Mart {
+  id       String  @id @default(uuid())
+  ownerId  String?
+  martName String
+  phone    String?
+  email    String?
+  country  String?
+  region   String?
+  city     String?
+  address  String?
+
+  receiptHeader  String?
+  receiptMessage String?
+  shopLogoUrl    String?
+
+  // Payments and currency
+  currency            String  @default("ETB")
+  paymentSystem       String?
+  paymentAccounts     Json? // Map<string, string> stored as JSONB
+  customPaymentFields Json? // Array of {key, value} objects stored as JSONB
+
+  // Tax / VAT
+  taxRate Float @default(0)
+
+  // Discount policy
+  globalDiscountType     DiscountType @default(percentage)
+  globalDiscountRate     Float        @default(0)
+  enableDiscountByItems  Boolean      @default(false)
+  enableDiscountByAmount Boolean      @default(false)
+  discountMinItems       Float        @default(0)
+  discountMinAmount      Float        @default(0)
+
+  status MartStatus @default(pending)
+
+  // Subscription (embedded object in Mongo → JSONB in PG)
+  subscription Json?
+
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  owner                 User?                  @relation("MartOwner", fields: [ownerId], references: [id])
+  employees             User[]                 @relation("MartEmployees")
+  products              Product[]
+  sales                 Sale[]
+  categories            Category[]
+  customers             Customer[]
+  expenses              Expense[]
+  assets                Asset[]
+  attendances           Attendance[]
+  dailyReports          DailyReport[]
+  notifications         Notification[]
+  paymentTypes          PaymentType[]
+  expenseCategories     ExpenseCategory[]
+  assetActionRequests   AssetActionRequest[]
+  expenseActionRequests ExpenseActionRequest[]
+  productAddRequests    ProductAddRequest[]
+  productEditRequests   ProductEditRequest[]
+  stockTransferRequests StockTransferRequest[]
+
+  @@index([ownerId])
+  @@index([martName])
+  @@index([isDeleted])
+  @@map("marts")
+}
+
+model Product {
+  id                  String    @id @default(uuid())
+  martId              String
+  name                String
+  category            String    @default("")
+  unit                String    @default("pcs")
+  purchasePrice       Float     @default(0)
+  sellingPrice        Float     @default(0)
+  quantity            Float     @default(0)
+  storeQuantity       Float     @default(0)
+  supermarketQuantity Float     @default(0)
+  lowStockThreshold   Float     @default(10)
+  expiryDate          DateTime?
+  barcodes            String[]  @default([])
+  imageUrl            String?
+  createdBy           String?
+  isDeleted           Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Relations
+  mart                  Mart                   @relation(fields: [martId], references: [id])
+  creator               User?                  @relation("ProductCreator", fields: [createdBy], references: [id])
+  saleItems             SaleItem[]
+  productEditRequests   ProductEditRequest[]
+  stockTransferRequests StockTransferRequest[]
+  assetActionRequests   AssetActionRequest[]   @relation("AssetActionProduct")
+
+  @@index([martId])
+  @@index([name])
+  @@index([isDeleted])
+  @@index([barcodes])
+  @@map("products")
+}
+
+model Sale {
+  id            String   @id @default(uuid())
+  martId        String
+  cashierId     String?
+  cashierName   String?
+  receiptId     String?
+  subtotal      Float    @default(0)
+  discount      Json? // { type, value, amount }
+  extraCharges  Json? // Array of { name, amount }
+  tax           Float    @default(0)
+  taxRate       Float    @default(0)
+  total         Float
+  paymentMethod String?
+  date          DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  mart    Mart       @relation(fields: [martId], references: [id])
+  cashier User?      @relation("SaleCashier", fields: [cashierId], references: [id])
+  items   SaleItem[]
+
+  @@index([martId])
+  @@index([date])
+  @@map("sales")
+}
+
+model SaleItem {
+  id        String  @id @default(uuid())
+  saleId    String
+  productId String?
+  name      String?
+  price     Float?
+  quantity  Float?
+  total     Float?
+
+  // Relations
+  sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  Product Product? @relation(fields: [productId], references: [id])
+
+  @@index([saleId])
+  @@map("sale_items")
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  name      String
+  martId    String?
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  mart Mart? @relation(fields: [martId], references: [id])
+
+  @@unique([name, martId])
+  @@index([isDeleted])
+  @@map("categories")
+}
+
+model Customer {
+  id          String   @id @default(uuid())
+  martId      String
+  createdBy   String
+  name        String
+  phoneNumber String
+  city        String   @default("")
+  totalCredit Float    @default(0)
+  totalPaid   Float    @default(0)
+  totalUnpaid Float    @default(0)
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  mart    Mart @relation(fields: [martId], references: [id])
+  creator User @relation("CustomerCreator", fields: [createdBy], references: [id])
+
+  @@index([martId])
+  @@index([createdBy])
+  @@index([name])
+  @@index([isDeleted])
+  @@map("customers")
+}
+
+model Expense {
+  id                String             @id @default(uuid())
+  martId            String
+  category          String             @default("miscellaneous")
+  description       String
+  amount            Float
+  date              DateTime
+  createdBy         String?
+  createdByRole     ExpenseCreatorRole @default(other)
+  createdByName     String?
+  paymentType       String?
+  paymentScreenshot String?
+  productPicture    String?
+  name              String?
+  reason            String?
+  screenshots       String[]           @default([])
+  isDeleted         Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  // Relations
+  mart    Mart  @relation(fields: [martId], references: [id])
+  creator User? @relation("ExpenseCreator", fields: [createdBy], references: [id])
+
+  @@index([martId])
+  @@index([createdByRole])
+  @@index([isDeleted])
+  @@map("expenses")
+}
+
+model ExpenseCategory {
+  id        String   @id @default(uuid())
+  name      String
+  martId    String?
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  mart Mart? @relation(fields: [martId], references: [id])
+
+  @@unique([name, martId])
+  @@index([isDeleted])
+  @@map("expense_categories")
+}
+
+model Asset {
+  id            String               @id @default(uuid())
+  martId        String
+  name          String
+  assetId       String?
+  image         String?
+  sizeOrType    String?
+  purchaseDate  DateTime?
+  status        String?
+  asset_status  AssetConditionStatus @default(unbroken)
+  conditions    String?
+  assignedTo    String?
+  purchasePrice Float                @default(0)
+  quantity      Float                @default(0)
+  description   String?
+  createdBy     String?
+  isDeleted     Boolean              @default(false)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  // Relations
+  mart                Mart                 @relation(fields: [martId], references: [id])
+  creator             User?                @relation("AssetCreator", fields: [createdBy], references: [id])
+  assetActionRequests AssetActionRequest[] @relation("AssetActionTarget")
+
+  @@index([martId])
+  @@index([name])
+  @@index([assetId])
+  @@index([asset_status])
+  @@index([isDeleted])
+  @@map("assets")
+}
+
+model Attendance {
+  id              String   @id @default(uuid())
+  martId          String
+  employeeId      String?
+  employeeName    String?
+  dateYmd         String?
+  clockIn         String?
+  clockOut        String?
+  durationMinutes Float    @default(0)
+  notes           String?
+  createdBy       String?
+  isDeleted       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  mart     Mart  @relation(fields: [martId], references: [id])
+  employee User? @relation("AttendanceEmployee", fields: [employeeId], references: [id])
+  creator  User? @relation("AttendanceCreator", fields: [createdBy], references: [id])
+
+  @@index([martId])
+  @@index([employeeId])
+  @@index([dateYmd])
+  @@index([isDeleted])
+  @@map("attendances")
+}
+
+model DailyReport {
+  id             String   @id @default(uuid())
+  martId         String?
+  cashierId      String?
+  cashierName    String?
+  date           DateTime
+  totalSales     Float    @default(0)
+  cashReceived   Float    @default(0)
+  bankTransfer   Float    @default(0)
+  discountsGiven Float    @default(0)
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  mart    Mart? @relation(fields: [martId], references: [id])
+  cashier User? @relation("DailyReportCashier", fields: [cashierId], references: [id])
+
+  @@index([martId])
+  @@index([cashierId])
+  @@index([date])
+  @@map("daily_reports")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  martId    String?
+  userId    String?
+  type      String
+  title     String?
+  message   String?
+  data      Json?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  mart Mart? @relation(fields: [martId], references: [id])
+  user User? @relation("NotificationRecipient", fields: [userId], references: [id])
+
+  @@index([martId])
+  @@index([userId])
+  @@map("notifications")
+}
+
+model PaymentType {
+  id        String   @id @default(uuid())
+  name      String
+  icon      String   @default("Wallet")
+  martId    String?
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  mart Mart? @relation(fields: [martId], references: [id])
+
+  @@unique([name, martId])
+  @@index([isDeleted])
+  @@map("payment_types")
+}
+
+model SubscriptionSettings {
+  id                      String   @id @default(uuid())
+  defaultFeeEtb           Float    @default(1000)
+  billingPeriodDays       Int      @default(30)
+  defaultStorageLimitMb   Float    @default(500)
+  warningDaysBeforeExpiry Int      @default(5)
+  warningStoragePercent   Float    @default(80)
+  autoSuspendEnabled      Boolean  @default(true)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@map("subscription_settings")
+}
+
+model AssetActionRequest {
+  id            String        @id @default(uuid())
+  martId        String
+  requesterId   String
+  requesterName String?
+  requesterRole String?
+  assetId       String?
+  productId     String?
+  action        RequestAction
+  payload       Json?
+  approvalRole  String?       @default("manager")
+  status        RequestStatus @default(pending)
+  approverId    String?
+  approverName  String?
+  reason        String?
+  decidedAt     DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  mart      Mart     @relation(fields: [martId], references: [id])
+  requester User     @relation("AssetReqRequester", fields: [requesterId], references: [id])
+  approver  User?    @relation("AssetReqApprover", fields: [approverId], references: [id])
+  asset     Asset?   @relation("AssetActionTarget", fields: [assetId], references: [id])
+  product   Product? @relation("AssetActionProduct", fields: [productId], references: [id])
+
+  @@index([martId])
+  @@index([action])
+  @@index([approvalRole])
+  @@index([status])
+  @@map("asset_action_requests")
+}
+
+model ExpenseActionRequest {
+  id            String        @id @default(uuid())
+  martId        String
+  requesterId   String
+  requesterName String?
+  requesterRole String?
+  action        String?       @default("create")
+  approvalRole  String?       @default("owner")
+  payload       Json
+  status        RequestStatus @default(pending)
+  approverId    String?
+  approverName  String?
+  reason        String?
+  decidedAt     DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  mart      Mart  @relation(fields: [martId], references: [id])
+  requester User  @relation("ExpenseReqRequester", fields: [requesterId], references: [id])
+  approver  User? @relation("ExpenseReqApprover", fields: [approverId], references: [id])
+
+  @@index([martId])
+  @@index([requesterId])
+  @@index([action])
+  @@index([approvalRole])
+  @@index([status])
+  @@map("expense_action_requests")
+}
+
+model ProductAddRequest {
+  id            String        @id @default(uuid())
+  martId        String
+  requesterId   String
+  requesterName String?
+  payload       Json
+  approvalRole  String?       @default("manager")
+  status        RequestStatus @default(pending)
+  approverId    String?
+  approverName  String?
+  reason        String?
+  decidedAt     DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  mart      Mart  @relation(fields: [martId], references: [id])
+  requester User  @relation("ProdAddReqRequester", fields: [requesterId], references: [id])
+  approver  User? @relation("ProdAddReqApprover", fields: [approverId], references: [id])
+
+  @@index([martId])
+  @@index([approvalRole])
+  @@map("product_add_requests")
+}
+
+model ProductEditRequest {
+  id            String        @id @default(uuid())
+  productId     String
+  martId        String
+  requesterId   String
+  requesterName String?
+  changes       Json
+  approvalRole  String?       @default("manager")
+  status        RequestStatus @default(pending)
+  approverId    String?
+  approverName  String?
+  reason        String?
+  decidedAt     DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  product   Product @relation(fields: [productId], references: [id])
+  mart      Mart    @relation(fields: [martId], references: [id])
+  requester User    @relation("ProdEditReqRequester", fields: [requesterId], references: [id])
+  approver  User?   @relation("ProdEditReqApprover", fields: [approverId], references: [id])
+
+  @@index([productId])
+  @@index([martId])
+  @@index([approvalRole])
+  @@map("product_edit_requests")
+}
+
+model StockTransferRequest {
+  id            String        @id @default(uuid())
+  productId     String
+  martId        String
+  quantity      Float
+  fromLocation  String        @default("store")
+  toLocation    String        @default("mart")
+  approvalRole  String?       @default("manager")
+  requesterId   String
+  requesterName String?
+  status        RequestStatus @default(pending)
+  approverId    String?
+  approverName  String?
+  reason        String?
+  decidedAt     DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  product   Product @relation(fields: [productId], references: [id])
+  mart      Mart    @relation(fields: [martId], references: [id])
+  requester User    @relation("StockTransferReqRequester", fields: [requesterId], references: [id])
+  approver  User?   @relation("StockTransferReqApprover", fields: [approverId], references: [id])
+
+  @@index([productId])
+  @@index([martId])
+  @@index([approvalRole])
+  @@map("stock_transfer_requests")
+}

@@ -1,8 +1,7 @@
 const express = require('express');
 const router = express.Router();
-
-const Attendance = require('../models/attendance.model');
-const User = require('../models/user.model');
+const attendanceRepository = require('../repositories/attendanceRepository');
+const userRepository = require('../repositories/userRepository');
 const { authenticate } = require('../middleware/auth');
 
 // List attendance records (filter by martId, employeeId, dateYmd)
@@ -10,7 +9,7 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const { martId, employeeId, dateYmd } = req.query;
     const requester = req.user;
-    const filter = {};
+    const filter = { isDeleted: false };
 
     // Debug logging for diagnosing manager view issues
     console.log('[attendance:get] requester=', { id: requester && requester.id, role: requester && requester.role, martId: requester && requester.martId });
@@ -27,18 +26,22 @@ router.get('/', authenticate, async (req, res) => {
     if (employeeId) filter.employeeId = employeeId;
     if (dateYmd) filter.dateYmd = dateYmd;
 
-    // Determine base filter (do NOT try to exclude by owner/manager using a complex Mongo query due to potential type mismatches)
-    const baseFilter = { ...filter };
-
-    let list = await Attendance.find(baseFilter).sort({ createdAt: -1 }).lean();
-    console.log('[attendance:get] baseFilter=', baseFilter, 'listCount=', Array.isArray(list) ? list.length : 0);
-    if (Array.isArray(list) && list.length > 0) console.log('[attendance:get] sample=', list.slice(0, 5).map(r => ({ id: r._id, employeeId: r.employeeId, employeeName: r.employeeName })));
-
+    let list = await attendanceRepository.findMany(filter, {
+      orderBy: { createdAt: "desc" }
+    });
+    console.log('[attendance:get] baseFilter=', filter, 'listCount=', Array.isArray(list) ? list.length : 0);
+    if (Array.isArray(list) && list.length > 0) console.log('[attendance:get] sample=', list.slice(0, 5).map(r => ({ id: r.id, employeeId: r.employeeId, employeeName: r.employeeName })));
 
     // If requester is manager, post-filter the results in JS to exclude owner/manager attendance reliably
     if (String(requester.role || '').toLowerCase() === 'manager') {
-      const exclude = await User.find({ martId: filter.martId, role: { $in: [/^owner$/i, /^manager$/i] } }).select('_id name').lean();
-      const excludeIds = new Set(exclude.map(u => String(u._id)));
+      const exclude = await userRepository.findMany({
+        martId: filter.martId,
+        role: { in: ["owner", "manager"] },
+        isDeleted: false,
+      }, {
+        select: { id: true, name: true }
+      });
+      const excludeIds = new Set(exclude.map(u => String(u.id)));
       const excludeNames = new Set(exclude.map(u => (u.name || '').toString()));
 
       console.log('[attendance:get][manager-filter] excludeCount=', exclude.length, 'excludeIds=', Array.from(excludeIds).slice(0,10), 'excludeNames=', Array.from(excludeNames).slice(0,10));
@@ -47,17 +50,15 @@ router.get('/', authenticate, async (req, res) => {
       const excludedMatches = [];
 
       list = list.filter(r => {
-        // if there is an employeeId, compare as string against excludeIds
         if (r.employeeId) {
           if (excludeIds.has(String(r.employeeId))) {
-            excludedMatches.push({ id: r._id, employeeId: r.employeeId, employeeName: r.employeeName, reason: 'idMatch' });
+            excludedMatches.push({ id: r.id, employeeId: r.employeeId, employeeName: r.employeeName, reason: 'idMatch' });
             return false;
           }
           return true;
         }
-        // else if employeeId missing, check employeeName
         if (r.employeeName && excludeNames.has(String(r.employeeName))) {
-          excludedMatches.push({ id: r._id, employeeId: r.employeeId, employeeName: r.employeeName, reason: 'nameMatch' });
+          excludedMatches.push({ id: r.id, employeeId: r.employeeId, employeeName: r.employeeName, reason: 'nameMatch' });
           return false;
         }
         return true;
@@ -87,8 +88,6 @@ router.get('/', authenticate, async (req, res) => {
 function parseTimeToMinutes(t) {
   if (!t) return null;
   t = String(t).trim();
-  // Accept formats: 'HH:mm' or 'hh:mm AM' / 'hh:mm PM' (case-insensitive)
-  // Trim potential AM/PM
   const m = t.match(/^(\d{1,2}):?(\d{2})(?:\s*([AaPp][Mm]))?$/);
   if (!m) return null;
   let hh = parseInt(m[1], 10);
@@ -115,10 +114,8 @@ router.post('/', authenticate, async (req, res) => {
     const martId = requester.role === 'systemAdmin' ? req.body.martId : requester.martId;
     if (!martId) return res.status(400).json({ message: 'martId is required' });
 
-    // validate date (YYYY-MM-DD)
     if (!dateYmd || !/^\d{4}-\d{2}-\d{2}$/.test(dateYmd)) return res.status(400).json({ message: 'Invalid dateYmd format. Expect YYYY-MM-DD' });
 
-    // Prevent creating future attendance
     try {
       const recDate = new Date(dateYmd);
       const today = new Date();
@@ -127,39 +124,45 @@ router.post('/', authenticate, async (req, res) => {
       if (rdDate > tDate) return res.status(403).json({ message: 'Cannot create attendance for future dates' });
     } catch (e) {}
 
-    // sanitize empty employeeId
     if (employeeId === '') employeeId = undefined;
 
-    // Optional: validate employee belongs to mart
     if (employeeId) {
-      const emp = await User.findById(employeeId);
+      const emp = await userRepository.findById(employeeId);
       if (!emp) return res.status(400).json({ message: 'Employee not found' });
       if (emp && String(emp.martId) !== String(martId)) return res.status(400).json({ message: 'Employee does not belong to mart' });
-      // ensure name consistent
       if (!employeeName) employeeName = emp.name;
     }
 
-    const rec = new Attendance({ martId, employeeId, employeeName, dateYmd, clockIn, clockOut, notes, createdBy: requester.id });
+    const recData = {
+      martId,
+      employeeId: employeeId || null,
+      employeeName: employeeName || null,
+      dateYmd: dateYmd || null,
+      clockIn: clockIn || null,
+      clockOut: clockOut || null,
+      notes: notes || null,
+      createdBy: requester.id,
+      durationMinutes: 0,
+      isDeleted: false,
+    };
 
-    // compute durationMinutes if both times provided (handle AM/PM)
     if (clockIn && clockOut) {
       try {
         const a = parseTimeToMinutes(clockIn);
         const b = parseTimeToMinutes(clockOut);
         if (a !== null && b !== null) {
-          rec.durationMinutes = Math.max(0, b - a);
-          // store normalized times in HH:mm 24-hour format
+          recData.durationMinutes = Math.max(0, b - a);
           const pad = (n) => String(n).padStart(2, '0');
-          rec.clockIn = `${pad(Math.floor(a/60))}:${pad(a%60)}`;
-          rec.clockOut = `${pad(Math.floor(b/60))}:${pad(b%60)}`;
+          recData.clockIn = `${pad(Math.floor(a/60))}:${pad(a%60)}`;
+          recData.clockOut = `${pad(Math.floor(b/60))}:${pad(b%60)}`;
         }
       } catch (e) {
         console.error('time parse error', e);
       }
     }
 
-    await rec.save();
-    const outObj = rec.toObject();
+    const rec = await attendanceRepository.create(recData);
+    const outObj = { ...rec };
     if ((outObj.duration === undefined || outObj.duration === '') && outObj.durationMinutes != null) {
       outObj.duration = `${outObj.durationMinutes} min`;
     }
@@ -174,13 +177,12 @@ router.post('/', authenticate, async (req, res) => {
 router.put('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const rec = await Attendance.findById(id);
+    const rec = await attendanceRepository.findById(id);
     if (!rec) return res.status(404).json({ message: 'Record not found' });
 
     const requester = req.user;
     if (requester.role !== 'systemAdmin' && String(rec.martId) !== String(requester.martId)) return res.status(403).json({ message: 'Insufficient permissions' });
 
-    // Prevent editing future attendance
     if (rec.dateYmd) {
       try {
         const rd = new Date(rec.dateYmd);
@@ -193,13 +195,13 @@ router.put('/:id', authenticate, async (req, res) => {
 
     let { employeeId, employeeName, clockIn, clockOut, notes } = req.body;
 
-    // sanitize empty employeeId
     if (employeeId === '') employeeId = undefined;
 
-    // Optionally validate employee belongs to mart and keep name consistent
+    const updateData = {};
+
     if (employeeId !== undefined) {
       if (employeeId) {
-        const emp = await User.findById(employeeId);
+        const emp = await userRepository.findById(employeeId);
         if (!emp) return res.status(400).json({ message: 'Employee not found' });
         const martId = requester.role === 'systemAdmin' ? rec.martId : requester.martId;
         if (emp && String(emp.martId) !== String(martId)) {
@@ -207,34 +209,35 @@ router.put('/:id', authenticate, async (req, res) => {
         }
         if (!employeeName) employeeName = emp.name;
       }
-      rec.employeeId = employeeId;
+      updateData.employeeId = employeeId || null;
     }
-    if (employeeName !== undefined) rec.employeeName = employeeName;
-    if (clockIn !== undefined) rec.clockIn = clockIn;
-    if (clockOut !== undefined) rec.clockOut = clockOut;
-    if (notes !== undefined) rec.notes = notes;
+    if (employeeName !== undefined) updateData.employeeName = employeeName;
+    if (clockIn !== undefined) updateData.clockIn = clockIn;
+    if (clockOut !== undefined) updateData.clockOut = clockOut;
+    if (notes !== undefined) updateData.notes = notes;
 
-    // Validate and recompute duration and normalize times when possible.
-    // Allow open records: clockOut may be missing until later.
-    const a = rec.clockIn ? parseTimeToMinutes(rec.clockIn) : null;
-    const b = rec.clockOut ? parseTimeToMinutes(rec.clockOut) : null;
+    const finalClockIn = clockIn !== undefined ? clockIn : rec.clockIn;
+    const finalClockOut = clockOut !== undefined ? clockOut : rec.clockOut;
 
-    if (rec.clockIn && a === null) {
+    const a = finalClockIn ? parseTimeToMinutes(finalClockIn) : null;
+    const b = finalClockOut ? parseTimeToMinutes(finalClockOut) : null;
+
+    if (finalClockIn && a === null) {
       return res.status(400).json({ message: 'Invalid clock in time format. Use HH:mm or hh:mm AM/PM' });
     }
-    if (rec.clockOut && b === null) {
+    if (finalClockOut && b === null) {
       return res.status(400).json({ message: 'Invalid clock out time format. Use HH:mm or hh:mm AM/PM' });
     }
     if (a !== null && b !== null) {
       if (b < a) return res.status(400).json({ message: 'Clock out time must be after clock in time' });
       const pad = (n) => String(n).padStart(2, '0');
-      rec.durationMinutes = Math.max(0, b - a);
-      rec.clockIn = `${pad(Math.floor(a/60))}:${pad(a%60)}`;
-      rec.clockOut = `${pad(Math.floor(b/60))}:${pad(b%60)}`;
+      updateData.durationMinutes = Math.max(0, b - a);
+      updateData.clockIn = `${pad(Math.floor(a/60))}:${pad(a%60)}`;
+      updateData.clockOut = `${pad(Math.floor(b/60))}:${pad(b%60)}`;
     }
 
-    await rec.save();
-    const outObj = rec.toObject();
+    const updated = await attendanceRepository.update(id, updateData);
+    const outObj = { ...updated };
     if ((outObj.duration === undefined || outObj.duration === '') && outObj.durationMinutes != null) {
       outObj.duration = `${outObj.durationMinutes} min`;
     }
@@ -245,17 +248,16 @@ router.put('/:id', authenticate, async (req, res) => {
   }
 });
 
-// Delete attendance
+// Delete attendance (soft delete)
 router.delete('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const rec = await Attendance.findById(id);
+    const rec = await attendanceRepository.findById(id);
     if (!rec) return res.status(404).json({ message: 'Record not found' });
 
     const requester = req.user;
     if (requester.role !== 'systemAdmin' && String(rec.martId) !== String(requester.martId)) return res.status(403).json({ message: 'Insufficient permissions' });
 
-    // Prevent deleting future records
     if (rec.dateYmd) {
       try {
         const rd = new Date(rec.dateYmd);
@@ -266,7 +268,7 @@ router.delete('/:id', authenticate, async (req, res) => {
       } catch (e) {}
     }
 
-    await Attendance.findByIdAndDelete(id);
+    await attendanceRepository.softDelete(id);
     res.json({ message: 'Deleted' });
   } catch (err) {
     console.error(err);

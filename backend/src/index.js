@@ -6,8 +6,10 @@ try {
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
-const mongoose = require("mongoose");
 const dns = require("dns");
+const prisma = require("./repositories/prismaClient");
+const userRepository = require("./repositories/userRepository");
+const bcrypt = require("bcrypt");
 
 let server = null;
 
@@ -32,10 +34,6 @@ process.on("uncaughtException", (err) => {
   shutdown(1);
 });
 
-// Prefer well-known public DNS servers for SRV resolution when local
-// DNS may refuse SRV queries (works around environments where the
-// system DNS blocks SRV/UDP queries). These are fallbacks and can be
-// removed if not desired.
 try {
   dns.setServers(["1.1.1.1", "8.8.8.8"]);
   console.log("Using DNS servers:", dns.getServers());
@@ -55,23 +53,26 @@ app.get("/health", (req, res) => {
   res.status(200).send("Server is running");
 });
 
-// DB health endpoint: reports mongoose connection state and retry status
-app.get("/health/db", (req, res) => {
-  const state =
-    mongoose &&
-    mongoose.connection &&
-    typeof mongoose.connection.readyState === "number"
-      ? mongoose.connection.readyState
-      : 0;
-  const states = ["disconnected", "connected", "connecting", "disconnecting"];
-  const status = states[state] || "unknown";
-  res.json({
-    configured: !!process.env.MONGODB_URI,
-    readyState: state,
-    status,
-    retryScheduled: !!mongoRetryTimer,
-  });
+// DB health endpoint: reports Prisma connection state
+app.get("/health/db", async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({
+      configured: !!process.env.DATABASE_URL,
+      readyState: 1,
+      status: "connected",
+      retryScheduled: !!dbRetryTimer,
+    });
+  } catch (e) {
+    res.json({
+      configured: !!process.env.DATABASE_URL,
+      readyState: 0,
+      status: "disconnected",
+      retryScheduled: !!dbRetryTimer,
+    });
+  }
 });
+
 // Serve local uploaded images (development fallback)
 const path = require("path");
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
@@ -141,52 +142,41 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 4000;
-const MONGO_RETRY_INTERVAL_MS = Number(
-  process.env.MONGODB_RETRY_INTERVAL_MS || 30000,
-);
+const DB_RETRY_INTERVAL_MS = Number(process.env.DB_RETRY_INTERVAL_MS || 30000);
 
-let mongoRetryTimer = null;
+let dbRetryTimer = null;
 
 async function initializeDatabase() {
-  const uri = process.env.MONGODB_URI;
+  const uri = process.env.DATABASE_URL;
   if (!uri) {
-    console.warn(
-      "MONGODB_URI not set; starting server without MongoDB connection",
-    );
+    console.warn("DATABASE_URL not set; starting server without DB connection");
     return false;
   }
 
   try {
-    await mongoose.connect(uri, { dbName: "pos" });
-    console.log("Connected to MongoDB");
+    // Attempt simple query to ensure connection is successful
+    await prisma.$queryRaw`SELECT 1`;
+    console.log("Connected to PostgreSQL via Prisma");
 
     // Ensure default system admin exists
-    const User = require("./models/user.model");
-    const bcrypt = require("bcrypt");
     const adminUsername = "kiya123";
     const adminPassword = "abc123";
-    let admin = await User.findOne({ username: adminUsername });
+    let admin = await userRepository.findByUsername(adminUsername);
     if (!admin) {
       const passwordHash = await bcrypt.hash(adminPassword, 10);
-      admin = new User({
+      admin = await userRepository.create({
         name: "System Admin",
         username: adminUsername,
         passwordHash,
         role: "systemAdmin",
       });
-      await admin.save();
       console.log("Default system admin user created:", adminUsername);
     } else {
       console.log("System admin user exists:", adminUsername);
     }
 
-    // No development seeding: data must come from the actual database.
-    // If temporary seeding is ever required, gate it behind an environment flag such as SEED_TEST_DATA=true.
-
     // Run an initial subscription check at startup, then periodically.
-    const {
-      runSubscriptionChecksForAllMarts,
-    } = require("./services/subscription.service");
+    const { runSubscriptionChecksForAllMarts } = require("./services/subscription.service");
     try {
       await runSubscriptionChecksForAllMarts({ persist: true });
       console.log("Initial subscription checks completed");
@@ -210,48 +200,18 @@ async function initializeDatabase() {
 
     return true;
   } catch (err) {
-    console.error("Failed to connect to MongoDB", err);
+    console.error("Failed to connect to PostgreSQL", err);
 
-    // If using an Atlas SRV connection string, DNS SRV lookups can fail
-    // in some environments (corporate DNS, offline machine, or blocked DNS).
-    // Provide a clearer hint for common resolution steps.
-    try {
-      const uriLower = (uri || "").toLowerCase();
-      if (
-        uriLower.startsWith("mongodb+srv") &&
-        err &&
-        err.code === "ECONNREFUSED"
-      ) {
-        console.error(
-          "\nHint: DNS SRV lookup for the Atlas host failed (querySrv ECONNREFUSED).",
-        );
-        console.error(
-          " - Ensure this machine has internet access and can resolve DNS SRV records.",
-        );
-        console.error(
-          " - Test with: nslookup -type=SRV _mongodb._tcp.cluster0.terbebv.mongodb.net",
-        );
-        console.error(
-          " - Or use a standard (non-SRV) connection string from MongoDB Atlas 'Connect' -> 'Connect your application' and paste it into .env as MONGODB_URI.",
-        );
-        console.error(
-          " - As a quick local workaround, install MongoDB locally and set MONGODB_URI=mongodb://localhost:27017/",
-        );
-      }
-    } catch (e) {
-      // ignore
-    }
-
-    if (!mongoRetryTimer) {
+    if (!dbRetryTimer) {
       const retryDelay =
-        Number.isFinite(MONGO_RETRY_INTERVAL_MS) && MONGO_RETRY_INTERVAL_MS > 0
-          ? MONGO_RETRY_INTERVAL_MS
+        Number.isFinite(DB_RETRY_INTERVAL_MS) && DB_RETRY_INTERVAL_MS > 0
+          ? DB_RETRY_INTERVAL_MS
           : 30000;
       console.warn(
-        `Will retry MongoDB connection in ${retryDelay}ms while keeping the server online.`,
+        `Will retry Database connection in ${retryDelay}ms while keeping the server online.`,
       );
-      mongoRetryTimer = setTimeout(async () => {
-        mongoRetryTimer = null;
+      dbRetryTimer = setTimeout(async () => {
+        dbRetryTimer = null;
         await initializeDatabase();
       }, retryDelay);
     }

@@ -1,9 +1,13 @@
 const express = require("express");
 const router = express.Router();
 
-const Product = require("../models/product.model");
-const ProductEditRequest = require("../models/productEditRequest.model");
-const ProductAddRequest = require("../models/productAddRequest.model");
+const productRepository = require("../repositories/productRepository");
+const {
+  productAddRequestRepository,
+  productEditRequestRepository,
+} = require("../repositories/requestRepositories");
+const userRepository = require("../repositories/userRepository");
+const categoryRepository = require("../repositories/categoryRepository");
 const { createNotification } = require("../services/notification.service");
 const { authenticate } = require("../middleware/auth");
 const multer = require("multer");
@@ -45,13 +49,11 @@ async function ensureProductPayloadBarcodes(productPayload) {
       12,
       "0",
     );
-    const existing = await Product.findOne({
+    const existing = await productRepository.findOne({
       martId: productPayload.martId,
-      isDeleted: { $ne: true },
-      $or: [{ barcodes: candidate }, { barcode: candidate }],
-    })
-      .select("_id")
-      .lean();
+      isDeleted: false,
+      barcodes: { has: candidate },
+    });
 
     if (!existing) {
       productPayload.barcodes = [candidate];
@@ -148,7 +150,7 @@ async function createProductFromRequest(req, res, options = {}) {
     storeQuantity: Math.max(0, Number(storeQty)),
     supermarketQuantity: Math.max(0, Number(supermarketQty)),
     lowStockThreshold: Number(lowStockThreshold || 10),
-    expiryDate: expiryDate || null,
+    expiryDate: normalizeExpiryDate(expiryDate),
     barcodes: (Array.isArray(barcodes)
       ? barcodes
       : barcodes || barcode
@@ -157,7 +159,7 @@ async function createProductFromRequest(req, res, options = {}) {
     )
       .map((b) => String(b).trim())
       .filter(Boolean),
-    imageUrl: finalImageUrl || "",
+    imageUrl: finalImageUrl || null,
     createdBy: user.id,
   };
 
@@ -168,13 +170,17 @@ async function createProductFromRequest(req, res, options = {}) {
   }
 
   if (productPayload.category) {
-    const Category = require("../models/category.model");
     try {
-      await Category.findOneAndUpdate(
-        { name: productPayload.category.trim(), martId: finalMartId },
-        { name: productPayload.category.trim(), martId: finalMartId },
-        { upsert: true, new: true, setDefaultsOnInsert: true },
-      );
+      const existingCat = await categoryRepository.findOne({
+        name: { equals: productPayload.category.trim(), mode: 'insensitive' },
+        martId: finalMartId
+      });
+      if (!existingCat) {
+        await categoryRepository.create({
+          name: productPayload.category.trim(),
+          martId: finalMartId,
+        });
+      }
     } catch (catErr) {
       console.error("category upsert error", catErr);
     }
@@ -187,22 +193,17 @@ async function createProductFromRequest(req, res, options = {}) {
     });
   }
   if (incomingBarcodes.length > 0) {
-    const existing = await Product.findOne({
+    const existing = await productRepository.findOne({
       martId: finalMartId,
-      isDeleted: { $ne: true },
-      $or: [
-        { barcodes: { $in: incomingBarcodes } },
-        { barcode: { $in: incomingBarcodes } },
-      ],
-    })
-      .select("_id name barcodes")
-      .lean();
+      isDeleted: false,
+      barcodes: { hasSome: incomingBarcodes },
+    });
 
     if (existing) {
       return res.status(409).json({
         message: `Barcode already registered for ${existing.name}`,
         product: {
-          id: String(existing._id),
+          id: existing.id,
           name: existing.name,
           barcodes: existing.barcodes || [],
         },
@@ -213,20 +214,15 @@ async function createProductFromRequest(req, res, options = {}) {
   // Only systemAdmin bypasses approval. Owners should submit requests
   // for approval when managers/store keepers exist for the mart.
   if (String(user.role || "").toLowerCase() !== "systemadmin") {
-    const User = require("../models/user.model");
-    const managers = await User.find({
+    const managers = await userRepository.findMany({
       martId: finalMartId,
-      role: { $regex: /^manager$/i },
-    })
-      .select("_id username name")
-      .lean();
+      role: { in: ['manager', 'Manager'] },
+    });
 
-    const storeKeepers = await User.find({
+    const storeKeepers = await userRepository.findMany({
       martId: finalMartId,
-      role: { $regex: /^store_?keeper$/i },
-    })
-      .select("_id username name")
-      .lean();
+      role: { in: ['storekeeper', 'store_keeper', 'Storekeeper'] },
+    });
 
     const approvalRole =
       initialStockTarget === "mart" ? "manager" : "store_keeper";
@@ -238,8 +234,7 @@ async function createProductFromRequest(req, res, options = {}) {
       : fallbackApprovers;
 
     if (!approvers || approvers.length === 0) {
-      const product = new Product(productPayload);
-      await product.save();
+      const product = await productRepository.create(productPayload);
 
       await createNotification({
         martId: finalMartId,
@@ -247,13 +242,13 @@ async function createProductFromRequest(req, res, options = {}) {
         type: "product_add_result",
         title: "Product created",
         message: `Your product ${productPayload.name} was created`,
-        metadata: { productId: product._id, result: "approved" },
+        metadata: { productId: product.id, result: "approved" },
       });
 
       return res.status(201).json(product);
     }
 
-    const reqDoc = new ProductAddRequest({
+    const reqDoc = await productAddRequestRepository.create({
       martId: finalMartId,
       requesterId: user.id,
       requesterName: user.username || user.name,
@@ -261,18 +256,16 @@ async function createProductFromRequest(req, res, options = {}) {
       approvalRole,
     });
 
-    await reqDoc.save();
-
     if (approvers && approvers.length > 0) {
       await Promise.all(
         approvers.map((approver) =>
           createNotification({
             martId: finalMartId,
-            userId: approver._id,
+            userId: approver.id,
             type: "product_add_request",
             title: "Product creation requested",
             message: `${reqDoc.requesterName || "Owner"} requested to add product ${name}`,
-            metadata: { requestId: reqDoc._id, name, approvalRole },
+            metadata: { requestId: reqDoc.id, name, approvalRole },
           }),
         ),
       );
@@ -282,7 +275,7 @@ async function createProductFromRequest(req, res, options = {}) {
         type: "product_add_request",
         title: "Product creation requested",
         message: `${reqDoc.requesterName || "Owner"} requested to add product ${name}`,
-        metadata: { requestId: reqDoc._id, name, approvalRole },
+        metadata: { requestId: reqDoc.id, name, approvalRole },
       });
     }
 
@@ -291,7 +284,7 @@ async function createProductFromRequest(req, res, options = {}) {
         approvalRole === "store_keeper"
           ? "Product submitted for store keeper approval"
           : "Product submitted for manager approval",
-      requestId: reqDoc._id,
+      requestId: reqDoc.id,
       pending: {
         name: productPayload.name,
         category: productPayload.category,
@@ -304,8 +297,7 @@ async function createProductFromRequest(req, res, options = {}) {
     });
   }
 
-  const product = new Product(productPayload);
-  await product.save();
+  const product = await productRepository.create(productPayload);
   return res.status(201).json(product);
 }
 
@@ -340,7 +332,7 @@ router.get("/", authenticate, async (req, res) => {
   try {
     const user = req.user;
     const { martId, category, name, lowStock } = req.query;
-    const filter = {};
+    const filter = { isDeleted: false };
 
     if (user.role === "systemAdmin") {
       if (martId) filter.martId = martId;
@@ -349,27 +341,32 @@ router.get("/", authenticate, async (req, res) => {
     }
 
     if (category) filter.category = category;
-    if (name) filter.name = new RegExp(escapeRegex(name), "i");
-    if (lowStock === "true")
-      filter.$expr = { $lt: ["$quantity", "$lowStockThreshold"] };
+    if (name) filter.name = { contains: name, mode: "insensitive" };
 
-    filter.isDeleted = { $ne: true };
-
-    // Pagination support: if page and limit provided, return paginated response
+    // In Prisma, filtering by one field < another field requires a raw query or checking fetched results.
+    // However, Prisma currently lacks direct column-to-column comparison in findMany for all drivers.
+    // But we can fetch it, then filter in memory if needed, or omit and rely on client.
+    // For now, we will handle `lowStock` filtering in JS to ensure cross-database compatibility unless
+    // using queryRaw. Since this is a simple list query, we will filter in memory if lowStock is requested.
+    
+    // Pagination support
     const page = req.query.page ? Math.max(1, Number(req.query.page)) : null;
     const limit = req.query.limit ? Math.max(1, Number(req.query.limit)) : null;
 
-    if (page && limit) {
-      const skip = (page - 1) * limit;
-      const [list, total] = await Promise.all([
-        Product.find(filter).sort({ name: 1 }).skip(skip).limit(limit),
-        Product.countDocuments(filter),
-      ]);
-      return res.json({ data: list, total, page, limit });
+    let list = await productRepository.findMany(filter, {
+      orderBy: { name: "asc" }
+    });
+
+    if (lowStock === "true") {
+      list = list.filter((p) => p.quantity < p.lowStockThreshold);
     }
 
-    // default (backwards-compatible): return full list
-    const list = await Product.find(filter).sort({ name: 1 });
+    if (page && limit) {
+      const skip = (page - 1) * limit;
+      const paginatedList = list.slice(skip, skip + limit);
+      return res.json({ data: paginatedList, total: list.length, page, limit });
+    }
+
     res.json(list);
   } catch (err) {
     console.error(err);
@@ -382,9 +379,9 @@ router.get("/:id", authenticate, async (req, res) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const product = await Product.findOne({
-      _id: id,
-      isDeleted: { $ne: true },
+    const product = await productRepository.findOne({
+      id: id,
+      isDeleted: false,
     });
     if (!product) return res.status(404).json({ message: "Product not found" });
 
@@ -409,10 +406,6 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    console.log("[products:update] entered update handler for user", {
-      id: user.id,
-      role: user.role,
-    });
     const update = {};
     const allowed = [
       "name",
@@ -436,7 +429,6 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
       update.expiryDate = normalizeExpiryDate(update.expiryDate);
     }
 
-    // If an image file was uploaded, upload it to Cloudinary and set imageUrl
     if (req.file && req.file.buffer) {
       try {
         const uploaded = await uploadBuffer(
@@ -452,8 +444,6 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
       }
     }
 
-    // Prevent store keepers from directly adjusting stock quantities via product update.
-    // Store keepers should create a stock transfer request instead, which managers will approve.
     const roleLc = String(user.role || "").toLowerCase();
     const isStoreKeeper =
       roleLc === "storekeeper" ||
@@ -464,47 +454,21 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
       "supermarketQuantity",
       "quantity",
     ];
-    // Check both the normalized `update` object and raw `req.body` to be robust against multipart/form-data
     const hasForbidden = forbiddenFields.some(
       (f) => update[f] !== undefined || (req.body && req.body[f] !== undefined),
     );
-    console.log(
-      "[products:update] user.role=",
-      user.role,
-      "roleLc=",
-      roleLc,
-      "isStoreKeeper=",
-      isStoreKeeper,
-      "updateKeys=",
-      Object.keys(update),
-      "rawBodyKeys=",
-      req.body ? Object.keys(req.body) : [],
-    );
+
     if (isStoreKeeper && hasForbidden) {
-      console.log("[products:update] blocked store keeper update attempt", {
-        user: user.id,
-        role: user.role,
-        attempted: forbiddenFields.reduce(
-          (acc, f) => (
-            (acc[f] =
-              update[f] !== undefined
-                ? update[f]
-                : req.body && req.body[f] !== undefined
-                  ? req.body[f]
-                  : undefined),
-            acc
-          ),
-          {},
-        ),
-      });
       return res.status(403).json({
         message:
           "Store keepers cannot directly change stock quantities. Submit a stock transfer request via /api/stock-transfer-requests",
       });
     }
 
-    const product = await Product.findById(id);
-    if (!product) return res.status(404).json({ message: "Product not found" });
+    const product = await productRepository.findById(id);
+    if (!product || product.isDeleted) {
+      return res.status(404).json({ message: "Product not found" });
+    }
 
     if (
       user.role !== "systemAdmin" &&
@@ -515,21 +479,23 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
         .json({ message: "Access denied for this product" });
     }
 
-    // make sure updated category exists
     if (update.category) {
-      const Category = require("../models/category.model");
       try {
-        await Category.findOneAndUpdate(
-          { name: update.category.trim(), martId: product.martId },
-          { name: update.category.trim(), martId: product.martId },
-          { upsert: true, new: true, setDefaultsOnInsert: true },
-        );
+        const existingCat = await categoryRepository.findOne({
+          name: { equals: update.category.trim(), mode: 'insensitive' },
+          martId: product.martId
+        });
+        if (!existingCat) {
+          await categoryRepository.create({
+            name: update.category.trim(),
+            martId: product.martId,
+          });
+        }
       } catch (catErr) {
         console.error("category upsert error (update)", catErr);
       }
     }
 
-    // Handle barcode updates: support adding/removing barcodes + enforce per-mart uniqueness
     if (update.barcodes !== undefined || update.barcode !== undefined) {
       const newBarcodes = Array.isArray(update.barcodes)
         ? update.barcodes.map((b) => String(b).trim()).filter(Boolean)
@@ -544,22 +510,17 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
       }
 
       if (newBarcodes.length > 0) {
-        const dup = await Product.findOne({
-          _id: { $ne: product._id },
+        const dup = await productRepository.findOne({
+          id: { not: product.id },
           martId: product.martId,
-          isDeleted: { $ne: true },
-          $or: [
-            { barcodes: { $in: newBarcodes } },
-            { barcode: { $in: newBarcodes } },
-          ],
-        })
-          .select("_id name")
-          .lean();
+          isDeleted: false,
+          barcodes: { hasSome: newBarcodes },
+        });
 
         if (dup) {
           return res.status(409).json({
             message: `Barcode already registered for ${dup.name}`,
-            product: { id: String(dup._id), name: dup.name },
+            product: { id: String(dup.id), name: dup.name },
           });
         }
       }
@@ -568,11 +529,6 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
       delete update.barcode;
     }
 
-    // Owners require approval for updates. Route edit requests by quantity target:
-    // - storeQuantity -> store keeper approval
-    // - quantity/supermarketQuantity and all other fields -> manager approval
-    // Only systemAdmin bypasses approval flow. Owners should be treated
-    // like other users and have edits submitted for approval when approvers exist.
     if (String(user.role || "").toLowerCase() !== "systemadmin") {
       const changes = { ...update };
       if (Object.keys(changes).length === 0) {
@@ -592,20 +548,15 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
         changes.supermarketQuantity = Number.isFinite(value) ? value : 0;
       }
 
-      const User = require("../models/user.model");
-      const managers = await User.find({
+      const managers = await userRepository.findMany({
         martId: product.martId,
-        role: { $regex: /^manager$/i },
-      })
-        .select("_id username name")
-        .lean();
+        role: { in: ['manager', 'Manager'] },
+      });
 
-      const storeKeepers = await User.find({
+      const storeKeepers = await userRepository.findMany({
         martId: product.martId,
-        role: { $regex: /^store_?keeper$/i },
-      })
-        .select("_id username name")
-        .lean();
+        role: { in: ['storekeeper', 'store_keeper', 'Storekeeper'] },
+      });
 
       const managerChanges = { ...changes };
       const storeKeeperChanges = {};
@@ -630,28 +581,27 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
           return;
         }
 
-        const reqDoc = new ProductEditRequest({
-          productId: product._id,
+        const reqDoc = await productEditRequestRepository.create({
+          productId: product.id,
           martId: product.martId,
           requesterId: user.id,
           requesterName: user.username || user.name,
           changes: roleChanges,
           approvalRole,
         });
-        await reqDoc.save();
-        requestIds.push(String(reqDoc._id));
+        requestIds.push(String(reqDoc.id));
 
         await Promise.all(
           approvers.map((approver) =>
             createNotification({
               martId: product.martId,
-              userId: approver._id,
+              userId: approver.id,
               type: "product_edit_request",
               title: "Product edit requested",
               message: `${reqDoc.requesterName} requested updates for product ${product.name}`,
               metadata: {
-                requestId: reqDoc._id,
-                productId: product._id,
+                requestId: reqDoc.id,
+                productId: product.id,
                 approvalRole,
                 requestedChanges: reqDoc.changes,
               },
@@ -668,9 +618,7 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
       await createEditRequestForRole("manager", managerChanges, managers);
 
       if (Object.keys(immediateChanges).length > 0) {
-        const updated = await Product.findByIdAndUpdate(id, immediateChanges, {
-          new: true,
-        });
+        const updated = await productRepository.update(id, immediateChanges);
 
         await createNotification({
           martId: product.martId,
@@ -678,12 +626,12 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
           type: "product_edit_result",
           title: "Product edit applied",
           message: `Some requested updates for product ${updated.name} were applied immediately`,
-          metadata: { productId: updated._id, result: "approved" },
+          metadata: { productId: updated.id, result: "approved" },
         });
       }
 
       if (requestIds.length === 0) {
-        const updated = await Product.findById(id).lean();
+        const updated = await productRepository.findById(id);
         return res.json({ message: "Update applied", product: updated });
       }
 
@@ -693,7 +641,7 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
       });
     }
 
-    const updated = await Product.findByIdAndUpdate(id, update, { new: true });
+    const updated = await productRepository.update(id, update);
     res.json(updated);
   } catch (err) {
     console.error(err);
@@ -707,12 +655,12 @@ router.get("/by-barcode/:code", authenticate, async (req, res) => {
     const { code } = req.params;
     const user = req.user;
     const filter = {
-      $or: [{ barcodes: code }, { barcode: code }],
-      isDeleted: { $ne: true },
+      barcodes: { has: code },
+      isDeleted: false,
     };
-    // ensure mart scoping for non-admin
     if (user.role !== "systemAdmin") filter.martId = user.martId;
-    const product = await Product.findOne(filter).lean();
+    
+    const product = await productRepository.findOne(filter);
     if (!product) return res.status(404).json({ message: "Product not found" });
     res.json(product);
   } catch (err) {
@@ -727,23 +675,21 @@ router.delete("/:id", authenticate, async (req, res) => {
     const user = req.user;
     const { id } = req.params;
 
-    const filter = { _id: id, isDeleted: { $ne: true } };
+    const filter = { id: id, isDeleted: false };
     if (user.role !== "systemAdmin") {
       filter.martId = user.martId;
     }
 
-    const product = await Product.findOne(filter);
+    const product = await productRepository.findOne(filter);
     if (!product) return res.status(404).json({ message: "Product not found" });
 
-    // Only systemAdmin or owner of the mart can delete
     if (user.role !== "systemAdmin") {
       if (user.role !== "owner") {
         return res.status(403).json({ message: "Only owners can delete products" });
       }
     }
 
-    product.isDeleted = true;
-    await product.save();
+    await productRepository.update(product.id, { isDeleted: true });
 
     res.json({ message: "Product deleted" });
   } catch (err) {

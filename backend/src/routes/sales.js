@@ -1,10 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const Sale = require("../models/sale.model");
-const Mart = require("../models/mart.model");
-const Product = require("../models/product.model");
-const Customer = require("../models/customer.model");
-const mongoose = require("mongoose");
+const prisma = require("../repositories/prismaClient");
 const { authenticate } = require("../middleware/auth");
 const PDFDocument = require("pdfkit");
 
@@ -88,7 +84,10 @@ function formatQuantity(value) {
 async function buildReceiptViewModel(receiptId) {
   prunePendingReceipts();
 
-  const sale = await Sale.findOne({ receiptId }).sort({ date: -1 }).lean();
+  const sale = await prisma.sale.findFirst({
+    where: { receiptId },
+    orderBy: { date: "desc" },
+  });
   if (!sale) {
     const cached = pendingReceipts.get(receiptId);
     if (cached && Number(cached.expiresAt) > Date.now()) {
@@ -98,11 +97,10 @@ async function buildReceiptViewModel(receiptId) {
   }
 
   const mart = sale.martId
-    ? await Mart.findById(sale.martId)
-        .select(
-          "martName address city region country phone receiptHeader receiptMessage isDeleted",
-        )
-        .lean()
+    ? await prisma.mart.findUnique({
+        where: { id: sale.martId },
+        select: { martName: true, address: true, city: true, region: true, country: true, phone: true, receiptHeader: true, receiptMessage: true, isDeleted: true },
+      })
     : null;
 
   if (!mart || mart.isDeleted) {
@@ -124,8 +122,8 @@ async function buildReceiptViewModel(receiptId) {
     : [];
 
   return {
-    id: String(sale.receiptId || sale._id || ""),
-    saleId: String(sale._id || ""),
+    id: String(sale.receiptId || sale.id || ""),
+    saleId: String(sale.id || ""),
     shopName: String(mart?.martName || "Shop"),
     shopAddress: buildMartAddress(mart),
     shopPhone: String(mart?.phone || "").trim() || undefined,
@@ -148,36 +146,30 @@ async function buildReceiptViewModel(receiptId) {
 router.post("/", authenticate, async (req, res) => {
   try {
     const payload = req.body || {};
-    const { martId, receiptId, items, subtotal, extraCharges, paymentMethod } =
-      payload;
+    const { martId, receiptId, items, subtotal, extraCharges, paymentMethod } = payload;
     const targetMartId =
       req.user.role === "systemAdmin"
         ? martId || req.user.martId
         : req.user.martId;
+    
     if (!targetMartId)
       return res.status(400).json({ message: "martId required" });
-    // fetch mart to get taxRate
-    const mart = await Mart.findById(targetMartId).lean();
+      
+    const mart = await prisma.mart.findUnique({ where: { id: targetMartId } });
+    if (!mart) return res.status(404).json({ message: "Mart not found" });
+
     const martTaxRate = Number(mart?.taxRate);
     const taxRate = Number.isFinite(martTaxRate) ? martTaxRate : 0;
-    const martDiscountType =
-      mart?.globalDiscountType === "fixed" ? "fixed" : "percentage";
+    const martDiscountType = mart?.globalDiscountType === "fixed" ? "fixed" : "percentage";
     const martDiscountRateRaw = Number(mart?.globalDiscountRate);
-    const martDiscountRate = Number.isFinite(martDiscountRateRaw)
-      ? Math.max(0, martDiscountRateRaw)
-      : 0;
+    const martDiscountRate = Number.isFinite(martDiscountRateRaw) ? Math.max(0, martDiscountRateRaw) : 0;
     const enableDiscountByItems = Boolean(mart?.enableDiscountByItems);
     const enableDiscountByAmount = Boolean(mart?.enableDiscountByAmount);
     const discountMinItemsRaw = Number(mart?.discountMinItems);
-    const discountMinItems = Number.isFinite(discountMinItemsRaw)
-      ? Math.max(0, discountMinItemsRaw)
-      : 0;
+    const discountMinItems = Number.isFinite(discountMinItemsRaw) ? Math.max(0, discountMinItemsRaw) : 0;
     const discountMinAmountRaw = Number(mart?.discountMinAmount);
-    const discountMinAmount = Number.isFinite(discountMinAmountRaw)
-      ? Math.max(0, discountMinAmountRaw)
-      : 0;
+    const discountMinAmount = Number.isFinite(discountMinAmountRaw) ? Math.max(0, discountMinAmountRaw) : 0;
 
-    // compute subtotal from items if not provided
     let computedSubtotal = Number(subtotal || 0);
     if ((!computedSubtotal || computedSubtotal === 0) && Array.isArray(items)) {
       computedSubtotal = items.reduce(
@@ -193,146 +185,111 @@ router.post("/", authenticate, async (req, res) => {
     const itemCount = Array.isArray(items)
       ? items.reduce((sum, it) => sum + (Number(it?.quantity) || 0), 0)
       : 0;
-    const qualifiesByItems =
-      enableDiscountByItems &&
-      discountMinItems > 0 &&
-      itemCount > discountMinItems;
-    const qualifiesByAmount =
-      enableDiscountByAmount &&
-      discountMinAmount > 0 &&
-      computedSubtotal > discountMinAmount;
-    const shouldApplyDiscount =
-      martDiscountRate > 0 &&
-      (enableDiscountByItems || enableDiscountByAmount) &&
-      (qualifiesByItems || qualifiesByAmount);
+    const qualifiesByItems = enableDiscountByItems && discountMinItems > 0 && itemCount > discountMinItems;
+    const qualifiesByAmount = enableDiscountByAmount && discountMinAmount > 0 && computedSubtotal > discountMinAmount;
+    const shouldApplyDiscount = martDiscountRate > 0 && (enableDiscountByItems || enableDiscountByAmount) && (qualifiesByItems || qualifiesByAmount);
 
     const rawDiscountAmt = shouldApplyDiscount
       ? martDiscountType === "percentage"
         ? computedSubtotal * (martDiscountRate / 100)
         : martDiscountRate
       : 0;
-    const discountAmt =
-      Math.round(
-        (Math.min(computedSubtotal, Math.max(0, rawDiscountAmt)) +
-          Number.EPSILON) *
-          100,
-      ) / 100;
+    const discountAmt = Math.round((Math.min(computedSubtotal, Math.max(0, rawDiscountAmt)) + Number.EPSILON) * 100) / 100;
 
     const appliedDiscount = shouldApplyDiscount
-      ? {
-          type: martDiscountType,
-          value: martDiscountRate,
-          amount: discountAmt,
-        }
-      : undefined;
+      ? { type: martDiscountType, value: martDiscountRate, amount: discountAmt }
+      : null;
 
     const taxableBase = computedSubtotal - discountAmt + extraSum;
-    const taxAmount =
-      Math.round((taxableBase * (taxRate / 100) + Number.EPSILON) * 100) / 100;
+    const taxAmount = Math.round((taxableBase * (taxRate / 100) + Number.EPSILON) * 100) / 100;
 
-    const computedTotal =
-      Math.round((taxableBase + taxAmount + Number.EPSILON) * 100) / 100;
+    const computedTotal = Math.round((taxableBase + taxAmount + Number.EPSILON) * 100) / 100;
 
-    // --- Atomic Transactional Sale Execution ---
-    const session = await mongoose.startSession();
-    session.startTransaction();
     try {
-      // 1. Check for duplicate receiptId within the mart
-      if (receiptId) {
-        const existingSale = await Sale.findOne({
-          martId: targetMartId,
-          receiptId,
-        }).session(session);
-        if (existingSale) {
-          throw new Error(`Receipt ${receiptId} already exists for this mart`);
+      const savedSale = await prisma.$transaction(async (tx) => {
+        if (receiptId) {
+          const existingSale = await tx.sale.findFirst({
+            where: { martId: targetMartId, receiptId },
+          });
+          if (existingSale) {
+            throw new Error(`Receipt ${receiptId} already exists for this mart`);
+          }
         }
-      }
 
-      // 2. Prepare stock updates if items have productIds
-      const qtyMap = {};
-      if (Array.isArray(items)) {
-        items.forEach((it) => {
-          if (it && it.productId) {
-            const q = Number(it.quantity) || 0;
-            if (q > 0) {
-              qtyMap[it.productId] = (qtyMap[it.productId] || 0) + q;
+        const qtyMap = {};
+        if (Array.isArray(items)) {
+          items.forEach((it) => {
+            if (it && it.productId) {
+              const q = Number(it.quantity) || 0;
+              if (q > 0) {
+                qtyMap[it.productId] = (qtyMap[it.productId] || 0) + q;
+              }
             }
+          });
+        }
+
+        const productIds = Object.keys(qtyMap);
+
+        // Deduct stock using raw query for atomicity
+        for (const pid of productIds) {
+          const qty = qtyMap[pid];
+          // Prisma queryRaw returns an array of records that match the query
+          const updatedProducts = await tx.$queryRaw`
+            UPDATE "Product"
+            SET "supermarketQuantity" = "supermarketQuantity" - ${qty},
+                "quantity" = "quantity" - ${qty}
+            WHERE "id" = ${pid} 
+              AND "martId" = ${targetMartId}
+              AND "supermarketQuantity" >= ${qty}
+              AND "quantity" >= ${qty}
+            RETURNING id, name;
+          `;
+          
+          if (!updatedProducts || updatedProducts.length === 0) {
+            const p = await tx.product.findUnique({ where: { id: pid } });
+            const name = p ? p.name : pid;
+            throw new Error(`Insufficient stock for product: ${name}`);
+          }
+        }
+
+        if (String(paymentMethod) === "wallet" && payload.customerId) {
+          const cust = await tx.customer.findUnique({ where: { id: payload.customerId } });
+          if (!cust) throw new Error("Customer not found for credit sale");
+          if (String(cust.martId) !== String(targetMartId)) {
+            throw new Error("Customer does not belong to this mart");
+          }
+          
+          const newCredit = Number(cust.totalCredit || 0) + Number(computedTotal || 0);
+          const newUnpaid = newCredit - Number(cust.totalPaid || 0);
+          
+          await tx.customer.update({
+             where: { id: cust.id },
+             data: { totalCredit: newCredit, totalUnpaid: newUnpaid }
+          });
+        }
+
+        return await tx.sale.create({
+          data: {
+            martId: targetMartId,
+            cashierId: req.user.id,
+            cashierName: req.user.username,
+            receiptId,
+            items: items || [],
+            subtotal: computedSubtotal,
+            discount: appliedDiscount,
+            extraCharges: extraCharges || [],
+            tax: taxAmount,
+            taxRate,
+            total: computedTotal,
+            paymentMethod,
+            date: new Date(),
           }
         });
-      }
-
-      const productIds = Object.keys(qtyMap);
-
-      // 3. Deduct stock atomically and check for insufficiency
-      for (const pid of productIds) {
-        const qty = qtyMap[pid];
-        // Use findOneAndUpdate with a condition to ensure atomicity and prevent race conditions
-        const updatedProduct = await Product.findOneAndUpdate(
-          {
-            _id: pid,
-            martId: targetMartId,
-            supermarketQuantity: { $gte: qty },
-            quantity: { $gte: qty },
-          },
-          {
-            $inc: {
-              supermarketQuantity: -qty,
-              quantity: -qty,
-            },
-          },
-          { session, new: true },
-        );
-
-        if (!updatedProduct) {
-          const p = await Product.findById(pid).session(session);
-          const name = p ? p.name : pid;
-          throw new Error(`Insufficient stock for product: ${name}`);
-        }
-      }
-
-      // 4. Update customer credit if applicable
-      if (String(paymentMethod) === "wallet" && payload.customerId) {
-        const cust = await Customer.findById(payload.customerId).session(
-          session,
-        );
-        if (!cust) throw new Error("Customer not found for credit sale");
-        if (String(cust.martId) !== String(targetMartId)) {
-          throw new Error("Customer does not belong to this mart");
-        }
-        cust.totalCredit =
-          Number(cust.totalCredit || 0) + Number(computedTotal || 0);
-        cust.totalUnpaid =
-          Number(cust.totalCredit || 0) - Number(cust.totalPaid || 0);
-        await cust.save({ session });
-      }
-
-      // 5. Save the Sale record
-      const sale = new Sale({
-        martId: targetMartId,
-        cashierId: req.user.id,
-        cashierName: req.user.username,
-        receiptId,
-        items,
-        subtotal: computedSubtotal,
-        discount: appliedDiscount,
-        extraCharges,
-        tax: taxAmount,
-        taxRate,
-        total: computedTotal,
-        paymentMethod,
-        date: new Date(),
       });
-
-      const savedSale = await sale.save({ session });
-
-      await session.commitTransaction();
-      session.endSession();
 
       if (receiptId) pendingReceipts.delete(String(receiptId));
       return res.status(201).json(savedSale);
     } catch (err) {
-      await session.abortTransaction();
-      session.endSession();
       console.error("[Sale Error]", err.message);
       return res.status(400).json({ message: err.message || "Sale failed" });
     }
@@ -545,14 +502,12 @@ router.get("/receipt/:receiptId/pdf", async (req, res) => {
     const right = doc.page.margins.right;
     const contentW = pageW - left - right;
 
-    // Header: big shop name centered
     doc.font("Helvetica-Bold").fontSize(18).text(String(receipt.shopName || ""), left, doc.y, { align: "center", width: contentW });
     if (receipt.shopAddress) doc.font("Helvetica").fontSize(9).text(String(receipt.shopAddress), left, doc.y, { align: "center", width: contentW });
     if (receipt.shopPhone) doc.font("Helvetica").fontSize(9).text(String(receipt.shopPhone), left, doc.y, { align: "center", width: contentW });
     if (receipt.receiptSlogan) doc.font("Helvetica").fontSize(10).text(String(receipt.receiptSlogan), left, doc.y, { align: "center", width: contentW });
     doc.moveDown(0.5);
 
-    // Meta rows (left aligned)
     doc.font("Helvetica").fontSize(9);
     doc.text(`Receipt: ${receipt.id}`, left, doc.y);
     doc.moveDown(0.15);
@@ -561,11 +516,9 @@ router.get("/receipt/:receiptId/pdf", async (req, res) => {
     doc.text(`Date: ${new Date(receipt.date).toLocaleString()}`, left, doc.y);
     doc.moveDown(0.25);
 
-    // Separator
     doc.moveTo(left, doc.y).lineTo(pageW - right, doc.y).strokeColor('#cccccc').stroke();
     doc.moveDown(0.4);
 
-    // Items: for each item print name (left), total (right) on same line, then qty x price below name
     const rightColW = Math.floor(contentW * 0.3);
     const leftColW = contentW - rightColW;
     for (const item of receipt.items || []) {
@@ -574,23 +527,18 @@ router.get("/receipt/:receiptId/pdf", async (req, res) => {
       const price = Number(item.price || 0).toFixed(2);
       const total = Number(item.total || item.subtotal || (qty * Number(price))).toFixed(2);
 
-      // Name left
       doc.font("Helvetica").fontSize(9).text(name, left, doc.y, { width: leftColW });
-      // Total right on same y
-      const itemLineY = doc.y - 12; // adjust to previous baseline where name was printed
+      const itemLineY = doc.y - 12;
       doc.text(`${total} ETB`, left + leftColW, itemLineY, { width: rightColW, align: 'right' });
       doc.moveDown(0.4);
 
-      // qty x price line
       doc.fontSize(9).fillColor('#333').text(`${qty} x ${Number(price).toFixed(2)} ETB`, left, doc.y, { width: leftColW });
       doc.moveDown(0.3);
     }
 
-    // Separator
     doc.moveTo(left, doc.y).lineTo(pageW - right, doc.y).strokeColor('#cccccc').stroke();
     doc.moveDown(0.4);
 
-    // Totals (right aligned)
     doc.font("Helvetica").fontSize(9).fillColor('#000');
     if (receipt.subtotal != null) {
       doc.text(`Subtotal: ${Number(receipt.subtotal).toFixed(2)} ETB`, left, doc.y, { width: contentW, align: 'right' });
@@ -609,11 +557,9 @@ router.get("/receipt/:receiptId/pdf", async (req, res) => {
       doc.moveDown(0.3);
     }
 
-    // Grand total
     doc.font("Helvetica-Bold").fontSize(14).text(`TOTAL: ${Number(receipt.total || 0).toFixed(2)} ETB`, left, doc.y, { width: contentW, align: 'right' });
     doc.moveDown(0.6);
 
-    // Footer branding
     doc.moveTo(left, doc.y).lineTo(pageW - right, doc.y).strokeColor('#eeeeee').stroke();
     doc.moveDown(0.4);
     doc.font("Helvetica").fontSize(10).fillColor('#000').text('Powered by Kiya POS System', left, doc.y, { align: 'center', width: contentW });
@@ -644,10 +590,13 @@ router.get("/", authenticate, async (req, res) => {
     if (date) {
       const start = new Date(date + "T00:00:00.000Z");
       const end = new Date(date + "T23:59:59.999Z");
-      filter.date = { $gte: start, $lte: end };
+      filter.date = { gte: start, lte: end };
     }
 
-    const list = await Sale.find(filter).sort({ date: -1 }).lean();
+    const list = await prisma.sale.findMany({
+      where: filter,
+      orderBy: { date: "desc" },
+    });
     res.json(list);
   } catch (err) {
     console.error(err);

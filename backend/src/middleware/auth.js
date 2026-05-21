@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = process.env.JWT_SECRET || "changeme";
-const Mart = require("../models/mart.model");
+const martRepository = require("../repositories/martRepository");
+const userRepository = require("../repositories/userRepository");
 
 async function authenticate(req, res, next) {
   let auth = req.headers.authorization;
@@ -17,10 +18,9 @@ async function authenticate(req, res, next) {
     const payload = jwt.verify(token, JWT_SECRET);
 
     // Fetch fresh user data from DB. This is non-optional for security.
-    const User = require("../models/user.model");
-    const dbUser = await User.findById(payload.id)
-      .select("username role martId permissions isDeleted")
-      .lean();
+    const dbUser = await userRepository.findById(payload.id, {
+      select: { id: true, username: true, role: true, martId: true, permissions: true, isDeleted: true }
+    });
 
     // CRITICAL: If user was deleted from DB, reject even if token is valid
     if (!dbUser || dbUser.isDeleted) {
@@ -29,7 +29,7 @@ async function authenticate(req, res, next) {
 
     // Attach sanitized user object
     req.user = {
-      id: dbUser._id,
+      id: dbUser.id,
       username: dbUser.username,
       role: dbUser.role,
       martId: dbUser.martId,
@@ -46,9 +46,9 @@ async function authenticate(req, res, next) {
 
     // Block suspended/inactive/deleted marts
     if (req.user.role !== "systemAdmin" && req.user.martId) {
-      const mart = await Mart.findById(req.user.martId)
-        .select("status isDeleted")
-        .lean();
+      const mart = await martRepository.findById(req.user.martId, {
+        select: { status: true, isDeleted: true }
+      });
 
       if (!mart || mart.isDeleted) {
         return res.status(403).json({
