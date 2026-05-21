@@ -14,24 +14,26 @@ router.get("/", authenticate, async (req, res) => {
     } else {
       filter.martId = req.user.martId;
       if (martId && String(martId) !== String(req.user.martId)) {
-        return res.status(403).json({ message: "Cannot list categories for another mart" });
+        return res
+          .status(403)
+          .json({ message: "Cannot list categories for another mart" });
       }
     }
 
     const targetMartId = filter.martId;
     const savedCategories = await prisma.category.findMany({
       where: { ...filter, isDeleted: false },
-      orderBy: { name: "asc" }
+      orderBy: { name: "asc" },
     });
 
     let productCategories = [];
     if (targetMartId) {
-      const distinctProducts = await productRepository.findMany({
-        where: { martId: targetMartId, category: { notIn: [null, ""] } },
+      const distinctProducts = await prisma.product.findMany({
+        where: { martId: targetMartId, category: { not: "" } },
         select: { category: true },
-        distinct: ['category']
+        distinct: ["category"],
       });
-      productCategories = distinctProducts.map(p => p.category);
+      productCategories = distinctProducts.map((p) => p.category);
     }
 
     const merged = new Map();
@@ -56,8 +58,8 @@ router.get("/", authenticate, async (req, res) => {
 
     res.json(
       Array.from(merged.values()).sort((a, b) =>
-        String(a.name).localeCompare(String(b.name))
-      )
+        String(a.name).localeCompare(String(b.name)),
+      ),
     );
   } catch (err) {
     console.error(err);
@@ -80,14 +82,14 @@ router.post("/", authenticate, async (req, res) => {
 
     const trimmedName = name.trim();
     let cat = await prisma.category.findFirst({
-      where: { name: trimmedName, martId: targetMartId }
+      where: { name: trimmedName, martId: targetMartId },
     });
     if (!cat) {
-        cat = await prisma.category.create({
-            data: { name: trimmedName, martId: targetMartId }
-        });
+      cat = await prisma.category.create({
+        data: { name: trimmedName, martId: targetMartId },
+      });
     }
-    
+
     res.status(201).json(cat);
   } catch (err) {
     console.error(err);

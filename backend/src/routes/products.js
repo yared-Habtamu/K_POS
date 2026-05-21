@@ -171,16 +171,10 @@ async function createProductFromRequest(req, res, options = {}) {
 
   if (productPayload.category) {
     try {
-      const existingCat = await categoryRepository.findOne({
-        name: { equals: productPayload.category.trim(), mode: 'insensitive' },
-        martId: finalMartId
-      });
-      if (!existingCat) {
-        await categoryRepository.create({
-          name: productPayload.category.trim(),
-          martId: finalMartId,
-        });
-      }
+      await categoryRepository.upsert(
+        productPayload.category.trim(),
+        finalMartId,
+      );
     } catch (catErr) {
       console.error("category upsert error", catErr);
     }
@@ -216,12 +210,12 @@ async function createProductFromRequest(req, res, options = {}) {
   if (String(user.role || "").toLowerCase() !== "systemadmin") {
     const managers = await userRepository.findMany({
       martId: finalMartId,
-      role: { in: ['manager', 'Manager'] },
+      role: { in: ["manager"] },
     });
 
     const storeKeepers = await userRepository.findMany({
       martId: finalMartId,
-      role: { in: ['storekeeper', 'store_keeper', 'Storekeeper'] },
+      role: { in: ["storeKeeper"] },
     });
 
     const approvalRole =
@@ -348,13 +342,13 @@ router.get("/", authenticate, async (req, res) => {
     // But we can fetch it, then filter in memory if needed, or omit and rely on client.
     // For now, we will handle `lowStock` filtering in JS to ensure cross-database compatibility unless
     // using queryRaw. Since this is a simple list query, we will filter in memory if lowStock is requested.
-    
+
     // Pagination support
     const page = req.query.page ? Math.max(1, Number(req.query.page)) : null;
     const limit = req.query.limit ? Math.max(1, Number(req.query.limit)) : null;
 
     let list = await productRepository.findMany(filter, {
-      orderBy: { name: "asc" }
+      orderBy: { name: "asc" },
     });
 
     if (lowStock === "true") {
@@ -481,16 +475,7 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
 
     if (update.category) {
       try {
-        const existingCat = await categoryRepository.findOne({
-          name: { equals: update.category.trim(), mode: 'insensitive' },
-          martId: product.martId
-        });
-        if (!existingCat) {
-          await categoryRepository.create({
-            name: update.category.trim(),
-            martId: product.martId,
-          });
-        }
+        await categoryRepository.upsert(update.category.trim(), product.martId);
       } catch (catErr) {
         console.error("category upsert error (update)", catErr);
       }
@@ -550,12 +535,12 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
 
       const managers = await userRepository.findMany({
         martId: product.martId,
-        role: { in: ['manager', 'Manager'] },
+        role: { in: ["manager"] },
       });
 
       const storeKeepers = await userRepository.findMany({
         martId: product.martId,
-        role: { in: ['storekeeper', 'store_keeper', 'Storekeeper'] },
+        role: { in: ["storeKeeper"] },
       });
 
       const managerChanges = { ...changes };
@@ -659,10 +644,9 @@ router.get("/by-barcode/:code", authenticate, async (req, res) => {
       isDeleted: false,
     };
     if (user.role !== "systemAdmin") filter.martId = user.martId;
-    
+
     const product = await productRepository.findOne(filter);
-    if (!product) return res.status(404).json({ message: "Product not found" });
-    res.json(product);
+    res.json(product || null);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -685,7 +669,9 @@ router.delete("/:id", authenticate, async (req, res) => {
 
     if (user.role !== "systemAdmin") {
       if (user.role !== "owner") {
-        return res.status(403).json({ message: "Only owners can delete products" });
+        return res
+          .status(403)
+          .json({ message: "Only owners can delete products" });
       }
     }
 

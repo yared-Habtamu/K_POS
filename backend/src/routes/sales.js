@@ -42,7 +42,9 @@ function normalizePendingReceipt(payload) {
     items,
     subtotal: Number(payload.subtotal) || 0,
     discount: payload.discount != null ? payload.discount : undefined,
-    extraCharges: Array.isArray(payload.extraCharges) ? payload.extraCharges : [],
+    extraCharges: Array.isArray(payload.extraCharges)
+      ? payload.extraCharges
+      : [],
     tax: Number(payload.tax) || 0,
     taxRate: Number(payload.taxRate) || 0,
     total: Number(payload.total) || 0,
@@ -99,7 +101,17 @@ async function buildReceiptViewModel(receiptId) {
   const mart = sale.martId
     ? await prisma.mart.findUnique({
         where: { id: sale.martId },
-        select: { martName: true, address: true, city: true, region: true, country: true, phone: true, receiptHeader: true, receiptMessage: true, isDeleted: true },
+        select: {
+          martName: true,
+          address: true,
+          city: true,
+          region: true,
+          country: true,
+          phone: true,
+          receiptHeader: true,
+          receiptMessage: true,
+          isDeleted: true,
+        },
       })
     : null;
 
@@ -146,29 +158,37 @@ async function buildReceiptViewModel(receiptId) {
 router.post("/", authenticate, async (req, res) => {
   try {
     const payload = req.body || {};
-    const { martId, receiptId, items, subtotal, extraCharges, paymentMethod } = payload;
+    const { martId, receiptId, items, subtotal, extraCharges, paymentMethod } =
+      payload;
     const targetMartId =
       req.user.role === "systemAdmin"
         ? martId || req.user.martId
         : req.user.martId;
-    
+
     if (!targetMartId)
       return res.status(400).json({ message: "martId required" });
-      
+
     const mart = await prisma.mart.findUnique({ where: { id: targetMartId } });
     if (!mart) return res.status(404).json({ message: "Mart not found" });
 
     const martTaxRate = Number(mart?.taxRate);
     const taxRate = Number.isFinite(martTaxRate) ? martTaxRate : 0;
-    const martDiscountType = mart?.globalDiscountType === "fixed" ? "fixed" : "percentage";
+    const martDiscountType =
+      mart?.globalDiscountType === "fixed" ? "fixed" : "percentage";
     const martDiscountRateRaw = Number(mart?.globalDiscountRate);
-    const martDiscountRate = Number.isFinite(martDiscountRateRaw) ? Math.max(0, martDiscountRateRaw) : 0;
+    const martDiscountRate = Number.isFinite(martDiscountRateRaw)
+      ? Math.max(0, martDiscountRateRaw)
+      : 0;
     const enableDiscountByItems = Boolean(mart?.enableDiscountByItems);
     const enableDiscountByAmount = Boolean(mart?.enableDiscountByAmount);
     const discountMinItemsRaw = Number(mart?.discountMinItems);
-    const discountMinItems = Number.isFinite(discountMinItemsRaw) ? Math.max(0, discountMinItemsRaw) : 0;
+    const discountMinItems = Number.isFinite(discountMinItemsRaw)
+      ? Math.max(0, discountMinItemsRaw)
+      : 0;
     const discountMinAmountRaw = Number(mart?.discountMinAmount);
-    const discountMinAmount = Number.isFinite(discountMinAmountRaw) ? Math.max(0, discountMinAmountRaw) : 0;
+    const discountMinAmount = Number.isFinite(discountMinAmountRaw)
+      ? Math.max(0, discountMinAmountRaw)
+      : 0;
 
     let computedSubtotal = Number(subtotal || 0);
     if ((!computedSubtotal || computedSubtotal === 0) && Array.isArray(items)) {
@@ -185,25 +205,41 @@ router.post("/", authenticate, async (req, res) => {
     const itemCount = Array.isArray(items)
       ? items.reduce((sum, it) => sum + (Number(it?.quantity) || 0), 0)
       : 0;
-    const qualifiesByItems = enableDiscountByItems && discountMinItems > 0 && itemCount > discountMinItems;
-    const qualifiesByAmount = enableDiscountByAmount && discountMinAmount > 0 && computedSubtotal > discountMinAmount;
-    const shouldApplyDiscount = martDiscountRate > 0 && (enableDiscountByItems || enableDiscountByAmount) && (qualifiesByItems || qualifiesByAmount);
+    const qualifiesByItems =
+      enableDiscountByItems &&
+      discountMinItems > 0 &&
+      itemCount > discountMinItems;
+    const qualifiesByAmount =
+      enableDiscountByAmount &&
+      discountMinAmount > 0 &&
+      computedSubtotal > discountMinAmount;
+    const shouldApplyDiscount =
+      martDiscountRate > 0 &&
+      (enableDiscountByItems || enableDiscountByAmount) &&
+      (qualifiesByItems || qualifiesByAmount);
 
     const rawDiscountAmt = shouldApplyDiscount
       ? martDiscountType === "percentage"
         ? computedSubtotal * (martDiscountRate / 100)
         : martDiscountRate
       : 0;
-    const discountAmt = Math.round((Math.min(computedSubtotal, Math.max(0, rawDiscountAmt)) + Number.EPSILON) * 100) / 100;
+    const discountAmt =
+      Math.round(
+        (Math.min(computedSubtotal, Math.max(0, rawDiscountAmt)) +
+          Number.EPSILON) *
+          100,
+      ) / 100;
 
     const appliedDiscount = shouldApplyDiscount
       ? { type: martDiscountType, value: martDiscountRate, amount: discountAmt }
       : null;
 
     const taxableBase = computedSubtotal - discountAmt + extraSum;
-    const taxAmount = Math.round((taxableBase * (taxRate / 100) + Number.EPSILON) * 100) / 100;
+    const taxAmount =
+      Math.round((taxableBase * (taxRate / 100) + Number.EPSILON) * 100) / 100;
 
-    const computedTotal = Math.round((taxableBase + taxAmount + Number.EPSILON) * 100) / 100;
+    const computedTotal =
+      Math.round((taxableBase + taxAmount + Number.EPSILON) * 100) / 100;
 
     try {
       const savedSale = await prisma.$transaction(async (tx) => {
@@ -212,7 +248,9 @@ router.post("/", authenticate, async (req, res) => {
             where: { martId: targetMartId, receiptId },
           });
           if (existingSale) {
-            throw new Error(`Receipt ${receiptId} already exists for this mart`);
+            throw new Error(
+              `Receipt ${receiptId} already exists for this mart`,
+            );
           }
         }
 
@@ -230,22 +268,23 @@ router.post("/", authenticate, async (req, res) => {
 
         const productIds = Object.keys(qtyMap);
 
-        // Deduct stock using raw query for atomicity
+        // Deduct stock using Prisma so this works with the mapped PostgreSQL table names.
         for (const pid of productIds) {
           const qty = qtyMap[pid];
-          // Prisma queryRaw returns an array of records that match the query
-          const updatedProducts = await tx.$queryRaw`
-            UPDATE "Product"
-            SET "supermarketQuantity" = "supermarketQuantity" - ${qty},
-                "quantity" = "quantity" - ${qty}
-            WHERE "id" = ${pid} 
-              AND "martId" = ${targetMartId}
-              AND "supermarketQuantity" >= ${qty}
-              AND "quantity" >= ${qty}
-            RETURNING id, name;
-          `;
-          
-          if (!updatedProducts || updatedProducts.length === 0) {
+          const result = await tx.product.updateMany({
+            where: {
+              id: pid,
+              martId: targetMartId,
+              supermarketQuantity: { gte: qty },
+              quantity: { gte: qty },
+            },
+            data: {
+              supermarketQuantity: { decrement: qty },
+              quantity: { decrement: qty },
+            },
+          });
+
+          if (!result || result.count === 0) {
             const p = await tx.product.findUnique({ where: { id: pid } });
             const name = p ? p.name : pid;
             throw new Error(`Insufficient stock for product: ${name}`);
@@ -253,20 +292,33 @@ router.post("/", authenticate, async (req, res) => {
         }
 
         if (String(paymentMethod) === "wallet" && payload.customerId) {
-          const cust = await tx.customer.findUnique({ where: { id: payload.customerId } });
+          const cust = await tx.customer.findUnique({
+            where: { id: payload.customerId },
+          });
           if (!cust) throw new Error("Customer not found for credit sale");
           if (String(cust.martId) !== String(targetMartId)) {
             throw new Error("Customer does not belong to this mart");
           }
-          
-          const newCredit = Number(cust.totalCredit || 0) + Number(computedTotal || 0);
+
+          const newCredit =
+            Number(cust.totalCredit || 0) + Number(computedTotal || 0);
           const newUnpaid = newCredit - Number(cust.totalPaid || 0);
-          
+
           await tx.customer.update({
-             where: { id: cust.id },
-             data: { totalCredit: newCredit, totalUnpaid: newUnpaid }
+            where: { id: cust.id },
+            data: { totalCredit: newCredit, totalUnpaid: newUnpaid },
           });
         }
+
+        const saleItems = Array.isArray(items)
+          ? items.map((item) => ({
+              productId: item.productId || null,
+              name: item.name || null,
+              price: Number(item.price ?? item.sellingPrice ?? 0) || 0,
+              quantity: Number(item.quantity) || 0,
+              total: Number(item.total) || 0,
+            }))
+          : [];
 
         return await tx.sale.create({
           data: {
@@ -274,7 +326,9 @@ router.post("/", authenticate, async (req, res) => {
             cashierId: req.user.id,
             cashierName: req.user.username,
             receiptId,
-            items: items || [],
+            items: {
+              create: saleItems,
+            },
             subtotal: computedSubtotal,
             discount: appliedDiscount,
             extraCharges: extraCharges || [],
@@ -283,7 +337,7 @@ router.post("/", authenticate, async (req, res) => {
             total: computedTotal,
             paymentMethod,
             date: new Date(),
-          }
+          },
         });
       });
 
@@ -305,7 +359,9 @@ router.post("/receipt-cache", authenticate, async (req, res) => {
     prunePendingReceipts();
     const normalized = normalizePendingReceipt(req.body?.receipt || req.body);
     if (!normalized) {
-      return res.status(400).json({ message: "Valid receipt payload is required" });
+      return res
+        .status(400)
+        .json({ message: "Valid receipt payload is required" });
     }
 
     pendingReceipts.set(normalized.id, {
@@ -328,8 +384,7 @@ router.get("/receipt/:receiptId", async (req, res) => {
       return res.status(400).json({ message: "receiptId is required" });
 
     const receipt = await buildReceiptViewModel(receiptId);
-    if (!receipt)
-      return res.status(404).json({ message: "Receipt not found" });
+    if (!receipt) return res.status(404).json({ message: "Receipt not found" });
 
     return res.json(receipt);
   } catch (err) {
@@ -389,7 +444,9 @@ router.get("/receipt/:receiptId/view", async (req, res) => {
       : "";
 
     const paymentLabel = escapeHtml(
-      String(receipt.paymentMethod || "").replace(/_/g, " ").toUpperCase(),
+      String(receipt.paymentMethod || "")
+        .replace(/_/g, " ")
+        .toUpperCase(),
     );
 
     const html = `<!doctype html>
@@ -431,7 +488,7 @@ router.get("/receipt/:receiptId/view", async (req, res) => {
         <h2 style="margin: 0;">${escapeHtml(receipt.shopName)}</h2>
         ${receipt.shopAddress ? `<div class="muted">${escapeHtml(receipt.shopAddress)}</div>` : ""}
         ${receipt.shopPhone ? `<div class="muted">${escapeHtml(receipt.shopPhone)}</div>` : ""}
-        ${receipt.receiptSlogan ? `<div class="muted" style="margin-top:6px;">${escapeHtml(receipt.receiptSlogan)}</div>` : (receipt.receiptHeader ? `<div class="muted" style="margin-top:6px;">${escapeHtml(receipt.receiptHeader)}</div>` : "")}
+        ${receipt.receiptSlogan ? `<div class="muted" style="margin-top:6px;">${escapeHtml(receipt.receiptSlogan)}</div>` : receipt.receiptHeader ? `<div class="muted" style="margin-top:6px;">${escapeHtml(receipt.receiptHeader)}</div>` : ""}
       </div>
       <div class="sep"></div>
       <div class="meta">
@@ -480,7 +537,8 @@ router.get("/receipt/:receiptId/view", async (req, res) => {
 router.get("/receipt/:receiptId/pdf", async (req, res) => {
   try {
     const receiptId = String(req.params.receiptId || "").trim();
-    if (!receiptId) return res.status(400).json({ message: "receiptId is required" });
+    if (!receiptId)
+      return res.status(400).json({ message: "receiptId is required" });
 
     const receipt = await buildReceiptViewModel(receiptId);
     if (!receipt) return res.status(404).json({ message: "Receipt not found" });
@@ -494,7 +552,10 @@ router.get("/receipt/:receiptId/pdf", async (req, res) => {
     // Use 80mm width for thermal receipt printers (convert mm to points: 1mm = 2.8346456693pt)
     const mmToPt = (mm) => mm * 2.8346456693;
     const receiptWidthPt = Math.round(mmToPt(80));
-    const doc = new PDFDocument({ size: [receiptWidthPt, 1400], margins: { top: 10, bottom: 10, left: 10, right: 10 } });
+    const doc = new PDFDocument({
+      size: [receiptWidthPt, 1400],
+      margins: { top: 10, bottom: 10, left: 10, right: 10 },
+    });
     doc.pipe(res);
 
     const pageW = doc.page.width;
@@ -502,10 +563,37 @@ router.get("/receipt/:receiptId/pdf", async (req, res) => {
     const right = doc.page.margins.right;
     const contentW = pageW - left - right;
 
-    doc.font("Helvetica-Bold").fontSize(18).text(String(receipt.shopName || ""), left, doc.y, { align: "center", width: contentW });
-    if (receipt.shopAddress) doc.font("Helvetica").fontSize(9).text(String(receipt.shopAddress), left, doc.y, { align: "center", width: contentW });
-    if (receipt.shopPhone) doc.font("Helvetica").fontSize(9).text(String(receipt.shopPhone), left, doc.y, { align: "center", width: contentW });
-    if (receipt.receiptSlogan) doc.font("Helvetica").fontSize(10).text(String(receipt.receiptSlogan), left, doc.y, { align: "center", width: contentW });
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(18)
+      .text(String(receipt.shopName || ""), left, doc.y, {
+        align: "center",
+        width: contentW,
+      });
+    if (receipt.shopAddress)
+      doc
+        .font("Helvetica")
+        .fontSize(9)
+        .text(String(receipt.shopAddress), left, doc.y, {
+          align: "center",
+          width: contentW,
+        });
+    if (receipt.shopPhone)
+      doc
+        .font("Helvetica")
+        .fontSize(9)
+        .text(String(receipt.shopPhone), left, doc.y, {
+          align: "center",
+          width: contentW,
+        });
+    if (receipt.receiptSlogan)
+      doc
+        .font("Helvetica")
+        .fontSize(10)
+        .text(String(receipt.receiptSlogan), left, doc.y, {
+          align: "center",
+          width: contentW,
+        });
     doc.moveDown(0.5);
 
     doc.font("Helvetica").fontSize(9);
@@ -516,7 +604,11 @@ router.get("/receipt/:receiptId/pdf", async (req, res) => {
     doc.text(`Date: ${new Date(receipt.date).toLocaleString()}`, left, doc.y);
     doc.moveDown(0.25);
 
-    doc.moveTo(left, doc.y).lineTo(pageW - right, doc.y).strokeColor('#cccccc').stroke();
+    doc
+      .moveTo(left, doc.y)
+      .lineTo(pageW - right, doc.y)
+      .strokeColor("#cccccc")
+      .stroke();
     doc.moveDown(0.4);
 
     const rightColW = Math.floor(contentW * 0.3);
@@ -525,45 +617,103 @@ router.get("/receipt/:receiptId/pdf", async (req, res) => {
       const name = String(item.name || "");
       const qty = Number(item.quantity || 0);
       const price = Number(item.price || 0).toFixed(2);
-      const total = Number(item.total || item.subtotal || (qty * Number(price))).toFixed(2);
+      const total = Number(
+        item.total || item.subtotal || qty * Number(price),
+      ).toFixed(2);
 
-      doc.font("Helvetica").fontSize(9).text(name, left, doc.y, { width: leftColW });
+      doc
+        .font("Helvetica")
+        .fontSize(9)
+        .text(name, left, doc.y, { width: leftColW });
       const itemLineY = doc.y - 12;
-      doc.text(`${total} ETB`, left + leftColW, itemLineY, { width: rightColW, align: 'right' });
+      doc.text(`${total} ETB`, left + leftColW, itemLineY, {
+        width: rightColW,
+        align: "right",
+      });
       doc.moveDown(0.4);
 
-      doc.fontSize(9).fillColor('#333').text(`${qty} x ${Number(price).toFixed(2)} ETB`, left, doc.y, { width: leftColW });
+      doc
+        .fontSize(9)
+        .fillColor("#333")
+        .text(`${qty} x ${Number(price).toFixed(2)} ETB`, left, doc.y, {
+          width: leftColW,
+        });
       doc.moveDown(0.3);
     }
 
-    doc.moveTo(left, doc.y).lineTo(pageW - right, doc.y).strokeColor('#cccccc').stroke();
+    doc
+      .moveTo(left, doc.y)
+      .lineTo(pageW - right, doc.y)
+      .strokeColor("#cccccc")
+      .stroke();
     doc.moveDown(0.4);
 
-    doc.font("Helvetica").fontSize(9).fillColor('#000');
+    doc.font("Helvetica").fontSize(9).fillColor("#000");
     if (receipt.subtotal != null) {
-      doc.text(`Subtotal: ${Number(receipt.subtotal).toFixed(2)} ETB`, left, doc.y, { width: contentW, align: 'right' });
+      doc.text(
+        `Subtotal: ${Number(receipt.subtotal).toFixed(2)} ETB`,
+        left,
+        doc.y,
+        { width: contentW, align: "right" },
+      );
       doc.moveDown(0.2);
     }
     if (receipt.discount && receipt.discount.amount != null) {
-      doc.text(`Discount: -${Number(receipt.discount.amount).toFixed(2)} ETB`, left, doc.y, { width: contentW, align: 'right' });
+      doc.text(
+        `Discount: -${Number(receipt.discount.amount).toFixed(2)} ETB`,
+        left,
+        doc.y,
+        { width: contentW, align: "right" },
+      );
       doc.moveDown(0.2);
     }
     for (const ch of receipt.extraCharges || []) {
-      doc.text(`${ch.name}: +${Number(ch.amount || 0).toFixed(2)} ETB`, left, doc.y, { width: contentW, align: 'right' });
+      doc.text(
+        `${ch.name}: +${Number(ch.amount || 0).toFixed(2)} ETB`,
+        left,
+        doc.y,
+        { width: contentW, align: "right" },
+      );
       doc.moveDown(0.2);
     }
     if (receipt.tax != null) {
-      doc.text(`Tax: ${Number(receipt.tax).toFixed(2)} ETB`, left, doc.y, { width: contentW, align: 'right' });
+      doc.text(`Tax: ${Number(receipt.tax).toFixed(2)} ETB`, left, doc.y, {
+        width: contentW,
+        align: "right",
+      });
       doc.moveDown(0.3);
     }
 
-    doc.font("Helvetica-Bold").fontSize(14).text(`TOTAL: ${Number(receipt.total || 0).toFixed(2)} ETB`, left, doc.y, { width: contentW, align: 'right' });
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(14)
+      .text(
+        `TOTAL: ${Number(receipt.total || 0).toFixed(2)} ETB`,
+        left,
+        doc.y,
+        { width: contentW, align: "right" },
+      );
     doc.moveDown(0.6);
 
-    doc.moveTo(left, doc.y).lineTo(pageW - right, doc.y).strokeColor('#eeeeee').stroke();
+    doc
+      .moveTo(left, doc.y)
+      .lineTo(pageW - right, doc.y)
+      .strokeColor("#eeeeee")
+      .stroke();
     doc.moveDown(0.4);
-    doc.font("Helvetica").fontSize(10).fillColor('#000').text('Powered by Kiya POS System', left, doc.y, { align: 'center', width: contentW });
-    if (receipt.shopPhone) doc.fontSize(9).text(String(receipt.shopPhone || ''), left, doc.y, { align: 'center', width: contentW });
+    doc
+      .font("Helvetica")
+      .fontSize(10)
+      .fillColor("#000")
+      .text("Powered by Kiya POS System", left, doc.y, {
+        align: "center",
+        width: contentW,
+      });
+    if (receipt.shopPhone)
+      doc.fontSize(9).text(String(receipt.shopPhone || ""), left, doc.y, {
+        align: "center",
+        width: contentW,
+      });
 
     doc.end();
   } catch (err) {
