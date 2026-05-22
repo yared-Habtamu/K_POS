@@ -52,22 +52,37 @@ router.post("/register", async (req, res) => {
 
     const duplicateMessages = [];
 
-    const [
-      existingOwnerName,
-      existingPhoneInUsers,
-      existingPhoneInMarts,
-      existingMartName,
-      existingEmail,
-    ] = await Promise.all([
-      userRepository.findOne({ name: { equals: normalizedOwnerName, mode: 'insensitive' } }),
-      normalizedOwnerPhone ? userRepository.findOne({ phone: normalizedOwnerPhone }) : null,
-      normalizedOwnerPhone ? martRepository.findOne({ phone: normalizedOwnerPhone }) : null,
-      martRepository.findOne({ martName: { equals: normalizedMartName, mode: 'insensitive' } }),
-      normalizedEmail ? martRepository.findOne({ email: { equals: normalizedEmail, mode: 'insensitive' } }) : null,
-    ]);
+    // For case-insensitive comparison, use raw Prisma query with search
+    // Since Prisma doesn't support { equals: value, mode: 'insensitive' } in where clauses,
+    // we search by fetching multiple records and filtering manually
+    const allUsers = await userRepository.findMany({
+      select: { id: true, name: true, email: true },
+    });
+    const allMarts = await martRepository.findMany({});
+
+    const existingOwnerName = allUsers.find(
+      (u) =>
+        u.name && u.name.toLowerCase() === normalizedOwnerName.toLowerCase(),
+    );
+    const existingMartName = allMarts.find(
+      (m) =>
+        m.martName &&
+        m.martName.toLowerCase() === normalizedMartName.toLowerCase(),
+    );
+    const existingEmail = allMarts.find(
+      (m) => m.email && m.email.toLowerCase() === normalizedEmail.toLowerCase(),
+    );
+
+    const existingPhoneInUsers = normalizedOwnerPhone
+      ? await userRepository.findOne({ phone: normalizedOwnerPhone })
+      : null;
+    const existingPhoneInMarts = normalizedOwnerPhone
+      ? await martRepository.findOne({ phone: normalizedOwnerPhone })
+      : null;
 
     if (existingOwnerName) duplicateMessages.push("Owner Name already exists");
-    if (existingPhoneInUsers || existingPhoneInMarts) duplicateMessages.push("Phone already exists");
+    if (existingPhoneInUsers || existingPhoneInMarts)
+      duplicateMessages.push("Phone already exists");
     if (existingMartName) duplicateMessages.push("Mart Name already exists");
     if (existingEmail) duplicateMessages.push("Email already exists");
 
@@ -218,25 +233,39 @@ router.post("/admin-register", authenticate, async (req, res) => {
     }
 
     const duplicateMessages = [];
-    const [
-      existingOwnerName,
-      existingUsername,
-      existingPhoneInUsers,
-      existingPhoneInMarts,
-      existingMartName,
-      existingEmail,
-    ] = await Promise.all([
-      userRepository.findOne({ name: { equals: normalizedOwnerName, mode: 'insensitive' } }),
-      userRepository.findByUsername(normalizedUsername),
-      normalizedOwnerPhone ? userRepository.findOne({ phone: normalizedOwnerPhone }) : null,
-      normalizedOwnerPhone ? martRepository.findOne({ phone: normalizedOwnerPhone }) : null,
-      martRepository.findOne({ martName: { equals: normalizedMartName, mode: 'insensitive' } }),
-      normalizedEmail ? martRepository.findOne({ email: { equals: normalizedEmail, mode: 'insensitive' } }) : null,
-    ]);
+
+    // For case-insensitive comparison, fetch records and filter manually
+    const allUsers = await userRepository.findMany({
+      select: { id: true, name: true, email: true },
+    });
+    const allMarts = await martRepository.findMany({});
+
+    const existingOwnerName = allUsers.find(
+      (u) =>
+        u.name && u.name.toLowerCase() === normalizedOwnerName.toLowerCase(),
+    );
+    const existingMartName = allMarts.find(
+      (m) =>
+        m.martName &&
+        m.martName.toLowerCase() === normalizedMartName.toLowerCase(),
+    );
+    const existingEmail = allMarts.find(
+      (m) => m.email && m.email.toLowerCase() === normalizedEmail.toLowerCase(),
+    );
+
+    const existingUsername =
+      await userRepository.findByUsername(normalizedUsername);
+    const existingPhoneInUsers = normalizedOwnerPhone
+      ? await userRepository.findOne({ phone: normalizedOwnerPhone })
+      : null;
+    const existingPhoneInMarts = normalizedOwnerPhone
+      ? await martRepository.findOne({ phone: normalizedOwnerPhone })
+      : null;
 
     if (existingOwnerName) duplicateMessages.push("Owner Name already exists");
     if (existingUsername) duplicateMessages.push("Username already exists");
-    if (existingPhoneInUsers || existingPhoneInMarts) duplicateMessages.push("Phone already exists");
+    if (existingPhoneInUsers || existingPhoneInMarts)
+      duplicateMessages.push("Phone already exists");
     if (existingMartName) duplicateMessages.push("Mart Name already exists");
     if (existingEmail) duplicateMessages.push("Email already exists");
 
@@ -300,11 +329,13 @@ router.get("/pending", authenticate, async (req, res) => {
     if (req.user.role !== "systemAdmin")
       return res.status(403).json({ message: "Insufficient permissions" });
     const list = await martRepository.findMany(
-      { status: "pending" }, 
-      { 
-        include: { owner: { select: { name: true, username: true, phone: true } } },
-        orderBy: { createdAt: "desc" }
-      }
+      { status: "pending" },
+      {
+        include: {
+          owner: { select: { name: true, username: true, phone: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      },
     );
     res.json(list);
   } catch (err) {
@@ -365,7 +396,11 @@ router.put("/:id/disable", authenticate, async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const mart = await martRepository.findById(id, { include: { owner: { select: { name: true, username: true, phone: true } } } });
+    const mart = await martRepository.findById(id, {
+      include: {
+        owner: { select: { name: true, username: true, phone: true } },
+      },
+    });
     if (!mart) return res.status(404).json({ message: "Mart not found" });
     res.json(mart);
   } catch (err) {
@@ -431,14 +466,13 @@ router.get("/", async (req, res) => {
     // By default exclude soft-deleted marts. Client can request deleted records
     // via `?includeDeleted=true` when intentional.
     if (req.query.includeDeleted !== "true") filter.isDeleted = false;
-    
-    const list = await martRepository.findMany(
-      filter, 
-      { 
-        include: { owner: { select: { name: true, username: true, phone: true } } },
-        orderBy: { createdAt: "desc" }
-      }
-    );
+
+    const list = await martRepository.findMany(filter, {
+      include: {
+        owner: { select: { name: true, username: true, phone: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
     res.json(list);
   } catch (err) {
     console.error(err);
@@ -459,26 +493,41 @@ router.delete("/:id", authenticate, async (req, res) => {
     try {
       // First, delete all related data based on martId
       const modelFiles = [
-        "Asset", "AssetActionRequest", "Attendance", "Category", "Customer",
-        "DailyReport", "Expense", "ExpenseActionRequest", "ExpenseCategory",
-        "Notification", "PaymentType", "Product", "ProductAddRequest",
-        "ProductEditRequest", "Sale", "StockTransferRequest", "User"
+        "Asset",
+        "AssetActionRequest",
+        "Attendance",
+        "Category",
+        "Customer",
+        "DailyReport",
+        "Expense",
+        "ExpenseActionRequest",
+        "ExpenseCategory",
+        "Notification",
+        "PaymentType",
+        "Product",
+        "ProductAddRequest",
+        "ProductEditRequest",
+        "Sale",
+        "StockTransferRequest",
+        "User",
       ];
-      
+
       await prisma.$transaction(async (tx) => {
-         for (const modelName of modelFiles) {
-            const clientProp = modelName.charAt(0).toLowerCase() + modelName.slice(1);
-            if (tx[clientProp]) {
-               await tx[clientProp].deleteMany({ where: { martId: mart.id } });
-            }
-         }
-         await tx.mart.delete({ where: { id: mart.id } });
+        for (const modelName of modelFiles) {
+          const clientProp =
+            modelName.charAt(0).toLowerCase() + modelName.slice(1);
+          if (tx[clientProp]) {
+            await tx[clientProp].deleteMany({ where: { martId: mart.id } });
+          }
+        }
+        await tx.mart.delete({ where: { id: mart.id } });
       });
       console.log(`Deleted all users and related records for mart ${mart.id}`);
-      
     } catch (e) {
       console.error("Failed to delete related data during mart deletion", e);
-      return res.status(500).json({ message: "Failed to delete related records" });
+      return res
+        .status(500)
+        .json({ message: "Failed to delete related records" });
     }
 
     res.json({ message: "Mart permanently deleted" });

@@ -62,11 +62,9 @@ router.get("/", authenticate, async (req, res) => {
       } else if (isOwner(user)) {
         where.OR = [{ approvalRole: "owner" }, { requesterId: user.id }];
       } else {
-        return res
-          .status(403)
-          .json({
-            message: "Only managers and owners can view asset approvals",
-          });
+        return res.status(403).json({
+          message: "Only managers and owners can view asset approvals",
+        });
       }
     }
 
@@ -94,7 +92,7 @@ router.put("/:id/approve", authenticate, async (req, res) => {
     const user = req.user;
     const { id } = req.params;
 
-    const reqDoc = await AssetActionRequest.findById(id);
+    const reqDoc = await assetActionRequestRepository.findById(id);
     if (!reqDoc) return res.status(404).json({ message: "Request not found" });
     if (reqDoc.status !== "pending") {
       return res.status(400).json({ message: "Request already processed" });
@@ -248,7 +246,7 @@ router.put("/:id/reject", authenticate, async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body || {};
 
-    const reqDoc = await AssetActionRequest.findById(id);
+    const reqDoc = await assetActionRequestRepository.findById(id);
     if (!reqDoc) return res.status(404).json({ message: "Request not found" });
     if (reqDoc.status !== "pending") {
       return res.status(400).json({ message: "Request already processed" });

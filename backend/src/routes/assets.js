@@ -1,7 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const assetRepository = require("../repositories/assetRepository");
-const { assetActionRequestRepository } = require("../repositories/requestRepositories");
+const {
+  assetActionRequestRepository,
+} = require("../repositories/requestRepositories");
 const userRepository = require("../repositories/userRepository");
 const { authenticate } = require("../middleware/auth");
 const multer = require("multer");
@@ -17,7 +19,7 @@ const upload = multer({
 async function generateAssetId(martId) {
   const lastAsset = await assetRepository.findOne(
     { martId, NOT: { assetId: null } },
-    { orderBy: { createdAt: "desc" }, select: { assetId: true } }
+    { orderBy: { createdAt: "desc" }, select: { assetId: true } },
   );
 
   let nextNum = 1;
@@ -41,22 +43,22 @@ function isManager(user) {
 async function getMartManagers(martId) {
   if (!martId) return [];
   return userRepository.findMany(
-    { 
-      martId, 
-      role: { equals: "manager", mode: "insensitive" } 
+    {
+      martId,
+      role: "manager",
     },
-    { select: { id: true, username: true, name: true } }
+    { select: { id: true, username: true, name: true } },
   );
 }
 
 async function getMartOwners(martId) {
   if (!martId) return [];
   return userRepository.findMany(
-    { 
-      martId, 
-      role: { equals: "owner", mode: "insensitive" } 
+    {
+      martId,
+      role: "owner",
     },
-    { select: { id: true, username: true, name: true } }
+    { select: { id: true, username: true, name: true } },
   );
 }
 
@@ -141,7 +143,9 @@ router.get("/", authenticate, async (req, res) => {
           .status(403)
           .json({ message: "Cannot list assets for another mart" });
     }
-    const list = await assetRepository.findMany(filter, { orderBy: { createdAt: "desc" } });
+    const list = await assetRepository.findMany(filter, {
+      orderBy: { createdAt: "desc" },
+    });
     res.json(list);
   } catch (err) {
     console.error(err);
@@ -246,8 +250,14 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
     });
     res.status(201).json(asset);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+    console.error("Asset creation error:", err);
+    console.error("Error details:", {
+      message: err.message,
+      code: err.code,
+      meta: err.meta,
+      stack: err.stack,
+    });
+    res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 
@@ -300,7 +310,8 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
     if (name != null) changes.name = name;
     if (assetId != null) changes.assetId = assetId;
     if (sizeOrType != null) changes.sizeOrType = sizeOrType;
-    if (purchaseDate != null) changes.purchaseDate = purchaseDate ? new Date(purchaseDate) : null;
+    if (purchaseDate != null)
+      changes.purchaseDate = purchaseDate ? new Date(purchaseDate) : null;
     if (status != null) changes.status = status;
     if (asset_status != null || conditions != null) {
       changes.asset_status = deriveAssetStatus(asset_status, conditions);
