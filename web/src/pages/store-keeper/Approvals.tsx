@@ -249,6 +249,22 @@ export default function StoreKeeperApprovals() {
                       const id = String(request._id || request.id || "");
                       const isPending = request.status === "pending";
                       let productLabel = "-";
+                      // if (
+                      //   typeof request.productId === "object" &&
+                      //   request.productId !== null &&
+                      //   "name" in request.productId
+                      // ) {
+                      //   productLabel = String(request.productId.name || "-");
+                      // } else {
+                      //   const pid = String(
+                      //     request.productId || request.product || "",
+                      //   );
+                      //   const found = products.find(
+                      //     (p) => p.id === pid || (p as any)._id === pid,
+                      //   );
+                      //   productLabel = found?.name || pid || "-";
+                      // }
+                      // ...existing code...
                       if (
                         typeof request.productId === "object" &&
                         request.productId !== null &&
@@ -256,9 +272,16 @@ export default function StoreKeeperApprovals() {
                       ) {
                         productLabel = String(request.productId.name || "-");
                       } else {
-                        const pid = String(
-                          request.productId || request.product || "",
-                        );
+                        // normalize pid without referencing non-existent `request.product`
+                        const pid =
+                          typeof request.productId === "object" &&
+                          request.productId !== null
+                            ? String(
+                                (request.productId as any).id ??
+                                  (request.productId as any)._id ??
+                                  "",
+                              )
+                            : String(request.productId ?? "");
                         const found = products.find(
                           (p) => p.id === pid || (p as any)._id === pid,
                         );

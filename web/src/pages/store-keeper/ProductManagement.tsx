@@ -17,11 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useProductStore } from "@/stores/productStore";
-import {
-  Package,
-  Image as ImageIcon,
-  RotateCw,
-} from "lucide-react";
+import { Package, Image as ImageIcon, RotateCw } from "lucide-react";
 
 const ITEMS_PER_PAGE = 7;
 const defaultFilterValues: AdvancedFilterValues = {
@@ -34,17 +30,23 @@ const defaultFilterValues: AdvancedFilterValues = {
 export default function StoreKeeperProductManagement() {
   const { t } = useTranslation();
   const { products, categories, totalProducts } = useProductStore();
-  const [filterValues, setFilterValues] = useState<AdvancedFilterValues>(
-    defaultFilterValues,
-  );
+  const [filterValues, setFilterValues] =
+    useState<AdvancedFilterValues>(defaultFilterValues);
   const [currentPage, setCurrentPage] = useState(1);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterValues]);
 
   const refreshProducts = async (page = currentPage) => {
     setIsRefreshing(true);
     try {
       await useProductStore.getState().fetchCategories?.();
-      await (useProductStore.getState().fetchProducts?.(page, ITEMS_PER_PAGE) as Promise<void>);
+      await (useProductStore
+        .getState()
+        .fetchProducts?.(page, ITEMS_PER_PAGE) as Promise<void>);
     } catch {
       // ignore refresh failures; existing store data remains visible
     } finally {
@@ -65,11 +67,17 @@ export default function StoreKeeperProductManagement() {
       void refreshProducts(currentPage);
     };
 
-    window.addEventListener("stock-transfer-updated", handleStockTransferUpdated);
+    window.addEventListener(
+      "stock-transfer-updated",
+      handleStockTransferUpdated,
+    );
     window.addEventListener("focus", handleStockTransferUpdated);
 
     return () => {
-      window.removeEventListener("stock-transfer-updated", handleStockTransferUpdated);
+      window.removeEventListener(
+        "stock-transfer-updated",
+        handleStockTransferUpdated,
+      );
       window.removeEventListener("focus", handleStockTransferUpdated);
     };
   }, [currentPage]);
@@ -84,18 +92,32 @@ export default function StoreKeeperProductManagement() {
   );
 
   const filteredProducts = useMemo(() => {
-    const query = String(filterValues.query || "").trim().toLowerCase();
-    const category = String(filterValues.category || "").trim().toLowerCase();
+    const query = String(filterValues.query || "")
+      .trim()
+      .toLowerCase();
+    const category = String(filterValues.category || "")
+      .trim()
+      .toLowerCase();
     const stockStatus = String(filterValues.stockStatus || "").trim();
     const sortBy = String(filterValues.sortBy || "name_asc");
 
     const filtered = products.filter((product) => {
       const name = String(product.name || "").toLowerCase();
-      const barcode = String(product.barcode || product.barcodes?.[0] || "").toLowerCase();
-      const productCategory = String(product.category || "").trim().toLowerCase();
-      const martQty = Number(product.quantity ?? product.supermarketQuantity ?? 0);
+      const barcode = String(
+        product.barcode || product.barcodes?.[0] || "",
+      ).toLowerCase();
+      const productCategory = String(product.category || "")
+        .trim()
+        .toLowerCase();
+      const martQty = Number(
+        product.quantity ?? product.supermarketQuantity ?? 0,
+      );
 
-      const matchesQuery = !query || name.includes(query) || barcode.includes(query) || productCategory.includes(query);
+      const matchesQuery =
+        !query ||
+        name.includes(query) ||
+        barcode.includes(query) ||
+        productCategory.includes(query);
       const matchesCategory = !category || productCategory === category;
       const matchesStockStatus =
         !stockStatus ||
@@ -109,26 +131,61 @@ export default function StoreKeeperProductManagement() {
     return filtered.sort((left, right) => {
       switch (sortBy) {
         case "name_desc":
-          return String(right.name || "").localeCompare(String(left.name || ""));
+          return String(right.name || "").localeCompare(
+            String(left.name || ""),
+          );
         case "category_asc":
-          return String(left.category || "").localeCompare(String(right.category || ""));
+          return String(left.category || "").localeCompare(
+            String(right.category || ""),
+          );
         case "price_asc":
-          return Number(left.sellingPrice || 0) - Number(right.sellingPrice || 0);
+          return (
+            Number(left.sellingPrice || 0) - Number(right.sellingPrice || 0)
+          );
         case "price_desc":
-          return Number(right.sellingPrice || 0) - Number(left.sellingPrice || 0);
+          return (
+            Number(right.sellingPrice || 0) - Number(left.sellingPrice || 0)
+          );
         case "stock_asc":
-          return Number(left.quantity ?? left.supermarketQuantity ?? 0) - Number(right.quantity ?? right.supermarketQuantity ?? 0);
+          return (
+            Number(left.quantity ?? left.supermarketQuantity ?? 0) -
+            Number(right.quantity ?? right.supermarketQuantity ?? 0)
+          );
         case "stock_desc":
-          return Number(right.quantity ?? right.supermarketQuantity ?? 0) - Number(left.quantity ?? left.supermarketQuantity ?? 0);
+          return (
+            Number(right.quantity ?? right.supermarketQuantity ?? 0) -
+            Number(left.quantity ?? left.supermarketQuantity ?? 0)
+          );
         case "name_asc":
         default:
-          return String(left.name || "").localeCompare(String(right.name || ""));
+          return String(left.name || "").localeCompare(
+            String(right.name || ""),
+          );
       }
     });
   }, [categories, filterValues, products]);
 
-  const totalPages = Math.max(1, Math.ceil((totalProducts || filteredProducts.length) / ITEMS_PER_PAGE));
+  const isFiltering = Boolean(
+    String(filterValues.query || "").trim() ||
+    String(filterValues.category || "").trim() ||
+    String(filterValues.stockStatus || "").trim(),
+  );
+
+  const totalCount = isFiltering
+    ? filteredProducts.length
+    : totalProducts || filteredProducts.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / ITEMS_PER_PAGE));
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+
+  // clamp current page if totalPages decreased
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totalPages]);
+
+  const paginatedProducts = isFiltering
+    ? filteredProducts.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+    : products;
 
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
@@ -142,7 +199,9 @@ export default function StoreKeeperProductManagement() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold">{t("products")}</h1>
-            <p className="text-muted-foreground">View product inventory without edit actions.</p>
+            <p className="text-muted-foreground">
+              View product inventory without edit actions.
+            </p>
           </div>
 
           <Button
@@ -153,7 +212,9 @@ export default function StoreKeeperProductManagement() {
             aria-label="Refresh products"
             title="Refresh products"
           >
-            <RotateCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            <RotateCw
+              className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+            />
           </Button>
         </div>
 
@@ -213,7 +274,9 @@ export default function StoreKeeperProductManagement() {
               <Package className="h-5 w-5" />
               {t("products")}
               <Badge variant="secondary" className="ml-2">
-                {filteredProducts.length}
+                {isFiltering
+                  ? filteredProducts.length
+                  : totalProducts || filteredProducts.length}
               </Badge>
             </CardTitle>
           </CardHeader>
@@ -226,14 +289,18 @@ export default function StoreKeeperProductManagement() {
                     <TableHead className="w-12">{t("image")}</TableHead>
                     <TableHead>{t("product_name")}</TableHead>
                     <TableHead>{t("category")}</TableHead>
-                    <TableHead className="text-right">{t("selling_price")}</TableHead>
+                    <TableHead className="text-right">
+                      {t("selling_price")}
+                    </TableHead>
                     <TableHead className="text-right">{t("stock")}</TableHead>
-                    <TableHead className="text-right">{t("mart_qty")}</TableHead>
+                    <TableHead className="text-right">
+                      {t("mart_qty")}
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredProducts.length > 0 ? (
-                    filteredProducts.map((product, index) => (
+                  {paginatedProducts.length > 0 ? (
+                    paginatedProducts.map((product, index) => (
                       <TableRow key={product.id}>
                         <TableCell className="text-center text-muted-foreground">
                           {startIndex + index + 1}
@@ -251,11 +318,15 @@ export default function StoreKeeperProductManagement() {
                             </div>
                           )}
                         </TableCell>
-                        <TableCell className="font-medium">{product.name}</TableCell>
+                        <TableCell className="font-medium">
+                          {product.name}
+                        </TableCell>
                         <TableCell>
                           <Badge variant="outline">{product.category}</Badge>
                         </TableCell>
-                        <TableCell className="text-right">{product.sellingPrice} ETB</TableCell>
+                        <TableCell className="text-right">
+                          {product.sellingPrice} ETB
+                        </TableCell>
                         <TableCell className="text-right">
                           <Badge variant="secondary">
                             {Number(product.storeQuantity ?? 0)} {product.unit}
@@ -263,10 +334,22 @@ export default function StoreKeeperProductManagement() {
                         </TableCell>
                         <TableCell className="text-right">
                           {(() => {
-                            const martQty = Number(product.quantity ?? product.supermarketQuantity ?? 0);
-                            const lowThreshold = Number(product.lowStockThreshold || 0);
+                            const martQty = Number(
+                              product.quantity ??
+                                product.supermarketQuantity ??
+                                0,
+                            );
+                            const lowThreshold = Number(
+                              product.lowStockThreshold || 0,
+                            );
                             return (
-                              <Badge variant={martQty <= lowThreshold ? "destructive" : "secondary"}>
+                              <Badge
+                                variant={
+                                  martQty <= lowThreshold
+                                    ? "destructive"
+                                    : "secondary"
+                                }
+                              >
                                 {martQty} {product.unit}
                               </Badge>
                             );
@@ -276,8 +359,15 @@ export default function StoreKeeperProductManagement() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="py-4 text-center text-muted-foreground">
-                        {Object.values(filterValues).some((value) => Boolean(value)) ? "No products found" : "No products yet."}
+                      <TableCell
+                        colSpan={7}
+                        className="py-4 text-center text-muted-foreground"
+                      >
+                        {Object.values(filterValues).some((value) =>
+                          Boolean(value),
+                        )
+                          ? "No products found"
+                          : "No products yet."}
                       </TableCell>
                     </TableRow>
                   )}
@@ -287,15 +377,30 @@ export default function StoreKeeperProductManagement() {
 
             <div className="flex flex-col items-center justify-between gap-3 border-t border-border px-2 py-3 sm:flex-row">
               <div className="text-xs text-muted-foreground">
-                Showing <span className="font-medium">{filteredProducts.length ? startIndex + 1 : 0}</span>–
-                <span className="font-medium">{startIndex + filteredProducts.length}</span> of <span className="font-medium">{totalProducts || filteredProducts.length}</span> products
+                Showing{" "}
+                <span className="font-medium">
+                  {paginatedProducts.length ? startIndex + 1 : 0}
+                </span>
+                –
+                <span className="font-medium">
+                  {startIndex + paginatedProducts.length}
+                </span>{" "}
+                of <span className="font-medium">{totalCount}</span> products
               </div>
 
               <div className="flex items-center gap-1">
-                <Button variant="outline" size="sm" onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => goToPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
                   Prev
                 </Button>
-                {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+                {Array.from(
+                  { length: totalPages },
+                  (_, index) => index + 1,
+                ).map((page) => (
                   <Button
                     key={page}
                     variant={currentPage === page ? "default" : "outline"}
@@ -306,7 +411,12 @@ export default function StoreKeeperProductManagement() {
                     {page}
                   </Button>
                 ))}
-                <Button variant="outline" size="sm" onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => goToPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                >
                   Next
                 </Button>
               </div>
