@@ -154,20 +154,26 @@ export default function BarcodeManagement() {
     const newBarcode = await generateUniqueBarcode(async (code) =>
       getProductByBarcode(code) || null,
     );
-    const existingBarcodes = Array.isArray((product as any).barcodes)
-      ? (product as any).barcodes.map(String).filter(Boolean)
-      : [];
-    const mergedBarcodes = Array.from(new Set([newBarcode, ...existingBarcodes]));
-    await updateProduct(product.id, { barcodes: mergedBarcodes });
-    setSelectedProduct({
-      ...product,
-      barcode: newBarcode,
-      barcodes: mergedBarcodes,
-    });
-    toast({
-      title: t("barcode_generated"),
-      description: `${t("new_barcode")}: ${newBarcode}`,
-    });
+    const single = [String(newBarcode)];
+    try {
+      await updateProduct(product.id, { barcodes: single });
+      setSelectedProduct({
+        ...product,
+        barcode: newBarcode,
+        barcodes: single,
+      });
+      toast({
+        title: t("barcode_generated"),
+        description: `${t("new_barcode")}: ${newBarcode}`,
+      });
+    } catch (err: any) {
+      console.error("generateBarcode error", err);
+      toast({
+        title: t("update_failed"),
+        description: err?.message || String(err) || t("please_try_again"),
+        variant: "destructive",
+      });
+    }
   };
 
   const handlePrint = () => {
