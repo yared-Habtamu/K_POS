@@ -13,10 +13,7 @@ import {
   AdvancedFilters,
   type AdvancedFilterValues,
 } from "@/components/ui/AdvancedFilters";
-import {
-  DataTable,
-  type DataTableColumn,
-} from "@/components/ui/DataTable";
+import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import { toast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/stores/authStore";
 import { useProductStore } from "@/stores/productStore";
@@ -56,7 +53,10 @@ function getPrimaryBarcode(product: Product) {
 
 function getRemainingQuantity(product: Product) {
   return Number(
-    product.quantity ?? product.supermarketQuantity ?? product.storeQuantity ?? 0,
+    product.quantity ??
+      product.supermarketQuantity ??
+      product.storeQuantity ??
+      0,
   );
 }
 
@@ -103,10 +103,12 @@ export default function StockManagement() {
       }
     })();
   }, [fetchProducts]);
-  const [filterValues, setFilterValues] = useState<AdvancedFilterValues>(defaultFilterValues);
+  const [filterValues, setFilterValues] =
+    useState<AdvancedFilterValues>(defaultFilterValues);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [addQuantity, setAddQuantity] = useState("");
-  const [transferType, setTransferType] = useState<TransferType>("store_to_mart");
+  const [transferType, setTransferType] =
+    useState<TransferType>("store_to_mart");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [barcodeEditOpen, setBarcodeEditOpen] = useState(false);
   const [barcodeValue, setBarcodeValue] = useState("");
@@ -133,15 +135,21 @@ export default function StockManagement() {
   }, [products]);
 
   const filteredProducts = useMemo(() => {
-    const query = String(filterValues.query || "").trim().toLowerCase();
-    const category = String(filterValues.category || "").trim().toLowerCase();
+    const query = String(filterValues.query || "")
+      .trim()
+      .toLowerCase();
+    const category = String(filterValues.category || "")
+      .trim()
+      .toLowerCase();
     const stockStatus = String(filterValues.stockStatus || "").trim();
     const sortBy = String(filterValues.sortBy || "name_asc");
 
     const filtered = products.filter((product) => {
       const name = String(product.name || "").toLowerCase();
       const barcode = getPrimaryBarcode(product).toLowerCase();
-      const productCategory = String(product.category || "").trim().toLowerCase();
+      const productCategory = String(product.category || "")
+        .trim()
+        .toLowerCase();
       const warehouseQuantity = getWarehouseQuantity(product);
       const martQuantity = getMartQuantity(product);
 
@@ -154,7 +162,9 @@ export default function StockManagement() {
       const matchesStockStatus =
         !stockStatus ||
         (stockStatus === "in_stock" && martQuantity > 10) ||
-        (stockStatus === "low_stock" && martQuantity > 0 && martQuantity <= 10) ||
+        (stockStatus === "low_stock" &&
+          martQuantity > 0 &&
+          martQuantity <= 10) ||
         (stockStatus === "out_of_stock" && martQuantity <= 0) ||
         (stockStatus === "warehouse_empty" && warehouseQuantity <= 0);
 
@@ -164,7 +174,9 @@ export default function StockManagement() {
     return filtered.sort((left, right) => {
       switch (sortBy) {
         case "name_desc":
-          return String(right.name || "").localeCompare(String(left.name || ""));
+          return String(right.name || "").localeCompare(
+            String(left.name || ""),
+          );
         case "stock_asc":
           return getRemainingQuantity(left) - getRemainingQuantity(right);
         case "stock_desc":
@@ -175,7 +187,9 @@ export default function StockManagement() {
           return getMartQuantity(right) - getMartQuantity(left);
         case "name_asc":
         default:
-          return String(left.name || "").localeCompare(String(right.name || ""));
+          return String(left.name || "").localeCompare(
+            String(right.name || ""),
+          );
       }
     });
   }, [filterValues, products]);
@@ -192,14 +206,19 @@ export default function StockManagement() {
     try {
       // Pre-submit: fetch latest product quantities to avoid submitting stale data
       try {
-        const latestRes = await fetch(`${API_BASE}/api/products/${selectedProduct.id}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        });
+        const latestRes = await fetch(
+          `${API_BASE}/api/products/${selectedProduct.id}`,
+          {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          },
+        );
         if (latestRes.ok) {
           const latest = await latestRes.json().catch(() => null);
           if (latest) {
             const latestStore = Number(latest.storeQuantity ?? 0);
-            const latestMart = Number(latest.supermarketQuantity ?? latest.quantity ?? 0);
+            const latestMart = Number(
+              latest.supermarketQuantity ?? latest.quantity ?? 0,
+            );
             if (transferType === "mart_to_store" && latestMart < qty) {
               throw new Error("Not enough stock in mart to transfer");
             }
@@ -210,8 +229,15 @@ export default function StockManagement() {
         }
       } catch (preErr) {
         // If pre-check fails with an explicit error, show it and abort submission
-        if (preErr instanceof Error && /Not enough stock/.test(preErr.message)) {
-          toast({ title: t("could_not_submit_transfer"), description: preErr.message, variant: "destructive" });
+        if (
+          preErr instanceof Error &&
+          /Not enough stock/.test(preErr.message)
+        ) {
+          toast({
+            title: t("could_not_submit_transfer"),
+            description: preErr.message,
+            variant: "destructive",
+          });
           return;
         }
         // otherwise ignore pre-check errors and continue to server submit
@@ -249,13 +275,15 @@ export default function StockManagement() {
       }
       try {
         await fetchProducts?.();
-        window.dispatchEvent(new CustomEvent("stock-transfer-updated", {
-          detail: {
-            productId: selectedProduct.id,
-            quantity: qty,
-            status: res.status,
-          },
-        }));
+        window.dispatchEvent(
+          new CustomEvent("stock-transfer-updated", {
+            detail: {
+              productId: selectedProduct.id,
+              quantity: qty,
+              status: res.status,
+            },
+          }),
+        );
       } catch {
         // ignore refresh errors after successful transfer submission
       }
@@ -296,27 +324,38 @@ export default function StockManagement() {
       : product.barcode
         ? [product.barcode]
         : [];
-    setBarcodesArray(existing);
+    setBarcodesArray(existing.length > 0 ? [String(existing[0])] : []);
     setBarcodeInput("");
     setBarcodeEditOpen(true);
   };
 
   const handleGenerateBarcode = async () => {
     if (!selectedProduct) return;
+    if (barcodesArray.length > 0) {
+      toast({
+        title: t("only_one_barcode_allowed"),
+        description: "Delete the current barcode first to set a new one.",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsGenerating(true);
     try {
       const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
       const findProductByBarcode = async (code: string) => {
-        const res = await fetch(`${API_BASE}/api/products/by-barcode/${encodeURIComponent(code)}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        });
+        const res = await fetch(
+          `${API_BASE}/api/products/by-barcode/${encodeURIComponent(code)}`,
+          {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          },
+        );
         if (res.status === 404) return null;
         if (!res.ok) throw new Error("Failed to check barcode");
         return await res.json();
       };
-      
+
       const b = await generateUniqueBarcode(findProductByBarcode);
-      setBarcodesArray((prev) => [...prev, b]);
+      setBarcodesArray([b]);
       setBarcodeInput("");
     } catch (e) {
       toast({ title: t("failed_generate_barcode"), variant: "destructive" });
@@ -327,14 +366,29 @@ export default function StockManagement() {
 
   const handleSaveBarcodes = async () => {
     const finalBarcodes = Array.from(
-      new Set(
-        [...barcodesArray, barcodeInput.trim()].filter(Boolean)
-      )
+      new Set([...barcodesArray, barcodeInput.trim()].filter(Boolean)),
     );
 
+    if (finalBarcodes.length > 1) {
+      toast({
+        title: t("only_one_barcode_allowed"),
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
-      await updateProduct(selectedProduct.id, { barcodes: finalBarcodes });
-      toast({ title: t("barcodes_updated") });
+      const result = await updateProduct(selectedProduct.id, {
+        barcodes: finalBarcodes,
+      });
+      if (result?.status === 202) {
+        toast({
+          title: "Sent for approval",
+          description: t("changes_apply_after_approval"),
+        });
+      } else {
+        toast({ title: t("barcodes_updated") });
+      }
       setBarcodeEditOpen(false);
       setSelectedProduct(null);
       setBarcodeInput("");
@@ -379,7 +433,9 @@ export default function StockManagement() {
       key: "category",
       header: t("category"),
       accessor: (product) => product.category,
-      cell: (product) => <Badge variant="outline">{product.category || "-"}</Badge>,
+      cell: (product) => (
+        <Badge variant="outline">{product.category || "-"}</Badge>
+      ),
       searchable: true,
     },
     ...(isOwner
@@ -388,7 +444,8 @@ export default function StockManagement() {
             key: "purchasePrice",
             header: t("purchase_price"),
             accessor: (product: Product) => Number(product.purchasePrice || 0),
-            cell: (product: Product) => `${Number(product.purchasePrice || 0).toLocaleString()} ETB`,
+            cell: (product: Product) =>
+              `${Number(product.purchasePrice || 0).toLocaleString()} ETB`,
           } satisfies DataTableColumn<Product>,
         ]
       : []),
@@ -396,14 +453,19 @@ export default function StockManagement() {
       key: "sellingPrice",
       header: t("selling_price"),
       accessor: (product) => Number(product.sellingPrice || 0),
-      cell: (product) => `${Number(product.sellingPrice || 0).toLocaleString()} ETB`,
+      cell: (product) =>
+        `${Number(product.sellingPrice || 0).toLocaleString()} ETB`,
     },
     {
       key: "stock",
       header: t("stock"),
       accessor: (product) => getWarehouseQuantity(product),
       cell: (product) => (
-        <Badge variant={getWarehouseQuantity(product) > 0 ? "secondary" : "destructive"}>
+        <Badge
+          variant={
+            getWarehouseQuantity(product) > 0 ? "secondary" : "destructive"
+          }
+        >
           {getWarehouseQuantity(product)} pcs
         </Badge>
       ),
@@ -413,7 +475,9 @@ export default function StockManagement() {
       header: "Mart Qty",
       accessor: (product) => getMartQuantity(product),
       cell: (product) => (
-        <Badge variant={getMartQuantity(product) > 0 ? "secondary" : "destructive"}>
+        <Badge
+          variant={getMartQuantity(product) > 0 ? "secondary" : "destructive"}
+        >
           {getMartQuantity(product)} pcs
         </Badge>
       ),
@@ -494,7 +558,9 @@ export default function StockManagement() {
           }
           description={
             isAddStockPage
-              ? t("find_stock_transfers_by_name_barcode_category_and_sort_order")
+              ? t(
+                  "find_stock_transfers_by_name_barcode_category_and_sort_order",
+                )
               : t(
                   "find_products_by_name_barcode_category_stock_level_or_sort_order",
                 )
@@ -609,7 +675,9 @@ export default function StockManagement() {
               <Badge variant="secondary">{filteredProducts.length}</Badge>
             </div>
           }
-          description={isAddStockPage ? t("add_stock_subtitle") : t("inventory_subtitle")}
+          description={
+            isAddStockPage ? t("add_stock_subtitle") : t("inventory_subtitle")
+          }
           isLoading={isLoading}
           loadingMessage={t("loading_products")}
           emptyMessage={t("no_products_found")}
@@ -632,7 +700,8 @@ export default function StockManagement() {
                         ? [
                             {
                               label: t("transfer_to_store"),
-                              onSelect: () => openTransferToStoreDialog(product),
+                              onSelect: () =>
+                                openTransferToStoreDialog(product),
                               icon: ArrowRight,
                               disabled: !canTransfer,
                             },
@@ -662,168 +731,177 @@ export default function StockManagement() {
             setAddQuantity("");
             setTransferType("store_to_mart");
           }}
-          title={transferType === "mart_to_store" ? t("transfer_to_store") : t("add_stock")}
+          title={
+            transferType === "mart_to_store"
+              ? t("transfer_to_store")
+              : t("add_stock")
+          }
           size="lg"
           type="info"
         >
           {selectedProduct && (
             <div className="space-y-4">
-                {/* Product Info */}
-                <div className="flex items-center gap-4 p-4 rounded-xl bg-accent/50">
-                  {selectedProduct.pictureUrl ? (
-                    <img
-                      src={selectedProduct.pictureUrl}
-                      alt=""
-                      className="w-16 h-16 rounded-lg object-cover"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center">
-                      <Package className="w-8 h-8 text-muted-foreground" />
-                    </div>
-                  )}
-                  <div>
-                    <p className="font-medium">{selectedProduct.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedProduct.category}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline">
-                        <Barcode className="w-3 h-3 mr-1" />
-                        {getPrimaryBarcode(selectedProduct) || "No Barcode"}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Current Stock */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 rounded-xl bg-warning/10 border border-warning/20">
-                    <p className="text-sm text-muted-foreground flex items-center gap-1">
-                      <Warehouse className="w-4 h-4" />
-                      {t("warehouse_stock")}
-                    </p>
-                    <p className="text-2xl font-bold text-warning">
-                      {selectedProduct.storeQuantity}
-                    </p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-success/10 border border-success/20">
-                    <p className="text-sm text-muted-foreground flex items-center gap-1">
-                      <Store className="w-4 h-4" />
-                      {t("supermarket_stock")}
-                    </p>
-                    <p className="text-2xl font-bold text-success">
-                      {getMartQuantity(selectedProduct)}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Add Quantity */}
-                <div className="space-y-2">
-                  <Label htmlFor="addQty">
-                    {transferType === "mart_to_store"
-                      ? t("quantity_to_transfer_back")
-                      : t("quantity_to_transfer")}
-                  </Label>
-                  <Input
-                    id="addQty"
-                    type="number"
-                    placeholder={t("enter_quantity")}
-                    value={addQuantity}
-                    onChange={(e) => setAddQuantity(e.target.value)}
-                    max={
-                      transferType === "mart_to_store"
-                        ? getMartQuantity(selectedProduct)
-                        : selectedProduct.storeQuantity
-                    }
-                    min={1}
+              {/* Product Info */}
+              <div className="flex items-center gap-4 p-4 rounded-xl bg-accent/50">
+                {selectedProduct.pictureUrl ? (
+                  <img
+                    src={selectedProduct.pictureUrl}
+                    alt=""
+                    className="w-16 h-16 rounded-lg object-cover"
                   />
-                  {(transferType === "mart_to_store"
-                    ? getMartQuantity(selectedProduct)
-                    : selectedProduct.storeQuantity) > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      {t("max_available")}: {transferType === "mart_to_store"
-                        ? getMartQuantity(selectedProduct)
-                        : selectedProduct.storeQuantity}{" "}
-                      {t("units")}
-                    </p>
-                  )}
-                </div>
-
-                {/* Preview */}
-                {addQuantity && parseInt(addQuantity) > 0 && (
-                  <div className="p-4 rounded-xl bg-accent border border-border">
-                    <p className="text-sm font-medium mb-2">
-                      {t("after_transfer")}
-                    </p>
-                    <div className="flex items-center justify-between text-sm">
-                      {transferType === "mart_to_store" ? (
-                        <>
-                          <span>
-                            {t("supermarket")}: {" "}
-                            {Math.max(
-                              0,
-                              getMartQuantity(selectedProduct) - parseInt(addQuantity),
-                            )}
-                          </span>
-                          <ArrowRight className="w-4 h-4" />
-                          <span>
-                            {t("warehouse")}: {" "}
-                            {selectedProduct.storeQuantity + parseInt(addQuantity)}
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span>
-                            {t("warehouse")}: {" "}
-                            {Math.max(
-                              0,
-                              selectedProduct.storeQuantity - parseInt(addQuantity),
-                            )}
-                          </span>
-                          <ArrowRight className="w-4 h-4" />
-                          <span>
-                            {t("supermarket")}: {" "}
-                            {getMartQuantity(selectedProduct) + parseInt(addQuantity)}
-                          </span>
-                        </>
-                      )}
-                    </div>
+                ) : (
+                  <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center">
+                    <Package className="w-8 h-8 text-muted-foreground" />
                   </div>
                 )}
-
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setIsDialogOpen(false);
-                      setSelectedProduct(null);
-                      setAddQuantity("");
-                      setTransferType("store_to_mart");
-                    }}
-                  >
-                    {t("cancel")}
-                  </Button>
-                  <Button
-                    onClick={handleAddStock}
-                    disabled={
-                      !addQuantity ||
-                      parseInt(addQuantity) <= 0 ||
-                      parseInt(addQuantity) >
-                        (transferType === "mart_to_store"
-                          ? getMartQuantity(selectedProduct)
-                          : selectedProduct.storeQuantity) ||
-                      (user &&
-                        user.role === "store_keeper" &&
-                        !(
-                          Array.isArray(user.permissions) &&
-                          user.permissions.includes("transferStock")
-                        ))
-                    }
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    {t("transfer_stock")}
-                  </Button>
+                <div>
+                  <p className="font-medium">{selectedProduct.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedProduct.category}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant="outline">
+                      <Barcode className="w-3 h-3 mr-1" />
+                      {getPrimaryBarcode(selectedProduct) || "No Barcode"}
+                    </Badge>
+                  </div>
                 </div>
+              </div>
+
+              {/* Current Stock */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-warning/10 border border-warning/20">
+                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                    <Warehouse className="w-4 h-4" />
+                    {t("warehouse_stock")}
+                  </p>
+                  <p className="text-2xl font-bold text-warning">
+                    {selectedProduct.storeQuantity}
+                  </p>
+                </div>
+                <div className="p-4 rounded-xl bg-success/10 border border-success/20">
+                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                    <Store className="w-4 h-4" />
+                    {t("supermarket_stock")}
+                  </p>
+                  <p className="text-2xl font-bold text-success">
+                    {getMartQuantity(selectedProduct)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Add Quantity */}
+              <div className="space-y-2">
+                <Label htmlFor="addQty">
+                  {transferType === "mart_to_store"
+                    ? t("quantity_to_transfer_back")
+                    : t("quantity_to_transfer")}
+                </Label>
+                <Input
+                  id="addQty"
+                  type="number"
+                  placeholder={t("enter_quantity")}
+                  value={addQuantity}
+                  onChange={(e) => setAddQuantity(e.target.value)}
+                  max={
+                    transferType === "mart_to_store"
+                      ? getMartQuantity(selectedProduct)
+                      : selectedProduct.storeQuantity
+                  }
+                  min={1}
+                />
+                {(transferType === "mart_to_store"
+                  ? getMartQuantity(selectedProduct)
+                  : selectedProduct.storeQuantity) > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {t("max_available")}:{" "}
+                    {transferType === "mart_to_store"
+                      ? getMartQuantity(selectedProduct)
+                      : selectedProduct.storeQuantity}{" "}
+                    {t("units")}
+                  </p>
+                )}
+              </div>
+
+              {/* Preview */}
+              {addQuantity && parseInt(addQuantity) > 0 && (
+                <div className="p-4 rounded-xl bg-accent border border-border">
+                  <p className="text-sm font-medium mb-2">
+                    {t("after_transfer")}
+                  </p>
+                  <div className="flex items-center justify-between text-sm">
+                    {transferType === "mart_to_store" ? (
+                      <>
+                        <span>
+                          {t("supermarket")}:{" "}
+                          {Math.max(
+                            0,
+                            getMartQuantity(selectedProduct) -
+                              parseInt(addQuantity),
+                          )}
+                        </span>
+                        <ArrowRight className="w-4 h-4" />
+                        <span>
+                          {t("warehouse")}:{" "}
+                          {selectedProduct.storeQuantity +
+                            parseInt(addQuantity)}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span>
+                          {t("warehouse")}:{" "}
+                          {Math.max(
+                            0,
+                            selectedProduct.storeQuantity -
+                              parseInt(addQuantity),
+                          )}
+                        </span>
+                        <ArrowRight className="w-4 h-4" />
+                        <span>
+                          {t("supermarket")}:{" "}
+                          {getMartQuantity(selectedProduct) +
+                            parseInt(addQuantity)}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsDialogOpen(false);
+                    setSelectedProduct(null);
+                    setAddQuantity("");
+                    setTransferType("store_to_mart");
+                  }}
+                >
+                  {t("cancel")}
+                </Button>
+                <Button
+                  onClick={handleAddStock}
+                  disabled={
+                    !addQuantity ||
+                    parseInt(addQuantity) <= 0 ||
+                    parseInt(addQuantity) >
+                      (transferType === "mart_to_store"
+                        ? getMartQuantity(selectedProduct)
+                        : selectedProduct.storeQuantity) ||
+                    (user &&
+                      user.role === "store_keeper" &&
+                      !(
+                        Array.isArray(user.permissions) &&
+                        user.permissions.includes("transferStock")
+                      ))
+                  }
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  {t("transfer_stock")}
+                </Button>
+              </div>
             </div>
           )}
         </Modal>
@@ -843,7 +921,9 @@ export default function StockManagement() {
             <div className="space-y-4">
               <div className="rounded-xl border bg-muted/30 p-4">
                 <p className="font-medium">{selectedProduct.name}</p>
-                <p className="text-sm text-muted-foreground">{selectedProduct.category}</p>
+                <p className="text-sm text-muted-foreground">
+                  {selectedProduct.category}
+                </p>
               </div>
 
               <div className="space-y-4">
@@ -859,9 +939,18 @@ export default function StockManagement() {
                         if (e.key === "Enter") {
                           e.preventDefault();
                           const val = barcodeInput.trim();
-                          if (val && !barcodesArray.includes(val)) {
-                            setBarcodesArray([...barcodesArray, val]);
+                          if (
+                            val &&
+                            !barcodesArray.includes(val) &&
+                            barcodesArray.length === 0
+                          ) {
+                            setBarcodesArray([val]);
                             setBarcodeInput("");
+                          } else if (val && barcodesArray.length > 0) {
+                            toast({
+                              title: t("only_one_barcode_allowed"),
+                              variant: "destructive",
+                            });
                           }
                         }
                       }}
@@ -881,9 +970,18 @@ export default function StockManagement() {
                       size="icon"
                       onClick={() => {
                         const val = barcodeInput.trim();
-                        if (val && !barcodesArray.includes(val)) {
-                          setBarcodesArray([...barcodesArray, val]);
+                        if (
+                          val &&
+                          !barcodesArray.includes(val) &&
+                          barcodesArray.length === 0
+                        ) {
+                          setBarcodesArray([val]);
                           setBarcodeInput("");
+                        } else if (val && barcodesArray.length > 0) {
+                          toast({
+                            title: t("only_one_barcode_allowed"),
+                            variant: "destructive",
+                          });
                         }
                       }}
                       title={t("add")}
@@ -936,7 +1034,9 @@ export default function StockManagement() {
                               size="icon"
                               className="h-6 w-6"
                               onClick={() => {
-                                setBarcodesArray(barcodesArray.filter((_, i) => i !== idx));
+                                setBarcodesArray(
+                                  barcodesArray.filter((_, i) => i !== idx),
+                                );
                               }}
                             >
                               <Trash2 className="h-3.5 w-3.5 text-destructive" />
@@ -973,7 +1073,10 @@ export default function StockManagement() {
                 >
                   {t("cancel")}
                 </Button>
-                <Button onClick={handleSaveBarcodes} className="bg-primary text-primary-foreground">
+                <Button
+                  onClick={handleSaveBarcodes}
+                  className="bg-primary text-primary-foreground"
+                >
                   <Pencil className="mr-2 h-4 w-4" />
                   {t("save_changes")}
                 </Button>
@@ -985,8 +1088,15 @@ export default function StockManagement() {
             <BarcodeScanner
               onScan={(code) => {
                 setBarcodesArray((prev) => {
+                  if (prev.length > 0 && !prev.includes(code)) {
+                    toast({
+                      title: t("only_one_barcode_allowed"),
+                      variant: "destructive",
+                    });
+                    return prev;
+                  }
                   if (prev.includes(code)) return prev;
-                  return [...prev, code];
+                  return [code];
                 });
                 setBarcodeInput(code);
                 setIsScannerOpen(false);

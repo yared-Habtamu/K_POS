@@ -637,7 +637,8 @@ const resources = {
 
       // Credit / Customer
       select_customer_for_credit: "Select customer for credit",
-      select_customer_for_credit_desc: "Select a customer to apply credit to this sale",
+      select_customer_for_credit_desc:
+        "Select a customer to apply credit to this sale",
       saved_accounts: "Saved Accounts",
       not_configured: "Not configured",
 
@@ -1311,7 +1312,6 @@ const resources = {
       copy: "ቅዳ",
       copied: "ተቀድቷል",
       in_stock: "በክምችት ውስጥ",
-      image: "ምስል",
       no_image: "ምስል የለም",
       today: "ዛሬ",
       overview: "አጠቃላይ እይታ",
@@ -1382,7 +1382,6 @@ const resources = {
       failed_download_pdf: "PDF ማውረድ አልተሳካም",
       download_pdf: "PDF አውርድ",
 
-
       // Product extended
       select_or_create_category: "ምድብ ይምረጡ ወይም ይፍጠሩ",
       select_or_create_unit: "አሃድ ይምረጡ ወይም ይፍጠሩ",
@@ -1424,11 +1423,9 @@ const resources = {
       remaining_high_to_low: "ቀሪ ከፍተኛ -> ዝቅተኛ",
       category_a_to_z: "ምድብ ሀ -> ፐ",
       all_categories: "ሁሉም ምድቦች",
-      all_stock_levels: "ሁሉም የክምችት ደረጃዎች",
       search_by_name_barcode_or_category: "በስም፣ ባርኮድ ወይም ምድብ ይፈልጉ",
       no_products_available: "ምንም ምርት አይገኝም",
       no_products_match_current_filters: "ከአሁኑ ማጣሪያ ጋር የሚዛመድ ምርት የለም",
-      search_and_filter_inventory: "ኢንቨንተሪን ፈልግ እና አጣራ",
 
       // Currency
       etb: "ብር",

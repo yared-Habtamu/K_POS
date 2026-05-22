@@ -157,7 +157,8 @@ export default function ManagerProductManagement() {
   const [printTargetBarcode, setPrintTargetBarcode] = useState("");
   const [isTableScannerOpen, setIsTableScannerOpen] = useState(false);
   const [isRowScannerOpen, setIsRowScannerOpen] = useState(false);
-  const [activeScannerProduct, setActiveScannerProduct] = useState<Product | null>(null);
+  const [activeScannerProduct, setActiveScannerProduct] =
+    useState<Product | null>(null);
   const [barcodeConflict, setBarcodeConflict] = useState<any>(null);
   const [barcodeConflictOpen, setBarcodeConflictOpen] = useState(false);
 
@@ -371,6 +372,19 @@ export default function ManagerProductManagement() {
     }
 
     const pendingBarcode = (form.barcodeInput || "").trim();
+    const mergedBarcodes = Array.from(
+      new Set(
+        [
+          ...(Array.isArray(form.barcodes) ? form.barcodes : []),
+          pendingBarcode,
+        ].filter(Boolean),
+      ),
+    );
+    if (mergedBarcodes.length > 1) {
+      toast({ title: t("only_one_barcode_allowed"), variant: "destructive" });
+      setIsLoading(false);
+      return;
+    }
     const productData = {
       name: form.name,
       category: form.category,
@@ -385,14 +399,7 @@ export default function ManagerProductManagement() {
       supermarketQuantity: parseInt(form.quantity),
       lowStockThreshold: parseInt(form.lowStockThreshold),
       expiryDate: form.expiryDate ? new Date(form.expiryDate) : undefined,
-      barcodes: Array.from(
-        new Set(
-          [
-            ...(Array.isArray(form.barcodes) ? form.barcodes : []),
-            pendingBarcode,
-          ].filter(Boolean),
-        ),
-      ),
+      barcodes: mergedBarcodes,
       shopId: "shop-001",
     };
 
@@ -431,6 +438,13 @@ export default function ManagerProductManagement() {
   const generateBarcode = () => {
     void (async () => {
       try {
+        if ((Array.isArray(form.barcodes) ? form.barcodes : []).length > 0) {
+          toast({
+            title: t("only_one_barcode_allowed"),
+            variant: "destructive",
+          });
+          return;
+        }
         const API_BASE = (import.meta as any).env.VITE_API_URL || "";
         const token = useAuthStore.getState().user?.token;
         const findProductByBarcode = async (code: string) => {
@@ -447,10 +461,10 @@ export default function ManagerProductManagement() {
           return await res.json();
         };
         const b = await generateUniqueBarcode(findProductByBarcode);
-        setForm((prev) => ({ 
-          ...prev, 
-          barcodes: [...(Array.isArray(prev.barcodes) ? prev.barcodes : []), b],
-          barcodeInput: "" 
+        setForm((prev) => ({
+          ...prev,
+          barcodes: [b],
+          barcodeInput: "",
         }));
       } catch (e) {
         console.error("generate barcode failed", e);
@@ -593,12 +607,10 @@ export default function ManagerProductManagement() {
                             await useProductStore
                               .getState()
                               .fetchCategories?.();
-                            const created = await res
-                              .json()
-                              .catch(() => ({
-                                name: q,
-                                _id: `cat-${Date.now()}`,
-                              }));
+                            const created = await res.json().catch(() => ({
+                              name: q,
+                              _id: `cat-${Date.now()}`,
+                            }));
                             return {
                               id: String(created._id || created.id || q),
                               label: q,
@@ -734,15 +746,20 @@ export default function ManagerProductManagement() {
                             const val = (form.barcodeInput || "").trim();
                             if (!val) return;
                             try {
-                              const API_BASE = (import.meta as any).env.VITE_API_URL || "";
+                              const API_BASE =
+                                (import.meta as any).env.VITE_API_URL || "";
                               const token = useAuthStore.getState().user?.token;
-                              const findProductByBarcode = async (code: string) => {
+                              const findProductByBarcode = async (
+                                code: string,
+                              ) => {
                                 const trimmed = (code || "").trim();
                                 if (!trimmed) return null;
                                 const res = await fetch(
                                   `${API_BASE}/api/products/by-barcode/${encodeURIComponent(trimmed)}`,
                                   {
-                                    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+                                    headers: token
+                                      ? { Authorization: `Bearer ${token}` }
+                                      : undefined,
                                   },
                                 );
                                 if (res.status === 404) return null;
@@ -767,9 +784,20 @@ export default function ManagerProductManagement() {
                                   const existing = Array.isArray(form.barcodes)
                                     ? form.barcodes.slice()
                                     : [];
+                                  if (
+                                    existing.length > 0 &&
+                                    !existing.includes(val)
+                                  ) {
+                                    toast({
+                                      title: t("only_one_barcode_allowed"),
+                                      variant: "destructive",
+                                    });
+                                    return;
+                                  }
                                   setForm({
                                     ...form,
-                                    barcodes: [...existing, val],
+                                    barcodes:
+                                      existing.length > 0 ? existing : [val],
                                     barcodeInput: "",
                                   });
                                   return;
@@ -790,9 +818,20 @@ export default function ManagerProductManagement() {
                               const existing = Array.isArray(form.barcodes)
                                 ? form.barcodes.slice()
                                 : [];
+                              if (
+                                existing.length > 0 &&
+                                !existing.includes(val)
+                              ) {
+                                toast({
+                                  title: t("only_one_barcode_allowed"),
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
                               setForm({
                                 ...form,
-                                barcodes: [...existing, val],
+                                barcodes:
+                                  existing.length > 0 ? existing : [val],
                                 barcodeInput: "",
                               });
                             } catch (e: any) {
@@ -832,31 +871,31 @@ export default function ManagerProductManagement() {
                             className="inline-flex items-center gap-2 px-2 py-1 rounded border"
                           >
                             <span className="font-mono text-sm">{b}</span>
-                          <div className="flex items-center">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              className="h-8 w-8 p-0"
-                              onClick={() => {
-                                setPrintTargetBarcode(b);
-                                setIsPrintDialogOpen(true);
-                              }}
-                            >
-                              <Printer className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              className="h-8 w-8 p-0 text-destructive"
-                              onClick={() => {
-                                const arr = (form.barcodes || []).slice();
-                                arr.splice(idx, 1);
-                                setForm({ ...form, barcodes: arr });
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                            <div className="flex items-center">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                className="h-8 w-8 p-0"
+                                onClick={() => {
+                                  setPrintTargetBarcode(b);
+                                  setIsPrintDialogOpen(true);
+                                }}
+                              >
+                                <Printer className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                className="h-8 w-8 p-0 text-destructive"
+                                onClick={() => {
+                                  const arr = (form.barcodes || []).slice();
+                                  arr.splice(idx, 1);
+                                  setForm({ ...form, barcodes: arr });
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                         ),
                       )}
@@ -864,8 +903,7 @@ export default function ManagerProductManagement() {
 
                     {editingProduct && (
                       <div className="text-xs text-muted-foreground">
-                        Previously registered barcodes are shown above. Add or
-                        generate new ones.
+                        Delete the current barcode first to set a new one.
                       </div>
                     )}
                   </div>
@@ -879,64 +917,77 @@ export default function ManagerProductManagement() {
                   >
                     {t("cancel")}
                   </Button>
-                    <Button type="submit" disabled={isLoading}>
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          {t("saving")}
-                        </>
-                      ) : (
-                        t("save")
-                      )}
-                    </Button>
-                  </div>
-                </form>
+                  <Button type="submit" disabled={isLoading}>
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {t("saving")}
+                      </>
+                    ) : (
+                      t("save")
+                    )}
+                  </Button>
+                </div>
+              </form>
 
-                <BarcodePrintDialog
-                  open={isPrintDialogOpen}
-                  onOpenChange={setIsPrintDialogOpen}
-                  barcode={printTargetBarcode}
-                  productName={form.name}
-                  price={form.sellingPrice}
+              <BarcodePrintDialog
+                open={isPrintDialogOpen}
+                onOpenChange={setIsPrintDialogOpen}
+                barcode={printTargetBarcode}
+                productName={form.name}
+                price={form.sellingPrice}
+              />
+
+              {isScannerOpen && (
+                <BarcodeScanner
+                  onScan={(code) => {
+                    setForm((prev) => {
+                      const existing = Array.isArray(prev.barcodes)
+                        ? prev.barcodes
+                        : [];
+                      if (existing.length > 0 && !existing.includes(code)) {
+                        toast({
+                          title: t("only_one_barcode_allowed"),
+                          variant: "destructive",
+                        });
+                        return { ...prev, barcodeInput: code };
+                      }
+                      if (existing.includes(code))
+                        return { ...prev, barcodeInput: code };
+                      return {
+                        ...prev,
+                        barcodes: [code],
+                        barcodeInput: code,
+                      };
+                    });
+                    setIsScannerOpen(false);
+                  }}
+                  onClose={() => setIsScannerOpen(false)}
                 />
+              )}
 
-                {isScannerOpen && (
-                  <BarcodeScanner 
-                    onScan={(code) => {
-                      setForm((prev) => {
-                        const existing = Array.isArray(prev.barcodes) ? prev.barcodes : [];
-                        if (existing.includes(code)) return { ...prev, barcodeInput: code };
-                        return { 
-                          ...prev, 
-                          barcodes: [...existing, code],
-                          barcodeInput: code 
-                        };
-                      });
-                      setIsScannerOpen(false);
-                    }}
-                    onClose={() => setIsScannerOpen(false)}
-                  />
-                )}
-
-                <Dialog open={barcodeConflictOpen} onOpenChange={setBarcodeConflictOpen}>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>{t("barcode_conflict")}</DialogTitle>
-                      <DialogDescription>
-                        {t("barcode_already_assigned", {
-                          barcode: barcodeConflict?.code,
-                          productName: barcodeConflict?.productName,
-                          quantity: barcodeConflict?.storeQuantity,
-                        })}
-                      </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                      <Button onClick={() => setBarcodeConflictOpen(false)}>
-                        {t("ok")}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+              <Dialog
+                open={barcodeConflictOpen}
+                onOpenChange={setBarcodeConflictOpen}
+              >
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{t("barcode_conflict")}</DialogTitle>
+                    <DialogDescription>
+                      {t("barcode_already_assigned", {
+                        barcode: barcodeConflict?.code,
+                        productName: barcodeConflict?.productName,
+                        quantity: barcodeConflict?.storeQuantity,
+                      })}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button onClick={() => setBarcodeConflictOpen(false)}>
+                      {t("ok")}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </DialogContent>
           </Dialog>
         </div>
@@ -1240,12 +1291,14 @@ export default function ManagerProductManagement() {
           <BarcodeScanner
             onScan={async (code) => {
               if (!activeScannerProduct) return;
-              const existingBarcodes = Array.isArray(activeScannerProduct.barcodes)
+              const existingBarcodes = Array.isArray(
+                activeScannerProduct.barcodes,
+              )
                 ? activeScannerProduct.barcodes.slice()
                 : activeScannerProduct.barcode
                   ? [activeScannerProduct.barcode]
                   : [];
-              
+
               if (existingBarcodes.includes(code)) {
                 toast({ title: "Barcode already exists for this product" });
                 setIsRowScannerOpen(false);
@@ -1258,7 +1311,10 @@ export default function ManagerProductManagement() {
                 });
                 toast({ title: "Barcode added successfully" });
               } catch (err) {
-                toast({ title: "Failed to add barcode", variant: "destructive" });
+                toast({
+                  title: "Failed to add barcode",
+                  variant: "destructive",
+                });
               } finally {
                 setIsRowScannerOpen(false);
                 setActiveScannerProduct(null);
