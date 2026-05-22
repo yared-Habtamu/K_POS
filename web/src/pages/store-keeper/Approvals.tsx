@@ -23,6 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useAuthStore } from "@/stores/authStore";
+import { useProductStore } from "@/stores/productStore";
 import { toast } from "@/hooks/use-toast";
 import type {
   ProductAddRequest,
@@ -41,6 +42,8 @@ type ApprovalDecision = {
 export default function StoreKeeperApprovals() {
   const token = useAuthStore.getState().user?.token;
   const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+
+  const products = useProductStore((s) => s.products);
 
   const [addRequests, setAddRequests] = useState<ProductAddRequest[]>([]);
   const [editRequests, setEditRequests] = useState<ProductEditRequest[]>([]);
@@ -245,12 +248,22 @@ export default function StoreKeeperApprovals() {
                     transferRequests.map((request) => {
                       const id = String(request._id || request.id || "");
                       const isPending = request.status === "pending";
-                      const productLabel =
+                      let productLabel = "-";
+                      if (
                         typeof request.productId === "object" &&
                         request.productId !== null &&
                         "name" in request.productId
-                          ? String(request.productId.name || "-")
-                          : String(request.productId || "-");
+                      ) {
+                        productLabel = String(request.productId.name || "-");
+                      } else {
+                        const pid = String(
+                          request.productId || request.product || "",
+                        );
+                        const found = products.find(
+                          (p) => p.id === pid || (p as any)._id === pid,
+                        );
+                        productLabel = found?.name || pid || "-";
+                      }
                       const fromLabel =
                         request.fromLocation === "mart" ? "Mart" : "Store";
                       const toLabel =
@@ -492,14 +505,22 @@ export default function StoreKeeperApprovals() {
                       const changes = request.changes || {};
                       const changedKeys = Object.keys(changes);
                       const rawProductId = request.productId;
-                      const productName =
+                      let productName = "-";
+                      if (
                         typeof rawProductId === "object" &&
                         rawProductId !== null &&
                         "name" in rawProductId
-                          ? String(
-                              (rawProductId as { name?: string }).name || "-",
-                            )
-                          : String(rawProductId || "-");
+                      ) {
+                        productName = String(
+                          (rawProductId as { name?: string }).name || "-",
+                        );
+                      } else {
+                        const pid = String(rawProductId || "");
+                        const found = products.find(
+                          (p) => p.id === pid || (p as any)._id === pid,
+                        );
+                        productName = found?.name || pid || "-";
+                      }
 
                       return (
                         <TableRow key={id}>
