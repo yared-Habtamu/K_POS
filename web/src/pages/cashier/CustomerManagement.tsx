@@ -37,7 +37,8 @@ type CustomerEditState = CustomerFormState & {
 };
 
 type CustomerRow = {
-  _id: string;
+  id: string;
+  _id?: string;
   name: string;
   phoneNumber: string;
   city?: string;
@@ -310,7 +311,7 @@ export default function CustomerManagement() {
 
     setUpdating(true);
     try {
-      await update(selectedCustomer._id, {
+      await update(selectedCustomer.id || selectedCustomer._id || "", {
         name: editForm.name.trim(),
         phoneNumber: editForm.phoneNumber.trim(),
         city: formatCityName(editForm.city),
@@ -339,7 +340,7 @@ export default function CustomerManagement() {
 
     setDeleting(true);
     try {
-      await remove(selectedCustomer._id);
+      await remove(selectedCustomer.id || selectedCustomer._id || "");
       toast({
         title: t("customer_deleted"),
         description: selectedCustomer.name,
@@ -552,7 +553,7 @@ export default function CustomerManagement() {
           title={t("customers_list")}
           columns={columns}
           data={filteredCustomers}
-          rowKey="_id"
+          rowKey="id"
           isLoading={loading}
           loadingMessage={t("loading")}
           emptyMessage={t("no_customers_yet")}

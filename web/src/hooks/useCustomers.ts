@@ -9,6 +9,17 @@ export default function useCustomers() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const getCustomerId = (customer: any) =>
+    String(customer?.id || customer?._id || "");
+
+  const normalizeCustomer = (customer: any) => {
+    const id = getCustomerId(customer);
+    return {
+      ...customer,
+      id,
+    };
+  };
+
   const fetch = async () => {
     setLoading(true);
     setError(null);
@@ -18,7 +29,7 @@ export default function useCustomers() {
         if (auth.martId) params.martId = auth.martId;
       }
       const res = await customersApi.fetchCustomers(params, token);
-      setCustomers(res || []);
+      setCustomers(Array.isArray(res) ? res.map(normalizeCustomer) : []);
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -35,27 +46,34 @@ export default function useCustomers() {
     phoneNumber: string;
     city?: string;
   }) => {
-    const res = await customersApi.createCustomer(payload, token);
+    const res = normalizeCustomer(
+      await customersApi.createCustomer(payload, token),
+    );
     setCustomers((s) => [res, ...s]);
     return res;
   };
 
-  const update = async (id: string, payload: {
-    name?: string;
-    phoneNumber?: string;
-    city?: string;
-    totalCredit?: number;
-    totalPaid?: number;
-    totalUnpaid?: number;
-  }) => {
-    const res = await customersApi.updateCustomer(id, payload, token);
-    setCustomers((s) => s.map((c) => (c._id === id ? res : c)));
+  const update = async (
+    id: string,
+    payload: {
+      name?: string;
+      phoneNumber?: string;
+      city?: string;
+      totalCredit?: number;
+      totalPaid?: number;
+      totalUnpaid?: number;
+    },
+  ) => {
+    const res = normalizeCustomer(
+      await customersApi.updateCustomer(id, payload, token),
+    );
+    setCustomers((s) => s.map((c) => (getCustomerId(c) === id ? res : c)));
     return res;
   };
 
   const remove = async (id: string) => {
     const res = await customersApi.deleteCustomer(id, token);
-    setCustomers((s) => s.filter((c) => c._id !== id));
+    setCustomers((s) => s.filter((c) => getCustomerId(c) !== id));
     return res;
   };
 
