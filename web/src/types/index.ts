@@ -376,3 +376,92 @@ export interface InventoryAnalytics {
   expiringItems: Product[];
   expiredItems: Product[];
 }
+
+// ─── Shared DTOs (Member 3 owned) ───────────────────────────────────────────
+
+/** Open Cash Request - for owner/manager open cash allocation/return workflow */
+export type OpenCashDirection = "allocation" | "return";
+
+export interface OpenCashRequestDTO {
+  id: string;
+  martId: string;
+  managerId: string;
+  requesterId: string;
+  direction: OpenCashDirection;
+  amount: number;
+  receiptUrl: string;
+  status: "pending" | "approved" | "rejected";
+  approverId?: string;
+  reason?: string;
+  decidedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  // Joined fields (optional, from includes)
+  managerName?: string;
+  requesterName?: string;
+  approverName?: string;
+}
+
+/** Sale Cancellation Request - for cancelling completed receipts */
+export interface SaleCancellationRequestDTO {
+  id: string;
+  martId: string;
+  saleId: string;
+  requesterId: string;
+  reason: string;
+  status: "pending" | "approved" | "rejected";
+  approverId?: string;
+  decidedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  // Joined fields (optional)
+  requesterName?: string;
+  approverName?: string;
+  saleReceiptId?: string;
+  saleTotal?: number;
+  saleDate?: string;
+}
+
+/** Bank Account - unified format for all banks */
+export interface BankAccountDTO {
+  id?: string;
+  bankName: string;
+  accountHolderName: string;
+  accountNumber: string;
+}
+
+/** Product Capacity - for subscription product limit guard */
+export interface ProductCapacityDTO {
+  current: number;
+  limit: number;
+  remaining: number;
+}
+
+/** Chat Conversation */
+export interface ChatConversationDTO {
+  id: string;
+  martId: string;
+  managerId: string;
+  cashierId: string;
+  createdAt: string;
+  updatedAt: string;
+  // Joined fields
+  managerName?: string;
+  cashierName?: string;
+  lastMessage?: string;
+  lastMessageAt?: string;
+  unreadCount?: number;
+}
+
+/** Chat Message */
+export interface ChatMessageDTO {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  message: string;
+  readAt?: string;
+  createdAt: string;
+  // Joined fields
+  senderName?: string;
+  senderRole?: UserRole;
+}

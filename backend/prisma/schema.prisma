@@ -63,6 +63,16 @@ enum SubscriptionStatus {
   suspended
 }
 
+enum OpenCashDirection {
+  allocation
+  return
+}
+
+enum SaleStatus {
+  completed
+  cancelled
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
@@ -107,6 +117,20 @@ model User {
   productEditRequestsApproved    ProductEditRequest[]   @relation("ProdEditReqApprover")
   stockTransferRequestsRequested StockTransferRequest[] @relation("StockTransferReqRequester")
   stockTransferRequestsApproved  StockTransferRequest[] @relation("StockTransferReqApprover")
+
+  // Open Cash relations
+  openCashRequestsManaged   OpenCashRequest[] @relation("OpenCashManager")
+  openCashRequestsRequested OpenCashRequest[] @relation("OpenCashRequester")
+  openCashRequestsApproved  OpenCashRequest[] @relation("OpenCashApprover")
+
+  // Sale Cancellation relations
+  saleCancellationRequestsRequested SaleCancellationRequest[] @relation("SaleCancelReqRequester")
+  saleCancellationRequestsApproved  SaleCancellationRequest[] @relation("SaleCancelReqApprover")
+
+  // Chat relations
+  chatConversationsAsManager ChatConversation[] @relation("ChatManager")
+  chatConversationsAsCashier ChatConversation[] @relation("ChatCashier")
+  chatMessagesSent           ChatMessage[]      @relation("ChatSender")
 
   @@index([martId])
   @@index([role])
@@ -176,6 +200,11 @@ model Mart {
   productEditRequests   ProductEditRequest[]
   stockTransferRequests StockTransferRequest[]
 
+  // Open Cash / Sale Cancellation / Chat
+  openCashRequests          OpenCashRequest[]
+  saleCancellationRequests  SaleCancellationRequest[]
+  chatConversations         ChatConversation[]
+
   @@index([ownerId])
   @@index([martName])
   @@index([isDeleted])
@@ -218,29 +247,34 @@ model Product {
 }
 
 model Sale {
-  id            String   @id @default(uuid())
+  id            String      @id @default(uuid())
   martId        String
   cashierId     String?
   cashierName   String?
   receiptId     String?
-  subtotal      Float    @default(0)
+  subtotal      Float       @default(0)
   discount      Json? // { type, value, amount }
   extraCharges  Json? // Array of { name, amount }
-  tax           Float    @default(0)
-  taxRate       Float    @default(0)
+  tax           Float       @default(0)
+  taxRate       Float       @default(0)
   total         Float
   paymentMethod String?
-  date          DateTime @default(now())
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  status        SaleStatus  @default(completed)
+  cancelledAt   DateTime?
+  cancelledBy   String?
+  date          DateTime    @default(now())
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   // Relations
   mart    Mart       @relation(fields: [martId], references: [id])
   cashier User?      @relation("SaleCashier", fields: [cashierId], references: [id])
   items   SaleItem[]
+  cancellationRequest SaleCancellationRequest?
 
   @@index([martId])
   @@index([date])
+  @@index([status])
   @@map("sales")
 }
 
@@ -475,6 +509,7 @@ model SubscriptionSettings {
   defaultFeeEtb           Float    @default(1000)
   billingPeriodDays       Int      @default(30)
   defaultStorageLimitMb   Float    @default(500)
+  defaultProductLimit     Int      @default(100)
   warningDaysBeforeExpiry Int      @default(5)
   warningStoragePercent   Float    @default(80)
   autoSuspendEnabled      Boolean  @default(true)
@@ -628,4 +663,102 @@ model StockTransferRequest {
   @@index([martId])
   @@index([approvalRole])
   @@map("stock_transfer_requests")
+}
+
+// ─── Open Cash Requests ──────────────────────────────────────────────────────
+
+model OpenCashRequest {
+  id          String             @id @default(uuid())
+  martId      String
+  managerId   String
+  requesterId String
+  direction   OpenCashDirection
+  amount      Float
+  receiptUrl  String
+  status      RequestStatus      @default(pending)
+  approverId  String?
+  reason      String?
+  decidedAt   DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  // Relations
+  mart      Mart  @relation(fields: [martId], references: [id])
+  manager   User  @relation("OpenCashManager", fields: [managerId], references: [id])
+  requester User  @relation("OpenCashRequester", fields: [requesterId], references: [id])
+  approver  User? @relation("OpenCashApprover", fields: [approverId], references: [id])
+
+  @@index([martId])
+  @@index([managerId])
+  @@index([requesterId])
+  @@index([status])
+  @@map("open_cash_requests")
+}
+
+// ─── Sale Cancellation Requests ──────────────────────────────────────────────
+
+model SaleCancellationRequest {
+  id          String        @id @default(uuid())
+  martId      String
+  saleId      String        @unique
+  requesterId String
+  reason      String
+  status      RequestStatus @default(pending)
+  approverId  String?
+  decidedAt   DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  mart      Mart  @relation(fields: [martId], references: [id])
+  sale      Sale  @relation(fields: [saleId], references: [id])
+  requester User  @relation("SaleCancelReqRequester", fields: [requesterId], references: [id])
+  approver  User? @relation("SaleCancelReqApprover", fields: [approverId], references: [id])
+
+  @@index([martId])
+  @@index([saleId])
+  @@index([requesterId])
+  @@index([status])
+  @@map("sale_cancellation_requests")
+}
+
+// ─── Chat ────────────────────────────────────────────────────────────────────
+
+model ChatConversation {
+  id        String   @id @default(uuid())
+  martId    String
+  managerId String
+  cashierId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  mart     Mart          @relation(fields: [martId], references: [id])
+  manager  User          @relation("ChatManager", fields: [managerId], references: [id])
+  cashier  User          @relation("ChatCashier", fields: [cashierId], references: [id])
+  messages ChatMessage[]
+
+  @@unique([martId, managerId, cashierId])
+  @@index([martId])
+  @@index([managerId])
+  @@index([cashierId])
+  @@map("chat_conversations")
+}
+
+model ChatMessage {
+  id             String   @id @default(uuid())
+  conversationId String
+  senderId       String
+  message        String
+  readAt         DateTime?
+  createdAt      DateTime @default(now())
+
+  // Relations
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User             @relation("ChatSender", fields: [senderId], references: [id])
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@map("chat_messages")
 }

@@ -722,6 +722,51 @@ const resources = {
 
       // Currency
       etb: "ETB",
+
+      // Navigation labels (Member 3 shared)
+      sales_report: "Sales Report",
+      open_cash: "Open Cash",
+      sale_cancellation: "Sale Cancellation",
+      chat: "Chat",
+
+      // Open Cash workflow
+      open_cash_request: "Open Cash Request",
+      allocation: "Allocation",
+      return: "Return",
+      receipt_image: "Receipt Image",
+      upload_receipt: "Upload Receipt",
+      approve: "Approve",
+      reject: "Reject",
+      pending: "Pending",
+      approved: "Approved",
+      rejected: "Rejected",
+      amount: "Amount",
+      direction: "Direction",
+      requester: "Requester",
+      approver: "Approver",
+      decision_date: "Decision Date",
+      request_date: "Request Date",
+      reason: "Reason",
+      enter_reason: "Enter reason",
+
+      // Sale Cancellation
+      sale_cancellation_request: "Sale Cancellation Request",
+      cancel_sale: "Cancel Sale",
+      sale_receipt_id: "Receipt ID",
+      sale_total: "Sale Total",
+      cancellation_reason: "Cancellation Reason",
+      stock_restored: "Stock restored",
+
+      // Chat
+      chat_conversations: "Conversations",
+      new_message: "New message",
+      type_message: "Type a message...",
+      send: "Send",
+      no_conversations: "No conversations yet",
+      start_conversation: "Start a conversation",
+      online: "Online",
+      offline: "Offline",
+      last_seen: "Last seen",
     },
   },
   am: {
@@ -1429,6 +1474,51 @@ const resources = {
 
       // Currency
       etb: "ብር",
+
+      // Navigation labels (Member 3 shared)
+      sales_report: "የሽያጭ ሪፖርት",
+      open_cash: "ክፍት ገንዘብ",
+      sale_cancellation: "ሽያጭ ስረዛ",
+      chat: "ቻት",
+
+      // Open Cash workflow
+      open_cash_request: "የክፍት ገንዘብ ጥያቄ",
+      allocation: "መድብ",
+      return: "መመለስ",
+      receipt_image: "የደረሰኝ ምስል",
+      upload_receipt: "ደረሰኝ ጫን",
+      approve: "ማጽደቅ",
+      reject: "መቃنة",
+      pending: "በመጠባበቅ ላይ",
+      approved: "የተጸደቀ",
+      rejected: "የተቋنة",
+      amount: "መጠን",
+      direction: "አቅጣጫ",
+      requester: "ጠይቂ",
+      approver: "崾ማድረጊ",
+      decision_date: "የውሳኔ ቀን",
+      request_date: "የጥያቄ ቀን",
+      reason: "ምክንያት",
+      enter_reason: "ምክንያት ያስገቡ",
+
+      // Sale Cancellation
+      sale_cancellation_request: "የሽያጭ ስረዛ ጥያቄ",
+      cancel_sale: "ሽያጭ ስረዝ",
+      sale_receipt_id: "የደረሰኝ መለያ",
+      sale_total: "የሽያጭ ጠቅላላ",
+      cancellation_reason: "የስረዛ ምክንያት",
+      stock_restored: "ክምችት ተመልሷል",
+
+      // Chat
+      chat_conversations: "ውይይቶች",
+      new_message: "አዲስ መልዕክት",
+      type_message: "መልዕክት ይተይቡ...",
+      send: "ላክ",
+      no_conversations: "እስካሁን ውይይት የለም",
+      start_conversation: "ውይይት ይጀምሩ",
+      online: "መስመር ላይ",
+      offline: "ከመስመር ውጭ",
+      last_seen: "የመጨረሻ ጊዜ",
 
       // Common literal labels used by filter UIs
       "Search products": "ምርቶችን ፈልግ",

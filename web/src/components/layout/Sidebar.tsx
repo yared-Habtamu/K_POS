@@ -25,6 +25,9 @@ import {
   Warehouse,
   TrendingUp,
   CreditCard,
+  MessageSquare,
+  Banknote,
+  XCircle,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -96,7 +99,7 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
     {
       items: [
         {
-          label: "dashboard",
+          label: "sales_report",
           icon: LayoutDashboard,
           path: "/cashier/today-sales",
         },
@@ -108,6 +111,7 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
       items: [
         { label: "daily_report", icon: FileText, path: "/cashier/report" },
         { label: "customers", icon: Users, path: "/cashier/customers" },
+        { label: "chat", icon: MessageSquare, path: "/cashier/chat" },
         { label: "settings", icon: Settings, path: "/cashier/settings" },
       ],
     },
@@ -139,13 +143,15 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
         { label: "expenses", icon: Wallet, path: "/manager/expenses" },
         { label: "assets", icon: Boxes, path: "/manager/assets" },
         { label: "employees", icon: Users, path: "/manager/employees" },
+        { label: "open_cash", icon: Banknote, path: "/manager/open-cash" },
       ],
     },
     {
       groupLabel: "analytics",
       items: [
         { label: "reports", icon: BarChart3, path: "/manager/reports" },
-        { label: "today_sales", icon: Receipt, path: "/manager/today-sales" },
+        { label: "sales_report", icon: Receipt, path: "/manager/today-sales" },
+        { label: "chat", icon: MessageSquare, path: "/manager/chat" },
         { label: "alerts", icon: AlertTriangle, path: "/alerts" },
         { label: "settings", icon: Settings, path: "/manager/settings" },
       ],
@@ -199,13 +205,15 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
           activePaths: ["/manager/assets"],
         },
         { label: "employees", icon: Users, path: "/owner/employees" },
+        { label: "open_cash", icon: Banknote, path: "/owner/open-cash" },
+        { label: "sale_cancellation", icon: XCircle, path: "/owner/sale-cancellations" },
       ],
     },
     {
       groupLabel: "analytics",
       items: [
         { label: "reports", icon: BarChart3, path: "/owner/reports" },
-        { label: "today_sales", icon: Receipt, path: "/owner/today-sales" },
+        { label: "sales_report", icon: Receipt, path: "/owner/today-sales" },
         {
           label: "alerts",
           icon: AlertTriangle,

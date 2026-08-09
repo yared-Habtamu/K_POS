@@ -33,6 +33,7 @@ import CashierPOS from "./pages/cashier/CashierPOS";
 import DailyReport from "./pages/cashier/DailyReport";
 import CustomerManagement from "./pages/cashier/CustomerManagement";
 import CashierSettings from "./pages/cashier/Settings";
+import CashierChatPage from "./pages/cashier/Chat";
 
 // Owner Pages
 import OwnerDashboard from "./pages/owner/OwnerDashboard";
@@ -47,6 +48,8 @@ import OwnerAssets from "./pages/manager/Assets";
 import RegisterMart from "./pages/owner/RegisterMart";
 import RegisterWaiting from "./pages/owner/RegisterWaiting";
 import ProfilePage from "./pages/Profile";
+import OwnerOpenCashPage from "./pages/owner/OpenCash";
+import SaleCancellationsPage from "./pages/owner/SaleCancellations";
 
 // Manager Pages
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
@@ -56,6 +59,8 @@ import MEmployeeManagement from "./pages/manager/MEmployeeManagement";
 import ManagerApprovals from "./pages/manager/Approvals";
 import ManagerExpenseManagement from "./pages/manager/ExpenseManagement";
 import ManagerSettings from "./pages/manager/Settings";
+import ManagerOpenCashPage from "./pages/manager/OpenCash";
+import ManagerChatPage from "./pages/manager/Chat";
 // Store Keeper Pages
 import StockManagement from "./pages/store-keeper/StockManagement";
 import BarcodeManagement from "./pages/store-keeper/BarcodeManagement";
@@ -142,6 +147,7 @@ const App = () => {
             <Route path="/cashier/report" element={<DailyReport />} />
             <Route path="/cashier/today-sales" element={<TodaysSales />} />
             <Route path="/cashier/customers" element={<CustomerManagement />} />
+            <Route path="/cashier/chat" element={<CashierChatPage />} />
             <Route path="/cashier/settings" element={<CashierSettings />} />
 
             {/* Owner Routes */}
@@ -165,6 +171,8 @@ const App = () => {
             <Route path="/owner/reports" element={<ReportPage />} />
             <Route path="/owner/today-sales" element={<TodaysSales />} />
             <Route path="/owner/assets" element={<OwnerAssets />} />
+            <Route path="/owner/open-cash" element={<OwnerOpenCashPage />} />
+            <Route path="/owner/sale-cancellations" element={<SaleCancellationsPage />} />
             <Route path="/owner/register" element={<RegisterMart />} />
             <Route
               path="/owner/register/waiting/:id"
@@ -192,6 +200,8 @@ const App = () => {
               path="/manager/expenses"
               element={<ManagerExpenseManagement />}
             />
+            <Route path="/manager/open-cash" element={<ManagerOpenCashPage />} />
+            <Route path="/manager/chat" element={<ManagerChatPage />} />
             <Route path="/manager/settings" element={<ManagerSettings />} />
 
             {/* Store Keeper Routes */}

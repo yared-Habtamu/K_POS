@@ -99,6 +99,9 @@ const categoryRouter = require("./routes/categories");
 const paymentTypesRouter = require("./routes/paymentTypes");
 const expenseCategoriesRouter = require("./routes/expenseCategories");
 const subscriptionsRouter = require("./routes/subscriptions");
+const openCashRequestsRouter = require("./routes/openCashRequests");
+const saleCancellationRequestsRouter = require("./routes/saleCancellationRequests");
+const chatRouter = require("./routes/chat");
 
 app.use("/api/expenses", expensesRouter);
 app.use("/api/assets", assetsRouter);
@@ -130,6 +133,9 @@ app.use("/api/asset-action-requests", assetActionRequestsRouter);
 app.use("/api/expense-action-requests", expenseActionRequestsRouter);
 app.use("/api/customers", customersRouter);
 app.use("/api/notifications", notificationsRouter);
+app.use("/api/open-cash-requests", openCashRequestsRouter);
+app.use("/api/sale-cancellation-requests", saleCancellationRequestsRouter);
+app.use("/api/chat", chatRouter);
 
 app.use((err, req, res, next) => {
   console.error("Request handling error:", err);

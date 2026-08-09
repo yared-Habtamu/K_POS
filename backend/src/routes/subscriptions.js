@@ -7,6 +7,9 @@ const {
   runSubscriptionCheckForMart,
   runSubscriptionChecksForAllMarts,
 } = require("../services/subscription.service");
+const {
+  getProductCapacity,
+} = require("../services/productCapacity.service");
 
 function requireSystemAdmin(req, res, next) {
   if (req.user.role !== "systemAdmin") {
@@ -144,5 +147,23 @@ router.put(
     }
   },
 );
+
+// ─── GET /api/subscriptions/capacity ─────────────────────────────────────────
+// Get product capacity for the current user's mart.
+
+router.get("/capacity", authenticate, async (req, res) => {
+  try {
+    const { martId } = req.user;
+    if (!martId) {
+      return res.status(400).json({ message: "No mart assigned" });
+    }
+
+    const capacity = await getProductCapacity(martId);
+    return res.json(capacity);
+  } catch (err) {
+    console.error("[subscriptions] GET capacity error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
 
 module.exports = router;
