@@ -74,6 +74,7 @@ export default function SaleCancellationsPage() {
 
   const isOwner = role === "owner";
   const canRequest = role === "cashier" || role === "manager";
+  const canDirectCancel = isOwner;
 
   const [requests, setRequests] = useState<SaleCancellationItem[]>([]);
   const [sales, setSales] = useState<SaleOption[]>([]);
@@ -86,10 +87,21 @@ export default function SaleCancellationsPage() {
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Owner direct cancellation form
+  const [directSaleId, setDirectSaleId] = useState("");
+  const [directSaleOpen, setDirectSaleOpen] = useState(false);
+  const [directReason, setDirectReason] = useState("");
+  const [directSubmitting, setDirectSubmitting] = useState(false);
+
   const [pendingDecision, setPendingDecision] = useState<{
     id: string;
     action: "approve" | "reject";
     itemLabel: string;
+  } | null>(null);
+
+  const [pendingCancel, setPendingCancel] = useState<{
+    saleId: string;
+    receiptId: string;
   } | null>(null);
 
   const fetchRequests = useCallback(async () => {
@@ -157,10 +169,10 @@ export default function SaleCancellationsPage() {
   }, [statusFilter]);
 
   useEffect(() => {
-    if (canRequest) {
+    if (canRequest || canDirectCancel) {
       fetchSales();
     }
-  }, [canRequest, fetchSales, requests.length]);
+  }, [canRequest, canDirectCancel, fetchSales, requests.length]);
 
   const submitRequest = async () => {
     if (!saleId) {
@@ -215,10 +227,7 @@ export default function SaleCancellationsPage() {
     }
   };
 
-  const decideRequest = async (
-    id: string,
-    action: "approve" | "reject",
-  ) => {
+  const decideRequest = async (id: string, action: "approve" | "reject") => {
     try {
       const res = await fetch(
         `${API_BASE}/api/sale-cancellation-requests/${id}/${action}`,
@@ -251,6 +260,48 @@ export default function SaleCancellationsPage() {
         t("action_failed", { defaultValue: "Action failed" }) +
           (message ? `: ${message}` : ""),
       );
+    }
+  };
+
+  const directCancelSale = async () => {
+    if (!pendingCancel) return;
+    const { saleId: targetId } = pendingCancel;
+    setPendingCancel(null);
+    setDirectSubmitting(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/sale-cancellation-requests/direct`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: token ? `Bearer ${token}` : "",
+          },
+          body: JSON.stringify({ saleId: targetId, reason: directReason.trim() }),
+        },
+      );
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || `Failed with ${res.status}`);
+      }
+
+      toast.success(
+        t("sale_cancelled_success", {
+          defaultValue: "Sale cancelled successfully. Stock restored.",
+        }),
+      );
+      setDirectSaleId("");
+      setDirectReason("");
+      await Promise.all([fetchRequests(), fetchSales()]);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(
+        t("cancel_failed", { defaultValue: "Failed to cancel sale" }) +
+          (message ? `: ${message}` : ""),
+      );
+    } finally {
+      setDirectSubmitting(false);
     }
   };
 
@@ -311,6 +362,7 @@ export default function SaleCancellationsPage() {
         </div>
 
         {isOwner ? (
+          <div className="grid gap-6 lg:grid-cols-2">
           <Card>
             <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="flex items-center gap-2">
@@ -430,6 +482,161 @@ export default function SaleCancellationsPage() {
               )}
             </CardContent>
           </Card>
+
+          <Card className="border-border/60 bg-gradient-to-br from-background via-background to-muted/40 self-start">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Ban className="h-5 w-5" />
+                {t("direct_cancellation", {
+                  defaultValue: "Cancel My Sale",
+                })}
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {t("direct_cancellation_help", {
+                  defaultValue:
+                    "Cancel a completed sale you made yourself - no approval needed. Stock is restored and the sale is excluded from reports.",
+                })}
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>
+                  {t("sale_receipt_id", { defaultValue: "Receipt ID" })}
+                </Label>
+                <Popover open={directSaleOpen} onOpenChange={setDirectSaleOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={directSaleOpen}
+                      className="h-11 w-full justify-between font-normal"
+                    >
+                      {sales.find((s) => s.id === directSaleId)?.receiptId ||
+                        sales.find((s) => s.id === directSaleId)?.id ||
+                        t("select_sale_placeholder", {
+                          defaultValue: "Select a receipt",
+                        })}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-[--radix-popover-trigger-width] p-0"
+                    align="start"
+                  >
+                    <Command>
+                      <CommandInput
+                        placeholder={t("search_receipt_id", {
+                          defaultValue: "Search receipt ID...",
+                        })}
+                      />
+                      <CommandList>
+                        <CommandEmpty>
+                          {sales.length === 0
+                            ? t("no_your_sales_to_cancel", {
+                                defaultValue:
+                                  "No completed receipts from your sales available to cancel.",
+                              })
+                            : t("no_match_receipt", {
+                                defaultValue: "No matching receipt found.",
+                              })}
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {sales.map((s) => (
+                            <CommandItem
+                              key={s.id}
+                              value={`${s.receiptId || s.id}`}
+                              onSelect={(currentValue) => {
+                                const match = sales.find(
+                                  (x) =>
+                                    `${x.receiptId || x.id}`.toLowerCase() ===
+                                    currentValue.toLowerCase(),
+                                );
+                                setDirectSaleId(match ? match.id : "");
+                                setDirectSaleOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  directSaleId === s.id
+                                    ? "opacity-100"
+                                    : "opacity-0",
+                                )}
+                              />
+                              {s.receiptId || s.id} —{" "}
+                              {Number(s.total || 0).toLocaleString()} ETB —{" "}
+                              {new Date(s.date).toLocaleDateString()}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="direct-cancellation-reason">
+                  {t("cancellation_reason", {
+                    defaultValue: "Cancellation Reason",
+                  })}{" "}
+                  *
+                </Label>
+                <Input
+                  id="direct-cancellation-reason"
+                  value={directReason}
+                  onChange={(e) => setDirectReason(e.target.value)}
+                  placeholder={t("enter_reason", {
+                    defaultValue: "Enter reason",
+                  })}
+                  className="h-11"
+                />
+              </div>
+
+              <Button
+                type="button"
+                className="h-11 w-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                disabled={directSubmitting}
+                onClick={() => {
+                  if (!directSaleId) {
+                    toast.warning(
+                      t("select_sale_placeholder", {
+                        defaultValue: "Select a receipt",
+                      }),
+                    );
+                    return;
+                  }
+                  if (directReason.trim().length < 3) {
+                    toast.warning(
+                      t("enter_reason", { defaultValue: "Enter reason" }) +
+                        " (min 3 characters)",
+                    );
+                    return;
+                  }
+                  const match = sales.find((s) => s.id === directSaleId);
+                  setPendingCancel({
+                    saleId: directSaleId,
+                    receiptId: match?.receiptId || match?.id || directSaleId,
+                  });
+                }}
+              >
+                {directSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {t("cancelling", { defaultValue: "Cancelling..." })}
+                  </>
+                ) : (
+                  <>
+                    <Ban className="mr-2 h-4 w-4" />
+                    {t("cancel_sale_directly", {
+                      defaultValue: "Cancel Sale Directly",
+                    })}
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+          </div>
         ) : (
           <div className="grid gap-6 lg:grid-cols-2">
             <Card className="border-border/60 bg-gradient-to-br from-background via-background to-muted/40">
@@ -660,6 +867,44 @@ export default function SaleCancellationsPage() {
                 {pendingDecision?.action === "approve"
                   ? t("confirm_approve", { defaultValue: "Yes, approve" })
                   : t("confirm_reject", { defaultValue: "Yes, reject" })}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog
+          open={Boolean(pendingCancel)}
+          onOpenChange={(open) => !open && setPendingCancel(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {t("cancel_sale_confirm", {
+                  defaultValue:
+                    "Are you sure you want to cancel this sale? This cannot be undone. Stock will be restored and the sale will be excluded from reports.",
+                })}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {pendingCancel
+                  ? `${
+                      t("cancel_sale", { defaultValue: "Cancel sale" })
+                    } ${pendingCancel.receiptId}`
+                  : ""}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>
+                {t("cancel", { defaultValue: "Cancel" })}
+              </AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => {
+                  void directCancelSale();
+                }}
+              >
+                {t("confirm_cancel_sale", {
+                  defaultValue: "Yes, cancel sale",
+                })}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
