@@ -28,9 +28,9 @@ import {
 type SubscriptionSettings = {
   defaultFeeEtb: number;
   billingPeriodDays: number;
-  defaultStorageLimitMb: number;
+  defaultProductLimit: number;
+  defaultTransactionLimit: number;
   warningDaysBeforeExpiry: number;
-  warningStoragePercent: number;
   autoSuspendEnabled: boolean;
 };
 
@@ -41,9 +41,10 @@ type MartSubscriptionRow = {
   subscriptionStatus: string;
   billingPeriodDays?: number;
   daysLeft: number | null;
-  storageUsageMb: number;
-  storageLimitMb: number;
-  storageUsagePercent: number;
+  productCount?: number;
+  productLimit?: number;
+  transactionCount?: number;
+  transactionLimit?: number;
   feeEtb: number;
   startDate?: string;
   endDate?: string;
@@ -53,7 +54,8 @@ type MartSubscriptionRow = {
 type PlanForm = {
   feeEtb: string;
   billingPeriodDays: string;
-  storageLimitMb: string;
+  productLimit: string;
+  transactionLimit: string;
   subscriptionEndDate: string;
   unsuspend: boolean;
 };
@@ -61,9 +63,9 @@ type PlanForm = {
 const emptySettings: SubscriptionSettings = {
   defaultFeeEtb: 1000,
   billingPeriodDays: 30,
-  defaultStorageLimitMb: 500,
+  defaultProductLimit: 100,
+  defaultTransactionLimit: 500,
   warningDaysBeforeExpiry: 5,
-  warningStoragePercent: 80,
   autoSuspendEnabled: true,
 };
 
@@ -74,44 +76,38 @@ function toInputDate(dateValue?: string) {
   return d.toISOString().slice(0, 10);
 }
 
-function statusVariant(
-  status: string,
-): "default" | "secondary" | "destructive" | "outline" {
-  if (status === "suspended" || status === "disabled") return "destructive";
-  if (status === "warning") return "secondary";
-  if (status === "approved" || status === "active") return "default";
-  return "outline";
+function statusVariant(s: string) {
+  if (s === "active" || s === "approved") return "default" as const;
+  if (s === "suspended" || s === "rejected") return "destructive" as const;
+  if (s === "warning") return "secondary" as const;
+  return "outline" as const;
 }
 
-export default function AdminSubscriptions() {
+export default function AdminSubscriptionsPage() {
   const auth = useAuthStore((s) => s.user);
   const { toast } = useToast();
-  const API_BASE =
-    import.meta.env.VITE_API_URL || import.meta.env.NEXT_PUBLIC_API_URL || "";
+  const headers = useMemo(
+    () => ({ Authorization: `Bearer ${auth?.token}`, "Content-Type": "application/json" }),
+    [auth?.token],
+  );
+  const API_BASE = import.meta.env.VITE_API_URL || "";
 
   const [settings, setSettings] = useState<SubscriptionSettings>(emptySettings);
   const [marts, setMarts] = useState<MartSubscriptionRow[]>([]);
   const [planForms, setPlanForms] = useState<Record<string, PlanForm>>({});
+
   const [loadingSettings, setLoadingSettings] = useState(false);
   const [loadingMarts, setLoadingMarts] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
-  const [checkingAll, setCheckingAll] = useState(false);
   const [savingMart, setSavingMart] = useState<string | null>(null);
+  const [checkingAll, setCheckingAll] = useState(false);
 
   const [selectedMartId, setSelectedMartId] = useState<string | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [editingMartId, setEditingMartId] = useState<string | null>(null);
 
-  const headers = useMemo(() => {
-    if (!auth?.token) return { "Content-Type": "application/json" };
-    return {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${auth.token}`,
-    };
-  }, [auth?.token]);
-
   const selectedMart = useMemo(
-    () => marts.find((m) => m.martId === selectedMartId) || null,
+    () => marts.find((r) => r.martId === selectedMartId) || null,
     [marts, selectedMartId],
   );
 
@@ -128,9 +124,9 @@ export default function AdminSubscriptions() {
       setSettings({
         defaultFeeEtb: Number(data.defaultFeeEtb || 0),
         billingPeriodDays: Number(data.billingPeriodDays || 30),
-        defaultStorageLimitMb: Number(data.defaultStorageLimitMb || 0),
+        defaultProductLimit: Number(data.defaultProductLimit || 100),
+        defaultTransactionLimit: Number(data.defaultTransactionLimit || 500),
         warningDaysBeforeExpiry: Number(data.warningDaysBeforeExpiry || 5),
-        warningStoragePercent: Number(data.warningStoragePercent || 80),
         autoSuspendEnabled: Boolean(data.autoSuspendEnabled),
       });
     } catch (err) {
@@ -148,11 +144,14 @@ export default function AdminSubscriptions() {
   const loadMarts = async () => {
     try {
       setLoadingMarts(true);
+      console.log("[Subscriptions] loadMarts called, API_BASE:", API_BASE, "token:", auth?.token?.slice(0, 20));
       const res = await fetch(`${API_BASE}/api/subscriptions/marts`, {
         headers,
       });
+      console.log("[Subscriptions] loadMarts response:", res.status);
       if (!res.ok) throw new Error(`Failed to load marts (${res.status})`);
       const data = await res.json();
+      console.log("[Subscriptions] loadMarts data:", JSON.stringify(data).slice(0, 300));
       const rows = (Array.isArray(data) ? data : []) as MartSubscriptionRow[];
       setMarts(rows);
 
@@ -165,7 +164,8 @@ export default function AdminSubscriptions() {
               Number(row.billingPeriodDays || settings.billingPeriodDays || 30),
             ),
           ),
-          storageLimitMb: String(Math.round(Number(row.storageLimitMb || 0))),
+          productLimit: String(Math.round(Number(row.productLimit || settings.defaultProductLimit || 100))),
+          transactionLimit: String(Math.round(Number(row.transactionLimit || settings.defaultTransactionLimit || 500))),
           subscriptionEndDate: toInputDate(row.endDate),
           unsuspend: false,
         };
@@ -196,9 +196,9 @@ export default function AdminSubscriptions() {
       const payload = {
         defaultFeeEtb: Number(settings.defaultFeeEtb || 0),
         billingPeriodDays: Number(settings.billingPeriodDays || 30),
-        defaultStorageLimitMb: Number(settings.defaultStorageLimitMb || 0),
+        defaultProductLimit: Number(settings.defaultProductLimit || 100),
+        defaultTransactionLimit: Number(settings.defaultTransactionLimit || 500),
         warningDaysBeforeExpiry: Number(settings.warningDaysBeforeExpiry || 5),
-        warningStoragePercent: Number(settings.warningStoragePercent || 80),
         autoSuspendEnabled: Boolean(settings.autoSuspendEnabled),
       };
 
@@ -209,17 +209,16 @@ export default function AdminSubscriptions() {
       });
 
       if (!res.ok) throw new Error(`Save failed (${res.status})`);
-
       toast({
-        title: "Saved",
-        description: "Subscription settings updated successfully.",
+        title: "Settings saved",
+        description: "Subscription settings updated.",
       });
-      await loadMarts();
+      await loadSettings();
     } catch (err) {
       console.error(err);
       toast({
         title: "Save failed",
-        description: "Could not update subscription settings.",
+        description: "Could not save subscription settings.",
         variant: "destructive",
       });
     } finally {
@@ -235,16 +234,16 @@ export default function AdminSubscriptions() {
         headers,
       });
       if (!res.ok) throw new Error(`Check failed (${res.status})`);
-      await loadMarts();
       toast({
-        title: "Checks complete",
-        description: "Subscription checks ran for all marts.",
+        title: "Check complete",
+        description: "Subscription check ran for all marts.",
       });
+      await loadMarts();
     } catch (err) {
       console.error(err);
       toast({
         title: "Check failed",
-        description: "Could not run subscription checks.",
+        description: "Could not run subscription check.",
         variant: "destructive",
       });
     } finally {
@@ -263,7 +262,8 @@ export default function AdminSubscriptions() {
         billingPeriodDays: Number(
           form.billingPeriodDays || settings.billingPeriodDays || 30,
         ),
-        storageLimitMb: Number(form.storageLimitMb || 0),
+        productLimit: Number(form.productLimit || settings.defaultProductLimit || 100),
+        transactionLimit: Number(form.transactionLimit || settings.defaultTransactionLimit || 500),
         unsuspend: form.unsuspend,
       };
 
@@ -307,7 +307,8 @@ export default function AdminSubscriptions() {
         ...(prev[martId] || {
           feeEtb: "0",
           billingPeriodDays: "30",
-          storageLimitMb: "0",
+          productLimit: "100",
+          transactionLimit: "500",
           subscriptionEndDate: "",
           unsuspend: false,
         }),
@@ -336,7 +337,7 @@ export default function AdminSubscriptions() {
           <div>
             <h1 className="text-2xl font-bold">Subscription Management</h1>
             <p className="text-muted-foreground">
-              Configure platform fees, storage limits, warning thresholds, and
+              Configure platform fees, product limits, expiry warnings, and
               automatic suspension.
             </p>
           </div>
@@ -381,14 +382,27 @@ export default function AdminSubscriptions() {
                 />
               </div>
               <div className="space-y-1">
-                <Label>Default Storage Limit (MB)</Label>
+                <Label>Default Product Limit</Label>
                 <Input
                   type="number"
-                  value={settings.defaultStorageLimitMb}
+                  value={settings.defaultProductLimit}
                   onChange={(e) =>
                     setSettings((prev) => ({
                       ...prev,
-                      defaultStorageLimitMb: Number(e.target.value || 0),
+                      defaultProductLimit: Number(e.target.value || 100),
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Default Transaction Limit</Label>
+                <Input
+                  type="number"
+                  value={settings.defaultTransactionLimit}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      defaultTransactionLimit: Number(e.target.value || 500),
                     }))
                   }
                 />
@@ -402,19 +416,6 @@ export default function AdminSubscriptions() {
                     setSettings((prev) => ({
                       ...prev,
                       warningDaysBeforeExpiry: Number(e.target.value || 0),
-                    }))
-                  }
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Warn Storage Usage (%)</Label>
-                <Input
-                  type="number"
-                  value={settings.warningStoragePercent}
-                  onChange={(e) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      warningStoragePercent: Number(e.target.value || 0),
                     }))
                   }
                 />
@@ -457,7 +458,8 @@ export default function AdminSubscriptions() {
                     <TableHead>Mart</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Subscription</TableHead>
-                    <TableHead>Storage</TableHead>
+                    <TableHead>Products</TableHead>
+                    <TableHead>Transactions</TableHead>
                     <TableHead>Days Left</TableHead>
                     <TableHead>Action</TableHead>
                   </TableRow>
@@ -483,7 +485,18 @@ export default function AdminSubscriptions() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {Number(row.storageUsagePercent || 0).toFixed(1)}%
+                        {typeof row.productCount === "number" ? (
+                          <span className={row.productLimit && row.productCount >= row.productLimit ? "text-destructive font-medium" : ""}>
+                            {row.productCount}/{row.productLimit || "\u221E"}
+                          </span>
+                        ) : "N/A"}
+                      </TableCell>
+                      <TableCell>
+                        {typeof row.transactionCount === "number" ? (
+                          <span className={row.transactionLimit && row.transactionCount >= row.transactionLimit ? "text-destructive font-medium" : ""}>
+                            {row.transactionCount}/{row.transactionLimit || "\u221E"}
+                          </span>
+                        ) : "N/A"}
                       </TableCell>
                       <TableCell>
                         {typeof row.daysLeft === "number"
@@ -507,7 +520,7 @@ export default function AdminSubscriptions() {
                   {!loadingMarts && marts.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={7}
                         className="text-center text-muted-foreground"
                       >
                         No marts found.
@@ -554,11 +567,17 @@ export default function AdminSubscriptions() {
                   </span>
                 </div>
                 <div>
-                  Storage Usage:{" "}
+                  Products:{" "}
                   <span className="font-medium">
-                    {Number(selectedMart.storageUsageMb || 0).toFixed(2)}MB /{" "}
-                    {Number(selectedMart.storageLimitMb || 0).toFixed(2)}MB ({" "}
-                    {Number(selectedMart.storageUsagePercent || 0).toFixed(2)}%)
+                    {selectedMart.productCount ?? "N/A"} /{" "}
+                    {selectedMart.productLimit ?? "\u221E"}
+                  </span>
+                </div>
+                <div>
+                  Transactions:{" "}
+                  <span className="font-medium">
+                    {selectedMart.transactionCount ?? "N/A"} /{" "}
+                    {selectedMart.transactionLimit ?? "\u221E"}
                   </span>
                 </div>
                 <div>
@@ -610,7 +629,7 @@ export default function AdminSubscriptions() {
             <DialogHeader>
               <DialogTitle>Update Mart Subscription Plan</DialogTitle>
               <DialogDescription>
-                Update billing, storage limits, expiry date, and suspension
+                Update billing, product limits, expiry date, and suspension
                 override.
               </DialogDescription>
             </DialogHeader>
@@ -640,13 +659,25 @@ export default function AdminSubscriptions() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>Storage Limit (MB)</Label>
+                  <Label>Product Limit</Label>
                   <Input
                     type="number"
-                    value={editingForm.storageLimitMb}
+                    value={editingForm.productLimit}
                     onChange={(e) =>
                       updatePlanForm(editingMartId, {
-                        storageLimitMb: e.target.value,
+                        productLimit: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Transaction Limit</Label>
+                  <Input
+                    type="number"
+                    value={editingForm.transactionLimit}
+                    onChange={(e) =>
+                      updatePlanForm(editingMartId, {
+                        transactionLimit: e.target.value,
                       })
                     }
                   />

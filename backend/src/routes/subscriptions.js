@@ -35,9 +35,9 @@ router.put("/settings", authenticate, requireSystemAdmin, async (req, res) => {
     const allowed = [
       "defaultFeeEtb",
       "billingPeriodDays",
-      "defaultStorageLimitMb",
+      "defaultProductLimit",
+      "defaultTransactionLimit",
       "warningDaysBeforeExpiry",
-      "warningStoragePercent",
       "autoSuspendEnabled",
     ];
 
@@ -62,10 +62,10 @@ router.put("/settings", authenticate, requireSystemAdmin, async (req, res) => {
 
 router.get("/marts", authenticate, requireSystemAdmin, async (_req, res) => {
   try {
-    const results = await runSubscriptionChecksForAllMarts({ persist: true });
+    const results = await runSubscriptionChecksForAllMarts({ persist: false });
     return res.json(results);
   } catch (err) {
-    console.error(err);
+    console.error("[subscriptions] GET /marts error:", err);
     return res.status(500).json({ message: "Server error" });
   }
 });
@@ -119,9 +119,9 @@ router.put(
       const allowed = [
         "feeEtb",
         "billingPeriodDays",
-        "storageLimitMb",
+        "productLimit",
+        "transactionLimit",
         "warningDaysBeforeExpiry",
-        "warningStoragePercent",
         "subscriptionStartDate",
         "subscriptionEndDate",
       ];

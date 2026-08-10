@@ -55,9 +55,10 @@ router.post("/register", async (req, res) => {
     // For case-insensitive comparison, use raw Prisma query with search
     // Since Prisma doesn't support { equals: value, mode: 'insensitive' } in where clauses,
     // we search by fetching multiple records and filtering manually
-    const allUsers = await userRepository.findMany({
-      select: { id: true, name: true, email: true },
-    });
+    const allUsers = await userRepository.findMany(
+      {},
+      { select: { id: true, name: true, email: true } },
+    );
     const allMarts = await martRepository.findMany({});
 
     const existingOwnerName = allUsers.find(
@@ -235,9 +236,10 @@ router.post("/admin-register", authenticate, async (req, res) => {
     const duplicateMessages = [];
 
     // For case-insensitive comparison, fetch records and filter manually
-    const allUsers = await userRepository.findMany({
-      select: { id: true, name: true, email: true },
-    });
+    const allUsers = await userRepository.findMany(
+      {},
+      { select: { id: true, name: true, email: true } },
+    );
     const allMarts = await martRepository.findMany({});
 
     const existingOwnerName = allUsers.find(

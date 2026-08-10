@@ -111,6 +111,7 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
       items: [
         { label: "daily_report", icon: FileText, path: "/cashier/report" },
         { label: "customers", icon: Users, path: "/cashier/customers" },
+        { label: "sale_cancellation", icon: XCircle, path: "/cashier/sale-cancellations" },
         { label: "chat", icon: MessageSquare, path: "/cashier/chat" },
         { label: "settings", icon: Settings, path: "/cashier/settings" },
       ],
@@ -144,6 +145,7 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
         { label: "assets", icon: Boxes, path: "/manager/assets" },
         { label: "employees", icon: Users, path: "/manager/employees" },
         { label: "open_cash", icon: Banknote, path: "/manager/open-cash" },
+        { label: "sale_cancellation", icon: XCircle, path: "/manager/sale-cancellations" },
       ],
     },
     {
