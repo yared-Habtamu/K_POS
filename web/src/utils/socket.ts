@@ -44,6 +44,12 @@ export function initSocket(token?: string) {
     // noop
   });
 
+  socket.on('chat_message', (payload: { conversationId: string; message: any }) => {
+    try {
+      window.dispatchEvent(new CustomEvent('chat_message', { detail: payload }));
+    } catch (e) {}
+  });
+
   socket.connect();
 }
 
