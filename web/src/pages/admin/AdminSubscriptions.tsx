@@ -29,6 +29,7 @@ type SubscriptionSettings = {
   defaultFeeEtb: number;
   billingPeriodDays: number;
   defaultStorageLimitMb: number;
+  defaultProductLimit: number;
   warningDaysBeforeExpiry: number;
   warningStoragePercent: number;
   autoSuspendEnabled: boolean;
@@ -44,6 +45,8 @@ type MartSubscriptionRow = {
   storageUsageMb: number;
   storageLimitMb: number;
   storageUsagePercent: number;
+  productCount?: number;
+  productLimit?: number;
   feeEtb: number;
   startDate?: string;
   endDate?: string;
@@ -54,6 +57,7 @@ type PlanForm = {
   feeEtb: string;
   billingPeriodDays: string;
   storageLimitMb: string;
+  productLimit: string;
   subscriptionEndDate: string;
   unsuspend: boolean;
 };
@@ -62,6 +66,7 @@ const emptySettings: SubscriptionSettings = {
   defaultFeeEtb: 1000,
   billingPeriodDays: 30,
   defaultStorageLimitMb: 500,
+  defaultProductLimit: 100,
   warningDaysBeforeExpiry: 5,
   warningStoragePercent: 80,
   autoSuspendEnabled: true,
@@ -129,6 +134,7 @@ export default function AdminSubscriptions() {
         defaultFeeEtb: Number(data.defaultFeeEtb || 0),
         billingPeriodDays: Number(data.billingPeriodDays || 30),
         defaultStorageLimitMb: Number(data.defaultStorageLimitMb || 0),
+        defaultProductLimit: Number(data.defaultProductLimit || 100),
         warningDaysBeforeExpiry: Number(data.warningDaysBeforeExpiry || 5),
         warningStoragePercent: Number(data.warningStoragePercent || 80),
         autoSuspendEnabled: Boolean(data.autoSuspendEnabled),
@@ -166,6 +172,7 @@ export default function AdminSubscriptions() {
             ),
           ),
           storageLimitMb: String(Math.round(Number(row.storageLimitMb || 0))),
+          productLimit: String(Math.round(Number(row.productLimit || settings.defaultProductLimit || 100))),
           subscriptionEndDate: toInputDate(row.endDate),
           unsuspend: false,
         };
@@ -197,6 +204,7 @@ export default function AdminSubscriptions() {
         defaultFeeEtb: Number(settings.defaultFeeEtb || 0),
         billingPeriodDays: Number(settings.billingPeriodDays || 30),
         defaultStorageLimitMb: Number(settings.defaultStorageLimitMb || 0),
+        defaultProductLimit: Number(settings.defaultProductLimit || 100),
         warningDaysBeforeExpiry: Number(settings.warningDaysBeforeExpiry || 5),
         warningStoragePercent: Number(settings.warningStoragePercent || 80),
         autoSuspendEnabled: Boolean(settings.autoSuspendEnabled),
@@ -264,6 +272,7 @@ export default function AdminSubscriptions() {
           form.billingPeriodDays || settings.billingPeriodDays || 30,
         ),
         storageLimitMb: Number(form.storageLimitMb || 0),
+        productLimit: Number(form.productLimit || settings.defaultProductLimit || 100),
         unsuspend: form.unsuspend,
       };
 
@@ -308,6 +317,7 @@ export default function AdminSubscriptions() {
           feeEtb: "0",
           billingPeriodDays: "30",
           storageLimitMb: "0",
+          productLimit: "100",
           subscriptionEndDate: "",
           unsuspend: false,
         }),
@@ -394,6 +404,19 @@ export default function AdminSubscriptions() {
                 />
               </div>
               <div className="space-y-1">
+                <Label>Default Product Limit</Label>
+                <Input
+                  type="number"
+                  value={settings.defaultProductLimit}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      defaultProductLimit: Number(e.target.value || 100),
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-1">
                 <Label>Warn Before Expiry (Days)</Label>
                 <Input
                   type="number"
@@ -458,6 +481,7 @@ export default function AdminSubscriptions() {
                     <TableHead>Status</TableHead>
                     <TableHead>Subscription</TableHead>
                     <TableHead>Storage</TableHead>
+                    <TableHead>Products</TableHead>
                     <TableHead>Days Left</TableHead>
                     <TableHead>Action</TableHead>
                   </TableRow>
@@ -486,6 +510,13 @@ export default function AdminSubscriptions() {
                         {Number(row.storageUsagePercent || 0).toFixed(1)}%
                       </TableCell>
                       <TableCell>
+                        {typeof row.productCount === "number" ? (
+                          <span className={row.productLimit && row.productCount >= row.productLimit ? "text-destructive font-medium" : ""}>
+                            {row.productCount}/{row.productLimit || "∞"}
+                          </span>
+                        ) : "N/A"}
+                      </TableCell>
+                      <TableCell>
                         {typeof row.daysLeft === "number"
                           ? row.daysLeft
                           : "N/A"}
@@ -507,7 +538,7 @@ export default function AdminSubscriptions() {
                   {!loadingMarts && marts.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={7}
                         className="text-center text-muted-foreground"
                       >
                         No marts found.
@@ -559,6 +590,13 @@ export default function AdminSubscriptions() {
                     {Number(selectedMart.storageUsageMb || 0).toFixed(2)}MB /{" "}
                     {Number(selectedMart.storageLimitMb || 0).toFixed(2)}MB ({" "}
                     {Number(selectedMart.storageUsagePercent || 0).toFixed(2)}%)
+                  </span>
+                </div>
+                <div>
+                  Products:{" "}
+                  <span className="font-medium">
+                    {selectedMart.productCount ?? "N/A"} /{" "}
+                    {selectedMart.productLimit ?? "∞"}
                   </span>
                 </div>
                 <div>
@@ -647,6 +685,18 @@ export default function AdminSubscriptions() {
                     onChange={(e) =>
                       updatePlanForm(editingMartId, {
                         storageLimitMb: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Product Limit</Label>
+                  <Input
+                    type="number"
+                    value={editingForm.productLimit}
+                    onChange={(e) =>
+                      updatePlanForm(editingMartId, {
+                        productLimit: e.target.value,
                       })
                     }
                   />
