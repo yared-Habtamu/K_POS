@@ -74,6 +74,123 @@ router.get("/", authenticate, requireAuth, async (req, res) => {
   }
 });
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+async function cancelSaleStock(tx, sale) {
+  const items = Array.isArray(sale.items) ? sale.items : [];
+  for (const item of items) {
+    if (!item.productId) continue;
+    await tx.product.update({
+      where: { id: item.productId },
+      data: {
+        supermarketQuantity: {
+          increment: item.quantity || 0,
+        },
+        quantity: {
+          increment: item.quantity || 0,
+        },
+      },
+    });
+  }
+}
+
+// ─── POST /api/sale-cancellation-requests/direct ─────────────────────────────
+// Owner cancels one of their OWN completed sales directly - no approval needed.
+
+router.post("/direct", authenticate, requireAuth, async (req, res) => {
+  try {
+    const { martId, id: actorId, role } = req.user;
+    const { saleId, reason } = req.body;
+
+    if (role !== "owner" && role !== "systemAdmin") {
+      return res.status(403).json({
+        message: "Only the owner can cancel sales directly",
+      });
+    }
+
+    if (!saleId) {
+      return res.status(400).json({ message: "saleId is required" });
+    }
+    if (!reason || reason.trim().length < 3) {
+      return res
+        .status(400)
+        .json({ message: "Reason is required (min 3 characters)" });
+    }
+
+    // Validate sale exists, belongs to same mart, and is completed
+    const sale = await prisma.sale.findFirst({
+      where: { id: saleId, martId },
+      include: { items: true },
+    });
+    if (!sale) {
+      return res.status(404).json({ message: "Sale not found" });
+    }
+    if (sale.status !== "completed") {
+      return res.status(400).json({
+        message: "Only completed sales can be cancelled",
+      });
+    }
+    // Only sales the owner made themselves can be cancelled without approval.
+    if (sale.cashierId !== actorId) {
+      return res.status(403).json({
+        message:
+          "You can only directly cancel sales you made. Other sales go through a cancellation request.",
+      });
+    }
+
+    // Audit trail: reuse an existing request record if present, otherwise create
+    // an already-approved one so the cancellation shows up in the request list.
+    const existing = await prisma.saleCancellationRequest.findUnique({
+      where: { saleId },
+    });
+
+    const request = await prisma.$transaction(async (tx) => {
+      const decidedData = {
+        status: "approved",
+        approverId: actorId,
+        decidedAt: new Date(),
+      };
+
+      const requestRecord = existing
+        ? await tx.saleCancellationRequest.update({
+            where: { id: existing.id },
+            data: {
+              ...decidedData,
+              requesterId: actorId,
+              reason: reason.trim(),
+            },
+          })
+        : await tx.saleCancellationRequest.create({
+            data: {
+              martId,
+              saleId,
+              requesterId: actorId,
+              reason: reason.trim(),
+              ...decidedData,
+            },
+          });
+
+      await tx.sale.update({
+        where: { id: sale.id },
+        data: {
+          status: "cancelled",
+          cancelledAt: new Date(),
+          cancelledBy: actorId,
+        },
+      });
+
+      await cancelSaleStock(tx, sale);
+
+      return requestRecord;
+    });
+
+    return res.json(request);
+  } catch (err) {
+    console.error("[saleCancellationRequests] direct cancel error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
 // ─── POST /api/sale-cancellation-requests ────────────────────────────────────
 // Cashier or manager requests cancellation of a completed receipt.
 

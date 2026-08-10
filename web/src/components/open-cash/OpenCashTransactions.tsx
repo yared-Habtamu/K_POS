@@ -69,9 +69,6 @@ export function OpenCashTransactions({ requests }: OpenCashTransactionsProps) {
                   {t("status", { defaultValue: "Status" })}
                 </TableHead>
                 <TableHead>
-                  {t("reason", { defaultValue: "Reason" })}
-                </TableHead>
-                <TableHead>
                   {t("decision_date", { defaultValue: "Decision Date" })}
                 </TableHead>
               </TableRow>
@@ -138,7 +135,6 @@ export function OpenCashTransactions({ requests }: OpenCashTransactionsProps) {
                           : t("pending", { defaultValue: "Pending" })}
                     </Badge>
                   </TableCell>
-                  <TableCell>{r.reason || "-"}</TableCell>
                   <TableCell className="text-muted-foreground text-xs">
                     {formatDate(r.decidedAt)}
                   </TableCell>

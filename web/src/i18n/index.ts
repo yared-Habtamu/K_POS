@@ -832,6 +832,17 @@ const resources = {
         "Are you sure you want to approve this sale cancellation? Stock will be restored and the sale will be excluded from reports.",
       reject_cancellation_confirm:
         "Are you sure you want to reject this sale cancellation?",
+      direct_cancellation: "Cancel My Sale",
+      direct_cancellation_help:
+        "Cancel a completed sale you made yourself - no approval needed. Stock is restored and the sale is excluded from reports.",
+      cancel_sale_directly: "Cancel Sale Directly",
+      cancelling: "Cancelling...",
+      sale_cancelled_success:
+        "Sale cancelled successfully. Stock restored.",
+      cancel_failed: "Failed to cancel sale",
+      cancel_sale_confirm:
+        "Are you sure you want to cancel this sale? This cannot be undone. Stock will be restored and the sale will be excluded from reports.",
+      confirm_cancel_sale: "Yes, cancel sale",
 
       // Chat
       chat_conversations: "Conversations",
@@ -1658,6 +1669,16 @@ const resources = {
         "ይህንን የሽያጭ ስረዛ ለማጽደቅ እርግጠኛ ነዎት? ክምችት ይመለሳል እና ሽያጩ ከሪፖርቶች ይገለላል።",
       reject_cancellation_confirm:
         "ይህንን የሽያጭ ስረዛ ለመቃወም እርግጠኛ ነዎት?",
+      direct_cancellation: "የኔን ሽያጭ ሰርዝ",
+      direct_cancellation_help:
+        "ያልፈጸሙትን የእርስዎን የተጠናቀቀ ሽያጭ ይሰርዙ - ማጽደቅ አያስፈልግም። ክምችት ይመለሳል እና ሽያጩ ከሪፖርቶች ይገለላል።",
+      cancel_sale_directly: "ሽያጩን በቀጥታ ሰርዝ",
+      cancelling: "በመሰረዝ ላይ...",
+      sale_cancelled_success: "ሽያጩ በተሳካ ሁኔታ ተሰርዟል። ክምችት ተመልሷል።",
+      cancel_failed: "ሽያጩን መሰረዝ አልተሳካም",
+      cancel_sale_confirm:
+        "ይህንን ሽያጭ ለመሰረዝ እርግጠኛ ነዎት? ይህንን መሻር አይቻልም። ክምችት ይመለሳል እና ሽያጩ ከሪፖርቶች ይገለላል።",
+      confirm_cancel_sale: "አዎ፣ ሽያጩን ሰርዝ",
 
       // Chat
       chat_conversations: "ውይይቶች",
