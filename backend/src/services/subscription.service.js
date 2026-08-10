@@ -4,27 +4,6 @@ const userRepository = require("../repositories/userRepository");
 const notificationRepository = require("../repositories/notificationRepository");
 const subscriptionSettingsRepository = require("../repositories/subscriptionSettingsRepository");
 
-const BYTES_PER_MB = 1024 * 1024;
-
-const COLLECTIONS_WITH_MART = [
-  ["product", 1.0],
-  ["sale", 1.2],
-  ["expense", 0.8],
-  ["asset", 1.0],
-  ["customer", 0.7],
-  ["attendance", 0.5],
-  ["dailyReport", 0.6],
-  ["notification", 0.5],
-  ["productAddRequest", 1.0],
-  ["productEditRequest", 1.0],
-  ["stockTransferRequest", 1.0],
-  ["assetActionRequest", 1.0],
-  ["expenseActionRequest", 1.0],
-  ["category", 0.3],
-  ["expenseCategory", 0.3],
-  ["paymentType", 0.3],
-];
-
 async function getOrCreateSettings() {
   return await subscriptionSettingsRepository.getOrCreate();
 }
@@ -33,29 +12,6 @@ function clampNumber(value, fallback, min = 0) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
   return Math.max(min, n);
-}
-
-async function estimateMartStorageUsageMb(martId) {
-  if (!martId) return 0;
-
-  let totalBytes = 0;
-
-  for (const [modelName, averageKilobytes] of COLLECTIONS_WITH_MART) {
-    try {
-      const count = await prisma[modelName].count({
-        where: { martId },
-      });
-      totalBytes += (count * averageKilobytes * BYTES_PER_MB) / 1024;
-    } catch (err) {
-      // Skip unavailable tables safely.
-      console.warn(
-        `[estimateMartStorageUsageMb] Failed to estimate size for ${modelName}:`,
-        err.message,
-      );
-    }
-  }
-
-  return Math.round((totalBytes / BYTES_PER_MB) * 100) / 100;
 }
 
 async function hasRecentNotification({
@@ -151,26 +107,27 @@ function deriveEffectivePlan(mart, settings) {
     clampNumber(settings.billingPeriodDays, 30),
     1,
   );
-  const storageLimitMb = clampNumber(
-    sub.storageLimitMb,
-    clampNumber(settings.defaultStorageLimitMb, 500),
+  const productLimit = clampNumber(
+    sub.productLimit,
+    clampNumber(settings.defaultProductLimit, 100),
+    1,
+  );
+  const transactionLimit = clampNumber(
+    sub.transactionLimit,
+    clampNumber(settings.defaultTransactionLimit, 500),
+    1,
   );
   const warningDaysBeforeExpiry = clampNumber(
     sub.warningDaysBeforeExpiry,
     clampNumber(settings.warningDaysBeforeExpiry, 5),
   );
-  const warningStoragePercent = clampNumber(
-    sub.warningStoragePercent,
-    clampNumber(settings.warningStoragePercent, 80),
-    1,
-  );
 
   return {
     feeEtb,
     billingPeriodDays,
-    storageLimitMb,
+    productLimit,
+    transactionLimit,
     warningDaysBeforeExpiry,
-    warningStoragePercent,
   };
 }
 
@@ -185,7 +142,6 @@ async function evaluateMartSubscription(
   const previousMartStatus = String(mart.status || "");
 
   const plan = deriveEffectivePlan(mart, settings);
-  const storageUsageMb = await estimateMartStorageUsageMb(mart.id);
 
   // Parse JSONB subscription field
   const subData =
@@ -223,35 +179,21 @@ async function evaluateMartSubscription(
       )
     : null;
 
-  const exceedsStorage =
-    plan.storageLimitMb > 0 && storageUsageMb >= plan.storageLimitMb;
   const timeExpired = hasValidEnd ? daysLeft <= 0 : false;
-
-  const storageUsagePercent =
-    plan.storageLimitMb > 0
-      ? Math.round((storageUsageMb / plan.storageLimitMb) * 10000) / 100
-      : 0;
-
-  const nearStorageLimit =
-    plan.storageLimitMb > 0 &&
-    storageUsagePercent >= plan.warningStoragePercent &&
-    storageUsagePercent < 100;
   const nearTimeLimit = hasValidEnd
     ? daysLeft <= plan.warningDaysBeforeExpiry && daysLeft > 0
     : false;
 
   let subscriptionStatus = "active";
-  if (exceedsStorage || timeExpired) subscriptionStatus = "suspended";
-  else if (nearStorageLimit || nearTimeLimit) subscriptionStatus = "warning";
+  if (timeExpired) subscriptionStatus = "suspended";
+  else if (nearTimeLimit) subscriptionStatus = "warning";
 
   const shouldSuspend =
     settings.autoSuspendEnabled && subscriptionStatus === "suspended";
   const isNewSuspension = shouldSuspend && previousMartStatus !== "suspended";
 
   if (isNewSuspension) {
-    const reason = timeExpired
-      ? "subscription period expired"
-      : `storage exceeded (${storageUsageMb.toFixed(2)}MB/${plan.storageLimitMb.toFixed(2)}MB)`;
+    const reason = "subscription period expired";
 
     await notifyMartOwners({
       mart,
@@ -263,8 +205,6 @@ async function evaluateMartSubscription(
         martName: mart.martName,
         reason,
         daysLeft,
-        storageUsageMb,
-        storageLimitMb: plan.storageLimitMb,
       },
     });
   }
@@ -273,8 +213,6 @@ async function evaluateMartSubscription(
     const updatedSub = {
       ...subData,
       ...plan,
-      storageUsageMb,
-      storageUsagePercent,
       subscriptionStartDate: subscriptionStartDate.toISOString(),
       subscriptionEndDate: subscriptionEndDate.toISOString(),
       subscriptionStatus,
@@ -304,13 +242,8 @@ async function evaluateMartSubscription(
     mart.status = nextStatus;
   }
 
-  if (nearStorageLimit || nearTimeLimit) {
+  if (nearTimeLimit) {
     const warningParts = [];
-    if (nearStorageLimit) {
-      warningParts.push(
-        `storage ${storageUsageMb.toFixed(2)}MB/${plan.storageLimitMb.toFixed(2)}MB (${storageUsagePercent.toFixed(2)}%)`,
-      );
-    }
     if (nearTimeLimit && typeof daysLeft === "number") {
       warningParts.push(`subscription expires in ${daysLeft} day(s)`);
     }
@@ -324,17 +257,12 @@ async function evaluateMartSubscription(
         martId: String(mart.id),
         martName: mart.martName,
         daysLeft,
-        storageUsageMb,
-        storageLimitMb: plan.storageLimitMb,
-        storageUsagePercent,
       },
     });
   }
 
   if (shouldSuspend && !isNewSuspension) {
-    const reason = timeExpired
-      ? "subscription period expired"
-      : `storage exceeded (${storageUsageMb.toFixed(2)}MB/${plan.storageLimitMb.toFixed(2)}MB)`;
+    const reason = "subscription period expired";
 
     await notifyMartOwners({
       mart,
@@ -346,8 +274,6 @@ async function evaluateMartSubscription(
         martName: mart.martName,
         reason,
         daysLeft,
-        storageUsageMb,
-        storageLimitMb: plan.storageLimitMb,
       },
     });
   }
@@ -363,9 +289,6 @@ async function evaluateMartSubscription(
         martId: String(mart.id),
         martName: mart.martName,
         daysLeft,
-        storageUsageMb,
-        storageLimitMb: plan.storageLimitMb,
-        storageUsagePercent,
       },
     });
   }
@@ -391,20 +314,40 @@ async function evaluateMartSubscription(
     });
   }
 
+  // Count active products for this mart
+  let productCount = 0;
+  try {
+    productCount = await prisma.product.count({
+      where: { martId: mart.id, isDeleted: false },
+    });
+  } catch (_) {}
+
+  // Count transactions (sales) for this mart in current billing period
+  let transactionCount = 0;
+  try {
+    transactionCount = await prisma.sale.count({
+      where: {
+        martId: mart.id,
+        createdAt: { gte: subscriptionStartDate, lte: subscriptionEndDate },
+      },
+    });
+  } catch (_) {}
+
   return {
     martId: String(mart.id),
     martName: mart.martName,
     status: mart.status,
     subscriptionStatus,
     daysLeft,
-    storageUsageMb,
-    storageLimitMb: plan.storageLimitMb,
-    storageUsagePercent,
     feeEtb: plan.feeEtb,
     billingPeriodDays: plan.billingPeriodDays,
+    productLimit: plan.productLimit,
+    productCount,
+    transactionLimit: plan.transactionLimit,
+    transactionCount,
     startDate: subscriptionStartDate,
     endDate: subscriptionEndDate,
-    exceeded: exceedsStorage || timeExpired,
+    exceeded: timeExpired,
   };
 }
 
@@ -431,7 +374,6 @@ async function runSubscriptionChecksForAllMarts({ persist = true } = {}) {
 
 module.exports = {
   getOrCreateSettings,
-  estimateMartStorageUsageMb,
   evaluateMartSubscription,
   runSubscriptionCheckForMart,
   runSubscriptionChecksForAllMarts,

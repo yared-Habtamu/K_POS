@@ -2,136 +2,30 @@ import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
+import {
+  ethiopianToGregorian,
+  gregorianToEthiopian,
+  parseGregorianYmd,
+  getDaysInEthiopianMonth,
+  ETHIOPIAN_MONTHS_EN,
+  ETHIOPIAN_MONTHS_AM,
+  type EthiopianDate,
+} from "@/utils/ethiopian-calendar";
 
-// ─── Ethiopian Calendar Utilities ────────────────────────────────────────────
-
-const ETHIOPIAN_MONTHS_EN = [
-  "Meskerem",
-  "Tikimt",
-  "Hidar",
-  "Tahsas",
-  "Tir",
-  "Yekatit",
-  "Megabit",
-  "Miazia",
-  "Ginbot",
-  "Sene",
-  "Hamle",
-  "Nehase",
-  "Pagume",
-];
-
-const ETHIOPIAN_MONTHS_AM = [
-  "መስከረም",
-  "ጥቅምት",
-  "ህዳር",
-  "ታህሳስ",
-  "ጥር",
-  "የካቲት",
-  "መጋቢት",
-  "ሚያዝያ",
-  "ግንቦት",
-  "ሰኔ",
-  "ሐምሌ",
-  "ነሐሴ",
-  "ጳጉሜ",
-];
-
-function isGregorianLeapYear(year: number): boolean {
-  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-}
-
-function isEthiopianLeapYear(year: number): boolean {
-  return year % 4 === 0;
-}
-
-function pagumeDays(ethYear: number): number {
-  return isEthiopianLeapYear(ethYear) ? 6 : 5;
-}
-
-function ethiopianToGregorian(
-  ethYear: number,
-  ethMonth: number,
-  ethDay: number,
-): { year: number; month: number; day: number } {
-  const gregorianYear = ethYear + 7;
-  const newYearDay = isGregorianLeapYear(gregorianYear) ? 12 : 11;
-
-  let daysElapsed = 0;
-  for (let m = 1; m < ethMonth; m++) {
-    daysElapsed += m <= 12 ? 30 : pagumeDays(ethYear);
-  }
-  daysElapsed += ethDay - 1;
-
-  const gregorianDate = new Date(gregorianYear, 8, newYearDay);
-  gregorianDate.setDate(gregorianDate.getDate() + daysElapsed);
-
-  return {
-    year: gregorianDate.getFullYear(),
-    month: gregorianDate.getMonth() + 1,
-    day: gregorianDate.getDate(),
-  };
-}
-
-function gregorianToEthiopian(
-  gregYear: number,
-  gregMonth: number,
-  gregDay: number,
-): { year: number; month: number; day: number } {
-  const newYearDay = isGregorianLeapYear(gregYear) ? 12 : 11;
-  const gregDate = new Date(gregYear, gregMonth - 1, gregDay);
-  const ethNewYear = new Date(gregYear, 8, newYearDay);
-
-  let daysSinceNewYear: number;
-  if (gregDate >= ethNewYear) {
-    daysSinceNewYear = Math.floor(
-      (gregDate.getTime() - ethNewYear.getTime()) / 86400000,
-    );
-  } else {
-    const prevEthNewYear = new Date(gregYear - 1, 8, newYearDay);
-    daysSinceNewYear = Math.floor(
-      (gregDate.getTime() - prevEthNewYear.getTime()) / 86400000,
-    );
-  }
-
-  const ethYear = gregDate >= ethNewYear ? gregYear - 7 : gregYear - 8;
-
-  let ethMonth = 1;
-  let remainingDays = daysSinceNewYear;
-
-  for (let m = 1; m <= 13; m++) {
-    const monthDays = m <= 12 ? 30 : pagumeDays(ethYear);
-    if (remainingDays < monthDays) {
-      ethMonth = m;
-      break;
-    }
-    remainingDays -= monthDays;
-  }
-
-  return { year: ethYear, month: ethMonth, day: remainingDays + 1 };
-}
-
-function toGregorianYmd(
-  year: number,
-  month: number,
-  day: number,
-): string {
-  const mm = String(month).padStart(2, "0");
-  const dd = String(day).padStart(2, "0");
-  return `${year}-${mm}-${dd}`;
-}
-
-function parseGregorianYmd(ymd: string): { year: number; month: number; day: number } | null {
-  if (!ymd) return null;
-  const parts = ymd.split("-").map(Number);
-  if (parts.length !== 3 || parts.some(isNaN)) return null;
-  return gregorianToEthiopian(parts[0], parts[1], parts[2]);
-}
-
-function getDaysInEthiopianMonth(ethYear: number, ethMonth: number): number {
-  if (ethMonth === 13) return pagumeDays(ethYear);
-  return 30;
-}
+export type { EthiopianDate } from "@/utils/ethiopian-calendar";
+export {
+  ethiopianToGregorian,
+  gregorianToEthiopian,
+  ethiopianToGregorianYmd,
+  parseGregorianYmd,
+  formatEthiopianDate,
+  currentEthiopianDate,
+  getDaysInEthiopianMonth,
+  isEthiopianLeapYear,
+  pagumeDays,
+  ETHIOPIAN_MONTHS_EN,
+  ETHIOPIAN_MONTHS_AM,
+} from "@/utils/ethiopian-calendar";
 
 // ─── Component Types ─────────────────────────────────────────────────────────
 
@@ -152,11 +46,6 @@ export interface EthiopianDatePickerProps {
   placeholder?: string;
   /** Disabled state */
   disabled?: boolean;
-}
-
-interface RangeValue {
-  from: string;
-  to: string;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -180,11 +69,6 @@ export function EthiopianDatePicker({
   const [ethDay, setEthDay] = React.useState(ethDate?.day || 1);
   const [isOpen, setIsOpen] = React.useState(false);
 
-  // Range mode state
-  const rangeValue = value as unknown as RangeValue | undefined;
-  const rangeFrom = parseGregorianYmd(rangeValue?.from || "");
-  const rangeTo = parseGregorianYmd(rangeValue?.to || "");
-
   // Check if a date is today or in the future (Gregorian)
   const isDateDisabled = (ethY: number, ethM: number, ethD: number): boolean => {
     if (!disableFuture) return false;
@@ -200,10 +84,10 @@ export function EthiopianDatePicker({
     setEthDay(day);
 
     if (mode === "single") {
-      const gregYmd = toGregorianYmd(
-        ...Object.values(ethiopianToGregorian(ethYear, ethMonth, day)),
-      );
-      onChange?.(gregYmd);
+      const greg = ethiopianToGregorian(ethYear, ethMonth, day);
+      const mm = String(greg.month).padStart(2, "0");
+      const dd = String(greg.day).padStart(2, "0");
+      onChange?.(`${greg.year}-${mm}-${dd}`);
       setIsOpen(false);
     }
   };
@@ -241,7 +125,6 @@ export function EthiopianDatePicker({
   const daysInMonth = getDaysInEthiopianMonth(ethYear, ethMonth);
 
   // Get day of week for first day of month (0 = Sunday)
-  // We compute from Gregorian equivalent
   const firstGreg = ethiopianToGregorian(ethYear, ethMonth, 1);
   const firstDayOfWeek = new Date(
     firstGreg.year,
@@ -253,7 +136,7 @@ export function EthiopianDatePicker({
     ? (() => {
         const eth = parseGregorianYmd(value);
         if (!eth) return placeholder;
-        return formatEthiopianDisplay(eth.year, eth.month, eth.day, monthNames);
+        return `${monthNames[eth.month - 1]} ${eth.day}, ${eth.year}`;
       })()
     : placeholder;
 
@@ -412,15 +295,6 @@ export function EthiopianDatePicker({
       )}
     </div>
   );
-}
-
-function formatEthiopianDisplay(
-  year: number,
-  month: number,
-  day: number,
-  monthNames: string[],
-): string {
-  return `${monthNames[month - 1]} ${day}, ${year}`;
 }
 
 export default EthiopianDatePicker;

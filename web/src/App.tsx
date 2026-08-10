@@ -150,6 +150,7 @@ const App = () => {
             <Route path="/cashier/today-sales" element={<TodaysSales />} />
             <Route path="/cashier/customers" element={<CustomerManagement />} />
             <Route path="/cashier/chat" element={<ChatPage />} />
+            <Route path="/cashier/sale-cancellations" element={<SaleCancellationsPage />} />
             <Route path="/cashier/settings" element={<CashierSettings />} />
 
             {/* Owner Routes */}
@@ -203,6 +204,7 @@ const App = () => {
               element={<ManagerExpenseManagement />}
             />
             <Route path="/manager/open-cash" element={<ManagerOpenCashPage />} />
+            <Route path="/manager/sale-cancellations" element={<SaleCancellationsPage />} />
             <Route path="/manager/chat" element={<ChatPage />} />
             <Route path="/manager/settings" element={<ManagerSettings />} />
 

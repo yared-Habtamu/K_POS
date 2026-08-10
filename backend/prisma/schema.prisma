@@ -508,10 +508,9 @@ model SubscriptionSettings {
   id                      String   @id @default(uuid())
   defaultFeeEtb           Float    @default(1000)
   billingPeriodDays       Int      @default(30)
-  defaultStorageLimitMb   Float    @default(500)
   defaultProductLimit     Int      @default(100)
+  defaultTransactionLimit Int      @default(500)
   warningDaysBeforeExpiry Int      @default(5)
-  warningStoragePercent   Float    @default(80)
   autoSuspendEnabled      Boolean  @default(true)
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt

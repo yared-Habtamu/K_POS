@@ -288,4 +288,38 @@ router.put(
   },
 );
 
+// ─── GET /api/chat/cashiers ──────────────────────────────────────────────
+// List cashiers in the same mart (for starting a new conversation).
+
+router.get(
+  "/cashiers",
+  authenticate,
+  requireAuth,
+  requireManagerOrCashier,
+  async (req, res) => {
+    try {
+      const { martId } = req.user;
+      if (!martId) {
+        return res.json({ data: [] });
+      }
+
+      const cashiers = await prisma.user.findMany({
+        where: {
+          martId,
+          role: "cashier",
+          active: true,
+          isDeleted: false,
+        },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      });
+
+      return res.json({ data: cashiers });
+    } catch (err) {
+      console.error("[chat] GET cashiers error:", err);
+      return res.status(500).json({ message: "Server error" });
+    }
+  },
+);
+
 module.exports = router;
