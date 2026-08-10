@@ -78,6 +78,7 @@ import AdminSubscriptions from "./pages/admin/AdminSubscriptions";
 import AdminSettings from "./pages/admin/AdminSettings";
 import MartDetails from "./pages/admin/MartDetails";
 import { NotificationService } from "./components/notifications/NotificationService";
+import { useSessionTimeout } from "./hooks/useSessionTimeout";
 
 const queryClient = new QueryClient();
 
@@ -85,6 +86,8 @@ const App = () => {
   const user = useAuthStore((s) => s.user);
   const clearCart = useCartStore((s) => s.clearCart);
   const previousUserKeyRef = useRef<string | null>(null);
+
+  useSessionTimeout();
   const Router: any =
     window.location.protocol === "file:" ? HashRouter : BrowserRouter;
   const routerFutureFlags = {
