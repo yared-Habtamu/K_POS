@@ -743,6 +743,9 @@ router.get("/", authenticate, async (req, res) => {
       filter.date = { gte: start, lte: end };
     }
 
+    // Cancelled sales are excluded from normal sales figures
+    filter.status = { not: "cancelled" };
+
     const list = await prisma.sale.findMany({
       where: filter,
       orderBy: { date: "desc" },

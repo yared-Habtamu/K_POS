@@ -231,66 +231,9 @@ router.put("/:id", authenticate, async (req, res) => {
   }
 });
 
-// Update open cash balance for a manager (owner/systemAdmin only)
-router.put("/:id/open-cash", authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const requester = req.user;
-    const { amount, mode } = req.body || {};
-
-    if (!id) return res.status(400).json({ message: "User id is required" });
-
-    if (requester.role !== "systemAdmin" && requester.role !== "owner") {
-      return res.status(403).json({ message: "Only owners can update open cash" });
-    }
-
-    const target = await userRepository.findById(id);
-    if (!target) return res.status(404).json({ message: "User not found" });
-
-    if (
-      requester.role !== "systemAdmin" &&
-      String(requester.martId) !== String(target.martId)
-    ) {
-      return res.status(403).json({ message: "Cannot update another mart" });
-    }
-
-    if (String(target.role || "").toLowerCase() !== "manager") {
-      return res
-        .status(400)
-        .json({ message: "Open cash is only available for managers" });
-    }
-
-    const parsedAmount = Number(amount);
-    if (!Number.isFinite(parsedAmount)) {
-      return res.status(400).json({ message: "Invalid amount" });
-    }
-
-    const normalizedMode = String(mode || "add").toLowerCase();
-    let updated;
-    if (normalizedMode === "set") {
-      updated = await userRepository.update(id, {
-        openCashBalance: Math.max(0, parsedAmount)
-      });
-    } else {
-      if (parsedAmount <= 0) {
-        return res.status(400).json({ message: "Amount must be greater than 0" });
-      }
-      updated = await userRepository.update(id, {
-        openCashBalance: {
-          increment: parsedAmount
-        }
-      });
-    }
-
-    return res.json({
-      userId: updated.id,
-      openCashBalance: Number(updated.openCashBalance || 0),
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
-  }
-});
+// Note: Direct open cash balance editing was removed. Open cash changes are now
+// handled exclusively through /api/open-cash-requests (approval workflow with
+// audit history).
 
 // Delete employee (soft delete to keep foreign keys intact)
 router.delete("/:id", authenticate, async (req, res) => {

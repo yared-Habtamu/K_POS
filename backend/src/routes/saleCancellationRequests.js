@@ -1,7 +1,18 @@
 const express = require("express");
 const router = express.Router();
 const prisma = require("../repositories/prismaClient");
+const userRepository = require("../repositories/userRepository");
 const { authenticate } = require("../middleware/auth");
+const { createNotification } = require("../services/notification.service");
+
+async function getMartOwners(martId) {
+  if (!martId) return [];
+  return userRepository.findMany({
+    martId,
+    role: "owner",
+    isDeleted: false,
+  });
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -71,6 +82,13 @@ router.post("/", authenticate, requireAuth, async (req, res) => {
     const { martId, id: requesterId, role } = req.user;
     const { saleId, reason } = req.body;
 
+    // Only cashiers and managers can request cancellations
+    if (role !== "cashier" && role !== "manager") {
+      return res.status(403).json({
+        message: "Only cashiers and managers can request sale cancellations",
+      });
+    }
+
     if (!saleId) {
       return res.status(400).json({ message: "saleId is required" });
     }
@@ -80,15 +98,23 @@ router.post("/", authenticate, requireAuth, async (req, res) => {
         .json({ message: "Reason is required (min 3 characters)" });
     }
 
-    // Validate sale exists and belongs to same mart
+    // Validate sale exists, belongs to same mart, and is completed
     const sale = await prisma.sale.findFirst({
       where: { id: saleId, martId },
     });
     if (!sale) {
       return res.status(404).json({ message: "Sale not found" });
     }
-    if (sale.status === "cancelled") {
-      return res.status(400).json({ message: "Sale is already cancelled" });
+    if (sale.status !== "completed") {
+      return res.status(400).json({
+        message: "Only completed sales can be cancelled",
+      });
+    }
+    // Cashiers may only request cancellation of their own sales
+    if (role === "cashier" && sale.cashierId !== requesterId) {
+      return res
+        .status(403)
+        .json({ message: "You can only cancel your own sales" });
     }
 
     // Check no pending request already exists for this sale
@@ -114,6 +140,21 @@ router.post("/", authenticate, requireAuth, async (req, res) => {
         requester: { select: { id: true, name: true } },
       },
     });
+
+    // Notify the mart owners that a cancellation request awaits approval
+    const owners = await getMartOwners(martId);
+    await Promise.all(
+      owners.map((owner) =>
+        createNotification({
+          martId,
+          userId: owner.id,
+          type: "sale_cancellation_request",
+          title: "Sale cancellation requested",
+          message: `A sale cancellation request is awaiting approval`,
+          metadata: { requestId: request.id, saleId: request.saleId },
+        }),
+      ),
+    );
 
     return res.status(201).json(request);
   } catch (err) {
@@ -168,7 +209,7 @@ router.put("/:id/approve", authenticate, requireAuth, async (req, res) => {
           cancelledBy: approverId,
         },
       }),
-      // Restore quantities for each sold item
+      // Restore quantities for each sold item (mirror the deduction on sale)
       ...existing.sale.items.map((item) =>
         item.productId
           ? prisma.product.update({
@@ -177,11 +218,26 @@ router.put("/:id/approve", authenticate, requireAuth, async (req, res) => {
                 supermarketQuantity: {
                   increment: item.quantity || 0,
                 },
+                quantity: {
+                  increment: item.quantity || 0,
+                },
               },
             })
           : Promise.resolve(),
       ),
     ]);
+
+    // Notify the requester that their request was approved
+    if (existing.requesterId) {
+      await createNotification({
+        martId: existing.martId,
+        userId: existing.requesterId,
+        type: "sale_cancellation_request",
+        title: "Sale cancellation approved",
+        message: "Your sale cancellation request was approved",
+        metadata: { requestId: id, saleId: existing.saleId },
+      });
+    }
 
     return res.json(request);
   } catch (err) {
@@ -226,6 +282,18 @@ router.put("/:id/reject", authenticate, requireAuth, async (req, res) => {
         decidedAt: new Date(),
       },
     });
+
+    // Notify the requester that their request was rejected
+    if (existing.requesterId) {
+      await createNotification({
+        martId: existing.martId,
+        userId: existing.requesterId,
+        type: "sale_cancellation_request",
+        title: "Sale cancellation rejected",
+        message: "Your sale cancellation request was rejected",
+        metadata: { requestId: id, saleId: existing.saleId },
+      });
+    }
 
     return res.json(request);
   } catch (err) {

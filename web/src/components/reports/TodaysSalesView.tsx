@@ -36,6 +36,7 @@ interface Props {
     totalVat: number;
     grandTotal: number;
   };
+  selectedDate?: string;
   // hide header when an external dashboard header is shown
   hideHeader?: boolean;
 }
@@ -44,6 +45,7 @@ export default function TodaysSalesView({
   items,
   loading,
   totals,
+  selectedDate,
   hideHeader,
 }: Props) {
   const { t } = useTranslation();
@@ -55,6 +57,14 @@ export default function TodaysSalesView({
     .slice(0, 5);
   const maxTop = Math.max(1, ...topItems.map((it) => it.total || 0));
 
+  const formatDisplayDate = (dStr?: string) => {
+    if (!dStr) return dateLabel();
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (dStr === todayStr) return `${t("today", "Today")} • ${dateLabel()}`;
+    const [year, month, day] = dStr.split("-");
+    return `${day}/${month}/${year}`;
+  };
+
   return (
     <div className="space-y-6">
       {!hideHeader && (
@@ -64,10 +74,10 @@ export default function TodaysSalesView({
           <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-widest text-slate-300">
-                {t("today")} • {dateLabel()}
+                {formatDisplayDate(selectedDate)}
               </p>
               <h1 className="text-3xl md:text-4xl font-semibold">
-                {t("today_sales")}
+                {t("sales_report", "Sales Report")}
               </h1>
               <p className="text-sm text-slate-300 mt-1">
                 {t("live_snapshot_sold_costs")}

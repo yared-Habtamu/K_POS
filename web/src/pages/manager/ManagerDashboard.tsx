@@ -264,7 +264,7 @@ export default function OwnerDashboard() {
 
   const stats = [
     {
-      title: t("today_sales"),
+      title: t("sales_report"),
       value: metrics ? Number(metrics.totalSales || 0).toLocaleString() : "—",
       change: "+12.5%",
       trend: "up",

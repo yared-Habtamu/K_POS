@@ -162,9 +162,18 @@ export default function SoldItemsTable({ items, totals, loading }: Props) {
     return sortedItems;
   }, [appliedFilters, items]);
 
-  const subtotal = totals?.totalBeforeVat ?? 0;
-  const totalVat = totals?.totalVat ?? 0;
-  const grandTotal = totals?.grandTotal ?? 0;
+  const subtotal = React.useMemo(
+    () => filteredItems.reduce((s, it) => s + (it.subtotal || 0), 0),
+    [filteredItems],
+  );
+  const totalVat = React.useMemo(
+    () => filteredItems.reduce((s, it) => s + (it.vatAmount || 0), 0),
+    [filteredItems],
+  );
+  const grandTotal = React.useMemo(
+    () => filteredItems.reduce((s, it) => s + (it.total || 0), 0),
+    [filteredItems],
+  );
 
   return (
     <div className="bg-card p-4 rounded-2xl border">

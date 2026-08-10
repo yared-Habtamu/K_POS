@@ -18,6 +18,7 @@ router.get("/daily", authenticate, async (req, res) => {
     const end = new Date(day + "T23:59:59.999Z");
 
     const filter = { date: { gte: start, lte: end } };
+    filter.status = { not: "cancelled" };
     if (req.user.role !== "systemAdmin") {
       filter.martId = req.user.martId;
     } else if (martId) {
@@ -119,6 +120,7 @@ router.get("/summary", authenticate, async (req, res) => {
     }
 
     const filter = { ...filterBase, date: { gte: startDate, lte: endDate } };
+    filter.status = { not: "cancelled" };
     const sales = await saleRepository.findMany(filter);
 
     const effectiveMartId = filterBase.martId
@@ -307,6 +309,7 @@ router.get("/mart", authenticate, async (req, res) => {
     const sales = await saleRepository.findMany({
       martId: targetMartId,
       date: { gte: startDate, lte: endDate },
+      status: { not: "cancelled" },
     });
     const totalSales = sales.reduce((s, x) => s + (x.total || 0), 0);
     const transactions = sales.length;
@@ -622,6 +625,7 @@ router.get("/admin-analytics", authenticate, async (req, res) => {
       }),
       prisma.sale.findMany({
         where: {
+          status: { not: "cancelled" },
           date: {
             gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
             lte: new Date(
@@ -914,6 +918,7 @@ router.get("/today-sales", authenticate, async (req, res) => {
     const end = new Date(day + "T23:59:59.999Z");
 
     const filter = { date: { gte: start, lte: end } };
+    filter.status = { not: "cancelled" };
 
     const userMartId = req.user.martId ? String(req.user.martId) : "";
     const queryMartId = martId ? String(martId) : "";

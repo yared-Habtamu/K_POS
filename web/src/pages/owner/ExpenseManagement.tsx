@@ -1,5 +1,4 @@
-// src/pages/owner/ExpenseManagement.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { RoleLayout } from "@/components/layout/RoleLayout";
@@ -57,6 +56,11 @@ import {
   TrendingDown,
   Loader2,
   Camera,
+  Filter,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -226,15 +230,46 @@ export default function ExpenseManagement() {
   >("all");
   const [managerFilter, setManagerFilter] = useState("all");
   const [managers, setManagers] = useState<
-    Array<{ id: string; name: string; openCashBalance: number }>
+    Array<{ id: string; name: string }>
   >([]);
-  const [openCashTargetId, setOpenCashTargetId] = useState<string>("");
-  const [openCashAmount, setOpenCashAmount] = useState<string>("");
-  const [isUpdatingOpenCash, setIsUpdatingOpenCash] = useState(false);
   // month filter formatted as YYYY-MM; empty = all
   const [monthFilter, setMonthFilter] = useState<string>(() =>
     new Date().toISOString().slice(0, 7),
   );
+  const [exactDate, setExactDate] = useState("");
+  const [paymentTypeFilter, setPaymentTypeFilter] = useState("all");
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
+  const formatDisplayDate = (dateStr: string) => {
+    if (!dateStr) return "";
+    const [year, month, day] = dateStr.split("-");
+    return `${day}/${month}/${year}`;
+  };
+
+  const getTodayStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  const addDaysToStr = (dateStr: string, days: number): string => {
+    const cur = dateStr || getTodayStr();
+    const [y, m, d] = cur.split("-").map(Number);
+    const date = new Date(y, m - 1, d);
+    date.setDate(date.getDate() + days);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+
+  const handlePrevDay = () => {
+    const baseStr = exactDate || (monthFilter ? `${monthFilter}-01` : getTodayStr());
+    setExactDate(addDaysToStr(baseStr, -1));
+    setCurrentPage(1);
+  };
+
+  const handleNextDay = () => {
+    const baseStr = exactDate || (monthFilter ? `${monthFilter}-01` : getTodayStr());
+    setExactDate(addDaysToStr(baseStr, 1));
+    setCurrentPage(1);
+  };
 
   // compute unique month options: include last 12 calendar months plus any months actually present
   const monthSet = new Set<string>();
@@ -291,8 +326,20 @@ export default function ExpenseManagement() {
     const matchMonth =
       !monthFilter ||
       new Date(e.date).toISOString().slice(0, 7) === monthFilter;
+    const matchExactDate =
+      !exactDate ||
+      new Date(e.date).toISOString().slice(0, 10) === exactDate;
+    const matchPaymentType =
+      paymentTypeFilter === "all" ||
+      (e as any).paymentType === paymentTypeFilter;
     return (
-      matchSearch && matchCategory && matchMonth && matchCreator && matchManager
+      matchSearch &&
+      matchCategory &&
+      matchMonth &&
+      matchCreator &&
+      matchManager &&
+      matchExactDate &&
+      matchPaymentType
     );
   });
 
@@ -631,64 +678,6 @@ export default function ExpenseManagement() {
     addExpense();
   };
 
-  const selectedOpenCashManager = managers.find(
-    (m) => m.id === openCashTargetId,
-  );
-
-  const updateOpenCash = async (mode: "add" | "set") => {
-    if (!openCashTargetId) {
-      toast(t("select_manager", { defaultValue: "Select a manager" }));
-      return;
-    }
-    const amount = Number(openCashAmount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      toast(
-        t("enter_valid_amount", { defaultValue: "Enter a valid amount" }),
-      );
-      return;
-    }
-    setIsUpdatingOpenCash(true);
-    try {
-      const token = auth?.token;
-      const res = await fetch(
-        `${API_BASE}/api/employees/${encodeURIComponent(openCashTargetId)}/open-cash`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ amount, mode }),
-        },
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast(err.message || t("failed_update_open_cash"));
-        return;
-      }
-      const updated = await res.json();
-      setManagers((cur) =>
-        cur.map((m) =>
-          m.id === openCashTargetId
-            ? {
-                ...m,
-                openCashBalance: Number(updated.openCashBalance || 0),
-              }
-            : m,
-        ),
-      );
-      setOpenCashAmount("");
-      toast(
-        t("open_cash_updated", { defaultValue: "Open Cash updated" }),
-      );
-    } catch (err) {
-      console.error("update open cash error", err);
-      toast(t("failed_update_open_cash", { defaultValue: "Update failed" }));
-    } finally {
-      setIsUpdatingOpenCash(false);
-    }
-  };
-
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -751,7 +740,6 @@ export default function ExpenseManagement() {
           .map((u: any) => ({
             id: String(u._id || u.id || ""),
             name: String(u.name || u.username || "Unnamed"),
-            openCashBalance: Number(u.openCashBalance || 0),
           }))
           .filter((u: any) => u.id);
         setManagers(managerList);
@@ -1331,93 +1319,6 @@ export default function ExpenseManagement() {
           </Dialog>
         </div>
 
-        <Card className="border-border/60 bg-gradient-to-br from-background via-background to-muted/40">
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-emerald-500/10 p-2 text-emerald-600">
-                <Wallet className="h-5 w-5" />
-              </div>
-              <div>
-                <CardTitle>{t("open_cash", { defaultValue: "Open Cash" })}</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  {t("allocate_open_cash", { defaultValue: "Allocate and track manager spending limits." })}
-                </p>
-              </div>
-            </div>
-            {selectedOpenCashManager ? (
-              <div className="rounded-full border border-emerald-200/60 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                {t("current_balance", { defaultValue: "Current balance" })}: {Number(selectedOpenCashManager.openCashBalance || 0).toLocaleString()} ETB
-              </div>
-            ) : null}
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr_auto]">
-              <div className="space-y-2">
-                <Label>{t("manager", { defaultValue: "Manager" })}</Label>
-                <Select
-                  value={openCashTargetId}
-                  onValueChange={(val) => setOpenCashTargetId(val)}
-                >
-                  <SelectTrigger className="h-11">
-                    <SelectValue
-                      placeholder={t("select_manager", {
-                        defaultValue: "Select manager",
-                      })}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {managers.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {t("open_cash_note", { defaultValue: "Managers can only spend from this balance." })}
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="open-cash-amount">
-                  {t("amount", { defaultValue: "Amount" })} (ETB)
-                </Label>
-                <Input
-                  id="open-cash-amount"
-                  type="number"
-                  value={openCashAmount}
-                  onChange={(e) => setOpenCashAmount(e.target.value)}
-                  placeholder="0"
-                  className="h-11"
-                />
-                <p className="text-xs text-muted-foreground">
-                  {t("open_cash_amount_hint", { defaultValue: "Use Add to top up or Set to overwrite the balance." })}
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-2 justify-end">
-                <Button
-                  type="button"
-                  className="h-11"
-                  onClick={() => updateOpenCash("add")}
-                  disabled={isUpdatingOpenCash}
-                >
-                  {t("add_open_cash", { defaultValue: "Add Open Cash" })}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-11"
-                  onClick={() => updateOpenCash("set")}
-                  disabled={isUpdatingOpenCash}
-                >
-                  {t("set_balance", { defaultValue: "Set Balance" })}
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Chart & Filters */}
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Chart */}
@@ -1469,102 +1370,178 @@ export default function ExpenseManagement() {
           >
             <Card>
               <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                  <CardTitle className="flex items-center gap-2 flex-1">
-                    <Wallet className="h-5 w-5" />
-                    {t("recent_expenses")}
-                  </CardTitle>
-                  <div className="flex gap-2">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder={t("search") + "..."}
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="pl-10 w-40"
-                      />
-                    </div>
-                    <Select
-                      value={categoryFilter}
-                      onValueChange={setCategoryFilter}
-                    >
-                      <SelectTrigger className="w-36">
-                        <SelectValue placeholder={t("category")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">{t("all")}</SelectItem>
-                        {expenseCategories.map((cat) => (
-                          <SelectItem key={cat.value} value={cat.value}>
-                            {t(cat.label)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select
-                      value={creatorFilter}
-                      onValueChange={(v) =>
-                        setCreatorFilter(v as "all" | "owner" | "manager")
-                      }
-                    >
-                      <SelectTrigger className="w-36">
-                        <SelectValue placeholder="Created by" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All creators</SelectItem>
-                        <SelectItem value="owner">Owner</SelectItem>
-                        <SelectItem value="manager">Manager</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {creatorFilter === "manager" && (
-                      <Select
-                        value={managerFilter}
-                        onValueChange={setManagerFilter}
-                      >
-                        <SelectTrigger className="w-40">
-                          <SelectValue placeholder="Manager" />
+                <div className="flex flex-col gap-3">
+                  {/* ── Row 1: title + primary filters ── */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CardTitle className="flex items-center gap-2 flex-1 min-w-0">
+                      <Wallet className="h-5 w-5 shrink-0" />
+                      {t("recent_expenses")}
+                    </CardTitle>
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder={t("search") + "..."}
+                          value={search}
+                          onChange={(e) => setSearch(e.target.value)}
+                          className="pl-10 w-40"
+                        />
+                      </div>
+                      <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                        <SelectTrigger className="w-36">
+                          <SelectValue placeholder={t("category")} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All managers</SelectItem>
-                          {managers.map((m) => (
-                            <SelectItem key={m.id} value={m.id}>
-                              {m.name}
+                          <SelectItem value="all">{t("all")}</SelectItem>
+                          {expenseCategories.map((cat) => (
+                            <SelectItem key={cat.value} value={cat.value}>
+                              {t(cat.label)}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                    )}
-                    {/* month filter dropdown */}
-                    <Select
-                      value={monthFilter || "all"}
-                      onValueChange={(v) => {
-                        setMonthFilter(v === "all" ? "" : v);
-                        setCurrentPage(1);
-                      }}
-                    >
-                      <SelectTrigger className="w-36">
-                        <SelectValue
-                          placeholder={
-                            monthFilter
-                              ? format(
-                                  new Date(monthFilter + "-01"),
-                                  "MMM yyyy",
-                                )
-                              : t("all_months")
-                          }
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">{t("all_months")}</SelectItem>
-                        {monthOptions.map((m) => (
-                          <SelectItem key={m} value={m}>
-                            {format(new Date(m + "-01"), "MMM yyyy")}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      <Select
+                        value={creatorFilter}
+                        onValueChange={(v) =>
+                          setCreatorFilter(v as "all" | "owner" | "manager")
+                        }
+                      >
+                        <SelectTrigger className="w-36">
+                          <SelectValue placeholder="Created by" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All creators</SelectItem>
+                          <SelectItem value="owner">Owner</SelectItem>
+                          <SelectItem value="manager">Manager</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {creatorFilter === "manager" && (
+                        <Select value={managerFilter} onValueChange={setManagerFilter}>
+                          <SelectTrigger className="w-40">
+                            <SelectValue placeholder="Manager" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All managers</SelectItem>
+                            {managers.map((m) => (
+                              <SelectItem key={m.id} value={m.id}>
+                                {m.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      <Select
+                        value={monthFilter || "all"}
+                        onValueChange={(v) => {
+                          setMonthFilter(v === "all" ? "" : v);
+                          setCurrentPage(1);
+                        }}
+                      >
+                        <SelectTrigger className="w-36">
+                          <SelectValue
+                            placeholder={
+                              monthFilter
+                                ? format(new Date(monthFilter + "-01"), "MMM yyyy")
+                                : t("all_months")
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">{t("all_months")}</SelectItem>
+                          {monthOptions.map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {format(new Date(m + "-01"), "MMM yyyy")}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      
+                      {/* Payment Method filter dropdown */}
+                      <Select
+                        value={paymentTypeFilter}
+                        onValueChange={(v) => {
+                          setPaymentTypeFilter(v);
+                          setCurrentPage(1);
+                        }}
+                      >
+                        <SelectTrigger className="w-36">
+                          <SelectValue placeholder="Payment method" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All methods</SelectItem>
+                          {paymentOptions.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
               </CardHeader>
+
+              {/* Date Navigation Bar */}
+              <div className="flex items-center justify-between border-t border-b py-3 px-6 bg-slate-50/50 dark:bg-slate-900/10">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handlePrevDay}
+                  className="h-8 w-8 rounded-lg border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
+                  aria-label="Previous day"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => dateInputRef.current?.showPicker()}
+                      className="flex items-center gap-2.5 px-5 py-1.5 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100/80 dark:border-blue-900/50 rounded-xl text-sm font-semibold text-blue-600 dark:text-blue-400 shadow-sm hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
+                    >
+                      <span>
+                        {exactDate ? formatDisplayDate(exactDate) : "All Days (Select Date)"}
+                      </span>
+                      <Calendar className="h-4 w-4 text-blue-500 dark:text-blue-400" />
+                    </button>
+                    <input
+                      ref={dateInputRef}
+                      type="date"
+                      value={exactDate}
+                      onChange={(e) => {
+                        setExactDate(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
+                    />
+                  </div>
+                  {exactDate && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setExactDate("");
+                        setCurrentPage(1);
+                      }}
+                      className="h-8 w-8 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      title="Clear date filter"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleNextDay}
+                  className="h-8 w-8 rounded-lg border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
+                  aria-label="Next day"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
               <CardContent>
                 <div className="overflow-x-auto">
                   <Table>

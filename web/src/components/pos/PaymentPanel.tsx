@@ -52,6 +52,14 @@ type PaymentTypeDto = {
   icon?: string;
 };
 
+type SavedPaymentAccount = {
+  label: string;
+  value: string;
+  bankName?: string;
+  accountHolderName?: string;
+  accountNumber?: string;
+};
+
 const paymentMethodIconMap: Record<string, React.ElementType> = {
   Banknote,
   CreditCard,
@@ -147,7 +155,7 @@ export function PaymentPanel() {
   const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false);
   const [currentReceipt, setCurrentReceipt] = useState<Receipt | null>(null);
   const [paymentAccounts, setPaymentAccounts] = useState<
-    Record<string, string>
+    Record<string, SavedPaymentAccount>
   >({});
   const [martCurrency, setMartCurrency] = useState<string | null>(null);
   const [martDiscountPolicy, setMartDiscountPolicy] =
@@ -566,18 +574,41 @@ export function PaymentPanel() {
         const json = await res.json();
         if (!mounted) return;
 
-        const accounts: Record<string, string> = {};
+        const accounts: Record<string, SavedPaymentAccount> = {};
         let raw: unknown = undefined;
         if (Array.isArray(json.customPaymentFields)) {
           for (const entry of json.customPaymentFields) {
             try {
               if (!entry || typeof entry !== "object") continue;
               const obj = entry as Record<string, unknown>;
+              const bankName = String(obj["bankName"] ?? "").trim();
+              const accountHolderName = String(
+                obj["accountHolderName"] ?? "",
+              ).trim();
+              const accountNumber = String(
+                obj["accountNumber"] ?? obj["value"] ?? "",
+              ).trim();
               const k = String(obj["key"] ?? "")
                 .trim()
                 .toLowerCase();
-              const v = obj["value"] == null ? "" : String(obj["value"]);
-              if (k) accounts[k] = v;
+              if (!k && !bankName) continue;
+              if (
+                k === "other" ||
+                k === "other_name" ||
+                k === "other_bank_name" ||
+                k === "other_account_holder" ||
+                k === "other_account_number"
+              ) {
+                continue;
+              }
+              const key = k || bankName.toLowerCase();
+              accounts[key] = {
+                label: bankName || key,
+                value: accountNumber || String(obj["value"] ?? ""),
+                bankName,
+                accountHolderName,
+                accountNumber,
+              };
             } catch (err) {
               // ignore malformed entry
               continue;
@@ -596,7 +627,7 @@ export function PaymentPanel() {
                   .trim()
                   .toLowerCase();
                 const v = String(raw[i + 1] || "");
-                if (k) accounts[k] = v;
+                if (k) accounts[k] = { label: k, value: v };
               }
             } else {
               // case: array of objects
@@ -608,15 +639,18 @@ export function PaymentPanel() {
                     .trim()
                     .toLowerCase();
                   const v = obj["value"] == null ? "" : String(obj["value"]);
-                  if (k) accounts[k] = v;
+                  if (k) accounts[k] = { label: k, value: v };
                 } else {
                   Object.entries(obj).forEach(([k, v]) => {
                     const nk = String(k || "")
                       .trim()
                       .toLowerCase();
-                    accounts[nk] = Array.isArray(v)
-                      ? String((v as unknown[])[0] ?? "")
-                      : String(v ?? "");
+                    accounts[nk] = {
+                      label: nk,
+                      value: Array.isArray(v)
+                        ? String((v as unknown[])[0] ?? "")
+                        : String(v ?? ""),
+                    };
                   });
                 }
               }
@@ -627,8 +661,11 @@ export function PaymentPanel() {
                 .trim()
                 .toLowerCase();
               if (Array.isArray(v))
-                accounts[nk] = String((v as unknown[])[0] ?? "");
-              else accounts[nk] = v == null ? "" : String(v);
+                accounts[nk] = {
+                  label: nk,
+                  value: String((v as unknown[])[0] ?? ""),
+                };
+              else accounts[nk] = { label: nk, value: v == null ? "" : String(v) };
             });
           }
         } catch (e) {
@@ -1120,7 +1157,10 @@ export function PaymentPanel() {
           <Label>{t("saved_accounts") || "Saved Accounts"}</Label>
           <div className="grid grid-cols-2 gap-2">
             {Object.entries(paymentAccounts).map(([key, value]) => {
-              const niceKey = String(key || "")
+              const account = value;
+              const copyValue =
+                account.accountNumber || account.value || "";
+              const niceKey = String(account.bankName || account.label || key || "")
                 .replace(/_/g, " ")
                 .toUpperCase();
               return (
@@ -1133,10 +1173,15 @@ export function PaymentPanel() {
                       {niceKey}
                     </div>
                     <div className="text-sm font-medium mt-1">
-                      {value || t("not_configured")}
+                      {account.accountHolderName ? (
+                        <span className="block text-xs text-muted-foreground">
+                          {account.accountHolderName}
+                        </span>
+                      ) : null}
+                      {copyValue || t("not_configured")}
                     </div>
                   </div>
-                  {value ? (
+                  {copyValue ? (
                     <Button
                       size="icon"
                       variant="ghost"
@@ -1144,7 +1189,7 @@ export function PaymentPanel() {
                       title={t("copy") || "Copy"}
                       onClick={() => {
                         try {
-                          navigator.clipboard?.writeText(value);
+                          navigator.clipboard?.writeText(copyValue);
                           toast({ title: t("copied") });
                         } catch (err) {
                           console.warn("copy to clipboard failed", err);

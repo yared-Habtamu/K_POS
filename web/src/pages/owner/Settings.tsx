@@ -31,6 +31,8 @@ import {
   CircleDollarSign,
   CreditCard,
   Landmark,
+  Pencil,
+  Plus,
   Smartphone,
   Trash2,
   Wallet,
@@ -43,11 +45,19 @@ type ConfiguredPaymentType = {
   icon?: string;
 };
 
+type PaymentAccountField = {
+  key: string;
+  value: string;
+  bankName?: string;
+  accountHolderName?: string;
+  accountNumber?: string;
+  _id?: string;
+};
+
 const paymentMethodOptions = [
   { value: "cash", labelKey: "cash", fallback: "Cash" },
   { value: "card", labelKey: "card", fallback: "Card" },
   { value: "telebirr", labelKey: "telebirr", fallback: "Telebirr" },
-  { value: "cbe_bank", labelKey: "cbe_bank", fallback: "CBE Bank" },
   { value: "credit", labelKey: "credit", fallback: "Credit" },
   { value: "other", labelKey: "other", fallback: "Other" },
 ];
@@ -93,7 +103,7 @@ export default function OwnerSettings() {
     [k: string]: string;
   }>({});
   const [customPaymentFields, setCustomPaymentFields] = useState<
-    { key: string; value: string }[]
+    PaymentAccountField[]
   >([]);
   const [tax, setTax] = useState("");
   const [globalDiscountType, setGlobalDiscountType] = useState<
@@ -121,6 +131,22 @@ export default function OwnerSettings() {
     id: string;
     name: string;
   } | null>(null);
+  const [editingAccount, setEditingAccount] = useState<{
+    key: string;
+    value: string;
+    bankName?: string;
+    accountHolderName?: string;
+    accountNumber?: string;
+  } | null>(null);
+  const [editAccountKey, setEditAccountKey] = useState("");
+  const [editAccountValue, setEditAccountValue] = useState("");
+  const [pendingDeleteAccount, setPendingDeleteAccount] = useState<{
+    key: string;
+  } | null>(null);
+  const [savingAccount, setSavingAccount] = useState(false);
+  const [otherBankName, setOtherBankName] = useState("");
+  const [otherAccountHolder, setOtherAccountHolder] = useState("");
+  const [otherAccountNumber, setOtherAccountNumber] = useState("");
   const { toast } = useToast();
   const auth = useAuthStore((s) => s.user);
   const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -128,16 +154,46 @@ export default function OwnerSettings() {
   // build a merged view of saved payment fields coming from either
   // `customPaymentFields` (array of {key,value,_id}) or legacy `paymentAccounts` (object)
   const displayPaymentFields = (() => {
-    const map: Record<string, { key: string; value: string; _id?: string }> =
-      {};
+    const map: Record<string, PaymentAccountField> = {};
     // take from customPaymentFields first (these may contain _id)
     for (const f of customPaymentFields || []) {
-      if (!f || !f.key) continue;
-      map[f.key] = { key: f.key, value: f.value || "", _id: (f as any)._id };
+      if (!f) continue;
+      const bankName = String(f.bankName || "").trim();
+      const accountNumber = String(f.accountNumber || f.value || "").trim();
+      const key = String(f.key || bankName || "")
+        .trim()
+        .toLowerCase();
+      if (!key) continue;
+      if (
+        key === "other" ||
+        key === "other_name" ||
+        key === "other_bank_name" ||
+        key === "other_account_holder" ||
+        key === "other_account_number"
+      ) {
+        continue;
+      }
+      map[key] = {
+        key,
+        value: accountNumber || f.value || "",
+        bankName,
+        accountHolderName: String(f.accountHolderName || "").trim(),
+        accountNumber,
+        _id: f._id,
+      };
     }
     // merge in any legacy paymentAccounts that aren't present yet
     for (const [k, v] of Object.entries(paymentAccounts || {})) {
       if (!k) continue;
+      if (
+        k === "other" ||
+        k === "other_name" ||
+        k === "other_bank_name" ||
+        k === "other_account_holder" ||
+        k === "other_account_number"
+      ) {
+        continue;
+      }
       if (!map[k]) map[k] = { key: k, value: String(v || "") };
     }
     return Object.values(map);
@@ -182,17 +238,35 @@ export default function OwnerSettings() {
 
         // payment fields: prefer customPaymentFields array but accept legacy map
         if (Array.isArray(json.customPaymentFields)) {
-          const arr = (json.customPaymentFields || []).map((it: any) => ({
-            key: String(it.key || "")
-              .trim()
-              .toLowerCase(),
-            value: it.value || "",
-            _id: it._id,
-          }));
+          const arr = (json.customPaymentFields || []).map((raw: unknown) => {
+            const it =
+              raw && typeof raw === "object"
+                ? (raw as Record<string, unknown>)
+                : {};
+            const hasBankShape =
+              "bankName" in it ||
+              "accountHolderName" in it ||
+              "accountNumber" in it;
+            const bankName = String(it.bankName || "").trim();
+            const accountHolderName = String(
+              it.accountHolderName || "",
+            ).trim();
+            const accountNumber = String(it.accountNumber || "").trim();
+            return {
+              key: String(it.key || bankName || "")
+                .trim()
+                .toLowerCase(),
+              value: accountNumber || it.value || "",
+              ...(hasBankShape
+                ? { bankName, accountHolderName, accountNumber }
+                : {}),
+              _id: it._id ? String(it._id) : undefined,
+            };
+          });
           // only set if user didn't modify customPaymentFields yet
           setCustomPaymentFields((prev) => (prev && prev.length ? prev : arr));
-          const obj = arr.reduce(
-            (acc: any, it: any) => ({ ...acc, [it.key]: it.value }),
+          const obj = arr.reduce<Record<string, string>>(
+            (acc, it) => ({ ...acc, [it.key]: it.accountNumber || it.value }),
             {},
           );
           setPaymentAccounts((prev) =>
@@ -491,12 +565,7 @@ export default function OwnerSettings() {
         const martId = auth?.martId;
         const token = auth?.token;
         if (!martId) return toast({ title: t("mart_not_found") });
-        const normalizedFields = (customPaymentFields || []).map((f) => ({
-          key: String(f.key || "")
-            .trim()
-            .toLowerCase(),
-          value: f.value || "",
-        }));
+        const normalizedFields = normalizePaymentFields(customPaymentFields);
         const payload = {
           currency,
           paymentSystem,
@@ -516,6 +585,7 @@ export default function OwnerSettings() {
             title: err.message || t("failed_save_payment_settings"),
           });
         }
+        applyAccountFields(normalizedFields);
         toast({ title: t("payment_settings_saved") });
         try {
           // notify other windows/components that mart settings changed so they can refresh
@@ -532,6 +602,71 @@ export default function OwnerSettings() {
     })();
   };
 
+  const normalizePaymentFields = (fields: PaymentAccountField[]) => {
+    const normalized = (fields || [])
+      .map((f) => {
+        const bankName = String(f.bankName || "").trim();
+        const accountHolderName = String(f.accountHolderName || "").trim();
+        const accountNumber = String(f.accountNumber || "").trim();
+        const key = String(f.key || bankName || "")
+          .trim()
+          .toLowerCase();
+        if (
+          key === "other" ||
+          key === "other_name" ||
+          key === "other_bank_name" ||
+          key === "other_account_holder" ||
+          key === "other_account_number"
+        ) {
+          return null;
+        }
+        if (bankName || accountHolderName || accountNumber) {
+          return {
+            key: key || bankName.toLowerCase(),
+            value: accountNumber,
+            bankName,
+            accountHolderName,
+            accountNumber,
+          };
+        }
+        return { key, value: String(f.value || "").trim() };
+      })
+      .filter(
+        (
+          f,
+        ): f is {
+          key: string;
+          value: string;
+          bankName?: string;
+          accountHolderName?: string;
+          accountNumber?: string;
+        } => Boolean(f && f.key),
+      );
+
+    return normalized;
+  };
+
+  const getOtherBankDraft = () => ({
+    bankName: otherBankName.trim(),
+    accountHolderName: otherAccountHolder.trim(),
+    accountNumber: otherAccountNumber.trim(),
+  });
+
+  const validateOtherBankAccount = () => {
+    const draft = getOtherBankDraft();
+    const hasAll =
+      draft.bankName && draft.accountHolderName && draft.accountNumber;
+    if (hasAll) return true;
+    toast({
+      title: t("bank_account_fields_required", {
+        defaultValue:
+          "Bank name, account holder name, and account number are required.",
+      }),
+      variant: "destructive",
+    });
+    return false;
+  };
+
   const onAccountChange = (key: string, value: string) => {
     const k = String(key || "")
       .trim()
@@ -544,10 +679,217 @@ export default function OwnerSettings() {
     });
   };
 
-  // helpers for 'other' bank fields
-  const setOtherBankName = (name: string) =>
-    onAccountChange("other_name", name);
-  const setOtherBankIdentifier = (id: string) => onAccountChange("other", id);
+  // Persist the full list of saved accounts (key/value pairs) to the mart.
+  const persistPaymentFields = async (
+    fields: PaymentAccountField[],
+    paymentSystemOverride?: string,
+  ) => {
+    try {
+      const martId = auth?.martId;
+      const token = auth?.token;
+      if (!martId) {
+        toast({ title: t("mart_not_found"), variant: "destructive" });
+        return false;
+      }
+      const payload = {
+        currency,
+        paymentSystem:
+          paymentSystemOverride !== undefined
+            ? paymentSystemOverride
+            : paymentSystem,
+        customPaymentFields: normalizePaymentFields(fields),
+      };
+      const res = await fetch(`${API_BASE}/api/marts/${martId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast({
+          title:
+            err.message || t("failed_save_payment_settings"),
+          variant: "destructive",
+        });
+        return false;
+      }
+      toast({ title: t("payment_settings_saved") });
+      try {
+        window.dispatchEvent(
+          new CustomEvent("mart-settings-updated", { detail: { martId } }),
+        );
+      } catch {
+        // ignore
+      }
+      return true;
+    } catch (err) {
+      console.error("persistPaymentFields error", err);
+      toast({
+        title: t("failed_save_payment_settings"),
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  const applyAccountFields = (fields: PaymentAccountField[]) => {
+    setCustomPaymentFields(fields);
+    const obj = fields.reduce<Record<string, string>>(
+      (acc, it) => ({ ...acc, [it.key]: it.accountNumber || it.value }),
+      {},
+    );
+    setPaymentAccounts(obj);
+  };
+
+  const addOtherBankAccount = async () => {
+    if (!validateOtherBankAccount()) return;
+
+    const draft = getOtherBankDraft();
+    const key = draft.bankName.toLowerCase();
+    if (displayPaymentFields.some((f) => f.key === key)) {
+      toast({
+        title: t("account_key_exists", {
+          defaultValue: "An account with this key already exists.",
+        }),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const nextFields: PaymentAccountField[] = [
+      ...displayPaymentFields,
+      {
+        key,
+        value: draft.accountNumber,
+        bankName: draft.bankName,
+        accountHolderName: draft.accountHolderName,
+        accountNumber: draft.accountNumber,
+      },
+    ];
+
+    setSavingAccount(true);
+    const ok = await persistPaymentFields(nextFields, paymentSystem);
+    if (ok) {
+      applyAccountFields(normalizePaymentFields(nextFields));
+      setOtherBankName("");
+      setOtherAccountHolder("");
+      setOtherAccountNumber("");
+    }
+    setSavingAccount(false);
+  };
+
+  const startEditAccount = (field: PaymentAccountField) => {
+    setEditingAccount({
+      key: field.key,
+      value: field.value,
+      bankName: field.bankName,
+      accountHolderName: field.accountHolderName,
+      accountNumber: field.accountNumber,
+    });
+    setEditAccountKey(field.key);
+    setEditAccountValue(field.value);
+  };
+
+  const saveAccountEdit = async () => {
+    if (!editingAccount) return;
+    const newKey = String(editAccountKey || "")
+      .trim()
+      .toLowerCase();
+    const newValue = String(editAccountValue || "").trim();
+    if (!newKey) {
+      toast({
+        title: t("account_key_required", {
+          defaultValue: "Account key is required.",
+        }),
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!newValue) {
+      toast({
+        title: t("account_value_required", {
+          defaultValue: "Account value is required.",
+        }),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const oldKey = editingAccount.key;
+    let fields = displayPaymentFields.map((f) => ({
+      key: f.key,
+      value: f.value,
+      bankName: f.bankName,
+      accountHolderName: f.accountHolderName,
+      accountNumber: f.accountNumber,
+    }));
+    fields = fields.filter((p) => p.key !== oldKey);
+    if (
+      newKey !== oldKey &&
+      fields.some((p) => p.key === newKey)
+    ) {
+      toast({
+        title: t("account_key_exists", {
+          defaultValue: "An account with this key already exists.",
+        }),
+        variant: "destructive",
+      });
+      return;
+    }
+    fields = [
+      ...fields,
+      editingAccount.bankName ||
+      editingAccount.accountHolderName ||
+      editingAccount.accountNumber
+        ? {
+            key: newKey,
+            value: newValue,
+            bankName: newKey,
+            accountHolderName: editingAccount.accountHolderName,
+            accountNumber: newValue,
+          }
+        : { key: newKey, value: newValue },
+    ];
+
+    setSavingAccount(true);
+    const ok = await persistPaymentFields(
+      fields,
+      paymentSystem === oldKey ? newKey : paymentSystem,
+    );
+    if (ok) {
+      applyAccountFields(fields);
+      if (paymentSystem === oldKey) setPaymentSystem(newKey);
+      setEditingAccount(null);
+    }
+    setSavingAccount(false);
+  };
+
+  const removeAccount = async (key: string) => {
+    const fields = displayPaymentFields
+      .filter((f) => f.key !== key)
+      .map((f) => ({
+        key: f.key,
+        value: f.value,
+        bankName: f.bankName,
+        accountHolderName: f.accountHolderName,
+        accountNumber: f.accountNumber,
+      }));
+
+    setSavingAccount(true);
+    const ok = await persistPaymentFields(
+      fields,
+      paymentSystem === key ? "" : paymentSystem,
+    );
+    if (ok) {
+      applyAccountFields(fields);
+      if (paymentSystem === key) setPaymentSystem("");
+      setPendingDeleteAccount(null);
+    }
+    setSavingAccount(false);
+  };
 
   const saveTax = () => {
     (async () => {
@@ -757,9 +1099,6 @@ export default function OwnerSettings() {
                         <SelectItem value="telebirr">
                           {t("telebirr")}
                         </SelectItem>
-                        <SelectItem value="cbe_bank">
-                          {t("cbe_bank")}
-                        </SelectItem>
                         <SelectItem value="card">{t("card")}</SelectItem>
                         <SelectItem value="credit">{t("credit")}</SelectItem>
                         <SelectItem value="other">{t("other")}</SelectItem>
@@ -784,40 +1123,62 @@ export default function OwnerSettings() {
                         placeholder={
                           paymentSystem === "telebirr"
                             ? t("enter_telebirr_number")
-                            : paymentSystem === "cbe_bank"
-                              ? t("enter_cbe_account_number")
-                              : paymentSystem === "card"
-                                ? t("enter_card_merchant_account")
-                                : paymentSystem === "credit" ||
-                                    paymentSystem === "wallet"
-                                  ? t("enter_credit_number")
-                                  : t("enter_account_identifier")
+                            : paymentSystem === "card"
+                              ? t("enter_card_merchant_account")
+                              : paymentSystem === "credit" ||
+                                  paymentSystem === "wallet"
+                                ? t("enter_credit_number")
+                                : t("enter_account_identifier")
                         }
                         className="mt-2"
                       />
                     ) : (
                       <div className="grid grid-cols-1 gap-2">
                         <Input
-                          value={
-                            customPaymentFields.find(
-                              (p) => p.key === "other_name",
-                            )?.value || ""
-                          }
+                          value={otherBankName}
                           onChange={(e) => setOtherBankName(e.target.value)}
                           placeholder={t("bank_name_example")}
                           className="mt-2"
                         />
                         <Input
-                          value={
-                            customPaymentFields.find((p) => p.key === "other")
-                              ?.value || ""
-                          }
+                          value={otherAccountHolder}
                           onChange={(e) =>
-                            setOtherBankIdentifier(e.target.value)
+                            setOtherAccountHolder(e.target.value)
+                          }
+                          placeholder={t("account_holder_name", {
+                            defaultValue: "Account holder name",
+                          })}
+                          className="mt-2"
+                        />
+                        <Input
+                          value={otherAccountNumber}
+                          onChange={(e) =>
+                            setOtherAccountNumber(e.target.value)
                           }
                           placeholder={t("account_identifier_number")}
                           className="mt-2"
                         />
+                        <div className="flex justify-end">
+                          <Button
+                            type="button"
+                            size="icon"
+                            onClick={() => void addOtherBankAccount()}
+                            disabled={
+                              savingAccount ||
+                              !otherBankName.trim() ||
+                              !otherAccountHolder.trim() ||
+                              !otherAccountNumber.trim()
+                            }
+                            aria-label={t("add_bank_account", {
+                              defaultValue: "Add bank account",
+                            })}
+                            title={t("add_bank_account", {
+                              defaultValue: "Add bank account",
+                            })}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -829,17 +1190,89 @@ export default function OwnerSettings() {
                         {t("saved_accounts")}
                       </p>
                       <div className="mt-2 space-y-2">
-                        {displayPaymentFields.map((f) => (
-                          <div
-                            key={f.key}
-                            className="flex items-center justify-between gap-2"
-                          >
-                            <div className="text-sm">{f.key}</div>
-                            <div className="text-sm text-muted-foreground">
-                              {f.value}
+                        {displayPaymentFields.map((f) =>
+                          editingAccount?.key === f.key ? (
+                            <div
+                              key={f.key}
+                              className="space-y-2 rounded-md border p-2"
+                            >
+                              <div className="grid grid-cols-1 gap-2">
+                                <Input
+                                  value={editAccountKey}
+                                  onChange={(e) =>
+                                    setEditAccountKey(e.target.value)
+                                  }
+                                  placeholder={t("account_key", {
+                                    defaultValue: "Account key",
+                                  })}
+                                />
+                                <Input
+                                  value={editAccountValue}
+                                  onChange={(e) =>
+                                    setEditAccountValue(e.target.value)
+                                  }
+                                  placeholder={t("account_value", {
+                                    defaultValue: "Account value",
+                                  })}
+                                />
+                              </div>
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setEditingAccount(null)}
+                                >
+                                  {t("cancel", { defaultValue: "Cancel" })}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => void saveAccountEdit()}
+                                  disabled={savingAccount}
+                                >
+                                  {t("save", { defaultValue: "Save" })}
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ) : (
+                            <div
+                              key={f.key}
+                              className="flex items-center justify-between gap-2 rounded-md border p-2"
+                            >
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium">
+                                  {f.bankName || f.key}
+                                </div>
+                                <div className="truncate text-sm text-muted-foreground">
+                                  {f.accountHolderName
+                                    ? `${f.accountHolderName} - ${
+                                        f.accountNumber || f.value
+                                      }`
+                                    : f.accountNumber || f.value}
+                                </div>
+                              </div>
+                              <div className="flex shrink-0 gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => startEditAccount(f)}
+                                  disabled={savingAccount}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    setPendingDeleteAccount({ key: f.key })
+                                  }
+                                  disabled={savingAccount}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ),
+                        )}
                       </div>
                     </div>
                   )}
@@ -1148,6 +1581,48 @@ export default function OwnerSettings() {
                 }}
               >
                 Yes, delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog
+          open={Boolean(pendingDeleteAccount)}
+          onOpenChange={(open) => !open && setPendingDeleteAccount(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {t("delete_account_confirm", {
+                  defaultValue: "Delete this saved account?",
+                })}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {pendingDeleteAccount
+                  ? t("delete_account_confirm_desc", {
+                      defaultValue:
+                        "This will remove the account from saved accounts.",
+                      accountKey: pendingDeleteAccount.key,
+                    })
+                  : t("delete_account_confirm_desc", {
+                      defaultValue:
+                        "This will remove the account from saved accounts.",
+                    })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>
+                {t("cancel", { defaultValue: "Cancel" })}
+              </AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => {
+                  if (!pendingDeleteAccount) return;
+                  void removeAccount(pendingDeleteAccount.key);
+                  setPendingDeleteAccount(null);
+                }}
+              >
+                {t("delete", { defaultValue: "Delete" })}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
