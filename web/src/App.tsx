@@ -60,6 +60,7 @@ import ManagerApprovals from "./pages/manager/Approvals";
 import ManagerExpenseManagement from "./pages/manager/ExpenseManagement";
 import ManagerSettings from "./pages/manager/Settings";
 import ManagerOpenCashPage from "./pages/manager/OpenCash";
+import AgingStockPage from "./pages/AgingStockPage";
 // Store Keeper Pages
 import StockManagement from "./pages/store-keeper/StockManagement";
 import BarcodeManagement from "./pages/store-keeper/BarcodeManagement";
@@ -67,6 +68,7 @@ import ProductAdd from "./pages/store-keeper/ProductAdd";
 import StoreKeeperProductManagement from "./pages/store-keeper/ProductManagement";
 import StoreKeeperApprovals from "./pages/store-keeper/Approvals";
 import StoreKeeperSettings from "./pages/store-keeper/Settings";
+import ApprovalHistoryPage from "./pages/ApprovalHistoryPage";
 
 // Admin Pages
 import MainAdmin from "./pages/admin/MainAdmin";
@@ -169,6 +171,10 @@ const App = () => {
             <Route path="/owner/customers" element={<CustomerManagement />} />
             <Route path="/alerts" element={<OwnerAlerts />} />
             <Route path="/owner/alerts" element={<OwnerAlerts />} />
+            <Route
+              path="/owner/aging-stock"
+              element={<AgingStockPage />}
+            />
             <Route path="/owner/settings" element={<OwnerSettings />} />
             <Route path="/owner/approvals" element={<OwnerApprovals />} />
             <Route path="/owner/reports" element={<ReportPage />} />
@@ -195,6 +201,10 @@ const App = () => {
             />
             <Route path="/manager/customers" element={<CustomerManagement />} />
             <Route path="/manager/approvals" element={<ManagerApprovals />} />
+            <Route
+              path="/manager/approval-history"
+              element={<ApprovalHistoryPage />}
+            />
             <Route path="/manager/inventory" element={<Inventory />} />
             <Route path="/manager/assets" element={<ManagerAssets />} />
             <Route path="/manager/reports" element={<ReportPage />} />
@@ -207,6 +217,10 @@ const App = () => {
             <Route path="/manager/sale-cancellations" element={<SaleCancellationsPage />} />
             <Route path="/manager/chat" element={<ChatPage />} />
             <Route path="/manager/settings" element={<ManagerSettings />} />
+            <Route
+              path="/manager/aging-stock"
+              element={<AgingStockPage />}
+            />
 
             {/* Store Keeper Routes */}
             <Route path="/store-keeper" element={<Inventory />} />
@@ -230,6 +244,10 @@ const App = () => {
             <Route
               path="/store-keeper/approvals"
               element={<StoreKeeperApprovals />}
+            />
+            <Route
+              path="/store-keeper/approval-history"
+              element={<ApprovalHistoryPage />}
             />
             <Route
               path="/store-keeper/settings"

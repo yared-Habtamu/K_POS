@@ -498,7 +498,13 @@ router.get("/mart", authenticate, async (req, res) => {
         }
 
         if (!prodAgg[key])
-          prodAgg[key] = { productId, name: productName, sold: 0, revenue: 0 };
+          prodAgg[key] = {
+            productId,
+            name: productName,
+            sold: 0,
+            revenue: 0,
+            priceTiers: [],
+          };
         prodAgg[key].sold += Number(it.quantity || 0);
 
         // compute line revenue with fallbacks:
@@ -516,9 +522,42 @@ router.get("/mart", authenticate, async (req, res) => {
           );
 
         prodAgg[key].revenue += Number(lineRevenue || 0);
+
+        // Record the unit price this line was sold at so the report UI can
+        // show a per-price-tier breakdown (price changes across time appear
+        // as separate rows). Priority: stored sale price -> sale-level fallback.
+        const lineQty = Number(it.quantity || 0);
+        let tierPrice = null;
+        if (it.price != null && it.price !== undefined)
+          tierPrice = Number(it.price);
+        else if (it.sellingPrice != null && it.sellingPrice !== undefined)
+          tierPrice = Number(it.sellingPrice);
+        else if (lineRevenue != null && lineQty > 0)
+          tierPrice = Number(lineRevenue) / lineQty;
+        else tierPrice = saleUnitFallback;
+
+        const existingTier = prodAgg[key].priceTiers.find(
+          (tt) =>
+            tt.price === tierPrice || Math.abs(tt.price - tierPrice) < 0.001,
+        );
+        if (existingTier) {
+          existingTier.qty += lineQty;
+          existingTier.subtotal += Number(lineRevenue || 0);
+        } else {
+          prodAgg[key].priceTiers.push({
+            price: tierPrice,
+            qty: lineQty,
+            subtotal: Number(lineRevenue || 0),
+          });
+        }
       }
     }
-    const topProducts = Object.values(prodAgg).sort((a, b) => b.sold - a.sold);
+    const topProducts = Object.values(prodAgg)
+      .sort((a, b) => b.sold - a.sold)
+      .map((p) => ({
+        ...p,
+        priceTiers: (p.priceTiers || []).sort((a, b) => b.price - a.price),
+      }));
 
     // Build series totals per day between startDate and endDate
     const series = [];
@@ -970,18 +1009,23 @@ router.get("/today-sales", authenticate, async (req, res) => {
 
     for (const s of sales) {
       const paymentMethod = String(s.paymentMethod || "unknown");
-      // soldBy: prefer cashierId where available, else use cashierName
       const soldById = s.cashierId ? String(s.cashierId) : null;
       const soldByName = s.cashierName || "unknown";
-      const soldByKey = soldById ? soldById : soldByName;
       for (const it of s.items || []) {
         const rawPid = it.productId ? String(it.productId) : null;
-        // include payment method and soldBy in grouping key so same product sold
-        // by different users or payment methods becomes separate rows
         const baseKey = rawPid
           ? `pid:${rawPid}`
           : `name:${(it.name || "").trim().toLowerCase()}`;
-        const key = `${soldByKey}::${paymentMethod}::${baseKey}`;
+        const key = baseKey;
+
+        const soldAtPrice =
+          it.price != null && it.price !== undefined
+            ? Number(it.price)
+            : it.sellingPrice != null && it.sellingPrice !== undefined
+              ? Number(it.sellingPrice)
+              : rawPid && productMap[rawPid]
+                ? Number(productMap[rawPid].sellingPrice || 0)
+                : 0;
 
         let productName = (it.name && String(it.name).trim()) || "Unknown";
         if (rawPid && productMap[rawPid] && productMap[rawPid].name) {
@@ -997,53 +1041,127 @@ router.get("/today-sales", authenticate, async (req, res) => {
                 ? productMap[rawPid].imageUrl || ""
                 : it.imageUrl || "",
             qty: 0,
-            sellingPrice:
+            sellingPrice: soldAtPrice,
+            currentPrice:
               rawPid && productMap[rawPid]
                 ? Number(productMap[rawPid].sellingPrice || 0)
-                : Number(it.sellingPrice || it.price || 0),
+                : null,
             subtotal: 0,
             vatAmount: 0,
             total: 0,
-            paymentMethod,
-            soldById,
-            soldByName,
+            paymentMethods: new Set([paymentMethod]),
+            soldById: null,
+            soldByName: "unknown",
+            lastSaleDate: "",
+            priceTiers: [],
+            details: [],
           };
+        }
+
+        prodAgg[key].paymentMethods.add(paymentMethod);
+
+        // Track the seller of the most recent sale so per-product rows show the
+        // correct (latest) cashier instead of a generic "multiple".
+        const saleDateStr = String(s.date || "");
+        if (
+          !prodAgg[key].lastSaleDate ||
+          saleDateStr >= prodAgg[key].lastSaleDate
+        ) {
+          prodAgg[key].lastSaleDate = saleDateStr;
+          prodAgg[key].soldById = soldById;
+          prodAgg[key].soldByName = soldByName;
         }
 
         const qty = Number(it.quantity || 0);
         const saleTaxRate = Number(s.taxRate || 0);
         const taxRate = Number.isFinite(saleTaxRate) ? saleTaxRate : 0;
-        const lineSellingPrice =
-          rawPid && productMap[rawPid]
-            ? Number(productMap[rawPid].sellingPrice || 0)
-            : Number(it.sellingPrice || it.price || 0);
-        const lineSubtotal = qty * lineSellingPrice;
+        const lineSubtotal =
+          it.total != null && it.total !== undefined
+            ? Number(it.total)
+            : qty * soldAtPrice;
         const lineVat =
           Math.round((lineSubtotal * (taxRate / 100) + Number.EPSILON) * 100) /
           100;
         const lineTotal = lineSubtotal + lineVat;
+        const tierPrice = soldAtPrice;
+        const existingTier = (prodAgg[key].priceTiers || []).find(
+          (tier) =>
+            tier.price === tierPrice || Math.abs(tier.price - tierPrice) < 0.001,
+        );
+
+        if (existingTier) {
+          existingTier.qty += qty;
+          existingTier.subtotal += lineSubtotal;
+        } else {
+          prodAgg[key].priceTiers.push({
+            price: tierPrice,
+            qty,
+            subtotal: lineSubtotal,
+          });
+        }
 
         prodAgg[key].qty += qty;
-        prodAgg[key].sellingPrice = lineSellingPrice;
         prodAgg[key].subtotal += lineSubtotal;
         prodAgg[key].vatAmount += lineVat;
         prodAgg[key].total += lineTotal;
+        prodAgg[key].sellingPrice =
+          prodAgg[key].qty > 0
+            ? prodAgg[key].subtotal / prodAgg[key].qty
+            : soldAtPrice;
+        prodAgg[key].details.push({
+          soldById,
+          soldByName,
+          paymentMethod,
+          price: soldAtPrice,
+          qty,
+          subtotal: lineSubtotal,
+          vat: lineVat,
+          total: lineTotal,
+        });
       }
     }
 
-    const items = Object.values(prodAgg).map((x) => ({
-      productId: x.productId,
-      name: x.name,
-      image: x.image,
-      qty: x.qty,
-      sellingPrice: Number(x.sellingPrice || 0),
-      subtotal: Number(x.subtotal || 0),
-      vatAmount: Number(x.vatAmount || 0),
-      total: Number(x.total || 0),
-      paymentMethod: x.paymentMethod || "unknown",
-      soldById: x.soldById || null,
-      soldByName: x.soldByName || "unknown",
-    }));
+    const items = Object.values(prodAgg).map((x) => {
+      const paymentMethods = Array.from(x.paymentMethods || []);
+      const paymentMethod =
+        paymentMethods.length > 1 ? "mixed" : paymentMethods[0] || "unknown";
+
+      return {
+        productId: x.productId,
+        name: x.name,
+        image: x.image,
+        qty: x.qty,
+        sellingPrice: Number(x.sellingPrice || 0),
+        currentPrice: x.currentPrice ?? null,
+        subtotal: Number(x.subtotal || 0),
+        vatAmount: Number(x.vatAmount || 0),
+        total: Number(x.total || 0),
+        paymentMethod,
+        soldById: x.soldById || null,
+        soldByName: x.soldByName || "unknown",
+        priceTiers: Array.isArray(x.priceTiers)
+          ? x.priceTiers
+              .map((tier) => ({
+                price: Number(tier.price || 0),
+                qty: Number(tier.qty || 0),
+                subtotal: Number(tier.subtotal || 0),
+              }))
+              .sort((a, b) => b.price - a.price)
+          : [],
+        details: Array.isArray(x.details)
+          ? x.details.map((line) => ({
+              soldById: line.soldById || null,
+              soldByName: line.soldByName || "unknown",
+              paymentMethod: String(line.paymentMethod || "unknown"),
+              price: Number(line.price || 0),
+              qty: Number(line.qty || 0),
+              subtotal: Number(line.subtotal || 0),
+              vat: Number(line.vat || 0),
+              total: Number(line.total || 0),
+            }))
+          : [],
+      };
+    });
 
     const totalItemsSold = items.reduce((s, it) => s + (it.qty || 0), 0);
     const totalBeforeVat = items.reduce((s, it) => s + (it.subtotal || 0), 0);

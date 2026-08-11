@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Product, Category } from "@/types";
 import { useAuthStore } from "./authStore";
+import { productAgeDays } from "@/utils/agingStock";
 
 interface ProductState {
   products: Product[];
@@ -26,6 +27,10 @@ interface ProductState {
   getProductByBarcode: (barcode: string) => Product | undefined;
   getLowStockProducts: () => Product[];
   getExpiringProducts: (days?: number) => Product[];
+  getAgingProducts: (
+    days?: number,
+    lastSaleDates?: Map<string, string>,
+  ) => Product[];
   getAlertProducts: (expiringWithinDays?: number) => any[];
   applyLocalSale: (
     soldItems: Array<{ productId: string; quantity: number }>,
@@ -351,6 +356,20 @@ export const useProductStore = create<ProductState>((set, get) => ({
     return get().products.filter(
       (p) => p.expiryDate && new Date(p.expiryDate) <= threshold,
     );
+  },
+
+  // Slow-moving stock: products still in stock that haven't been sold for
+  // `days` days. Age is measured from the latest sale date when provided,
+  // otherwise from the product's creation date.
+  getAgingProducts: (days = 5, lastSaleDates = new Map<string, string>()) => {
+    return get().products.filter((p) => {
+      const remaining = Number(
+        p.quantity ?? p.supermarketQuantity ?? p.storeQuantity ?? 0,
+      );
+      if (remaining <= 0) return false;
+      const age = productAgeDays(p, lastSaleDates);
+      return age !== null && age >= days;
+    });
   },
 
   applyLocalSale: async (soldItems) => {

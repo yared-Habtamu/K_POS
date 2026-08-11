@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,7 +31,7 @@ import type {
   ProductEditRequest,
   StockTransferRequest,
 } from "@/types";
-import { Check, ClipboardList, Loader2, RotateCw, X } from "lucide-react";
+import { Check, ClipboardList, History, ImageIcon, Loader2, RotateCw, X } from "lucide-react";
 
 type ApprovalDecision = {
   type: "add" | "edit" | "transfer";
@@ -40,6 +41,7 @@ type ApprovalDecision = {
 };
 
 export default function StoreKeeperApprovals() {
+  const navigate = useNavigate();
   const token = useAuthStore.getState().user?.token;
   const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -131,6 +133,15 @@ export default function StoreKeeperApprovals() {
         title: action === "approve" ? "Request approved" : "Request rejected",
       });
       await fetchRequests();
+      // Notify open pages (e.g. manager product table) to reload and show a
+      // result toast when a stock transfer request is approved/rejected.
+      if (type === "transfer") {
+        window.dispatchEvent(
+          new CustomEvent("stock-transfer-updated", {
+            detail: { status: action },
+          }),
+        );
+      }
     } catch (err: unknown) {
       const description =
         err instanceof Error ? err.message : "Please try again";
@@ -188,6 +199,15 @@ export default function StoreKeeperApprovals() {
                 className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
               />
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate("/store-keeper/approval-history")}
+              aria-label="Approval history"
+              title="Approval history"
+            >
+              <History className="mr-2 h-4 w-4" />
+              Approval History
+            </Button>
           </div>
         </div>
 
@@ -235,6 +255,7 @@ export default function StoreKeeperApprovals() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">Image</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Direction</TableHead>
                     <TableHead className="text-right">Quantity</TableHead>
@@ -287,6 +308,24 @@ export default function StoreKeeperApprovals() {
                         );
                         productLabel = found?.name || pid || "-";
                       }
+                      let imageUrl = String(
+                        (request as any).product?.imageUrl || "",
+                      );
+                      if (!imageUrl) {
+                        const pid =
+                          typeof request.productId === "object" &&
+                          request.productId !== null
+                            ? String(
+                                (request.productId as any).id ??
+                                  (request.productId as any)._id ??
+                                  "",
+                              )
+                            : String(request.productId ?? "");
+                        const found = products.find(
+                          (p) => p.id === pid || (p as any)._id === pid,
+                        );
+                        imageUrl = found?.pictureUrl || "";
+                      }
                       const fromLabel =
                         request.fromLocation === "mart" ? "Mart" : "Store";
                       const toLabel =
@@ -294,6 +333,9 @@ export default function StoreKeeperApprovals() {
 
                       return (
                         <TableRow key={id}>
+                          <TableCell>
+                            <ProductThumb url={imageUrl} />
+                          </TableCell>
                           <TableCell className="font-medium">
                             {productLabel}
                           </TableCell>
@@ -364,7 +406,7 @@ export default function StoreKeeperApprovals() {
                   ) : (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={7}
                         className="py-6 text-center text-muted-foreground"
                       >
                         No stock transfer requests found.
@@ -390,6 +432,7 @@ export default function StoreKeeperApprovals() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">Image</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Requester</TableHead>
                     <TableHead className="text-right">Stock Qty</TableHead>
@@ -403,6 +446,11 @@ export default function StoreKeeperApprovals() {
                     addRequests.map((request) => {
                       const id = String(request._id || request.id || "");
                       const payload = request.payload || {};
+                      const imageUrl = String(
+                        (payload as any)?.imageUrl ||
+                          (payload as any)?.pictureUrl ||
+                          "",
+                      );
                       const stockQty = Number(payload.storeQuantity || 0);
                       const martQty = Number(
                         payload.supermarketQuantity || payload.quantity || 0,
@@ -411,6 +459,9 @@ export default function StoreKeeperApprovals() {
 
                       return (
                         <TableRow key={id}>
+                          <TableCell>
+                            <ProductThumb url={imageUrl} />
+                          </TableCell>
                           <TableCell className="font-medium">
                             {payload.name || "-"}
                           </TableCell>
@@ -487,7 +538,7 @@ export default function StoreKeeperApprovals() {
                   ) : (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={7}
                         className="py-6 text-center text-muted-foreground"
                       >
                         No product add requests found.
@@ -513,6 +564,7 @@ export default function StoreKeeperApprovals() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">Image</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Requester</TableHead>
                     <TableHead>Changed Fields</TableHead>
@@ -544,9 +596,30 @@ export default function StoreKeeperApprovals() {
                         );
                         productName = found?.name || pid || "-";
                       }
+                      let imageUrl = String(
+                        (request as any).product?.imageUrl || "",
+                      );
+                      if (!imageUrl) {
+                        const pid =
+                          typeof rawProductId === "object" &&
+                          rawProductId !== null
+                            ? String(
+                                (rawProductId as any).id ??
+                                  (rawProductId as any)._id ??
+                                  "",
+                              )
+                            : String(rawProductId || "");
+                        const found = products.find(
+                          (p) => p.id === pid || (p as any)._id === pid,
+                        );
+                        imageUrl = found?.pictureUrl || "";
+                      }
 
                       return (
                         <TableRow key={id}>
+                          <TableCell>
+                            <ProductThumb url={imageUrl} />
+                          </TableCell>
                           <TableCell className="font-medium">
                             {productName}
                           </TableCell>
@@ -618,7 +691,7 @@ export default function StoreKeeperApprovals() {
                   ) : (
                     <TableRow>
                       <TableCell
-                        colSpan={5}
+                        colSpan={6}
                         className="py-6 text-center text-muted-foreground"
                       >
                         No product edit requests found.
@@ -658,5 +731,18 @@ export default function StoreKeeperApprovals() {
         </AlertDialog>
       </div>
     </RoleLayout>
+  );
+}
+
+function ProductThumb({ url }: { url?: string }) {
+  if (!url) {
+    return (
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+        <ImageIcon className="h-5 w-5 text-muted-foreground" />
+      </div>
+    );
+  }
+  return (
+    <img src={url} alt="" className="h-10 w-10 rounded-lg object-cover" />
   );
 }

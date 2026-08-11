@@ -4,6 +4,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 import {
   ArrowUpDown,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -80,9 +81,13 @@ export interface DataTableProps<TData> {
   customRowActions?: Array<DataTableRowAction<TData>>;
   renderRowActions?: (row: TData) => React.ReactNode;
   onRowClick?: (row: TData) => void;
+  /** When provided, rows become expandable. Return null/undefined to make a row non-expandable (no chevron shown). */
+  renderExpandedRow?: (row: TData) => React.ReactNode;
   toolbarContent?: React.ReactNode;
   className?: string;
   tableClassName?: string;
+  /** Denser layout: smaller title, tighter header/cells and footer. */
+  compact?: boolean;
 }
 
 function getRowValue<TData>(
@@ -169,10 +174,12 @@ export function DataTable<TData>({
   onDelete,
   customRowActions,
   renderRowActions,
+  renderExpandedRow,
   toolbarContent,
   onRowClick,
   className,
   tableClassName,
+  compact = false,
 }: DataTableProps<TData>) {
   const { t } = useTranslation();
   const [internalSearch, setInternalSearch] = React.useState("");
@@ -189,9 +196,13 @@ export function DataTable<TData>({
         }
       : null,
   );
+  const [expandedRows, setExpandedRows] = React.useState<Set<React.Key>>(
+    () => new Set(),
+  );
 
   const activeSearchValue = searchValue ?? internalSearch;
   const hasBuiltInActions = Boolean(onView || onEdit || onDelete || customRowActions?.length || renderRowActions);
+  const hasExpandableRows = Boolean(renderExpandedRow);
   const resolvedLoadingMessage = loadingMessage ?? t("loading_data");
   const resolvedEmptyMessage = emptyMessage ?? t("no_records_found");
   const resolvedSearchPlaceholder = searchPlaceholder ?? t("search_records");
@@ -234,7 +245,19 @@ export function DataTable<TData>({
   const firstRowNumber = totalRows === 0 ? 0 : startIndex + 1;
   const lastRowNumber = pagination ? Math.min(startIndex + pageSize, totalRows) : totalRows;
   const showNumberColumn = pagination;
-  const colSpan = columns.length + (showNumberColumn ? 1 : 0) + (hasBuiltInActions ? 1 : 0);
+  const colSpan = columns.length + (showNumberColumn ? 1 : 0) + (hasBuiltInActions ? 1 : 0) + (hasExpandableRows ? 1 : 0);
+
+  const toggleExpanded = (rowKey: React.Key) => {
+    setExpandedRows((current) => {
+      const next = new Set(current);
+      if (next.has(rowKey)) {
+        next.delete(rowKey);
+      } else {
+        next.add(rowKey);
+      }
+      return next;
+    });
+  };
 
   const updateSearch = (value: string) => {
     if (onSearchChange) {
@@ -281,10 +304,10 @@ export function DataTable<TData>({
   return (
     <Card className={cn("overflow-hidden", className)}>
       {(title || description || searchable || toolbarContent) && (
-        <CardHeader className="gap-4 border-b bg-muted/20">
+        <CardHeader className={cn("gap-4 border-b bg-muted/20", compact && "gap-2 py-3")}>
           {(title || description) && (
             <div className="space-y-1">
-              {title ? <CardTitle className="text-xl">{title}</CardTitle> : null}
+              {title ? <CardTitle className={cn("text-xl", compact && "text-base")}>{title}</CardTitle> : null}
               {description ? <CardDescription>{description}</CardDescription> : null}
             </div>
           )}
@@ -317,12 +340,13 @@ export function DataTable<TData>({
           <Table className={cn("min-w-full", tableClassName)}>
           <TableHeader>
             <TableRow className="bg-muted/30 hover:bg-muted/30">
+              {hasExpandableRows ? <TableHead className="w-10" /> : null}
               {showNumberColumn ? <TableHead className="w-14 text-center">No</TableHead> : null}
               {columns.map((column) => {
                 const isSorted = sortState?.columnKey === column.key;
 
                 return (
-                  <TableHead key={column.key} className={cn(column.headerClassName)}>
+                  <TableHead key={column.key} className={cn(compact && "h-9 px-3 py-2 text-xs", column.headerClassName)}>
                     {column.sortable ? (
                       <button
                         type="button"
@@ -363,19 +387,52 @@ export function DataTable<TData>({
                 </TableRow>
               ))
             ) : pagedRows.length > 0 ? (
-              pagedRows.map((row, index) => (
-                <TableRow 
-                  key={resolveRowKey(row, index)}
+              pagedRows.map((row, index) => {
+                const rowKey = resolveRowKey(row, index);
+                const expandedContent = renderExpandedRow
+                  ? renderExpandedRow(row)
+                  : null;
+                const isExpandable =
+                  hasExpandableRows && expandedContent != null;
+                const isExpanded = isExpandable && expandedRows.has(rowKey);
+
+                return (
+                  <React.Fragment key={rowKey}>
+                <TableRow
                   className={cn("group", onRowClick && "cursor-pointer hover:bg-muted/50 transition-colors")}
                   onClick={() => onRowClick?.(row)}
                 >
+                  {hasExpandableRows ? (
+                    <TableCell className="w-10 text-center">
+                      {isExpandable ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleExpanded(rowKey);
+                          }}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          aria-expanded={isExpanded}
+                          aria-label={
+                            isExpanded ? t("collapse") : t("expand")
+                          }
+                        >
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </button>
+                      ) : null}
+                    </TableCell>
+                  ) : null}
                   {showNumberColumn ? (
                     <TableCell className="text-center text-muted-foreground">
                       {startIndex + index + 1}
                     </TableCell>
                   ) : null}
                   {columns.map((column) => (
-                    <TableCell key={column.key} className={cn(column.className)}>
+                    <TableCell key={column.key} className={cn(compact && "py-2 px-3", column.className)}>
                       {column.cell ? column.cell(row) : String(getRowValue(row, column.accessor) ?? "—")}
                     </TableCell>
                   ))}
@@ -431,10 +488,22 @@ export function DataTable<TData>({
                     </TableCell>
                   ) : null}
                 </TableRow>
-              ))
+                {isExpanded ? (
+                  <TableRow className="bg-muted/20 hover:bg-muted/20">
+                    <TableCell
+                      colSpan={colSpan}
+                      className="border-b p-0"
+                    >
+                      {expandedContent}
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+                  </React.Fragment>
+                );
+              })
             ) : (
               <TableRow>
-                <TableCell colSpan={colSpan} className="py-12 text-center">
+                <TableCell colSpan={colSpan} className={cn("py-12 text-center", compact && "py-8")}>
                   <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
                     <Loader2 className="h-5 w-5 opacity-0" />
                     <p className="text-sm">{resolvedEmptyMessage}</p>
@@ -453,7 +522,7 @@ export function DataTable<TData>({
           </div>
         ) : pagination ? (
           paginationVariant === "simple" ? (
-            <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className={cn("flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between", compact && "py-2")}>
               <div className="text-sm text-muted-foreground">
                 {t("showing")} <span className="font-medium text-foreground">{firstRowNumber}</span> {t("to")} <span className="font-medium text-foreground">{lastRowNumber}</span> {t("of")} <span className="font-medium text-foreground">{totalRows}</span> {t("entries")}
               </div>
@@ -482,7 +551,7 @@ export function DataTable<TData>({
               </div>
             </div>
           ) : (
-            <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className={cn("flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between", compact && "py-2")}>
               <div className="text-sm text-muted-foreground">
                 {t("showing")} <span className="font-medium text-foreground">{firstRowNumber}</span> {t("to")} <span className="font-medium text-foreground">{lastRowNumber}</span> {t("of")} <span className="font-medium text-foreground">{totalRows}</span> {t("entries")}
               </div>

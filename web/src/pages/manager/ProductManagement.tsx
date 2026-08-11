@@ -39,19 +39,18 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { useProductStore } from "@/stores/productStore";
 import { useAuthStore } from "@/stores/authStore";
-import { generateUniqueBarcode, printBarcodeLabel } from "@/utils/barcodes";
 import type { Product, ProductUnit } from "@/types";
 import {
   Package,
   Search,
   Edit,
   Trash2,
-  Barcode,
   Image as ImageIcon,
   Loader2,
   Printer,
   RotateCw,
   ScanBarcode,
+  ArrowRight,
 } from "lucide-react";
 import { BarcodeScanner } from "@/components/barcode/BarcodeScanner";
 import { BarcodePreview } from "@/components/barcode/BarcodePreview";
@@ -59,6 +58,10 @@ import { BarcodePrintDialog } from "@/components/barcode/BarcodePrintDialog";
 
 const units: ProductUnit[] = ["pcs", "kg", "g", "l", "ml", "box"];
 const ITEMS_PER_PAGE = 7; // match owner
+
+function getMartQuantity(product: Product) {
+  return Number(product.quantity ?? product.supermarketQuantity ?? 0);
+}
 const defaultFilterValues: AdvancedFilterValues = {
   query: "",
   category: "",
@@ -161,6 +164,9 @@ export default function ManagerProductManagement() {
     useState<Product | null>(null);
   const [barcodeConflict, setBarcodeConflict] = useState<any>(null);
   const [barcodeConflictOpen, setBarcodeConflictOpen] = useState(false);
+  const [returnProduct, setReturnProduct] = useState<Product | null>(null);
+  const [returnQty, setReturnQty] = useState("");
+  const [isReturnSubmitting, setIsReturnSubmitting] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -173,6 +179,38 @@ export default function ManagerProductManagement() {
       }
     })();
   }, [currentPage]);
+
+  // Reload the products table when a stock transfer is created/approved/rejected
+  // elsewhere (e.g. store keeper approvals page) and when the tab regains focus.
+  useEffect(() => {
+    const handleStockTransferUpdated = (e: Event) => {
+      const detail = (e as CustomEvent).detail as
+        | { status?: "approved" | "rejected" }
+        | undefined;
+      void (useProductStore
+        .getState()
+        .fetchProducts?.(currentPage, ITEMS_PER_PAGE) as Promise<void>);
+      if (detail?.status === "approved") {
+        toast({ title: t("transfer_approved") });
+      } else if (detail?.status === "rejected") {
+        toast({ title: t("transfer_rejected") });
+      }
+    };
+
+    window.addEventListener(
+      "stock-transfer-updated",
+      handleStockTransferUpdated,
+    );
+    window.addEventListener("focus", handleStockTransferUpdated);
+
+    return () => {
+      window.removeEventListener(
+        "stock-transfer-updated",
+        handleStockTransferUpdated,
+      );
+      window.removeEventListener("focus", handleStockTransferUpdated);
+    };
+  }, [currentPage, t]);
 
   const [form, setForm] = useState({
     name: "",
@@ -338,6 +376,60 @@ export default function ManagerProductManagement() {
     }
   };
 
+  const handleReturnStock = async () => {
+    if (!returnProduct || !returnQty) return;
+    const qty = parseInt(returnQty, 10);
+    if (qty <= 0) return;
+    const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+    const token = useAuthStore.getState().user?.token;
+    setIsReturnSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/stock-transfer-requests`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({
+          productId: returnProduct.id,
+          quantity: qty,
+          transferType: "mart_to_store",
+        }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(body?.message || `Request failed ${res.status}`);
+      }
+
+      if (res.status === 201) {
+        toast({
+          title: t("transfer_completed"),
+          description: `${qty} ${t("units_of")} ${returnProduct.name}.`,
+        });
+      } else {
+        toast({
+          title: t("transfer_submitted"),
+          description: `${t("request_sent_for")} ${qty} ${t("units_of")} ${returnProduct.name}. ${t("awaiting_storekeeper_approval")}`,
+        });
+      }
+      await useProductStore.getState().fetchProducts?.(1, ITEMS_PER_PAGE);
+      window.dispatchEvent(new CustomEvent("stock-transfer-updated"));
+      setReturnProduct(null);
+      setReturnQty("");
+    } catch (err: unknown) {
+      let msg = t("please_try_again");
+      if (err instanceof Error && err.message) msg = err.message;
+      else if (typeof err === "string") msg = err;
+      toast({
+        title: t("could_not_submit_transfer"),
+        description: msg,
+        variant: "destructive",
+      });
+    } finally {
+      setIsReturnSubmitting(false);
+    }
+  };
+
   useEffect(() => {
     const editId = (location.state as any)?.editProductId;
     if (!editId) return;
@@ -433,44 +525,6 @@ export default function ManagerProductManagement() {
       setIsDialogOpen(false);
       resetForm();
     }
-  };
-
-  const generateBarcode = () => {
-    void (async () => {
-      try {
-        if ((Array.isArray(form.barcodes) ? form.barcodes : []).length > 0) {
-          toast({
-            title: t("only_one_barcode_allowed"),
-            variant: "destructive",
-          });
-          return;
-        }
-        const API_BASE = (import.meta as any).env.VITE_API_URL || "";
-        const token = useAuthStore.getState().user?.token;
-        const findProductByBarcode = async (code: string) => {
-          const trimmed = (code || "").trim();
-          if (!trimmed) return null;
-          const res = await fetch(
-            `${API_BASE}/api/products/by-barcode/${encodeURIComponent(trimmed)}`,
-            {
-              headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-            },
-          );
-          if (res.status === 404) return null;
-          if (!res.ok) throw new Error(await res.text());
-          return await res.json();
-        };
-        const b = await generateUniqueBarcode(findProductByBarcode);
-        setForm((prev) => ({
-          ...prev,
-          barcodes: [b],
-          barcodeInput: "",
-        }));
-      } catch (e) {
-        console.error("generate barcode failed", e);
-        toast({ title: "Failed to generate barcode", variant: "destructive" });
-      }
-    })();
   };
 
   const activeBarcode =
@@ -847,14 +901,6 @@ export default function ManagerProductManagement() {
                       >
                         {t("add")}
                       </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={generateBarcode}
-                      >
-                        <Barcode className="mr-2 h-4 w-4" />
-                        {t("generate")}
-                      </Button>
                     </div>
 
                     <BarcodePreview
@@ -1193,6 +1239,19 @@ export default function ManagerProductManagement() {
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setReturnProduct(product);
+                                setReturnQty("");
+                              }}
+                              disabled={getMartQuantity(product) <= 0}
+                              title={t("transfer_to_store")}
+                              aria-label={t("transfer_to_store")}
+                            >
+                              <ArrowRight className="h-4 w-4" />
+                            </Button>
                             {isOwner && (
                               <Button
                                 variant="ghost"
@@ -1277,6 +1336,97 @@ export default function ManagerProductManagement() {
             </div>
           </CardContent>
         </Card>
+        <Dialog
+          open={Boolean(returnProduct)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setReturnProduct(null);
+              setReturnQty("");
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t("transfer_to_store")}</DialogTitle>
+              <DialogDescription>
+                Move stock from the mart back to the store (warehouse). The
+                store keeper will approve this return.
+              </DialogDescription>
+            </DialogHeader>
+            {returnProduct && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-4 p-4 rounded-xl bg-accent/50">
+                  {returnProduct.pictureUrl ? (
+                    <img
+                      src={returnProduct.pictureUrl}
+                      alt=""
+                      className="w-16 h-16 rounded-lg object-cover"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center">
+                      <Package className="w-8 h-8 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-medium">{returnProduct.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {returnProduct.category}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="returnQty">
+                    {t("quantity_to_transfer_back")}
+                  </Label>
+                  <Input
+                    id="returnQty"
+                    type="number"
+                    min={1}
+                    max={getMartQuantity(returnProduct)}
+                    placeholder={t("enter_quantity")}
+                    value={returnQty}
+                    onChange={(e) => setReturnQty(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t("max_available")}: {getMartQuantity(returnProduct)}{" "}
+                    {t("units")}
+                  </p>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setReturnProduct(null);
+                  setReturnQty("");
+                }}
+              >
+                {t("cancel")}
+              </Button>
+              <Button
+                onClick={() => void handleReturnStock()}
+                disabled={
+                  !returnQty ||
+                  parseInt(returnQty, 10) <= 0 ||
+                  (returnProduct
+                    ? parseInt(returnQty, 10) > getMartQuantity(returnProduct)
+                    : false) ||
+                  isReturnSubmitting
+                }
+              >
+                {isReturnSubmitting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowRight className="mr-2 h-4 w-4" />
+                )}
+                {t("transfer_to_store")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {isTableScannerOpen && (
           <BarcodeScanner
             onScan={(code) => {

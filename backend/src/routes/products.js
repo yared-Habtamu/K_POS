@@ -33,35 +33,17 @@ const upload = multer({
 });
 
 async function ensureProductPayloadBarcodes(productPayload) {
+  // Barcode is optional and manual-only: never auto-generate.
+  // Keep only barcodes the user actually provided (uniqueness is
+  // validated by the caller when at least one barcode exists).
   const incomingBarcodes = (
     Array.isArray(productPayload.barcodes) ? productPayload.barcodes : []
   )
     .map((value) => String(value).trim())
     .filter(Boolean);
 
-  if (incomingBarcodes.length > 0) {
-    productPayload.barcodes = Array.from(new Set(incomingBarcodes));
-    return productPayload.barcodes;
-  }
-
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const candidate = String(Math.floor(Math.random() * 1e12)).padStart(
-      12,
-      "0",
-    );
-    const existing = await productRepository.findOne({
-      martId: productPayload.martId,
-      isDeleted: false,
-      barcodes: { has: candidate },
-    });
-
-    if (!existing) {
-      productPayload.barcodes = [candidate];
-      return productPayload.barcodes;
-    }
-  }
-
-  throw new Error("Failed to generate a unique barcode");
+  productPayload.barcodes = Array.from(new Set(incomingBarcodes));
+  return productPayload.barcodes;
 }
 
 async function createProductFromRequest(req, res, options = {}) {
@@ -123,16 +105,16 @@ async function createProductFromRequest(req, res, options = {}) {
   }
 
   const requestedQty = Math.max(0, Number(quantity || 0));
+  // Mart is the default initial stock location: initial quantity goes to the
+  // mart (sellable) unless the client explicitly directs it to store stock.
   let storeQty =
     req.body.storeQuantity !== undefined
       ? Number(req.body.storeQuantity)
-      : requestedQty;
+      : 0;
   let supermarketQty =
     req.body.supermarketQuantity !== undefined
       ? Number(req.body.supermarketQuantity)
-      : user.role === "owner"
-        ? 0
-        : requestedQty;
+      : requestedQty;
 
   if (initialStockTarget === "mart") {
     storeQty = 0;
