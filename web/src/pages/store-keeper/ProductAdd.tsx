@@ -17,7 +17,6 @@ import { AutoComplete } from "@/components/ui/AutoComplete";
 import { toast } from "@/hooks/use-toast";
 import { useProductStore } from "@/stores/productStore";
 import {
-  Barcode,
   Loader2,
   Image as ImageIcon,
   Printer,
@@ -77,7 +76,6 @@ const defaultCategories = [
 ];
 import axios from "axios";
 import { useAuthStore } from "@/stores/authStore";
-import { generateUniqueBarcode, printBarcodeLabel } from "@/utils/barcodes";
 
 export default function ProductAdd() {
   const { t } = useTranslation();
@@ -111,7 +109,7 @@ export default function ProductAdd() {
     purchasePrice: "",
     sellingPrice: "",
     quantity: "",
-    stockDestination: "warehouse" as "warehouse" | "mart",
+    stockDestination: "mart" as "warehouse" | "mart",
     lowStockThreshold: "10",
     expiryDate: "",
     barcodes: [] as string[], // store as array
@@ -227,7 +225,7 @@ export default function ProductAdd() {
       purchasePrice: "",
       sellingPrice: "",
       quantity: "",
-      stockDestination: "warehouse",
+      stockDestination: "mart",
       lowStockThreshold: "10",
       expiryDate: "",
       barcodes: [],
@@ -352,21 +350,13 @@ export default function ProductAdd() {
     } else if (form.expiryDate) {
       formData.append("expiryDate", form.expiryDate);
     }
-    // One barcode per product: prefer input box value, otherwise existing saved one.
+    // Barcode is optional and manual-only: use what the user entered, if any.
     const pendingBarcode = (form.barcodeInput || "").trim();
     const existingBarcode =
       Array.isArray(form.barcodes) && form.barcodes.length > 0
         ? String(form.barcodes[0] || "").trim()
         : "";
     const barcodesArr = [pendingBarcode || existingBarcode].filter(Boolean);
-    if (barcodesArr.length === 0) {
-      try {
-        barcodesArr.push(await generateUniqueBarcode(findProductByBarcode));
-      } catch (e) {
-        console.error("generate unique barcode failed", e);
-        barcodesArr.push(`${Date.now()}`.slice(-12));
-      }
-    }
     for (const b of barcodesArr) formData.append("barcodes", b);
     if (imageFile) formData.append("image", imageFile, imageFile.name);
 
@@ -444,22 +434,6 @@ export default function ProductAdd() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const generateBarcode = () => {
-    void (async () => {
-      try {
-        const b = await generateUniqueBarcode(findProductByBarcode);
-        setForm((prev) => ({
-          ...prev,
-          barcodes: [b],
-          barcodeInput: b,
-        }));
-      } catch (e) {
-        console.error("generate barcode failed", e);
-        toast({ title: t("failed_generate_barcode"), variant: "destructive" });
-      }
-    })();
   };
 
   const refreshProductsNow = async () => {
@@ -839,15 +813,6 @@ export default function ProductAdd() {
                       >
                         {t("add")}
                       </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={generateBarcode}
-                        className="w-full sm:w-auto"
-                      >
-                        <Barcode className="mr-2 h-4 w-4" />
-                        {t("generate")}
-                      </Button>
                       </div>
                     </div>
 
@@ -963,7 +928,7 @@ export default function ProductAdd() {
                                     p?.supermarketQuantity ??
                                     0,
                                 ),
-                                stockDestination: "warehouse",
+                                stockDestination: "mart",
                                 lowStockThreshold: String(
                                   p?.lowStockThreshold ?? 10,
                                 ),

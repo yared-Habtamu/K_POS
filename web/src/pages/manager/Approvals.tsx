@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,7 @@ import type {
   ProductEditRequest,
   StockTransferRequest,
 } from "@/types";
-import { Loader2, Check, X, RotateCw } from "lucide-react";
+import { Loader2, Check, X, RotateCw, ImageIcon, History } from "lucide-react";
 
 type ApprovalDecision = {
   type: "add" | "transfer" | "edit" | "asset";
@@ -41,6 +42,7 @@ type ApprovalDecision = {
 };
 
 export default function Approvals() {
+  const navigate = useNavigate();
   const token = useAuthStore.getState().user?.token;
   const [addRequests, setAddRequests] = useState<ProductAddRequest[]>([]);
   const [editRequests, setEditRequests] = useState<ProductEditRequest[]>([]);
@@ -220,6 +222,15 @@ export default function Approvals() {
                 className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
               />
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate("/manager/approval-history")}
+              aria-label="Approval history"
+              title="Approval history"
+            >
+              <History className="mr-2 h-4 w-4" />
+              Approval History
+            </Button>
           </div>
         </div>
 
@@ -300,6 +311,7 @@ export default function Approvals() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
+                    <TableHead className="w-12">Image</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Requested By</TableHead>
                     <TableHead>Store Qty</TableHead>
@@ -311,6 +323,11 @@ export default function Approvals() {
                 <TableBody>
                   {addRequests.map((r) => {
                     const payload = r.payload || {};
+                    const imageUrl = String(
+                      (payload as any)?.imageUrl ||
+                        (payload as any)?.pictureUrl ||
+                        "",
+                    );
                     const statusBadge = (
                       <Badge
                         variant={
@@ -330,6 +347,9 @@ export default function Approvals() {
                           <span className="text-xs text-muted-foreground">
                             {formatRequestDate(r.createdAt || r.decidedAt)}
                           </span>
+                        </TableCell>
+                        <TableCell>
+                          <ProductThumb url={imageUrl} />
                         </TableCell>
                         <TableCell>
                           <div className="font-medium">
@@ -408,6 +428,7 @@ export default function Approvals() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
+                    <TableHead className="w-12">Image</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Owner</TableHead>
                     <TableHead>Quantity</TableHead>
@@ -441,6 +462,9 @@ export default function Approvals() {
                           <span className="text-xs text-muted-foreground">
                             {formatRequestDate(r.createdAt || r.decidedAt)}
                           </span>
+                        </TableCell>
+                        <TableCell>
+                          <ProductThumb url={(r as any).product?.imageUrl} />
                         </TableCell>
                         <TableCell>
                           {(r as any).product?.name || r.productId}
@@ -517,6 +541,7 @@ export default function Approvals() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
+                    <TableHead className="w-12">Image</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Quantity</TableHead>
                     <TableHead>Requested By</TableHead>
@@ -545,6 +570,9 @@ export default function Approvals() {
                           <span className="text-xs text-muted-foreground">
                             {formatRequestDate(r.createdAt || r.decidedAt)}
                           </span>
+                        </TableCell>
+                        <TableCell>
+                          <ProductThumb url={(r as any).product?.imageUrl} />
                         </TableCell>
                         <TableCell>
                           {(r as any).product?.name || r.productId}
@@ -751,5 +779,18 @@ export default function Approvals() {
         </AlertDialog>
       </div>
     </RoleLayout>
+  );
+}
+
+function ProductThumb({ url }: { url?: string }) {
+  if (!url) {
+    return (
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+        <ImageIcon className="h-5 w-5 text-muted-foreground" />
+      </div>
+    );
+  }
+  return (
+    <img src={url} alt="" className="h-10 w-10 rounded-lg object-cover" />
   );
 }

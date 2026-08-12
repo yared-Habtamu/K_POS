@@ -22,7 +22,8 @@ function isStoreKeeper(user) {
 router.get("/", authenticate, async (req, res) => {
   try {
     const user = req.user;
-    const { status, martId, startDate, endDate, approvalRole } = req.query;
+    const { status, martId, startDate, endDate, approvalRole, scope } =
+      req.query;
     const where = {};
     if (status) where.status = status;
     if (approvalRole) where.approvalRole = approvalRole;
@@ -48,7 +49,14 @@ router.get("/", authenticate, async (req, res) => {
       }
     }
 
-    if (!approvalRole && user.role !== "systemAdmin") {
+    // By default each role only sees requests assigned to its own approval.
+    // scope=all (used by the approval history page) returns every transfer for
+    // the mart so the report shows both directions and all statuses.
+    if (
+      !approvalRole &&
+      scope !== "all" &&
+      user.role !== "systemAdmin"
+    ) {
       if (isManager(user)) {
         where.OR = [{ approvalRole: "manager" }];
       } else if (isStoreKeeper(user)) {
@@ -57,7 +65,7 @@ router.get("/", authenticate, async (req, res) => {
     }
 
     const list = await stockTransferRequestRepository.findMany(where, {
-      include: { product: { select: { name: true } } },
+      include: { product: { select: { name: true, imageUrl: true } } },
     });
     res.json(list);
   } catch (err) {
@@ -105,10 +113,15 @@ router.post("/", authenticate, async (req, res) => {
       `Stock transfer request by user ${user.id} transferType=${transferType} normalized=${normalizedTransferType}`,
     );
 
-    if (isMartToStore && user.role !== "owner" && user.role !== "systemAdmin") {
+    if (
+      isMartToStore &&
+      !["owner", "manager", "systemAdmin"].includes(user.role)
+    ) {
       return res
         .status(403)
-        .json({ message: "Only owners can request mart to store transfers" });
+        .json({
+          message: "Only owners or managers can request mart to store transfers",
+        });
     }
 
     // store keepers need explicit permission to request transfers

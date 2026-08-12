@@ -1,7 +1,6 @@
 const express = require("express");
 const { authenticate } = require("../middleware/auth");
 const { productAddRequestRepository } = require("../repositories/requestRepositories");
-const productRepository = require("../repositories/productRepository");
 const { createNotification } = require("../services/notification.service");
 const prisma = require("../repositories/prismaClient");
 
@@ -25,42 +24,22 @@ function getApprovalRole(reqDoc) {
   return reqDoc?.approvalRole === "store_keeper" ? "store_keeper" : "manager";
 }
 
-async function ensurePayloadBarcodes(payload, martId) {
+async function ensurePayloadBarcodes(payload) {
   const incomingBarcodes = (
     Array.isArray(payload?.barcodes) ? payload.barcodes : []
   )
     .map((value) => String(value).trim())
     .filter(Boolean);
 
-  if (incomingBarcodes.length > 0) {
-    payload.barcodes = Array.from(new Set(incomingBarcodes));
-    return payload.barcodes;
-  }
-
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const candidate = String(Math.floor(Math.random() * 1e12)).padStart(
-      12,
-      "0",
-    );
-    const existing = await productRepository.findOne({
-      martId,
-      barcodes: { has: candidate },
-    });
-
-    if (!existing) {
-      payload.barcodes = [candidate];
-      return payload.barcodes;
-    }
-  }
-
-  throw new Error("Failed to generate a unique barcode");
+  payload.barcodes = Array.from(new Set(incomingBarcodes));
+  return payload.barcodes;
 }
 
 // List requests for a mart
 router.get("/", authenticate, async (req, res) => {
   try {
     const user = req.user;
-    const { status, martId, startDate, endDate } = req.query;
+    const { status, martId, startDate, endDate, scope } = req.query;
     const filter = {};
 
     if (status) filter.status = status;
@@ -75,7 +54,11 @@ router.get("/", authenticate, async (req, res) => {
           .json({ message: "Cannot view requests for another mart" });
       }
 
-      if (isManager(user)) {
+      // scope=all (used by the approval history page) skips role scoping so
+      // involvement can be resolved client-side for the full mart.
+      if (scope === "all") {
+        // no role scoping
+      } else if (isManager(user)) {
         filter.OR = [
           { approvalRole: "manager" },
           { approvalRole: null },
@@ -152,17 +135,16 @@ router.put("/:id/approve", authenticate, async (req, res) => {
         .json({ message: "Request payload missing required fields" });
     }
 
-    await ensurePayloadBarcodes(payload, reqDoc.martId);
+    await ensurePayloadBarcodes(payload);
 
-    // Normalize quantities: store quantity holds warehouse stock; supermarket/sellable starts at provided or zero
-    const storeQty =
-      payload.storeQuantity != null
-        ? Number(payload.storeQuantity)
-        : Number(payload.quantity || 0);
+    // Normalize quantities: mart/sellable stock defaults to the requested
+    // quantity; store (warehouse) stock defaults to zero.
     const superQty =
       payload.supermarketQuantity != null
         ? Number(payload.supermarketQuantity)
-        : 0;
+        : Number(payload.quantity || 0);
+    const storeQty =
+      payload.storeQuantity != null ? Number(payload.storeQuantity) : 0;
     const saleQty = superQty;
 
     const productData = {
