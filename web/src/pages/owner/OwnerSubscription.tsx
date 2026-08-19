@@ -75,10 +75,6 @@ type SubscriptionData = {
   packageMonths?: number | null;
   feeEtb: number;
   billingPeriodDays: number;
-  productCount?: number;
-  productLimit?: number;
-  transactionCount?: number;
-  transactionLimit?: number;
   startDate?: string;
   endDate?: string;
   exceeded: boolean;

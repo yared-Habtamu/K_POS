@@ -156,16 +156,6 @@ function deriveEffectivePlan(mart, settings) {
     clampNumber(settings.billingPeriodDays, 30),
     1,
   );
-  const productLimit = clampNumber(
-    sub.productLimit,
-    clampNumber(settings.defaultProductLimit, 100),
-    1,
-  );
-  const transactionLimit = clampNumber(
-    sub.transactionLimit,
-    clampNumber(settings.defaultTransactionLimit, 500),
-    1,
-  );
   const warningDaysBeforeExpiry = clampNumber(
     sub.warningDaysBeforeExpiry,
     clampNumber(settings.warningDaysBeforeExpiry, 5),
@@ -174,8 +164,6 @@ function deriveEffectivePlan(mart, settings) {
   return {
     feeEtb,
     billingPeriodDays,
-    productLimit,
-    transactionLimit,
     warningDaysBeforeExpiry,
   };
 }
@@ -348,25 +336,6 @@ async function evaluateMartSubscription(
     });
   }
 
-  // Count active products for this mart
-  let productCount = 0;
-  try {
-    productCount = await prisma.product.count({
-      where: { martId: mart.id, isDeleted: false },
-    });
-  } catch (_) {}
-
-  // Count transactions (sales) for this mart in current billing period
-  let transactionCount = 0;
-  try {
-    transactionCount = await prisma.sale.count({
-      where: {
-        martId: mart.id,
-        createdAt: { gte: subscriptionStartDate, lte: subscriptionEndDate },
-      },
-    });
-  } catch (_) {}
-
   return {
     martId: String(mart.id),
     martName: mart.martName,
@@ -378,10 +347,6 @@ async function evaluateMartSubscription(
     packageMonths,
     feeEtb: plan.feeEtb,
     billingPeriodDays: plan.billingPeriodDays,
-    productLimit: plan.productLimit,
-    productCount,
-    transactionLimit: plan.transactionLimit,
-    transactionCount,
     startDate: subscriptionStartDate,
     endDate: subscriptionEndDate,
     exceeded: timeExpired,

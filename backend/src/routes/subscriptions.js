@@ -15,9 +15,7 @@ const {
   rejectSubscriptionPayment,
   notifySystemAdmins,
 } = require("../services/subscription.service");
-const {
-  getProductCapacity,
-} = require("../services/productCapacity.service");
+
 
 // Upload directory setup
 const uploadDir = path.join(__dirname, "..", "..", "uploads");
@@ -324,8 +322,6 @@ router.put("/settings", authenticate, requireSystemAdmin, async (req, res) => {
     const allowed = [
       "defaultFeeEtb",
       "billingPeriodDays",
-      "defaultProductLimit",
-      "defaultTransactionLimit",
       "warningDaysBeforeExpiry",
       "autoSuspendEnabled",
       "trialPeriodDays",
@@ -400,8 +396,6 @@ router.put("/marts/:id/plan", authenticate, requireSystemAdmin, async (req, res)
     const allowed = [
       "feeEtb",
       "billingPeriodDays",
-      "productLimit",
-      "transactionLimit",
       "warningDaysBeforeExpiry",
       "subscriptionStartDate",
       "subscriptionEndDate",
@@ -427,22 +421,6 @@ router.put("/marts/:id/plan", authenticate, requireSystemAdmin, async (req, res)
     return res.json(result);
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server error" });
-  }
-});
-
-// GET /api/subscriptions/capacity
-router.get("/capacity", authenticate, async (req, res) => {
-  try {
-    const { martId } = req.user;
-    if (!martId) {
-      return res.status(400).json({ message: "No mart assigned" });
-    }
-
-    const capacity = await getProductCapacity(martId);
-    return res.json(capacity);
-  } catch (err) {
-    console.error("[subscriptions] GET capacity error:", err);
     return res.status(500).json({ message: "Server error" });
   }
 });

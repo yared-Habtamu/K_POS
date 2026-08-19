@@ -516,8 +516,6 @@ model SubscriptionSettings {
   id                      String   @id @default(uuid())
   defaultFeeEtb           Float    @default(1000)
   billingPeriodDays       Int      @default(30)
-  defaultProductLimit     Int      @default(100)
-  defaultTransactionLimit Int      @default(500)
   warningDaysBeforeExpiry Int      @default(5)
   autoSuspendEnabled      Boolean  @default(true)
   trialPeriodDays         Int      @default(7)

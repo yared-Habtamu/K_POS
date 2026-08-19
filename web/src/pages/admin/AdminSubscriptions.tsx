@@ -50,8 +50,6 @@ import {
 type SubscriptionSettings = {
   defaultFeeEtb: number;
   billingPeriodDays: number;
-  defaultProductLimit: number;
-  defaultTransactionLimit: number;
   warningDaysBeforeExpiry: number;
   autoSuspendEnabled: boolean;
   trialPeriodDays: number;
@@ -76,10 +74,6 @@ type MartSubscriptionRow = {
   subscriptionStatus: string;
   billingPeriodDays?: number;
   daysLeft: number | null;
-  productCount?: number;
-  productLimit?: number;
-  transactionCount?: number;
-  transactionLimit?: number;
   feeEtb: number;
   startDate?: string;
   endDate?: string;
@@ -113,19 +107,13 @@ type SubscriptionPaymentRecord = {
 };
 
 type PlanForm = {
-  feeEtb: string;
-  billingPeriodDays: string;
-  productLimit: string;
-  transactionLimit: string;
+  subscriptionStartDate: string;
   subscriptionEndDate: string;
-  unsuspend: boolean;
 };
 
 const defaultSettings: SubscriptionSettings = {
   defaultFeeEtb: 1000,
   billingPeriodDays: 30,
-  defaultProductLimit: 100,
-  defaultTransactionLimit: 500,
   warningDaysBeforeExpiry: 5,
   autoSuspendEnabled: true,
   trialPeriodDays: 7,
@@ -223,8 +211,6 @@ export default function AdminSubscriptionsPage() {
         setSettings({
           defaultFeeEtb: Number(data.defaultFeeEtb || 1000),
           billingPeriodDays: Number(data.billingPeriodDays || 30),
-          defaultProductLimit: Number(data.defaultProductLimit || 100),
-          defaultTransactionLimit: Number(data.defaultTransactionLimit || 500),
           warningDaysBeforeExpiry: Number(data.warningDaysBeforeExpiry || 5),
           autoSuspendEnabled: Boolean(data.autoSuspendEnabled),
           trialPeriodDays: Number(data.trialPeriodDays || 7),
@@ -240,14 +226,8 @@ export default function AdminSubscriptionsPage() {
         const nextForms: Record<string, PlanForm> = {};
         (Array.isArray(rows) ? rows : []).forEach((row) => {
           nextForms[row.martId] = {
-            feeEtb: String(Math.round(Number(row.feeEtb || 0))),
-            billingPeriodDays: String(
-              Math.round(Number(row.billingPeriodDays || 30)),
-            ),
-            productLimit: String(Math.round(Number(row.productLimit || 100))),
-            transactionLimit: String(Math.round(Number(row.transactionLimit || 500))),
+            subscriptionStartDate: toInputDate(row.startDate),
             subscriptionEndDate: toInputDate(row.endDate),
-            unsuspend: false,
           };
         });
         setPlanForms(nextForms);
@@ -325,11 +305,11 @@ export default function AdminSubscriptionsPage() {
       setIsApproveOpen(false);
       setSelectedPayment(null);
       await loadAll();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       toast({
         title: t("approval_failed"),
-        description: err.message || t("approval_failed_desc"),
+        description: err instanceof Error ? err.message : t("approval_failed_desc"),
         variant: "destructive",
       });
     } finally {
@@ -361,11 +341,11 @@ export default function AdminSubscriptionsPage() {
       setSelectedPayment(null);
       setRejectReason("");
       await loadAll();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       toast({
         title: t("rejection_failed"),
-        description: err.message || t("rejection_failed_desc"),
+        description: err instanceof Error ? err.message : t("rejection_failed_desc"),
         variant: "destructive",
       });
     } finally {
@@ -470,13 +450,11 @@ export default function AdminSubscriptionsPage() {
       const form = planForms[martId];
       if (!form) return;
 
-      const payload: Record<string, unknown> = {
-        feeEtb: Number(form.feeEtb || 0),
-        billingPeriodDays: Number(form.billingPeriodDays || 30),
-        productLimit: Number(form.productLimit || 100),
-        transactionLimit: Number(form.transactionLimit || 500),
-      };
+      const payload: Record<string, unknown> = {};
 
+      if (form.subscriptionStartDate) {
+        payload.subscriptionStartDate = new Date(form.subscriptionStartDate).toISOString();
+      }
       if (form.subscriptionEndDate) {
         payload.subscriptionEndDate = new Date(form.subscriptionEndDate).toISOString();
       }
@@ -510,12 +488,8 @@ export default function AdminSubscriptionsPage() {
       ...prev,
       [martId]: {
         ...(prev[martId] || {
-          feeEtb: "0",
-          billingPeriodDays: "30",
-          productLimit: "100",
-          transactionLimit: "500",
+          subscriptionStartDate: "",
           subscriptionEndDate: "",
-          unsuspend: false,
         }),
         ...patch,
       },
@@ -807,8 +781,6 @@ export default function AdminSubscriptionsPage() {
                         <TableHead>{t("mart_status")}</TableHead>
                         <TableHead>{t("subscription")}</TableHead>
                         <TableHead>{t("plan_trial")}</TableHead>
-                        <TableHead>{t("products_col")}</TableHead>
-                        <TableHead>{t("transactions_col")}</TableHead>
                         <TableHead>{t("days_left")}</TableHead>
                         <TableHead>{t("action")}</TableHead>
                       </TableRow>
@@ -837,12 +809,6 @@ export default function AdminSubscriptionsPage() {
                               row.packageName || t("paid_plan")
                             )}
                           </TableCell>
-                          <TableCell className="text-xs">
-                            {typeof row.productCount === "number" ? `${row.productCount}/${row.productLimit || "\u221E"}` : "N/A"}
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            {typeof row.transactionCount === "number" ? `${row.transactionCount}/${row.transactionLimit || "\u221E"}` : "N/A"}
-                          </TableCell>
                           <TableCell className="text-xs font-semibold">
                             {typeof row.daysLeft === "number" ? (
                               <span className={row.daysLeft <= 0 ? "text-destructive" : row.daysLeft <= 5 ? "text-amber-500" : "text-emerald-500"}>
@@ -867,7 +833,7 @@ export default function AdminSubscriptionsPage() {
 
                       {marts.length === 0 && !loading && (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center py-8 text-muted-foreground text-sm">
+                          <TableCell colSpan={6} className="text-center py-8 text-muted-foreground text-sm">
                             {t("no_marts_found")}
                           </TableCell>
                         </TableRow>
@@ -1307,8 +1273,6 @@ export default function AdminSubscriptionsPage() {
                 <div>{t("package")}: <span className="font-medium">{selectedMart.packageName || (selectedMart.isTrial ? t("seven_day_free_trial") : t("standard_plan"))}</span></div>
                 <div>{t("fee_etb")}: <span className="font-medium">{selectedMart.feeEtb} {t("etb")}</span></div>
                 <div>{t("billing_days")}: <span className="font-medium">{selectedMart.billingPeriodDays || 30}</span></div>
-                <div>{t("products_col")}: <span className="font-medium">{selectedMart.productCount ?? "N/A"} / {selectedMart.productLimit ?? "\u221E"}</span></div>
-                <div>{t("transactions_col")}: <span className="font-medium">{selectedMart.transactionCount ?? "N/A"} / {selectedMart.transactionLimit ?? "\u221E"}</span></div>
                 <div>{t("days_left")}: <span className="font-medium">{selectedMart.daysLeft ?? "N/A"}</span></div>
                 <div>{t("start_date")}: <span className="font-medium">{selectedMart.startDate ? new Date(selectedMart.startDate).toLocaleDateString() : "N/A"}</span></div>
                 <div>{t("expiration_date")}: <span className="font-medium">{selectedMart.endDate ? new Date(selectedMart.endDate).toLocaleDateString() : "N/A"}</span></div>
@@ -1341,39 +1305,15 @@ export default function AdminSubscriptionsPage() {
             {editingMartId && editingForm && (
               <div className="grid gap-3">
                 <div className="space-y-1">
-                  <Label>{t("fee_etb")}</Label>
+                  <Label>{t("start_date")}</Label>
                   <Input
-                    type="number"
-                    value={editingForm.feeEtb}
-                    onChange={(e) => updatePlanForm(editingMartId, { feeEtb: e.target.value })}
+                    type="date"
+                    value={editingForm.subscriptionStartDate}
+                    onChange={(e) => updatePlanForm(editingMartId, { subscriptionStartDate: e.target.value })}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>{t("billing_days")}</Label>
-                  <Input
-                    type="number"
-                    value={editingForm.billingPeriodDays}
-                    onChange={(e) => updatePlanForm(editingMartId, { billingPeriodDays: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>{t("product_limit")}</Label>
-                  <Input
-                    type="number"
-                    value={editingForm.productLimit}
-                    onChange={(e) => updatePlanForm(editingMartId, { productLimit: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>{t("transaction_limit")}</Label>
-                  <Input
-                    type="number"
-                    value={editingForm.transactionLimit}
-                    onChange={(e) => updatePlanForm(editingMartId, { transactionLimit: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>{t("subscription_end_date")}</Label>
+                  <Label>{t("expiration_date")}</Label>
                   <Input
                     type="date"
                     value={editingForm.subscriptionEndDate}
