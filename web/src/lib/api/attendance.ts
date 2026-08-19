@@ -8,6 +8,8 @@ export type AttendanceApiRecord = {
   dateYmd?: string;
   clockIn?: string;
   clockOut?: string;
+  lunchOut?: string;
+  lunchBack?: string;
   durationMinutes?: number;
   notes?: string;
   createdAt?: string;
@@ -61,6 +63,8 @@ export async function createAttendance(
     dateYmd: string;
     clockIn: string;
     clockOut?: string | null;
+    lunchOut?: string | null;
+    lunchBack?: string | null;
     notes?: string | null;
     martId?: string;
   },
@@ -68,6 +72,8 @@ export async function createAttendance(
 ): Promise<AttendanceApiRecord> {
   const payload: any = { ...body };
   if (payload.clockOut == null || payload.clockOut === '') delete payload.clockOut;
+  if (payload.lunchOut == null || payload.lunchOut === '') delete payload.lunchOut;
+  if (payload.lunchBack == null || payload.lunchBack === '') delete payload.lunchBack;
   if (payload.notes == null || payload.notes === '') delete payload.notes;
   return request<AttendanceApiRecord>('/api/attendance', {
     method: 'POST',
@@ -83,6 +89,8 @@ export async function updateAttendance(
     employeeName?: string | null;
     clockIn?: string | null;
     clockOut?: string | null;
+    lunchOut?: string | null;
+    lunchBack?: string | null;
     notes?: string | null;
   },
   token?: string,

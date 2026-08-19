@@ -111,6 +111,8 @@ type AttendanceRecord = {
   employeeName?: string;
   clockIn: string; // ISO
   clockOut: string | null; // ISO | null
+  lunchOut: string | null;
+  lunchBack: string | null;
   durationMinutes: number | null;
   date: string; // YYYY-MM-DD
 };
@@ -190,6 +192,8 @@ export default function MEmployeeManagement(): JSX.Element {
   );
   const [attendanceForm, setAttendanceForm] = useState({
     clockIn: "",
+    lunchOut: "",
+    lunchBack: "",
     clockOut: "",
   });
   const [editingAttendanceId, setEditingAttendanceId] = useState<string | null>(
@@ -225,6 +229,8 @@ export default function MEmployeeManagement(): JSX.Element {
     employeeId: "",
     date: new Date().toISOString().split("T")[0],
     clockIn: "",
+    lunchOut: "",
+    lunchBack: "",
     clockOut: "",
   });
 
@@ -399,6 +405,12 @@ export default function MEmployeeManagement(): JSX.Element {
     const clockOutIso = r.clockOut
       ? isoFromDateAndTime(date, String(r.clockOut))
       : null;
+    const lunchOutIso = r.lunchOut
+      ? isoFromDateAndTime(date, String(r.lunchOut))
+      : null;
+    const lunchBackIso = r.lunchBack
+      ? isoFromDateAndTime(date, String(r.lunchBack))
+      : null;
     return {
       id,
       employeeId,
@@ -406,6 +418,8 @@ export default function MEmployeeManagement(): JSX.Element {
       date,
       clockIn: clockInIso,
       clockOut: clockOutIso,
+      lunchOut: lunchOutIso,
+      lunchBack: lunchBackIso,
       durationMinutes:
         typeof r.durationMinutes === "number" ? r.durationMinutes : null,
     };
@@ -641,6 +655,12 @@ export default function MEmployeeManagement(): JSX.Element {
     setSelectedEmployeeId(rec.employeeId);
     setAttendanceForm({
       clockIn: new Date(rec.clockIn).toTimeString().slice(0, 5),
+      lunchOut: rec.lunchOut
+        ? new Date(rec.lunchOut).toTimeString().slice(0, 5)
+        : "",
+      lunchBack: rec.lunchBack
+        ? new Date(rec.lunchBack).toTimeString().slice(0, 5)
+        : "",
       clockOut: rec.clockOut
         ? new Date(rec.clockOut).toTimeString().slice(0, 5)
         : "",
@@ -650,6 +670,8 @@ export default function MEmployeeManagement(): JSX.Element {
       employeeId: "",
       date: new Date().toISOString().split("T")[0],
       clockIn: "",
+      lunchOut: "",
+      lunchBack: "",
       clockOut: "",
     });
     setEditSubpageOpen(true);
@@ -664,6 +686,16 @@ export default function MEmployeeManagement(): JSX.Element {
     const clockInTime = attendanceForm.clockIn.includes("T")
       ? attendanceForm.clockIn.split("T")[1].slice(0, 5)
       : attendanceForm.clockIn;
+    const lunchOutTime = attendanceForm.lunchOut
+      ? attendanceForm.lunchOut.includes("T")
+        ? attendanceForm.lunchOut.split("T")[1].slice(0, 5)
+        : attendanceForm.lunchOut
+      : "";
+    const lunchBackTime = attendanceForm.lunchBack
+      ? attendanceForm.lunchBack.includes("T")
+        ? attendanceForm.lunchBack.split("T")[1].slice(0, 5)
+        : attendanceForm.lunchBack
+      : "";
     const clockOutTime = attendanceForm.clockOut
       ? attendanceForm.clockOut.includes("T")
         ? attendanceForm.clockOut.split("T")[1].slice(0, 5)
@@ -674,6 +706,14 @@ export default function MEmployeeManagement(): JSX.Element {
       toast({
         title: "Invalid Time",
         description: "Clock-out must be after clock-in.",
+      });
+      return;
+    }
+
+    if (lunchOutTime && lunchBackTime && lunchBackTime <= lunchOutTime) {
+      toast({
+        title: "Invalid Time",
+        description: "Lunch back must be after lunch out.",
       });
       return;
     }
@@ -698,6 +738,8 @@ export default function MEmployeeManagement(): JSX.Element {
               employeeId: selectedEmployeeId,
               employeeName: emp?.name || null,
               clockIn: clockInTime,
+              lunchOut: lunchOutTime || null,
+              lunchBack: lunchBackTime || null,
               clockOut: clockOutTime || null,
             },
             token,
@@ -710,6 +752,8 @@ export default function MEmployeeManagement(): JSX.Element {
               employeeName: emp?.name,
               dateYmd: day,
               clockIn: clockInTime,
+              lunchOut: lunchOutTime || null,
+              lunchBack: lunchBackTime || null,
               clockOut: clockOutTime || null,
             },
             token,
@@ -719,6 +763,7 @@ export default function MEmployeeManagement(): JSX.Element {
         await refreshAttendance();
         toast({ title: "Attendance Saved", description: "Saved to database." });
         setAttendanceDialogOpen(false);
+        setEditSubpageOpen(false);
       } catch (e: any) {
         console.error("save attendance failed", e);
         toast({
@@ -907,7 +952,7 @@ export default function MEmployeeManagement(): JSX.Element {
 
   // Handle manual entry save
   const handleSaveManualEntry = async () => {
-    const { employeeId, date, clockIn, clockOut } = manualEntryForm;
+    const { employeeId, date, clockIn, lunchOut, lunchBack, clockOut } = manualEntryForm;
 
     if (!employeeId || !date || !clockIn) {
       toast({ title: "Please fill employee, date and clock-in" });
@@ -919,6 +964,14 @@ export default function MEmployeeManagement(): JSX.Element {
       toast({
         title: "Invalid Time",
         description: "Clock-out must be after clock-in.",
+      });
+      return;
+    }
+
+    if (lunchOut && lunchBack && lunchBack <= lunchOut) {
+      toast({
+        title: "Invalid Time",
+        description: "Lunch back must be after lunch out.",
       });
       return;
     }
@@ -936,6 +989,8 @@ export default function MEmployeeManagement(): JSX.Element {
           employeeName: emp?.name,
           dateYmd: date,
           clockIn,
+          lunchOut: lunchOut || null,
+          lunchBack: lunchBack || null,
           clockOut: clockOut || null,
         },
         token,
@@ -946,6 +1001,8 @@ export default function MEmployeeManagement(): JSX.Element {
         employeeId: "",
         date: formatDateKey(new Date()),
         clockIn: "",
+        lunchOut: "",
+        lunchBack: "",
         clockOut: "",
       });
     } catch (e: any) {
@@ -969,16 +1026,24 @@ export default function MEmployeeManagement(): JSX.Element {
       "Employee Name",
       "Date",
       "Clock In",
+      "Lunch Out",
+      "Lunch Back",
       "Clock Out",
       "Duration (min)",
     ];
     const rows = filteredAttendance.map((rec) => {
       const emp = employees.find((e) => e.id === rec.employeeId);
       const inTime = new Date(rec.clockIn).toLocaleString();
+      const lunchOutTime = rec.lunchOut
+        ? new Date(rec.lunchOut).toLocaleString()
+        : "—";
+      const lunchBackTime = rec.lunchBack
+        ? new Date(rec.lunchBack).toLocaleString()
+        : "—";
       const outTime = rec.clockOut
         ? new Date(rec.clockOut).toLocaleString()
         : "—";
-      return `"${emp?.name || "Unknown"}", "${rec.date}", "${inTime}", "${outTime}", "${rec.durationMinutes ?? "—"}"`;
+      return `"${emp?.name || "Unknown"}", "${rec.date}", "${inTime}", "${lunchOutTime}", "${lunchBackTime}", "${outTime}", "${rec.durationMinutes ?? "—"}"`;
     });
 
     const csvContent = [headers.join(","), ...rows].join("\n");
@@ -1057,6 +1122,8 @@ export default function MEmployeeManagement(): JSX.Element {
           <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left; background: #f9fafb; font-weight: 600;">Employee</th>
           <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left; background: #f9fafb; font-weight: 600;">Date</th>
           <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left; background: #f9fafb; font-weight: 600;">Clock In</th>
+          <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left; background: #f9fafb; font-weight: 600;">Lunch Out</th>
+          <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left; background: #f9fafb; font-weight: 600;">Lunch Back</th>
           <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left; background: #f9fafb; font-weight: 600;">Clock Out</th>
           <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left; background: #f9fafb; font-weight: 600;">Duration</th>
         </tr>
@@ -1065,7 +1132,7 @@ export default function MEmployeeManagement(): JSX.Element {
 
     const tbody = document.createElement("tbody");
     if (filteredAttendance.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: #9ca3af;">No attendance data</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: #9ca3af;">No attendance data</td></tr>`;
     } else {
       filteredAttendance.forEach((rec) => {
         const emp = employees.find((e) => e.id === rec.employeeId);
@@ -1074,6 +1141,8 @@ export default function MEmployeeManagement(): JSX.Element {
           <td style="border: 1px solid #e5e7eb; padding: 10px;">${escapeHtml(emp?.name || "Unknown")}</td>
           <td style="border: 1px solid #e5e7eb; padding: 10px;">${escapeHtml(rec.date)}</td>
           <td style="border: 1px solid #e5e7eb; padding: 10px;">${escapeHtml(new Date(rec.clockIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</td>
+          <td style="border: 1px solid #e5e7eb; padding: 10px;">${escapeHtml(rec.lunchOut ? new Date(rec.lunchOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—")}</td>
+          <td style="border: 1px solid #e5e7eb; padding: 10px;">${escapeHtml(rec.lunchBack ? new Date(rec.lunchBack).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—")}</td>
           <td style="border: 1px solid #e5e7eb; padding: 10px;">${escapeHtml(rec.clockOut ? new Date(rec.clockOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—")}</td>
           <td style="border: 1px solid #e5e7eb; padding: 10px;">${escapeHtml(rec.durationMinutes ? `${rec.durationMinutes} min` : "—")}</td>
         `;
@@ -1792,7 +1861,7 @@ export default function MEmployeeManagement(): JSX.Element {
                   <CardTitle>Add Attendance Manually</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                     <div>
                       <Label>Employee</Label>
                       <Select
@@ -1846,6 +1915,32 @@ export default function MEmployeeManagement(): JSX.Element {
                       />
                     </div>
                     <div>
+                      <Label>Lunch Out</Label>
+                      <Input
+                        type="time"
+                        value={manualEntryForm.lunchOut}
+                        onChange={(e) =>
+                          setManualEntryForm((prev) => ({
+                            ...prev,
+                            lunchOut: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Lunch Back</Label>
+                      <Input
+                        type="time"
+                        value={manualEntryForm.lunchBack}
+                        onChange={(e) =>
+                          setManualEntryForm((prev) => ({
+                            ...prev,
+                            lunchBack: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div>
                       <Label>Clock Out</Label>
                       <Input
                         type="time"
@@ -1858,7 +1953,7 @@ export default function MEmployeeManagement(): JSX.Element {
                         }
                       />
                     </div>
-                    <div className="flex items-end">
+                    <div className="flex items-end sm:col-span-2 md:col-span-3 lg:col-span-6 justify-end">
                       <Button onClick={handleSaveManualEntry}>
                         Save Attendance
                       </Button>
@@ -1909,6 +2004,8 @@ export default function MEmployeeManagement(): JSX.Element {
                         <TableHead>Employee</TableHead>
                         <TableHead>Date</TableHead>
                         <TableHead>Clock In</TableHead>
+                        <TableHead>Lunch Out</TableHead>
+                        <TableHead>Lunch Back</TableHead>
                         <TableHead>Clock Out</TableHead>
                         <TableHead>Duration</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
@@ -1940,6 +2037,22 @@ export default function MEmployeeManagement(): JSX.Element {
                               })}
                             </TableCell>
                             <TableCell>
+                              {rec.lunchOut
+                                ? new Date(rec.lunchOut).toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                : "—"}
+                            </TableCell>
+                            <TableCell>
+                              {rec.lunchBack
+                                ? new Date(rec.lunchBack).toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                : "—"}
+                            </TableCell>
+                            <TableCell>
                               {rec.clockOut
                                 ? new Date(rec.clockOut).toLocaleTimeString(
                                     [],
@@ -1953,71 +2066,110 @@ export default function MEmployeeManagement(): JSX.Element {
                                 : "—"}
                             </TableCell>
                             <TableCell className="text-right">
-                              {!rec.clockOut && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleClockOutNow(rec.id)}
-                                  title="Clock Out Now"
-                                >
-                                  <Clock className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {!isPast && (
-                                <>
+                              <div className="flex items-center justify-end gap-1">
+                                {!rec.lunchOut && !rec.clockOut && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={async () => {
+                                      if (!token) return;
+                                      try {
+                                        const nowHHmm = new Date().toTimeString().slice(0, 5);
+                                        await updateAttendance(rec.id, { lunchOut: nowHHmm }, token);
+                                        await refreshAttendance();
+                                        toast({ title: "Lunch Out recorded" });
+                                      } catch (e: any) {
+                                        toast({ title: "Failed to record lunch out", variant: "destructive" });
+                                      }
+                                    }}
+                                  >
+                                    Lunch Out
+                                  </Button>
+                                )}
+                                {rec.lunchOut && !rec.lunchBack && !rec.clockOut && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={async () => {
+                                      if (!token) return;
+                                      try {
+                                        const nowHHmm = new Date().toTimeString().slice(0, 5);
+                                        await updateAttendance(rec.id, { lunchBack: nowHHmm }, token);
+                                        await refreshAttendance();
+                                        toast({ title: "Lunch Back recorded" });
+                                      } catch (e: any) {
+                                        toast({ title: "Failed to record lunch back", variant: "destructive" });
+                                      }
+                                    }}
+                                  >
+                                    Lunch Back
+                                  </Button>
+                                )}
+                                {(!rec.clockOut || rec.clockOut === null) && (
                                   <Button
                                     variant="ghost"
-                                    size="icon"
-                                    onClick={() => handleEditAttendance(rec)}
+                                    size="sm"
+                                    onClick={() => handleClockOutNow(rec.id)}
                                   >
-                                    <Edit className="h-4 w-4" />
+                                    Clock Out Now
                                   </Button>
-                                  {canDelete && (
-                                    <AlertDialog>
-                                      <AlertDialogTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="text-destructive hover:text-destructive"
-                                          aria-label="Delete attendance"
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                      </AlertDialogTrigger>
-                                      <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                          <AlertDialogTitle>
-                                            Delete attendance record?
-                                          </AlertDialogTitle>
-                                          <AlertDialogDescription>
-                                            Delete the attendance record for{" "}
-                                            {emp?.name ||
-                                              rec.employeeName ||
-                                              "this employee"}{" "}
-                                            on {rec.date}? This action cannot be
-                                            undone.
-                                          </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                          <AlertDialogCancel>
-                                            Cancel
-                                          </AlertDialogCancel>
-                                          <AlertDialogAction
-                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                            onClick={() =>
-                                              handleDeleteAttendanceRecord(
-                                                rec.id,
-                                              )
-                                            }
+                                )}
+                                {!isPast && (
+                                  <>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleEditAttendance(rec)}
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    {canDelete && (
+                                      <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="text-destructive hover:text-destructive"
+                                            aria-label="Delete attendance"
                                           >
-                                            Delete
-                                          </AlertDialogAction>
-                                        </AlertDialogFooter>
-                                      </AlertDialogContent>
-                                    </AlertDialog>
-                                  )}
-                                </>
-                              )}
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                          <AlertDialogHeader>
+                                            <AlertDialogTitle>
+                                              Delete attendance record?
+                                            </AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                              Delete the attendance record for{" "}
+                                              {emp?.name ||
+                                                rec.employeeName ||
+                                                "this employee"}{" "}
+                                              on {rec.date}? This action cannot be
+                                              undone.
+                                            </AlertDialogDescription>
+                                          </AlertDialogHeader>
+                                          <AlertDialogFooter>
+                                            <AlertDialogCancel>
+                                              Cancel
+                                            </AlertDialogCancel>
+                                            <AlertDialogAction
+                                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                              onClick={() =>
+                                                handleDeleteAttendanceRecord(
+                                                  rec.id,
+                                                )
+                                              }
+                                            >
+                                              Delete
+                                            </AlertDialogAction>
+                                          </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                      </AlertDialog>
+                                    )}
+                                  </>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         );
@@ -2109,67 +2261,7 @@ export default function MEmployeeManagement(): JSX.Element {
                   Close
                 </Button>
               </div>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!editingAttendanceId || !selectedEmployeeId) return;
-                  const clockInDate = new Date(attendanceForm.clockIn);
-                  const clockOutDate = attendanceForm.clockOut
-                    ? new Date(attendanceForm.clockOut)
-                    : null;
-
-                  if (clockOutDate && clockOutDate <= clockInDate) {
-                    toast({
-                      title: "Invalid Time",
-                      description: "Clock-out must be after clock-in.",
-                    });
-                    return;
-                  }
-
-                  const durationMinutes = clockOutDate
-                    ? Math.round(
-                        (clockOutDate.getTime() - clockInDate.getTime()) /
-                          60000,
-                      )
-                    : null;
-
-                  setAttendance((prev) =>
-                    prev.map((r) =>
-                      r.id === editingAttendanceId
-                        ? {
-                            ...r,
-                            employeeId: selectedEmployeeId,
-                            clockIn: clockInDate.toISOString(),
-                            clockOut: clockOutDate
-                              ? clockOutDate.toISOString()
-                              : null,
-                            durationMinutes,
-                            date: formatDateKey(clockInDate),
-                          }
-                        : r,
-                    ),
-                  );
-
-                  // update active clock-ins
-                  if (!clockOutDate) {
-                    setActiveClockIns((prev) => ({
-                      ...prev,
-                      [selectedEmployeeId]: clockInDate.toISOString(),
-                    }));
-                  } else {
-                    setActiveClockIns((prev) => {
-                      const copy = { ...prev };
-                      delete copy[selectedEmployeeId];
-                      return copy;
-                    });
-                  }
-
-                  toast({ title: "Attendance updated" });
-                  setEditSubpageOpen(false);
-                  setEditingAttendanceId(null);
-                }}
-                className="space-y-4"
-              >
+              <form onSubmit={handleSaveAttendance} className="space-y-4">
                 <div>
                   <Label>Employee</Label>
                   <Select
@@ -2191,7 +2283,7 @@ export default function MEmployeeManagement(): JSX.Element {
                 <div>
                   <Label>Clock In</Label>
                   <Input
-                    type="datetime-local"
+                    type="time"
                     value={attendanceForm.clockIn}
                     onChange={(e) =>
                       setAttendanceForm((prev) => ({
@@ -2203,9 +2295,35 @@ export default function MEmployeeManagement(): JSX.Element {
                   />
                 </div>
                 <div>
+                  <Label>Lunch Out</Label>
+                  <Input
+                    type="time"
+                    value={attendanceForm.lunchOut}
+                    onChange={(e) =>
+                      setAttendanceForm((prev) => ({
+                        ...prev,
+                        lunchOut: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>Lunch Back</Label>
+                  <Input
+                    type="time"
+                    value={attendanceForm.lunchBack}
+                    onChange={(e) =>
+                      setAttendanceForm((prev) => ({
+                        ...prev,
+                        lunchBack: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div>
                   <Label>Clock Out</Label>
                   <Input
-                    type="datetime-local"
+                    type="time"
                     value={attendanceForm.clockOut}
                     onChange={(e) =>
                       setAttendanceForm((prev) => ({

@@ -423,6 +423,8 @@ model Attendance {
   dateYmd         String?
   clockIn         String?
   clockOut        String?
+  lunchOut        String?
+  lunchBack       String?
   durationMinutes Float    @default(0)
   notes           String?
   createdBy       String?
