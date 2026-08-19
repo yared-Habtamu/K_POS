@@ -150,30 +150,55 @@ const ReportPage: React.FC = () => {
     return { grossProfit, netProfit };
   }, [localData.revenue, localData.cogs, localData.netProfit, localData.expenses]);
 
-  const paymentTotal = React.useMemo(() => {
-    const pm = localData.paymentMethods || {};
-    return ["cash", "card", "mobile", "credit"].reduce(
-      (s, k) => s + Number(pm[k] || 0),
-      0,
-    );
-  }, [localData.paymentMethods]);
+  const paymentData = React.useMemo(() => {
+    if (
+      Array.isArray((localData as any).salesByPaymentMethod) &&
+      (localData as any).salesByPaymentMethod.length > 0
+    ) {
+      return (localData as any).salesByPaymentMethod
+        .filter((d: any) => Number(d.total || 0) > 0)
+        .map((d: any) => {
+          const rawMethod = String(d.method || "").toLowerCase();
+          const translated = t(rawMethod);
+          const displayName =
+            translated && translated !== rawMethod
+              ? translated
+              : rawMethod
+                  .split("_")
+                  .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                  .join(" ");
+          return {
+            name: displayName,
+            value: Number(d.total || 0),
+            rawKey: rawMethod,
+          };
+        });
+    }
 
-  const paymentData = React.useMemo(
-    () =>
-      [
-        { name: t("cash"), value: Number(localData.paymentMethods.cash) || 0 },
-        { name: t("card"), value: Number(localData.paymentMethods.card) || 0 },
-        {
-          name: t("mobile"),
-          value: Number(localData.paymentMethods.mobile) || 0,
-        },
-        {
-          name: t("credit"),
-          value: Number(localData.paymentMethods.credit) || 0,
-        },
-      ].filter((d) => d.value > 0),
-    [localData.paymentMethods],
-  );
+    const pm = localData.paymentMethods || {};
+    return Object.entries(pm)
+      .filter(([_, val]) => Number(val || 0) > 0)
+      .map(([key, val]) => {
+        const rawMethod = String(key || "").toLowerCase();
+        const translated = t(rawMethod);
+        const displayName =
+          translated && translated !== rawMethod
+            ? translated
+            : rawMethod
+                .split("_")
+                .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                .join(" ");
+        return {
+          name: displayName,
+          value: Number(val || 0),
+          rawKey: rawMethod,
+        };
+      });
+  }, [localData, t]);
+
+  const paymentTotal = React.useMemo(() => {
+    return paymentData.reduce((s, d) => s + d.value, 0);
+  }, [paymentData]);
 
   const topProducts = React.useMemo(
     () =>
@@ -328,12 +353,17 @@ const ReportPage: React.FC = () => {
     );
     XLSX.utils.book_append_sheet(
       wb,
-      XLSX.utils.json_to_sheet([
-        { Method: t("cash"), Amount: fmt(localData.paymentMethods.cash) },
-        { Method: t("card"), Amount: fmt(localData.paymentMethods.card) },
-        { Method: t("mobile"), Amount: fmt(localData.paymentMethods.mobile) },
-        { Method: t("credit"), Amount: fmt(localData.paymentMethods.credit) },
-      ]),
+      XLSX.utils.json_to_sheet(
+        paymentData.length > 0
+          ? paymentData.map((d) => ({
+              Method: d.name,
+              Amount: fmt(d.value),
+              Percentage: paymentTotal
+                ? `${((d.value / paymentTotal) * 100).toFixed(1)}%`
+                : "0%",
+            }))
+          : [{ Method: "None", Amount: "0.00 ETB", Percentage: "0%" }],
+      ),
       "2. Payments",
     );
     XLSX.utils.book_append_sheet(
@@ -496,34 +526,15 @@ const ReportPage: React.FC = () => {
       startY: y1 + 3,
       head: [["Method", "Amount", "% of Total"]],
       body: [
-        [
-          t("cash"),
-          fmt(localData.paymentMethods.cash),
-          paymentTotal
-            ? `${((Number(localData.paymentMethods.cash) / paymentTotal) * 100).toFixed(1)}%`
-            : "-",
-        ],
-        [
-          t("card"),
-          fmt(localData.paymentMethods.card),
-          paymentTotal
-            ? `${((Number(localData.paymentMethods.card) / paymentTotal) * 100).toFixed(1)}%`
-            : "-",
-        ],
-        [
-          t("mobile"),
-          fmt(localData.paymentMethods.mobile),
-          paymentTotal
-            ? `${((Number(localData.paymentMethods.mobile) / paymentTotal) * 100).toFixed(1)}%`
-            : "-",
-        ],
-        [
-          t("credit"),
-          fmt(localData.paymentMethods.credit),
-          paymentTotal
-            ? `${((Number(localData.paymentMethods.credit) / paymentTotal) * 100).toFixed(1)}%`
-            : "-",
-        ],
+        ...(paymentData.length > 0
+          ? paymentData.map((d) => [
+              d.name,
+              fmt(d.value),
+              paymentTotal
+                ? `${((d.value / paymentTotal) * 100).toFixed(1)}%`
+                : "-",
+            ])
+          : [["No payments", "0.00 ETB", "0%"]]),
         ["Total", fmt(paymentTotal), "100%"],
       ],
       theme: "grid",

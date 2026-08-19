@@ -355,9 +355,11 @@ export default function MartManagement() {
       (typeof ownerRecord === "string" ? ownerRecord : "Owner");
     const ownerId =
       (ownerRecord && (ownerRecord.id || ownerRecord._id)) ||
-      (typeof ownerRecord === "string" ? ownerRecord : undefined);
+      (typeof ownerRecord === "string" ? ownerRecord : undefined) ||
+      m.ownerId ||
+      m.owner_id;
     const ownerUsername =
-      (ownerRecord && ownerRecord.username) || m.ownerUsername;
+      (ownerRecord && ownerRecord.username) || m.ownerUsername || m.owner_username;
     const statusMap: Record<string, Shop["status"]> = {
       pending: "pending",
       approved: "active",
@@ -366,7 +368,7 @@ export default function MartManagement() {
       rejected: "rejected",
     };
     return {
-      id: m._id,
+      id: String(m.id || m._id || ""),
       name: m.martName || m.name || "Unnamed",
       owner: ownerName,
       ownerId: ownerId,
@@ -374,7 +376,7 @@ export default function MartManagement() {
       status: statusMap[m.status] || "pending",
       sales: 0,
       users: 1,
-      permissions: m.ownerId ? ["owner"] : [],
+      permissions: ownerId ? ["owner"] : [],
       address: { country: m.country, region: m.region, city: m.city },
     } as Shop;
   };

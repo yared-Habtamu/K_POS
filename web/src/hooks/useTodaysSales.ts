@@ -68,6 +68,7 @@ export default function useTodaysSales(date?: string) {
         vatAmount,
         img: p.image || p.imageUrl || "",
         paymentMethod: p.paymentMethod || "unknown",
+        paymentMethods: Array.isArray(p.paymentMethods) ? p.paymentMethods : (p.paymentMethod ? [p.paymentMethod] : []),
         soldById: p.soldById || null,
         soldByName: p.soldByName || p.soldBy || "unknown",
         total,

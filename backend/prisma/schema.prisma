@@ -132,6 +132,10 @@ model User {
   chatConversationsAsCashier ChatConversation[] @relation("ChatCashier")
   chatMessagesSent           ChatMessage[]      @relation("ChatSender")
 
+  // Subscription Payment relations
+  subscriptionPaymentsRequested SubscriptionPayment[] @relation("SubPayRequester")
+  subscriptionPaymentsApproved  SubscriptionPayment[] @relation("SubPayApprover")
+
   @@index([martId])
   @@index([role])
   @@index([isDeleted])
@@ -204,6 +208,7 @@ model Mart {
   openCashRequests          OpenCashRequest[]
   saleCancellationRequests  SaleCancellationRequest[]
   chatConversations         ChatConversation[]
+  subscriptionPayments      SubscriptionPayment[]
 
   @@index([ownerId])
   @@index([martName])
@@ -494,6 +499,7 @@ model PaymentType {
   name      String
   icon      String   @default("Wallet")
   martId    String?
+  active    Boolean  @default(true)
   isDeleted Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -514,6 +520,9 @@ model SubscriptionSettings {
   defaultTransactionLimit Int      @default(500)
   warningDaysBeforeExpiry Int      @default(5)
   autoSuspendEnabled      Boolean  @default(true)
+  trialPeriodDays         Int      @default(7)
+  packagePrices           Json?
+  paymentMethods          Json?
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
@@ -763,3 +772,39 @@ model ChatMessage {
   @@index([createdAt])
   @@map("chat_messages")
 }
+
+// ─── Subscription Payments ──────────────────────────────────────────────────
+
+model SubscriptionPayment {
+  id               String        @id @default(uuid())
+  martId           String
+  userId           String
+  packageName      String
+  packageMonths    Int
+  amount           Float
+  currency         String        @default("ETB")
+  paymentMethod    String
+  paymentReference String?
+  receiptUrl       String
+  status           RequestStatus @default(pending)
+  approverId       String?
+  approverName     String?
+  reason           String?
+  decidedAt        DateTime?
+  periodStartDate  DateTime?
+  periodEndDate    DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  // Relations
+  mart      Mart  @relation(fields: [martId], references: [id])
+  requester User  @relation("SubPayRequester", fields: [userId], references: [id])
+  approver  User? @relation("SubPayApprover", fields: [approverId], references: [id])
+
+  @@index([martId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("subscription_payments")
+}
+

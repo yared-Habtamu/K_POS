@@ -26,6 +26,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import {
   Banknote,
   Building2,
   CircleDollarSign,
@@ -36,13 +45,17 @@ import {
   Smartphone,
   Trash2,
   Wallet,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { PrinterSettingsCard } from "@/components/settings/PrinterSettingsCard";
 
 type ConfiguredPaymentType = {
-  _id: string;
+  _id?: string;
+  id?: string;
   name: string;
   icon?: string;
+  active?: boolean;
 };
 
 type PaymentAccountField = {
@@ -57,24 +70,27 @@ type PaymentAccountField = {
 const paymentMethodOptions = [
   { value: "cash", labelKey: "cash", fallback: "Cash" },
   { value: "card", labelKey: "card", fallback: "Card" },
-  { value: "telebirr", labelKey: "telebirr", fallback: "Telebirr" },
+  { value: "transfer", labelKey: "transfer", fallback: "Transfer" },
   { value: "credit", labelKey: "credit", fallback: "Credit" },
+  { value: "telebirr", labelKey: "telebirr", fallback: "Telebirr" },
+  { value: "cbe_bank", labelKey: "cbe_bank", fallback: "CBE Bank" },
   { value: "other", labelKey: "other", fallback: "Other" },
 ];
 
 const paymentIconOptions = [
-  { value: "Banknote", label: "Banknote", Icon: Banknote },
+  { value: "Banknote", label: "Banknote (Cash)", Icon: Banknote },
   { value: "CreditCard", label: "Credit Card", Icon: CreditCard },
-  { value: "Smartphone", label: "Smartphone", Icon: Smartphone },
-  { value: "Building2", label: "Building", Icon: Building2 },
-  { value: "Wallet", label: "Wallet", Icon: Wallet },
-  { value: "Landmark", label: "Landmark", Icon: Landmark },
+  { value: "Landmark", label: "Landmark (Bank/Transfer)", Icon: Landmark },
+  { value: "Smartphone", label: "Smartphone (Mobile Money)", Icon: Smartphone },
+  { value: "Building2", label: "Building (Bank)", Icon: Building2 },
+  { value: "Wallet", label: "Wallet (Credit/Deposit)", Icon: Wallet },
   { value: "CircleDollarSign", label: "Dollar Circle", Icon: CircleDollarSign },
 ];
 
 const defaultIconByPaymentMethod: Record<string, string> = {
   cash: "Banknote",
   card: "CreditCard",
+  transfer: "Landmark",
   telebirr: "Smartphone",
   cbe_bank: "Building2",
   credit: "Wallet",
@@ -117,13 +133,17 @@ export default function OwnerSettings() {
   const [configuredPaymentTypes, setConfiguredPaymentTypes] = useState<
     ConfiguredPaymentType[]
   >([]);
-  const [selectedPosPaymentMethod, setSelectedPosPaymentMethod] =
-    useState("cash");
-  const [selectedPosPaymentIcon, setSelectedPosPaymentIcon] = useState(
-    defaultIconByPaymentMethod.cash,
-  );
+  const [customPaymentName, setCustomPaymentName] = useState("");
+  const [selectedPosPaymentIcon, setSelectedPosPaymentIcon] = useState("Banknote");
+  const [newPaymentActive, setNewPaymentActive] = useState(true);
   const [isSavingPosPaymentMethod, setIsSavingPosPaymentMethod] =
     useState(false);
+  const [editingPaymentType, setEditingPaymentType] =
+    useState<ConfiguredPaymentType | null>(null);
+  const [editPaymentName, setEditPaymentName] = useState("");
+  const [editPaymentIcon, setEditPaymentIcon] = useState("Banknote");
+  const [editPaymentActive, setEditPaymentActive] = useState(true);
+  const [isSavingEditPayment, setIsSavingEditPayment] = useState(false);
   const [deletingPaymentTypeId, setDeletingPaymentTypeId] = useState<
     string | null
   >(null);
@@ -263,10 +283,12 @@ export default function OwnerSettings() {
               _id: it._id ? String(it._id) : undefined,
             };
           });
-          // only set if user didn't modify customPaymentFields yet
           setCustomPaymentFields((prev) => (prev && prev.length ? prev : arr));
-          const obj = arr.reduce<Record<string, string>>(
-            (acc, it) => ({ ...acc, [it.key]: it.accountNumber || it.value }),
+          const obj: Record<string, string> = (arr || []).reduce(
+            (acc: Record<string, string>, it: any) => ({
+              ...acc,
+              [it.key]: it.accountNumber || it.value,
+            }),
             {},
           );
           setPaymentAccounts((prev) =>
@@ -348,57 +370,57 @@ export default function OwnerSettings() {
     };
   }, [auth?.martId, auth?.token, API_BASE]);
 
+  const loadPaymentTypes = async () => {
+    try {
+      const martId = auth?.martId;
+      const token = auth?.token;
+      if (!martId) return;
+
+      const res = await fetch(
+        `${API_BASE}/api/payment-types?martId=${martId}`,
+        {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        },
+      );
+
+      if (!res.ok) return;
+      const list = await res.json();
+
+      const normalized = (Array.isArray(list) ? list : [])
+        .filter((item) => item && (item._id || item.id) && item.name)
+        .map((item) => ({
+          _id: String(item.id || item._id),
+          name: String(item.name || "").trim().toLowerCase(),
+          icon:
+            String(item.icon || "").trim() ||
+            defaultIconByPaymentMethod[
+              String(item.name || "").trim().toLowerCase()
+            ] ||
+            "Wallet",
+          active: item.active !== false,
+        }));
+
+      setConfiguredPaymentTypes(normalized);
+    } catch (err) {
+      console.error("Failed to load payment types", err);
+    }
+  };
+
   useEffect(() => {
-    let mounted = true;
-
-    const loadPaymentTypes = async () => {
-      try {
-        const martId = auth?.martId;
-        const token = auth?.token;
-        if (!martId) return;
-
-        const res = await fetch(
-          `${API_BASE}/api/payment-types?martId=${martId}`,
-          {
-            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          },
-        );
-
-        if (!res.ok) return;
-        const list = (await res.json()) as ConfiguredPaymentType[];
-        if (!mounted) return;
-
-        const normalized = (Array.isArray(list) ? list : [])
-          .filter((item) => item && item._id && item.name)
-          .map((item) => ({
-            _id: item._id,
-            name: String(item.name || "")
-              .trim()
-              .toLowerCase(),
-            icon:
-              String(item.icon || "").trim() ||
-              defaultIconByPaymentMethod[
-                String(item.name || "")
-                  .trim()
-                  .toLowerCase()
-              ] ||
-              "Wallet",
-          }));
-
-        setConfiguredPaymentTypes(normalized);
-      } catch (err) {
-        console.error("Failed to load payment types", err);
-      }
-    };
-
     loadPaymentTypes();
-
-    return () => {
-      mounted = false;
-    };
   }, [API_BASE, auth?.martId, auth?.token]);
 
-  const upsertPosPaymentType = async () => {
+  const createPosPaymentType = async () => {
+    const rawName = customPaymentName.trim();
+    if (!rawName) {
+      toast({
+        title: t("payment_method_name_required", {
+          defaultValue: "Payment method name is required",
+        }),
+        variant: "destructive",
+      });
+      return;
+    }
     try {
       const martId = auth?.martId;
       const token = auth?.token;
@@ -409,8 +431,9 @@ export default function OwnerSettings() {
 
       setIsSavingPosPaymentMethod(true);
       const payload = {
-        name: selectedPosPaymentMethod,
+        name: rawName,
         icon: selectedPosPaymentIcon,
+        active: newPaymentActive,
         martId,
       };
 
@@ -432,36 +455,118 @@ export default function OwnerSettings() {
         return;
       }
 
-      const saved = {
-        _id: String(json._id),
-        name: String(json.name || selectedPosPaymentMethod)
-          .trim()
-          .toLowerCase(),
-        icon:
-          String(json.icon || "").trim() ||
-          defaultIconByPaymentMethod[selectedPosPaymentMethod] ||
-          "Wallet",
-      };
-
-      setConfiguredPaymentTypes((prev) => {
-        const exists = prev.some((item) => item.name === saved.name);
-        if (!exists) return [...prev, saved];
-        return prev.map((item) => (item.name === saved.name ? saved : item));
-      });
-
+      setCustomPaymentName("");
       toast({ title: "POS payment method saved" });
-      try {
-        window.dispatchEvent(
-          new CustomEvent("mart-settings-updated", { detail: { martId } }),
-        );
-      } catch {
-        // ignore
-      }
+      await loadPaymentTypes();
+      window.dispatchEvent(
+        new CustomEvent("mart-settings-updated", { detail: { martId } }),
+      );
     } catch (err) {
-      console.error("upsertPosPaymentType error", err);
+      console.error("createPosPaymentType error", err);
       toast({ title: "Failed to save payment method", variant: "destructive" });
     } finally {
       setIsSavingPosPaymentMethod(false);
+    }
+  };
+
+  const togglePaymentTypeActive = async (id: string, currentActive: boolean) => {
+    try {
+      const martId = auth?.martId;
+      const token = auth?.token;
+      if (!martId || !id) return;
+
+      const nextActive = !currentActive;
+      setConfiguredPaymentTypes((prev) =>
+        prev.map((item) =>
+          item._id === id ? { ...item, active: nextActive } : item,
+        ),
+      );
+
+      const res = await fetch(`${API_BASE}/api/payment-types/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ active: nextActive }),
+      });
+
+      if (!res.ok) throw new Error("Failed to update status");
+
+      toast({
+        title: nextActive
+          ? "Payment method enabled"
+          : "Payment method disabled",
+      });
+      window.dispatchEvent(
+        new CustomEvent("mart-settings-updated", { detail: { martId } }),
+      );
+    } catch (err) {
+      await loadPaymentTypes();
+      toast({
+        title: "Failed to update payment method status",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const startEditPaymentType = (item: ConfiguredPaymentType) => {
+    setEditingPaymentType(item);
+    setEditPaymentName(item.name);
+    setEditPaymentIcon(item.icon || "Wallet");
+    setEditPaymentActive(item.active !== false);
+  };
+
+  const saveEditPaymentType = async () => {
+    if (!editingPaymentType?._id) return;
+    const rawName = editPaymentName.trim();
+    if (!rawName) {
+      toast({
+        title: "Payment method name is required",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      setIsSavingEditPayment(true);
+      const martId = auth?.martId;
+      const token = auth?.token;
+      if (!martId) return;
+
+      const res = await fetch(
+        `${API_BASE}/api/payment-types/${editingPaymentType._id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            name: rawName,
+            icon: editPaymentIcon,
+            active: editPaymentActive,
+          }),
+        },
+      );
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to update payment method");
+      }
+
+      setEditingPaymentType(null);
+      toast({ title: "Payment method updated" });
+      await loadPaymentTypes();
+      window.dispatchEvent(
+        new CustomEvent("mart-settings-updated", { detail: { martId } }),
+      );
+    } catch (err: any) {
+      toast({
+        title: err.message || "Failed to update payment method",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingEditPayment(false);
     }
   };
 
@@ -631,17 +736,7 @@ export default function OwnerSettings() {
         }
         return { key, value: String(f.value || "").trim() };
       })
-      .filter(
-        (
-          f,
-        ): f is {
-          key: string;
-          value: string;
-          bankName?: string;
-          accountHolderName?: string;
-          accountNumber?: string;
-        } => Boolean(f && f.key),
-      );
+      .filter((f): f is NonNullable<typeof f> => Boolean(f && f.key)) as PaymentAccountField[];
 
     return normalized;
   };
@@ -819,7 +914,7 @@ export default function OwnerSettings() {
     }
 
     const oldKey = editingAccount.key;
-    let fields = displayPaymentFields.map((f) => ({
+    let fields: PaymentAccountField[] = displayPaymentFields.map((f) => ({
       key: f.key,
       value: f.value,
       bankName: f.bankName,
@@ -1283,128 +1378,221 @@ export default function OwnerSettings() {
                     </Button>
                   </div>
 
-                  <div className="border-t pt-4 space-y-4">
-                    <p className="text-sm font-semibold">POS Payment Methods</p>
-                    <p className="text-xs text-muted-foreground">
-                      Add the payment methods that should appear on the POS
-                      screen. Only methods listed here will be shown to cashier
-                      and manager.
-                    </p>
+                  <div className="border-t pt-6 space-y-5">
+                    <div>
+                      <h3 className="text-base font-semibold">
+                        {t("pos_payment_methods", { defaultValue: "POS Payment Methods" })}
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {t("pos_payment_methods_desc", {
+                          defaultValue:
+                            "Configure payment options available at checkout. Add custom methods, edit names/icons, or enable/disable them.",
+                        })}
+                      </p>
+                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div>
-                        <p className="text-sm font-medium">Method</p>
-                        <Select
-                          value={selectedPosPaymentMethod}
-                          onValueChange={(value) => {
-                            setSelectedPosPaymentMethod(value);
-                            setSelectedPosPaymentIcon(
-                              defaultIconByPaymentMethod[value] || "Wallet",
-                            );
-                          }}
-                        >
-                          <SelectTrigger className="mt-2">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {paymentMethodOptions.map((option) => (
-                              <SelectItem
-                                key={option.value}
-                                value={option.value}
-                              >
-                                {t(option.labelKey) || option.fallback}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                    {/* Add Custom Payment Method */}
+                    <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        {t("add_payment_method", { defaultValue: "Add Payment Method" })}
+                      </p>
 
-                      <div>
-                        <p className="text-sm font-medium">Icon</p>
-                        <Select
-                          value={selectedPosPaymentIcon}
-                          onValueChange={setSelectedPosPaymentIcon}
-                        >
-                          <SelectTrigger className="mt-2">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {paymentIconOptions.map(
-                              ({ value, label, Icon }) => (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium text-foreground">
+                            {t("method_name", { defaultValue: "Method Name" })}
+                          </label>
+                          <Input
+                            placeholder="e.g. Transfer, Telebirr, CBE Mobile"
+                            value={customPaymentName}
+                            onChange={(e) => setCustomPaymentName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                void createPosPaymentType();
+                              }
+                            }}
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium text-foreground">
+                            {t("icon", { defaultValue: "Icon" })}
+                          </label>
+                          <Select
+                            value={selectedPosPaymentIcon}
+                            onValueChange={setSelectedPosPaymentIcon}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {paymentIconOptions.map(({ value, label, Icon }) => (
                                 <SelectItem key={value} value={value}>
                                   <span className="inline-flex items-center gap-2">
                                     <Icon className="h-4 w-4" />
                                     <span>{label}</span>
                                   </span>
                                 </SelectItem>
-                              ),
-                            )}
-                          </SelectContent>
-                        </Select>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="flex items-end gap-3">
+                          <div className="flex items-center gap-2 pb-2">
+                            <Switch
+                              id="new-active"
+                              checked={newPaymentActive}
+                              onCheckedChange={setNewPaymentActive}
+                            />
+                            <label htmlFor="new-active" className="text-xs font-medium cursor-pointer">
+                              {newPaymentActive ? t("active", { defaultValue: "Active" }) : t("inactive", { defaultValue: "Inactive" })}
+                            </label>
+                          </div>
+
+                          <Button
+                            className="flex-1 gap-1.5"
+                            onClick={createPosPaymentType}
+                            disabled={isSavingPosPaymentMethod || !customPaymentName.trim()}
+                          >
+                            <Plus className="h-4 w-4" />
+                            {isSavingPosPaymentMethod ? t("saving", { defaultValue: "Saving..." }) : t("add", { defaultValue: "Add" })}
+                          </Button>
+                        </div>
                       </div>
 
-                      <div className="flex items-end">
-                        <Button
-                          className="w-full"
-                          onClick={upsertPosPaymentType}
-                          disabled={isSavingPosPaymentMethod}
-                        >
-                          {isSavingPosPaymentMethod
-                            ? "Saving..."
-                            : "Add / Update"}
-                        </Button>
+                      {/* Quick Presets */}
+                      <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                        <span className="text-[11px] text-muted-foreground mr-1">
+                          {t("quick_presets", { defaultValue: "Presets:" })}
+                        </span>
+                        {["Cash", "Card", "Transfer", "Credit", "Telebirr", "CBE Mobile"].map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => {
+                              setCustomPaymentName(preset);
+                              const lower = preset.toLowerCase().replace(/ /g, "_");
+                              setSelectedPosPaymentIcon(defaultIconByPaymentMethod[lower] || defaultIconByPaymentMethod[preset.toLowerCase()] || "Wallet");
+                            }}
+                            className="text-xs px-2 py-0.5 rounded-full border bg-background hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            + {preset}
+                          </button>
+                        ))}
                       </div>
                     </div>
 
+                    {/* List of Configured Payment Methods */}
                     <div className="space-y-2">
-                      {(configuredPaymentTypes || []).length === 0 ? (
-                        <p className="text-sm text-muted-foreground">
-                          No POS payment methods configured yet.
-                        </p>
-                      ) : (
-                        configuredPaymentTypes
-                          .slice()
-                          .sort((a, b) => a.name.localeCompare(b.name))
-                          .map((item) => {
-                            const iconName =
-                              String(item.icon || "").trim() ||
-                              defaultIconByPaymentMethod[item.name] ||
-                              "Wallet";
-                            const IconComp =
-                              paymentIconOptions.find(
-                                (it) => it.value === iconName,
-                              )?.Icon || Wallet;
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        {t("active_payment_methods", { defaultValue: "Configured Payment Methods" })} ({configuredPaymentTypes.length})
+                      </p>
 
-                            return (
-                              <div
-                                key={item._id}
-                                className="flex items-center justify-between rounded-md border p-2"
-                              >
-                                <div className="inline-flex items-center gap-2 text-sm">
-                                  <IconComp className="h-4 w-4" />
-                                  <span>
-                                    {resolvePaymentMethodLabel(item.name, t)}
-                                  </span>
-                                </div>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    setPendingDeletePaymentType({
-                                      id: item._id,
-                                      name: resolvePaymentMethodLabel(
-                                        item.name,
-                                        t,
-                                      ),
-                                    })
-                                  }
-                                  disabled={deletingPaymentTypeId === item._id}
+                      {configuredPaymentTypes.length === 0 ? (
+                        <div className="text-center py-6 border rounded-xl border-dashed text-muted-foreground text-sm">
+                          {t("no_payment_methods_configured", { defaultValue: "No POS payment methods configured yet." })}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {configuredPaymentTypes
+                            .slice()
+                            .sort((a, b) => a.name.localeCompare(b.name))
+                            .map((item) => {
+                              const iconName =
+                                String(item.icon || "").trim() ||
+                                defaultIconByPaymentMethod[item.name] ||
+                                "Wallet";
+                              const IconComp =
+                                paymentIconOptions.find((it) => it.value === iconName)?.Icon || Wallet;
+                              const isActive = item.active !== false;
+
+                              return (
+                                <div
+                                  key={item._id}
+                                  className={`flex items-center justify-between rounded-xl border p-3 transition-all ${
+                                    isActive
+                                      ? "bg-card border-border shadow-sm"
+                                      : "bg-muted/30 border-muted text-muted-foreground opacity-75"
+                                  }`}
                                 >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            );
-                          })
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div
+                                      className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                                        isActive
+                                          ? "bg-primary/10 text-primary"
+                                          : "bg-muted text-muted-foreground"
+                                      }`}
+                                    >
+                                      <IconComp className="h-5 w-5" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-semibold capitalize truncate">
+                                        {resolvePaymentMethodLabel(item.name, t)}
+                                      </p>
+                                      <div className="flex items-center gap-1.5 mt-0.5">
+                                        {isActive ? (
+                                          <Badge
+                                            variant="secondary"
+                                            className="text-[10px] px-1.5 py-0 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                          >
+                                            {t("enabled", { defaultValue: "Enabled" })}
+                                          </Badge>
+                                        ) : (
+                                          <Badge
+                                            variant="outline"
+                                            className="text-[10px] px-1.5 py-0 text-muted-foreground"
+                                          >
+                                            {t("disabled", { defaultValue: "Disabled" })}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {/* Enable / Disable Switch */}
+                                    <Switch
+                                      checked={isActive}
+                                      onCheckedChange={() =>
+                                        item._id && togglePaymentTypeActive(item._id, isActive)
+                                      }
+                                      title={isActive ? "Disable this payment method" : "Enable this payment method"}
+                                    />
+
+                                    {/* Edit Button */}
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                      onClick={() => startEditPaymentType(item)}
+                                      title={t("edit", { defaultValue: "Edit" })}
+                                    >
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+
+                                    {/* Delete Button */}
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-8 w-8 text-destructive/80 hover:text-destructive hover:bg-destructive/10"
+                                      onClick={() =>
+                                        setPendingDeletePaymentType({
+                                          id: item._id || "",
+                                          name: resolvePaymentMethodLabel(item.name, t),
+                                        })
+                                      }
+                                      disabled={deletingPaymentTypeId === item._id}
+                                      title={t("delete", { defaultValue: "Delete" })}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1627,6 +1815,96 @@ export default function OwnerSettings() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        {/* Edit Payment Method Dialog */}
+        <Dialog
+          open={Boolean(editingPaymentType)}
+          onOpenChange={(open) => !open && setEditingPaymentType(null)}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                {t("edit_payment_method", { defaultValue: "Edit Payment Method" })}
+              </DialogTitle>
+              <DialogDescription>
+                {t("edit_payment_method_desc", {
+                  defaultValue: "Update the method name, display icon, and active status.",
+                })}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  {t("method_name", { defaultValue: "Method Name" })}
+                </label>
+                <Input
+                  value={editPaymentName}
+                  onChange={(e) => setEditPaymentName(e.target.value)}
+                  placeholder="e.g. Transfer, Telebirr, CBE Mobile"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  {t("icon", { defaultValue: "Icon" })}
+                </label>
+                <Select
+                  value={editPaymentIcon}
+                  onValueChange={setEditPaymentIcon}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {paymentIconOptions.map(({ value, label, Icon }) => (
+                      <SelectItem key={value} value={value}>
+                        <span className="inline-flex items-center gap-2">
+                          <Icon className="h-4 w-4" />
+                          <span>{label}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/20">
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    {t("active_status", { defaultValue: "Active Status" })}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {editPaymentActive
+                      ? t("active_in_pos", { defaultValue: "Visible in POS checkout" })
+                      : t("hidden_in_pos", { defaultValue: "Hidden from POS checkout" })}
+                  </p>
+                </div>
+                <Switch
+                  checked={editPaymentActive}
+                  onCheckedChange={setEditPaymentActive}
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                variant="outline"
+                onClick={() => setEditingPaymentType(null)}
+                disabled={isSavingEditPayment}
+              >
+                {t("cancel", { defaultValue: "Cancel" })}
+              </Button>
+              <Button
+                onClick={saveEditPaymentType}
+                disabled={isSavingEditPayment || !editPaymentName.trim()}
+              >
+                {isSavingEditPayment
+                  ? t("saving", { defaultValue: "Saving..." })
+                  : t("save_changes", { defaultValue: "Save Changes" })}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </RoleLayout>
   );

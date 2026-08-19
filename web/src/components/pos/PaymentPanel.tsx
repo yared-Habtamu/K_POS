@@ -73,6 +73,7 @@ const paymentMethodIconMap: Record<string, React.ElementType> = {
 const defaultIconByPaymentMethod: Record<string, string> = {
   cash: "Banknote",
   card: "CreditCard",
+  transfer: "Landmark",
   telebirr: "Smartphone",
   cbe_bank: "Building2",
   credit: "Wallet",
@@ -804,7 +805,7 @@ export function PaymentPanel() {
 
         setIsLoadingPaymentMethods(true);
         const res = await fetch(
-          `${API_BASE}/api/payment-types?martId=${martId}`,
+          `${API_BASE}/api/payment-types?martId=${martId}&activeOnly=true`,
           {
             headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
           },

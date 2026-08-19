@@ -103,9 +103,21 @@ router.post("/login", async (req, res) => {
       return res.status(403).json({ message: "Pending Mart not approved yet" });
     }
 
-    if (effectiveStatus === "disabled" || effectiveStatus === "suspended") {
-      console.info(`Login blocked: mart suspended for martId=${user.martId}`);
-      return res.status(403).json({ message: "Mart suspended contact an administrator" });
+    if (effectiveStatus === "disabled") {
+      console.info(`Login blocked: mart disabled for martId=${user.martId}`);
+      return res.status(403).json({ message: "Mart disabled by system administrator" });
+    }
+
+    if (effectiveStatus === "suspended") {
+      // Allow owner to login so they can view packages and submit payment receipt to reactivate
+      if (user.role === "owner") {
+        console.info(`Owner login permitted for suspended martId=${user.martId} (to enable renewal)`);
+      } else {
+        console.info(`Employee login blocked: mart suspended for martId=${user.martId}`);
+        return res.status(403).json({
+          message: "Store subscription has expired. Please contact the store owner to log in and renew.",
+        });
+      }
     }
 
     if (effectiveStatus === "rejected") {
@@ -539,6 +551,51 @@ router.put("/change-password", authenticate, async (req, res) => {
     return res.json({ message: "Password updated successfully" });
   } catch (err) {
     console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Update user details (name, username, phone) — system admin only
+router.put("/users/:id", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, username, phone } = req.body || {};
+
+    const requester = req.user;
+    if (requester.role !== "systemAdmin" && String(requester.id) !== String(id)) {
+      return res
+        .status(403)
+        .json({ message: "Insufficient permissions to update user" });
+    }
+
+    const targetUser = await userRepository.findById(id);
+    if (!targetUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const updates = {};
+    if (name !== undefined) updates.name = String(name).trim();
+    if (phone !== undefined) updates.phone = String(phone).trim();
+    if (username !== undefined) {
+      const sanitized = String(username)
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "")
+        .slice(0, 30);
+      if (sanitized && sanitized !== targetUser.username) {
+        const existing = await userRepository.findByUsername(sanitized);
+        if (existing && String(existing.id) !== String(id)) {
+          return res.status(409).json({ message: "Username already taken" });
+        }
+        updates.username = sanitized;
+      }
+    }
+
+    const updated = await userRepository.update(id, updates);
+    const safeUser = { ...updated };
+    delete safeUser.passwordHash;
+    return res.json(safeUser);
+  } catch (err) {
+    console.error("PUT /users/:id error", err);
     return res.status(500).json({ message: "Server error" });
   }
 });
