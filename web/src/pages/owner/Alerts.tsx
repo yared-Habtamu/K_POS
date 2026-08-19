@@ -9,10 +9,12 @@ import {
   type AdvancedFilterValues,
 } from "@/components/ui/AdvancedFilters";
 import { useProductStore } from "@/stores/productStore";
-import { AlertTriangle, Package, Trash2, Edit } from "lucide-react";
+import { AlertTriangle, Package, Trash2, Edit, Clock, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
+import { useLastSaleDates } from "@/hooks/useLastSaleDates";
+import { productAgeDays } from "@/utils/agingStock";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,11 +34,15 @@ const defaultFilterValues: AdvancedFilterValues = {
   sortBy: "",
 };
 
+// Aging stock thresholds: "X or more days since last sale / created".
+const AGING_THRESHOLDS = [5, 10, 15, 20, 25, 30];
+
 export default function OwnerAlerts() {
   const { t } = useTranslation();
   const {
     getLowStockProducts,
     getExpiringProducts,
+    getAgingProducts,
     deleteProduct,
     fetchProducts,
   } = useProductStore();
@@ -44,13 +50,20 @@ export default function OwnerAlerts() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const isOwner = user?.role === "owner";
+  // Aging alerts are shown to owners and managers (not store keepers)
+  const canViewAging = user?.role === "owner" || user?.role === "manager";
+  const agingPagePath =
+    user?.role === "manager" ? "/manager/aging-stock" : "/owner/aging-stock";
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
   const [filterValues, setFilterValues] =
     useState<AdvancedFilterValues>(defaultFilterValues);
+  const [ageThreshold, setAgeThreshold] = useState(5);
 
   const lowStock = getLowStockProducts();
   const expiring = getExpiringProducts(7);
+  const lastSaleDates = useLastSaleDates();
+  const aging = getAgingProducts(ageThreshold, lastSaleDates);
 
   useEffect(() => {
     fetchProducts(1, 10000);
@@ -68,16 +81,19 @@ export default function OwnerAlerts() {
   const categoryOptions = useMemo(() => {
     const categories = Array.from(
       new Set(
-        [...lowStock, ...expiring]
+        [...lowStock, ...expiring, ...aging]
           .map((product) => String(product?.category || "").trim())
           .filter(Boolean),
       ),
     ).sort((left, right) => left.localeCompare(right));
 
     return categories.map((category) => ({ label: category, value: category }));
-  }, [expiring, lowStock]);
+  }, [aging, expiring, lowStock]);
 
-  const filterProducts = (products: any[], type: "low_stock" | "expiring") => {
+  const filterProducts = (
+    products: any[],
+    type: "low_stock" | "expiring" | "aging",
+  ) => {
     const query = String(filterValues.query || "")
       .trim()
       .toLowerCase();
@@ -131,6 +147,11 @@ export default function OwnerAlerts() {
             : Number.MAX_SAFE_INTEGER;
           return leftTime - rightTime;
         }
+        case "oldest_first": {
+          const leftAge = productAgeDays(left, lastSaleDates) ?? 0;
+          const rightAge = productAgeDays(right, lastSaleDates) ?? 0;
+          return rightAge - leftAge;
+        }
         default:
           if (type === "expiring") {
             const leftTime = left?.expiryDate
@@ -140,6 +161,11 @@ export default function OwnerAlerts() {
               ? new Date(right.expiryDate).getTime()
               : Number.MAX_SAFE_INTEGER;
             return leftTime - rightTime;
+          }
+          if (type === "aging") {
+            const leftAge = productAgeDays(left, lastSaleDates) ?? 0;
+            const rightAge = productAgeDays(right, lastSaleDates) ?? 0;
+            return rightAge - leftAge;
           }
           return getRemaining(left) - getRemaining(right);
       }
@@ -153,6 +179,10 @@ export default function OwnerAlerts() {
   const filteredExpiring = useMemo(
     () => filterProducts(expiring, "expiring"),
     [expiring, filterValues],
+  );
+  const filteredAging = useMemo(
+    () => filterProducts(aging, "aging"),
+    [aging, filterValues],
   );
 
   const handleDelete = async (id?: string) => {
@@ -213,6 +243,7 @@ export default function OwnerAlerts() {
               options: [
                 { label: "Low Stock", value: "low_stock" },
                 { label: "Expiring Soon", value: "expiring" },
+                { label: t("aging_stock"), value: "aging" },
               ],
             },
             {
@@ -225,6 +256,7 @@ export default function OwnerAlerts() {
                 { label: "Name Z -> A", value: "name_desc" },
                 { label: "Remaining Low -> High", value: "remaining_asc" },
                 { label: "Expiry Soonest First", value: "expiry_asc" },
+                { label: t("oldest_first"), value: "oldest_first" },
               ],
             },
           ]}
@@ -234,7 +266,7 @@ export default function OwnerAlerts() {
           showActiveBadges={false}
         />
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -387,6 +419,137 @@ export default function OwnerAlerts() {
               </CardContent>
             </Card>
           </motion.div>
+
+          {canViewAging && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <Card
+                onClick={() =>
+                  navigate(`${agingPagePath}?threshold=${ageThreshold}`)
+                }
+                className="cursor-pointer transition hover:ring-2 hover:ring-ring/60"
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="flex items-center gap-2">
+                      <Clock className="h-5 w-5 text-warning" />
+                      {t("aging_stock")}{" "}
+                      <Badge variant="secondary">
+                        {filteredAging.length}
+                      </Badge>
+                    </CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`${agingPagePath}?threshold=${ageThreshold}`);
+                      }}
+                      className="h-8 gap-1 shrink-0 text-xs"
+                    >
+                      {t("view_all")}
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <span className="text-xs text-muted-foreground">
+                      {t("threshold")}
+                    </span>
+                    <select
+                      value={ageThreshold}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        setAgeThreshold(Number(e.target.value));
+                      }}
+                      className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                    >
+                      {AGING_THRESHOLDS.map((days) => (
+                        <option key={days} value={days}>
+                          {days === 30 ? "30+" : days}{" "}
+                          {days === 1 ? "day" : "days"}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {filteredAging.map((product) => {
+                      const age = productAgeDays(product, lastSaleDates);
+                      return (
+                        <div
+                          key={product.id}
+                          className="flex items-center justify-between gap-3 p-2 rounded-lg bg-accent/50"
+                        >
+                          <div className="flex items-center gap-3">
+                            {product.pictureUrl ? (
+                              <img
+                                src={product.pictureUrl}
+                                alt=""
+                                className="w-10 h-10 rounded-lg object-cover"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                                <Package className="w-5 h-5 text-muted-foreground" />
+                              </div>
+                            )}
+                            <div>
+                              <p className="font-medium text-sm">
+                                {product.name}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {product.category} · {getRemaining(product)}{" "}
+                                left
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="destructive">
+                              {age !== null
+                                ? `${age} ${t("days_old")}`
+                                : "—"}
+                            </Badge>
+                            {isOwner && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  goToEdit(product);
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {isOwner && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openDelete(product);
+                                }}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {filteredAging.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        {t("no_aging_alerts")}
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
         </div>
       </div>
       <AlertDialog

@@ -194,6 +194,13 @@ const ReportPage: React.FC = () => {
         name: item.name,
         sold: Number(item.sold || 0),
         revenue: Number(item.revenue || 0),
+        priceTiers: Array.isArray(item.priceTiers)
+          ? item.priceTiers.map((tier: any) => ({
+              price: Number(tier.price || 0),
+              qty: Number(tier.qty || 0),
+              subtotal: Number(tier.subtotal || 0),
+            }))
+          : [],
       })),
     [topProducts],
   );
@@ -205,6 +212,7 @@ const ReportPage: React.FC = () => {
       name: string;
       sold: number;
       revenue: number;
+      priceTiers: Array<{ price: number; qty: number; subtotal: number }>;
     }>>
   >(
     () => [
@@ -741,15 +749,27 @@ const ReportPage: React.FC = () => {
           },
         ]
       : []),
+    {
+      title: "Expired Products",
+      value: fmtN(localData.expiredProductsCount),
+      Icon: AlertTriangle,
+      color: "text-amber-500",
+    },
+    {
+      title: "Broken Assets",
+      value: fmtN(localData.brokenAssetsCount),
+      Icon: AlertTriangle,
+      color: "text-rose-500",
+    },
   ];
 
   return (
     <RoleLayout allowedRoles={["owner", "manager"]}>
-      <div className="space-y-6 p-6">
+      <div className="space-y-4 p-4 sm:p-6">
         {/* ── Header ── */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight">
+            <h1 className="text-2xl font-extrabold tracking-tight">
               {t("sales_reports")}
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
@@ -829,8 +849,8 @@ const ReportPage: React.FC = () => {
         </Card>
 
         {/* ── Summary Cards ── */}
-        {/* Use 3 columns so 6 cards form 2 rows on larger screens */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
+        {/* 4 columns on xl so all metrics (incl. alerts) fit in 2 rows */}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
           {summaryCards.map(({ title, value, Icon, color }, i) => (
             <Card key={i} className="hover:shadow-md transition-shadow">
               <CardContent className="pt-4">
@@ -852,44 +872,8 @@ const ReportPage: React.FC = () => {
           ))}
         </div>
 
-        {/* ── Expired/Broken Alerts ── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card className="border-amber-200">
-            <CardContent className="pt-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">
-                    Expired Products
-                  </p>
-                  <p className="text-2xl font-bold mt-1">
-                    {fmtN(localData.expiredProductsCount)}
-                  </p>
-                </div>
-                <div className="p-2 rounded-lg bg-amber-50 text-amber-600">
-                  <AlertTriangle className="h-4 w-4" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-rose-200">
-            <CardContent className="pt-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">Broken Assets</p>
-                  <p className="text-2xl font-bold mt-1">
-                    {fmtN(localData.brokenAssetsCount)}
-                  </p>
-                </div>
-                <div className="p-2 rounded-lg bg-rose-50 text-rose-600">
-                  <AlertTriangle className="h-4 w-4" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* ── Charts Row ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Payment Methods Pie */}
           <Card>
             <CardHeader className="pb-2">
@@ -900,7 +884,7 @@ const ReportPage: React.FC = () => {
             <CardContent>
               {paymentData.length > 0 ? (
                 <>
-                  <ResponsiveContainer width="100%" height={220}>
+                  <ResponsiveContainer width="100%" height={180}>
                     <PieChart>
                       <Pie
                         data={paymentData}
@@ -965,7 +949,7 @@ const ReportPage: React.FC = () => {
             </CardHeader>
             <CardContent>
               {topProducts.length > 0 ? (
-                <ResponsiveContainer width="100%" height={280}>
+                <ResponsiveContainer width="100%" height={200}>
                   <BarChart
                     data={topProductsChart}
                     margin={{ left: 0, right: 10 }}
@@ -997,37 +981,6 @@ const ReportPage: React.FC = () => {
           </Card>
         </div>
 
-        {/* ── Financial Summary ── */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">{t("financial")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-              {[
-                { label: t("revenue"), value: fmt(localData.revenue) },
-                ...(user?.role === "owner"
-                  ? [
-                      {
-                        label: t("gross_profit"),
-                        value: fmt(derivedFinancials.grossProfit),
-                      },
-                      {
-                        label: t("net_profit"),
-                        value: fmt(derivedFinancials.netProfit),
-                      },
-                    ]
-                  : []),
-              ].map(({ label, value }, i) => (
-                <div key={i} className="bg-muted/40 rounded-lg p-3">
-                  <p className="text-muted-foreground text-xs">{label}</p>
-                  <p className="font-bold mt-1">{value}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
         {/* ── Top Products Table ── */}
         <DataTable
           columns={topProductsColumns}
@@ -1050,8 +1003,57 @@ const ReportPage: React.FC = () => {
           showPageSizeSelector={false}
           showEdgeButtons={false}
           className="overflow-hidden"
+          compact
+          renderExpandedRow={(row) => {
+            // Only products sold at more than one price get an expandable row
+            if (!row.priceTiers || row.priceTiers.length <= 1) return null;
+            return (
+              <div className="px-6 py-3">
+                <table className="min-w-full w-full table-auto">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+                      <th className="py-2 font-medium">{t("price")}</th>
+                      <th className="py-2 text-right font-medium">
+                        {t("quantity_short")}
+                      </th>
+                      <th className="py-2 text-right font-medium">
+                        {t("subtotal")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {row.priceTiers.map((tier, tierIndex) => (
+                      <tr
+                        key={tierIndex}
+                        className="border-t border-border/60"
+                      >
+                        <td className="py-2 font-medium">{fmt(tier.price)}</td>
+                        <td className="py-2 text-right">{fmtN(tier.qty)}</td>
+                        <td className="py-2 text-right font-semibold">
+                          {fmt(tier.subtotal)}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="border-t border-border">
+                      <td className="py-2 text-sm font-semibold">
+                        {t("total")}
+                      </td>
+                      <td className="py-2 text-right text-sm font-semibold">
+                        {fmtN(row.sold)}
+                      </td>
+                      <td className="py-2 text-right text-sm font-semibold">
+                        {fmt(row.revenue)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            );
+          }}
         />
 
+        {/* ── Tax Summary + Expired/Broken Detail (side by side) ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* ── Tax Summary ── */}
         <Card>
           <CardHeader className="pb-2">
@@ -1162,6 +1164,7 @@ const ReportPage: React.FC = () => {
             </div>
           </CardContent>
         </Card>
+        </div>
       </div>
     </RoleLayout>
   );

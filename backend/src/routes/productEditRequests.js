@@ -38,7 +38,7 @@ function getApprovalRole(reqDoc) {
 router.get("/", authenticate, async (req, res) => {
   try {
     const user = req.user;
-    const { status, martId, startDate, endDate } = req.query;
+    const { status, martId, startDate, endDate, scope } = req.query;
     const where = {};
     if (status) where.status = status;
     if (isSystemAdmin(user)) {
@@ -46,7 +46,11 @@ router.get("/", authenticate, async (req, res) => {
     } else {
       where.martId = user.martId;
 
-      if (isManager(user)) {
+      // scope=all (used by the approval history page) skips role scoping so
+      // involvement can be resolved client-side for the full mart.
+      if (scope === "all") {
+        // no role scoping
+      } else if (isManager(user)) {
         where.OR = [{ approvalRole: "manager" }];
       } else if (isStoreKeeper(user)) {
         where.approvalRole = "store_keeper";
@@ -73,7 +77,7 @@ router.get("/", authenticate, async (req, res) => {
     }
 
     const list = await productEditRequestRepository.findMany(where, {
-      include: { product: { select: { name: true } } },
+      include: { product: { select: { name: true, imageUrl: true } } },
     });
     res.json(list);
   } catch (err) {

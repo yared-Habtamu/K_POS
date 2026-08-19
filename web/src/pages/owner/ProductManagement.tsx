@@ -37,14 +37,12 @@ import { toast } from "@/hooks/use-toast";
 import { useProductStore } from "@/stores/productStore";
 import { useAuthStore } from "@/stores/authStore";
 import type { Product, ProductUnit } from "@/types";
-import { generateUniqueBarcode, printBarcodeLabel } from "@/utils/barcodes";
 import {
   Package,
   Plus,
   Search,
   Edit,
   Trash2,
-  Barcode,
   Image as ImageIcon,
   Loader2,
   Printer,
@@ -180,7 +178,7 @@ export default function ProductManagement() {
     quantity: "",
     storeQuantity: "",
     martQuantity: "",
-    stockDestination: "warehouse" as "warehouse" | "mart",
+    stockDestination: "mart" as "warehouse" | "mart",
     lowStockThreshold: "10",
     expiryDate: "",
     barcodes: [] as string[],
@@ -210,19 +208,6 @@ export default function ProductManagement() {
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
-  };
-
-  const generateUniqueBarcode = async () => {
-    const candidate = () => `${Date.now()}`.slice(-12);
-    for (let i = 0; i < 6; i++) {
-      const code =
-        i === 0
-          ? candidate()
-          : `${candidate()}${Math.floor(Math.random() * 9)}`.slice(0, 12);
-      const existing = await findProductByBarcode(code);
-      if (!existing) return code;
-    }
-    return String(Math.floor(Math.random() * 1e12)).padStart(12, "0");
   };
 
   const categoryOptions = useMemo(
@@ -328,7 +313,7 @@ export default function ProductManagement() {
       quantity: "",
       storeQuantity: "",
       martQuantity: "",
-      stockDestination: "warehouse",
+      stockDestination: "mart",
       lowStockThreshold: "10",
       expiryDate: "",
       barcodes: [],
@@ -353,7 +338,7 @@ export default function ProductManagement() {
       quantity: String(martQty),
       storeQuantity: String(storeQty),
       martQuantity: String(martQty),
-      stockDestination: "warehouse",
+      stockDestination: "mart",
       lowStockThreshold: product.lowStockThreshold.toString(),
       expiryDate: product.expiryDate
         ? new Date(product.expiryDate).toISOString().split("T")[0]
@@ -509,29 +494,6 @@ export default function ProductManagement() {
       setIsDialogOpen(false);
       resetForm();
     }
-  };
-
-  const generateBarcode = () => {
-    void (async () => {
-      try {
-        if ((Array.isArray(form.barcodes) ? form.barcodes : []).length > 0) {
-          toast({
-            title: t("only_one_barcode_allowed"),
-            variant: "destructive",
-          });
-          return;
-        }
-        const b = await generateUniqueBarcode();
-        setForm((prev) => ({
-          ...prev,
-          barcodes: [b],
-          barcodeInput: "",
-        }));
-      } catch (e) {
-        console.error("generate barcode failed", e);
-        toast({ title: "Failed to generate barcode", variant: "destructive" });
-      }
-    })();
   };
 
   const activeBarcode =
@@ -905,14 +867,6 @@ export default function ProductManagement() {
                       >
                         {t("add")}
                       </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={generateBarcode}
-                      >
-                        <Barcode className="mr-2 h-4 w-4" />
-                        {t("generate")}
-                      </Button>
                     </div>
 
                     <BarcodePreview
@@ -1029,7 +983,7 @@ export default function ProductManagement() {
                                     quantity: String(loadedMartQty),
                                     storeQuantity: String(loadedStoreQty),
                                     martQuantity: String(loadedMartQty),
-                                    stockDestination: "warehouse",
+                                    stockDestination: "mart",
                                     lowStockThreshold: String(
                                       normalized.lowStockThreshold ?? 10,
                                     ),

@@ -45,21 +45,53 @@ export default function useTodaysSales(date?: string) {
   }, [auth?.role, auth?.martId, date, token]);
 
   const mappedItems = useMemo(() => {
-    return (items || []).map((p: any) => ({
-      id: `${p.productId || p.id || p.sku || p.name}-${p.soldById || p.soldByName || ''}-${p.paymentMethod || ''}`,
-      name: p.name || "Unknown",
-      qty: Number(p.qty || 0),
-      sellingPrice: Number(p.sellingPrice || 0),
-      subtotal: Number(p.subtotal || 0),
-      vatAmount: Number(p.vatAmount || 0),
-      img: p.image || p.imageUrl || "",
-      paymentMethod: p.paymentMethod || "unknown",
-      soldById: p.soldById || null,
-      soldByName: p.soldByName || p.soldBy || "unknown",
-      total: Number(
-        p.total || Number(p.subtotal || 0) + Number(p.vatAmount || 0),
-      ),
-    }));
+    return (items || []).map((p: any) => {
+      const qty = Number(p.qty || 0);
+      const subtotal = Number(p.subtotal || 0);
+      const vatAmount = Number(p.vatAmount || 0);
+      const total = Number(
+        p.total || subtotal + vatAmount,
+      );
+      const weightedSellingPrice = qty > 0 ? subtotal / qty : Number(p.sellingPrice || 0);
+      // Row shows the product's current updated price when known, falling back
+      // to the sale-time average for legacy/free-text items.
+      const rowSellingPrice =
+        p.currentPrice != null && p.currentPrice !== undefined
+          ? Number(p.currentPrice)
+          : weightedSellingPrice;
+      return {
+        id: `${p.productId || p.id || p.sku || p.name}-${p.soldById || p.soldByName || ''}-${p.paymentMethod || ''}`,
+        name: p.name || "Unknown",
+        qty,
+        sellingPrice: rowSellingPrice,
+        subtotal,
+        vatAmount,
+        img: p.image || p.imageUrl || "",
+        paymentMethod: p.paymentMethod || "unknown",
+        soldById: p.soldById || null,
+        soldByName: p.soldByName || p.soldBy || "unknown",
+        total,
+        priceTiers: Array.isArray(p.priceTiers)
+          ? p.priceTiers.map((tier: any) => ({
+              price: Number(tier.price || 0),
+              qty: Number(tier.qty || 0),
+              subtotal: Number(tier.subtotal || 0),
+            }))
+          : [],
+        details: Array.isArray(p.details)
+          ? p.details.map((line: any) => ({
+              soldById: line.soldById || null,
+              soldByName: line.soldByName || line.soldBy || "unknown",
+              paymentMethod: String(line.paymentMethod || "unknown"),
+              price: Number(line.price || 0),
+              qty: Number(line.qty || 0),
+              subtotal: Number(line.subtotal || 0),
+              vat: Number(line.vat || 0),
+              total: Number(line.total || 0),
+            }))
+          : [],
+      };
+    });
   }, [items]);
 
   const totals = useMemo(() => {
