@@ -46,16 +46,13 @@ router.get("/", authenticate, async (req, res) => {
     } else {
       where.martId = user.martId;
 
-      // scope=all (used by the approval history page) skips role scoping so
-      // involvement can be resolved client-side for the full mart.
-      if (scope === "all") {
+      // scope=all or owner allows viewing all requests for the mart
+      if (scope === "all" || String(user.role || "").toLowerCase() === "owner") {
         // no role scoping
       } else if (isManager(user)) {
         where.OR = [{ approvalRole: "manager" }];
       } else if (isStoreKeeper(user)) {
         where.approvalRole = "store_keeper";
-      } else if (String(user.role || "").toLowerCase() === "owner") {
-        where.requesterId = user.id;
       } else {
         return res
           .status(403)
@@ -77,7 +74,24 @@ router.get("/", authenticate, async (req, res) => {
     }
 
     const list = await productEditRequestRepository.findMany(where, {
-      include: { product: { select: { name: true, imageUrl: true } } },
+      include: {
+        product: {
+          select: {
+            name: true,
+            imageUrl: true,
+            sellingPrice: true,
+            purchasePrice: true,
+            quantity: true,
+            storeQuantity: true,
+            supermarketQuantity: true,
+            lowStockThreshold: true,
+            category: true,
+            unit: true,
+            expiryDate: true,
+            barcodes: true,
+          },
+        },
+      },
     });
     res.json(list);
   } catch (err) {

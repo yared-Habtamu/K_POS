@@ -108,7 +108,7 @@ function parseTimeToMinutes(t) {
 // Create attendance record
 router.post('/', authenticate, async (req, res) => {
   try {
-    let { employeeId, employeeName, dateYmd, clockIn, clockOut, notes } = req.body;
+    let { employeeId, employeeName, dateYmd, clockIn, clockOut, lunchOut, lunchBack, notes } = req.body;
     const requester = req.user;
 
     const martId = requester.role === 'systemAdmin' ? req.body.martId : requester.martId;
@@ -133,32 +133,44 @@ router.post('/', authenticate, async (req, res) => {
       if (!employeeName) employeeName = emp.name;
     }
 
+    const pad = (n) => String(n).padStart(2, '0');
+    const formatMin = (m) => m != null ? `${pad(Math.floor(m/60))}:${pad(m%60)}` : null;
+
+    const a = clockIn ? parseTimeToMinutes(clockIn) : null;
+    const b = clockOut ? parseTimeToMinutes(clockOut) : null;
+    const lOutM = lunchOut ? parseTimeToMinutes(lunchOut) : null;
+    const lBackM = lunchBack ? parseTimeToMinutes(lunchBack) : null;
+
+    if (clockIn && a === null) return res.status(400).json({ message: 'Invalid clock in time format' });
+    if (clockOut && b === null) return res.status(400).json({ message: 'Invalid clock out time format' });
+    if (lunchOut && lOutM === null) return res.status(400).json({ message: 'Invalid lunch out time format' });
+    if (lunchBack && lBackM === null) return res.status(400).json({ message: 'Invalid lunch back time format' });
+    if (lOutM !== null && lBackM !== null && lBackM < lOutM) {
+      return res.status(400).json({ message: 'Lunch back time must be after lunch out time' });
+    }
+
     const recData = {
       martId,
       employeeId: employeeId || null,
       employeeName: employeeName || null,
       dateYmd: dateYmd || null,
-      clockIn: clockIn || null,
-      clockOut: clockOut || null,
+      clockIn: formatMin(a) || clockIn || null,
+      clockOut: formatMin(b) || clockOut || null,
+      lunchOut: formatMin(lOutM) || lunchOut || null,
+      lunchBack: formatMin(lBackM) || lunchBack || null,
       notes: notes || null,
       createdBy: requester.id,
       durationMinutes: 0,
       isDeleted: false,
     };
 
-    if (clockIn && clockOut) {
-      try {
-        const a = parseTimeToMinutes(clockIn);
-        const b = parseTimeToMinutes(clockOut);
-        if (a !== null && b !== null) {
-          recData.durationMinutes = Math.max(0, b - a);
-          const pad = (n) => String(n).padStart(2, '0');
-          recData.clockIn = `${pad(Math.floor(a/60))}:${pad(a%60)}`;
-          recData.clockOut = `${pad(Math.floor(b/60))}:${pad(b%60)}`;
-        }
-      } catch (e) {
-        console.error('time parse error', e);
+    if (a !== null && b !== null) {
+      if (b < a) return res.status(400).json({ message: 'Clock out time must be after clock in time' });
+      let totalMin = b - a;
+      if (lOutM !== null && lBackM !== null && lBackM >= lOutM) {
+        totalMin -= (lBackM - lOutM);
       }
+      recData.durationMinutes = Math.max(0, totalMin);
     }
 
     const rec = await attendanceRepository.create(recData);
@@ -193,7 +205,7 @@ router.put('/:id', authenticate, async (req, res) => {
       } catch (e) {}
     }
 
-    let { employeeId, employeeName, clockIn, clockOut, notes } = req.body;
+    let { employeeId, employeeName, clockIn, clockOut, lunchOut, lunchBack, notes } = req.body;
 
     if (employeeId === '') employeeId = undefined;
 
@@ -214,13 +226,19 @@ router.put('/:id', authenticate, async (req, res) => {
     if (employeeName !== undefined) updateData.employeeName = employeeName;
     if (clockIn !== undefined) updateData.clockIn = clockIn;
     if (clockOut !== undefined) updateData.clockOut = clockOut;
+    if (lunchOut !== undefined) updateData.lunchOut = lunchOut;
+    if (lunchBack !== undefined) updateData.lunchBack = lunchBack;
     if (notes !== undefined) updateData.notes = notes;
 
     const finalClockIn = clockIn !== undefined ? clockIn : rec.clockIn;
     const finalClockOut = clockOut !== undefined ? clockOut : rec.clockOut;
+    const finalLunchOut = lunchOut !== undefined ? lunchOut : rec.lunchOut;
+    const finalLunchBack = lunchBack !== undefined ? lunchBack : rec.lunchBack;
 
     const a = finalClockIn ? parseTimeToMinutes(finalClockIn) : null;
     const b = finalClockOut ? parseTimeToMinutes(finalClockOut) : null;
+    const lOutM = finalLunchOut ? parseTimeToMinutes(finalLunchOut) : null;
+    const lBackM = finalLunchBack ? parseTimeToMinutes(finalLunchBack) : null;
 
     if (finalClockIn && a === null) {
       return res.status(400).json({ message: 'Invalid clock in time format. Use HH:mm or hh:mm AM/PM' });
@@ -228,12 +246,31 @@ router.put('/:id', authenticate, async (req, res) => {
     if (finalClockOut && b === null) {
       return res.status(400).json({ message: 'Invalid clock out time format. Use HH:mm or hh:mm AM/PM' });
     }
+    if (finalLunchOut && lOutM === null) {
+      return res.status(400).json({ message: 'Invalid lunch out time format. Use HH:mm or hh:mm AM/PM' });
+    }
+    if (finalLunchBack && lBackM === null) {
+      return res.status(400).json({ message: 'Invalid lunch back time format. Use HH:mm or hh:mm AM/PM' });
+    }
+    if (lOutM !== null && lBackM !== null && lBackM < lOutM) {
+      return res.status(400).json({ message: 'Lunch back time must be after lunch out time' });
+    }
+
+    const pad = (n) => String(n).padStart(2, '0');
+    const formatMin = (m) => m != null ? `${pad(Math.floor(m/60))}:${pad(m%60)}` : null;
+
+    if (finalClockIn && a !== null) updateData.clockIn = formatMin(a);
+    if (finalClockOut && b !== null) updateData.clockOut = formatMin(b);
+    if (finalLunchOut && lOutM !== null) updateData.lunchOut = formatMin(lOutM);
+    if (finalLunchBack && lBackM !== null) updateData.lunchBack = formatMin(lBackM);
+
     if (a !== null && b !== null) {
       if (b < a) return res.status(400).json({ message: 'Clock out time must be after clock in time' });
-      const pad = (n) => String(n).padStart(2, '0');
-      updateData.durationMinutes = Math.max(0, b - a);
-      updateData.clockIn = `${pad(Math.floor(a/60))}:${pad(a%60)}`;
-      updateData.clockOut = `${pad(Math.floor(b/60))}:${pad(b%60)}`;
+      let totalMin = b - a;
+      if (lOutM !== null && lBackM !== null && lBackM >= lOutM) {
+        totalMin -= (lBackM - lOutM);
+      }
+      updateData.durationMinutes = Math.max(0, totalMin);
     }
 
     const updated = await attendanceRepository.update(id, updateData);

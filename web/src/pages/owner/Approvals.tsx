@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, RotateCw } from "lucide-react";
+import { Loader2, RotateCw, ArrowRight, GitMerge } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { toast } from "@/hooks/use-toast";
 import type { AssetActionRequest, ExpenseActionRequest } from "@/types";
@@ -27,11 +28,10 @@ import {
 } from "@/components/ui/table";
 
 export default function OwnerApprovals() {
+  const navigate = useNavigate();
   const token = useAuthStore.getState().user?.token;
   const [assetRequests, setAssetRequests] = useState<AssetActionRequest[]>([]);
-  const [expenseRequests, setExpenseRequests] = useState<
-    ExpenseActionRequest[]
-  >([]);
+  const [expenseRequests, setExpenseRequests] = useState<ExpenseActionRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<
     "pending" | "approved" | "rejected" | "all"
@@ -103,27 +103,19 @@ export default function OwnerApprovals() {
           body: JSON.stringify(reason ? { reason } : {}),
         },
       );
-
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
         throw new Error(errJson.message || `Failed with ${res.status}`);
       }
-
-      toast({
-        title: `${action === "approve" ? "Approved" : "Rejected"} successfully`,
-      });
+      toast({ title: `Expense request ${action}d` });
       await fetchRequests();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      toast({
-        title: "Action failed",
-        description: message,
-        variant: "destructive",
-      });
+      toast({ title: "Action failed", description: message, variant: "destructive" });
     }
   };
 
-  const actOnRequest = async (
+  const actOnAssetRequest = async (
     id: string,
     action: "approve" | "reject",
     reason?: string,
@@ -140,35 +132,24 @@ export default function OwnerApprovals() {
           body: JSON.stringify(reason ? { reason } : {}),
         },
       );
-
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
         throw new Error(errJson.message || `Failed with ${res.status}`);
       }
-
-      toast({
-        title: `${action === "approve" ? "Approved" : "Rejected"} successfully`,
-      });
+      toast({ title: `Asset request ${action}d` });
       await fetchRequests();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      toast({
-        title: "Action failed",
-        description: message,
-        variant: "destructive",
-      });
+      toast({ title: "Action failed", description: message, variant: "destructive" });
     }
   };
 
   const confirmDecision = async () => {
     if (!pendingDecision) return;
-    const { id, action, target } = pendingDecision;
+    const { target, id, action } = pendingDecision;
     setPendingDecision(null);
-    if (target === "asset") {
-      await actOnRequest(id, action);
-      return;
-    }
-    await actOnExpenseRequest(id, action);
+    if (target === "asset") await actOnAssetRequest(id, action);
+    else await actOnExpenseRequest(id, action);
   };
 
   useEffect(() => {
@@ -176,14 +157,35 @@ export default function OwnerApprovals() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter]);
 
+  const statusBadge = (status: string) => (
+    <Badge
+      variant={
+        status === "approved"
+          ? "default"
+          : status === "rejected"
+            ? "destructive"
+            : "secondary"
+      }
+    >
+      {status}
+    </Badge>
+  );
+
+  const formatDate = (value?: Date | string | null) => {
+    if (!value) return "-";
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? "-" : d.toLocaleString();
+  };
+
   return (
     <RoleLayout allowedRoles={["owner"]}>
       <div className="space-y-6">
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Approval</h1>
+            <h1 className="text-2xl font-bold">Approvals</h1>
             <p className="text-muted-foreground">
-              Track your asset action requests and their approval status.
+              Review and act on pending asset and expense requests.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -196,41 +198,54 @@ export default function OwnerApprovals() {
               onClick={() => void fetchRequests()}
               disabled={loading}
               aria-label="Refresh approvals"
-              title="Refresh approvals"
             >
-              <RotateCw
-                className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
-              />
+              <RotateCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
           </div>
         </div>
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="space-y-2 max-w-xs">
-              <label className="text-sm font-medium">Status</label>
-              <select
-                className="w-full border rounded-md h-10 px-3 text-sm bg-background"
-                value={statusFilter}
-                onChange={(e) =>
-                  setStatusFilter(
-                    e.target.value as
-                      | "pending"
-                      | "approved"
-                      | "rejected"
-                      | "all",
-                  )
-                }
-              >
-                <option value="all">All</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-              </select>
+        {/* Store Workflow History shortcut */}
+        <Card
+          className="cursor-pointer border-primary/30 hover:border-primary/60 hover:bg-accent/40 transition-all group"
+          onClick={() => navigate("/owner/approval-history")}
+          role="button"
+          aria-label="View store workflow history"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === "Enter" && navigate("/owner/approval-history")}
+        >
+          <CardContent className="flex items-center justify-between py-5 px-6">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <GitMerge className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold text-base">Staff Workflow History</p>
+                <p className="text-sm text-muted-foreground">
+                  View all stock transfer, product add &amp; edit approval flows between Storekeepers and Managers
+                </p>
+              </div>
             </div>
+            <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
           </CardContent>
         </Card>
 
+        {/* Status filter */}
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-muted-foreground">Filter:</span>
+          {(["all", "pending", "approved", "rejected"] as const).map((s) => (
+            <Button
+              key={s}
+              size="sm"
+              variant={statusFilter === s ? "default" : "outline"}
+              onClick={() => setStatusFilter(s)}
+              className="capitalize"
+            >
+              {s}
+            </Button>
+          ))}
+        </div>
+
+        {/* Asset Requests */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -240,9 +255,7 @@ export default function OwnerApprovals() {
           </CardHeader>
           <CardContent>
             {assetRequests.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No requests found.
-              </p>
+              <p className="text-sm text-muted-foreground">No asset requests found.</p>
             ) : (
               <Table>
                 <TableHeader>
@@ -250,6 +263,7 @@ export default function OwnerApprovals() {
                     <TableHead>Requested At</TableHead>
                     <TableHead>Action</TableHead>
                     <TableHead>Asset</TableHead>
+                    <TableHead>Requested By</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Decided At</TableHead>
                     <TableHead>Reason</TableHead>
@@ -258,48 +272,26 @@ export default function OwnerApprovals() {
                 </TableHeader>
                 <TableBody>
                   {assetRequests.map((r) => {
-                    const approvalRole = r.approvalRole || "manager";
-                    const canOwnerAct =
-                      r.status === "pending" && approvalRole === "owner";
+                    const id = String(r._id || r.id || "");
                     const itemLabel =
                       r.payload?.name || r.payload?.assetId || "asset request";
-
                     return (
-                      <TableRow key={r._id || r.id}>
-                        <TableCell>
-                          {r.createdAt
-                            ? new Date(String(r.createdAt)).toLocaleString()
-                            : "-"}
+                      <TableRow key={id}>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {formatDate(r.createdAt)}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">{r.action}</Badge>
                         </TableCell>
-                        <TableCell>
-                          {r.payload?.name ||
-                            r.payload?.assetId ||
-                            "Asset request"}
+                        <TableCell className="font-medium">{itemLabel}</TableCell>
+                        <TableCell>{r.requesterName || "Manager"}</TableCell>
+                        <TableCell>{statusBadge(r.status)}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {formatDate(r.decidedAt)}
                         </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              r.status === "approved"
-                                ? "default"
-                                : r.status === "rejected"
-                                  ? "destructive"
-                                  : "secondary"
-                            }
-                          >
-                            {r.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {r.decidedAt
-                            ? new Date(String(r.decidedAt)).toLocaleString()
-                            : "-"}
-                        </TableCell>
-                        <TableCell>{r.reason || "-"}</TableCell>
-                        <TableCell className="text-right space-x-2">
-                          {canOwnerAct && (
+                        <TableCell className="text-xs">{r.reason || "-"}</TableCell>
+                        <TableCell className="text-right space-x-1">
+                          {r.status === "pending" && (
                             <>
                               <Button
                                 size="sm"
@@ -307,7 +299,7 @@ export default function OwnerApprovals() {
                                 onClick={() =>
                                   setPendingDecision({
                                     target: "asset",
-                                    id: String(r._id || r.id),
+                                    id,
                                     action: "reject",
                                     itemLabel,
                                   })
@@ -320,7 +312,7 @@ export default function OwnerApprovals() {
                                 onClick={() =>
                                   setPendingDecision({
                                     target: "asset",
-                                    id: String(r._id || r.id),
+                                    id,
                                     action: "approve",
                                     itemLabel,
                                   })
@@ -340,6 +332,7 @@ export default function OwnerApprovals() {
           </CardContent>
         </Card>
 
+        {/* Expense Requests */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -349,9 +342,7 @@ export default function OwnerApprovals() {
           </CardHeader>
           <CardContent>
             {expenseRequests.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No expense requests found.
-              </p>
+              <p className="text-sm text-muted-foreground">No expense requests found.</p>
             ) : (
               <Table>
                 <TableHeader>
@@ -360,53 +351,36 @@ export default function OwnerApprovals() {
                     <TableHead>Category</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Amount</TableHead>
+                    <TableHead>Requested By</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Decided At</TableHead>
-                    <TableHead>Reason</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {expenseRequests.map((r) => {
-                    const canOwnerAct = r.status === "pending";
+                    const id = String(r._id || r.id || "");
                     const itemLabel =
-                      r.payload?.description ||
-                      r.payload?.name ||
-                      "expense request";
-
+                      r.payload?.description || r.payload?.name || "expense request";
                     return (
-                      <TableRow key={r._id || r.id}>
-                        <TableCell>
-                          {r.createdAt
-                            ? new Date(String(r.createdAt)).toLocaleString()
-                            : "-"}
+                      <TableRow key={id}>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {formatDate(r.createdAt)}
                         </TableCell>
                         <TableCell>{r.payload?.category || "-"}</TableCell>
-                        <TableCell>{r.payload?.description || "-"}</TableCell>
-                        <TableCell>
+                        <TableCell className="font-medium">
+                          {r.payload?.description || "-"}
+                        </TableCell>
+                        <TableCell className="font-semibold">
                           {Number(r.payload?.amount || 0).toLocaleString()}
                         </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              r.status === "approved"
-                                ? "default"
-                                : r.status === "rejected"
-                                  ? "destructive"
-                                  : "secondary"
-                            }
-                          >
-                            {r.status}
-                          </Badge>
+                        <TableCell>{r.requesterName || "Manager"}</TableCell>
+                        <TableCell>{statusBadge(r.status)}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {formatDate(r.decidedAt)}
                         </TableCell>
-                        <TableCell>
-                          {r.decidedAt
-                            ? new Date(String(r.decidedAt)).toLocaleString()
-                            : "-"}
-                        </TableCell>
-                        <TableCell>{r.reason || "-"}</TableCell>
-                        <TableCell className="text-right space-x-2">
-                          {canOwnerAct && (
+                        <TableCell className="text-right space-x-1">
+                          {r.status === "pending" && (
                             <>
                               <Button
                                 size="sm"
@@ -414,7 +388,7 @@ export default function OwnerApprovals() {
                                 onClick={() =>
                                   setPendingDecision({
                                     target: "expense",
-                                    id: String(r._id || r.id),
+                                    id,
                                     action: "reject",
                                     itemLabel,
                                   })
@@ -427,7 +401,7 @@ export default function OwnerApprovals() {
                                 onClick={() =>
                                   setPendingDecision({
                                     target: "expense",
-                                    id: String(r._id || r.id),
+                                    id,
                                     action: "approve",
                                     itemLabel,
                                   })
@@ -455,12 +429,12 @@ export default function OwnerApprovals() {
             <AlertDialogHeader>
               <AlertDialogTitle>
                 {pendingDecision?.action === "approve"
-                  ? "Are you sure you want to approve this request?"
-                  : "Are you sure you want to reject this request?"}
+                  ? "Approve this request?"
+                  : "Reject this request?"}
               </AlertDialogTitle>
               <AlertDialogDescription>
                 {pendingDecision
-                  ? `${pendingDecision.action === "approve" ? "Approving" : "Rejecting"} ${pendingDecision.itemLabel} will update this request immediately.`
+                  ? `${pendingDecision.action === "approve" ? "Approving" : "Rejecting"} "${pendingDecision.itemLabel}" will update this request immediately.`
                   : "This action will update the request immediately."}
               </AlertDialogDescription>
             </AlertDialogHeader>
@@ -472,13 +446,9 @@ export default function OwnerApprovals() {
                     ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     : undefined
                 }
-                onClick={() => {
-                  void confirmDecision();
-                }}
+                onClick={() => void confirmDecision()}
               >
-                {pendingDecision?.action === "approve"
-                  ? "Yes, approve"
-                  : "Yes, reject"}
+                {pendingDecision?.action === "approve" ? "Yes, approve" : "Yes, reject"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

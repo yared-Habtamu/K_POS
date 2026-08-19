@@ -225,6 +225,8 @@ export interface Attendance {
   employeeName: string;
   clockIn: Date;
   clockOut?: Date;
+  lunchOut?: Date;
+  lunchBack?: Date;
   date: Date;
 }
 

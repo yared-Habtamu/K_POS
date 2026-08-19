@@ -54,9 +54,8 @@ router.get("/", authenticate, async (req, res) => {
           .json({ message: "Cannot view requests for another mart" });
       }
 
-      // scope=all (used by the approval history page) skips role scoping so
-      // involvement can be resolved client-side for the full mart.
-      if (scope === "all") {
+      // scope=all or owner allows viewing all requests for the mart
+      if (scope === "all" || String(user.role || "").toLowerCase() === "owner") {
         // no role scoping
       } else if (isManager(user)) {
         filter.OR = [
@@ -65,8 +64,6 @@ router.get("/", authenticate, async (req, res) => {
         ];
       } else if (isStoreKeeper(user)) {
         filter.approvalRole = "store_keeper";
-      } else if (String(user.role || "").toLowerCase() === "owner") {
-        filter.requesterId = user.id;
       } else {
         return res
           .status(403)

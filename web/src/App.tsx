@@ -177,6 +177,10 @@ const App = () => {
             />
             <Route path="/owner/settings" element={<OwnerSettings />} />
             <Route path="/owner/approvals" element={<OwnerApprovals />} />
+            <Route
+              path="/owner/approval-history"
+              element={<ApprovalHistoryPage />}
+            />
             <Route path="/owner/reports" element={<ReportPage />} />
             <Route path="/owner/today-sales" element={<TodaysSales />} />
             <Route path="/owner/assets" element={<OwnerAssets />} />
