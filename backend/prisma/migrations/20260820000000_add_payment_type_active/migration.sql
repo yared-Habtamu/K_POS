@@ -1,0 +1,1 @@
+ALTER TABLE "payment_types" ADD COLUMN "active" BOOLEAN NOT NULL DEFAULT true;

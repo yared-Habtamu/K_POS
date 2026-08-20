@@ -187,6 +187,36 @@ export function PaymentPanel() {
   const [newCustomerCity, setNewCustomerCity] = useState("");
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
 
+  const [isFullCredit, setIsFullCredit] = useState(true);
+  const [amountPaidInput, setAmountPaidInput] = useState("");
+  const [remainingCreditInput, setRemainingCreditInput] = useState("");
+
+  const formatMoney = (val?: number) => `${Number(val || 0).toLocaleString()} ETB`;
+
+  const handleAmountPaidChange = (val: string) => {
+    setAmountPaidInput(val);
+    const total = getTotal();
+    const parsed = val.trim() === "" ? 0 : parseFloat(val);
+    if (!isNaN(parsed)) {
+      const rem = Math.max(0, Math.round((total - parsed + Number.EPSILON) * 100) / 100);
+      setRemainingCreditInput(rem.toFixed(2));
+    } else {
+      setRemainingCreditInput(total.toFixed(2));
+    }
+  };
+
+  const handleRemainingCreditChange = (val: string) => {
+    setRemainingCreditInput(val);
+    const total = getTotal();
+    const parsed = val.trim() === "" ? 0 : parseFloat(val);
+    if (!isNaN(parsed)) {
+      const paid = Math.max(0, Math.round((total - parsed + Number.EPSILON) * 100) / 100);
+      setAmountPaidInput(paid === 0 ? "" : paid.toString());
+    } else {
+      setAmountPaidInput("");
+    }
+  };
+
   const normalizeMartBranding = (
     json: Record<string, unknown>,
   ): MartBranding => ({
@@ -426,6 +456,21 @@ export function PaymentPanel() {
       return;
     }
 
+    if (isCreditPayment && !isFullCredit) {
+      const paid = parseFloat(amountPaidInput);
+      const total = getTotal();
+      if (isNaN(paid) || paid < 0 || paid > total) {
+        toast({
+          title: t("invalid_amount_paid") || "Invalid amount paid",
+          description:
+            t("invalid_amount_paid_desc") ||
+            `Amount paid must be between 0 and ${total.toFixed(2)} ETB`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setIsProcessing(true);
 
     const invalidStockItems = items
@@ -468,6 +513,24 @@ export function PaymentPanel() {
     ).replace(/\/+$/, "");
     const receiptPublicUrl = `${receiptApiBase}/api/sales/receipt/${encodeURIComponent(receiptId)}/view`;
 
+    const selectedCustomerObj = customers.find(
+      (c: any) => String(c._id || c.id) === String(customerId),
+    );
+    const orderTotal = getTotal();
+    const paidUpfront = isCreditPayment
+      ? (isFullCredit
+          ? 0
+          : Math.max(0, Math.min(orderTotal, parseFloat(amountPaidInput) || 0)))
+      : orderTotal;
+    const remainingCredit = isCreditPayment
+      ? (isFullCredit
+          ? orderTotal
+          : Math.max(
+              0,
+              Math.round((orderTotal - paidUpfront + Number.EPSILON) * 100) / 100,
+            ))
+      : 0;
+
     // Create receipt
     const receipt: Receipt = {
       id: receiptId,
@@ -486,9 +549,13 @@ export function PaymentPanel() {
       extraCharges,
       tax: getTax(),
       taxRate: taxRate,
-      total: getTotal(),
+      total: orderTotal,
       paymentMethod,
       cashierName: user?.name || "Unknown",
+      customerId: customerId || undefined,
+      customerName: selectedCustomerObj ? selectedCustomerObj.name : undefined,
+      amountPaid: paidUpfront,
+      creditAmount: remainingCredit,
       date: new Date(),
       receiptHeader: latestBranding.receiptHeader,
       receiptSlogan: latestBranding.receiptSlogan,
@@ -498,6 +565,9 @@ export function PaymentPanel() {
     const salePayload: SaleRequest = {
       martId: user?.martId,
       customerId: customerId || undefined,
+      amountPaid: paidUpfront,
+      creditAmount: remainingCredit,
+      isFullCredit: isCreditPayment ? isFullCredit : false,
       receiptId,
       items: items.map((it) => ({
         productId: it.product.id,
@@ -964,11 +1034,33 @@ export function PaymentPanel() {
     };
   }, [isCreditPayment, user?.martId, user?.token]);
 
+  // Keep credit payment amount inputs in sync with order total
+  useEffect(() => {
+    if (isCreditPayment) {
+      const total = getTotal();
+      if (isFullCredit) {
+        setAmountPaidInput("");
+        setRemainingCreditInput(total.toFixed(2));
+      } else {
+        const paid = parseFloat(amountPaidInput) || 0;
+        const rem = Math.max(
+          0,
+          Math.round((total - paid + Number.EPSILON) * 100) / 100,
+        );
+        setRemainingCreditInput(rem.toFixed(2));
+      }
+    }
+  }, [getTotal, isCreditPayment, isFullCredit]);
+
   const handleCloseReceipt = () => {
     // Close the receipt preview without saving. Cart remains intact so the user can retry.
     setShowReceipt(false);
     setCurrentReceipt(null);
   };
+
+  const selectedCustomerObj = customers.find(
+    (c: any) => String(c._id || c.id) === String(customerId),
+  );
 
   return (
     <div className="space-y-4">
@@ -1008,46 +1100,182 @@ export function PaymentPanel() {
         )}
       </div>
       {isCreditPayment && (
-        <div className="space-y-2">
-          <Label>{t("customer") || "Customer"}</Label>
-          <div className="flex items-center gap-2">
-            <div className="flex-1">
-              <Select
-                value={customerId || undefined}
-                onValueChange={(v) =>
-                  setCustomer(v && v !== "__none" ? v : null)
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.length === 0 ? (
-                    <SelectItem value="__none" disabled>
-                      {t("no_customers") || "No customers"}
-                    </SelectItem>
-                  ) : (
-                    customers.map((c: any) => (
-                      <SelectItem
-                        key={String(c._id || c.id)}
-                        value={String(c._id || c.id)}
-                      >
-                        {String(c.name || c.phoneNumber || c._id)}
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label>{t("customer") || "Customer"}</Label>
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <Select
+                  value={customerId || undefined}
+                  onValueChange={(v) =>
+                    setCustomer(v && v !== "__none" ? v : null)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.length === 0 ? (
+                      <SelectItem value="__none" disabled>
+                        {t("no_customers") || "No customers"}
                       </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+                    ) : (
+                      customers.map((c: any) => (
+                        <SelectItem
+                          key={String(c._id || c.id)}
+                          value={String(c._id || c.id)}
+                        >
+                          {String(c.name || c.phoneNumber || c._id)}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowAddCustomerDialog(true)}
+                title={t("add_customer")}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowAddCustomerDialog(true)}
-              title={t("add_customer")}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
           </div>
+
+          {customerId && (
+            <div className="p-3.5 rounded-xl border border-blue-200/60 bg-blue-50/40 dark:border-blue-900/30 dark:bg-blue-950/20 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="space-y-0.5">
+                  <span className="text-xs font-semibold text-foreground block">
+                    {t("credit_payment_type") || "Credit payment type"}
+                  </span>
+                  {selectedCustomerObj && (
+                    <p className="text-[11px] text-muted-foreground">
+                      {t("unpaid_balance") || "Unpaid Balance"}:{" "}
+                      <span className="font-semibold text-orange-600 dark:text-orange-400">
+                        {formatMoney(selectedCustomerObj.totalUnpaid)}
+                      </span>
+                    </p>
+                  )}
+                </div>
+                <div className="flex rounded-lg border border-input bg-background p-0.5 gap-0.5 shadow-sm">
+                  <button
+                    type="button"
+                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                      isFullCredit
+                        ? "bg-primary text-primary-foreground shadow"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    onClick={() => {
+                      setIsFullCredit(true);
+                      setAmountPaidInput("");
+                      setRemainingCreditInput(getTotal().toFixed(2));
+                    }}
+                  >
+                    {t("full_credit") || "Full credit"}
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                      !isFullCredit
+                        ? "bg-primary text-primary-foreground shadow"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    onClick={() => {
+                      setIsFullCredit(false);
+                      setAmountPaidInput("");
+                      setRemainingCreditInput(getTotal().toFixed(2));
+                    }}
+                  >
+                    {t("partial_credit") || "Partial credit"}
+                  </button>
+                </div>
+              </div>
+
+              {isFullCredit ? (
+                <div className="p-2.5 rounded-lg bg-background/80 border border-blue-200/60 dark:border-blue-900/30 text-xs flex items-center justify-between">
+                  <span className="text-muted-foreground">
+                    {t("full_credit_summary") ||
+                      "Full order total will be added to unpaid balance:"}
+                  </span>
+                  <span className="font-bold text-sm text-blue-700 dark:text-blue-300">
+                    {formatMoney(getTotal())}
+                  </span>
+                </div>
+              ) : (
+                <div className="space-y-3 pt-1">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor="amount-paid-input"
+                        className="text-xs font-medium"
+                      >
+                        {t("amount_paid_upfront") || "Amount paid upfront"} (ETB)
+                      </Label>
+                      <Input
+                        id="amount-paid-input"
+                        type="number"
+                        min={0}
+                        max={getTotal()}
+                        step="any"
+                        value={amountPaidInput}
+                        onChange={(e) => handleAmountPaidChange(e.target.value)}
+                        placeholder="0.00"
+                        className="h-9 text-sm font-semibold text-emerald-700 dark:text-emerald-400"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor="remaining-credit-input"
+                        className="text-xs font-medium"
+                      >
+                        {t("remaining_credit") || "Remaining credit"} (ETB)
+                      </Label>
+                      <Input
+                        id="remaining-credit-input"
+                        type="number"
+                        min={0}
+                        max={getTotal()}
+                        step="any"
+                        value={remainingCreditInput}
+                        onChange={(e) =>
+                          handleRemainingCreditChange(e.target.value)
+                        }
+                        placeholder={getTotal().toFixed(2)}
+                        className="h-9 text-sm font-semibold text-orange-600 dark:text-orange-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-background border border-border text-xs space-y-1">
+                    <div className="flex justify-between items-center text-emerald-700 dark:text-emerald-400 font-medium">
+                      <span>{t("paid_now") || "Paid upfront"}:</span>
+                      <span className="font-bold">
+                        {formatMoney(parseFloat(amountPaidInput) || 0)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-orange-600 dark:text-orange-400 font-semibold">
+                      <span>
+                        {t("added_to_unpaid") || "Added to unpaid balance"}:
+                      </span>
+                      <span className="font-bold">
+                        {formatMoney(parseFloat(remainingCreditInput) || 0)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {(parseFloat(amountPaidInput) < 0 ||
+                    parseFloat(amountPaidInput) > getTotal()) && (
+                    <p className="text-xs text-destructive font-medium">
+                      {t("paid_amount_invalid") ||
+                        `Amount paid must be between 0 ETB and ${getTotal().toFixed(2)} ETB.`}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

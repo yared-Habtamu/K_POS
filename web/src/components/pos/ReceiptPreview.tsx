@@ -368,6 +368,24 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
               {receipt.paymentMethod.replace("_", " ")}
             </span>
           </div>
+          {receipt.customerName && (
+            <div className="flex justify-between text-xs pt-1">
+              <span>{t("customer") || "Customer"}:</span>
+              <span>{receipt.customerName}</span>
+            </div>
+          )}
+          {receipt.amountPaid != null && (receipt.paymentMethod === "credit" || receipt.paymentMethod === "wallet") && (
+            <div className="flex justify-between text-xs pt-1 font-medium text-green-700">
+              <span>{t("paid_upfront") || "Paid Upfront"}:</span>
+              <span>{Number(receipt.amountPaid).toFixed(2)} ETB</span>
+            </div>
+          )}
+          {receipt.creditAmount != null && receipt.creditAmount > 0 && (receipt.paymentMethod === "credit" || receipt.paymentMethod === "wallet") && (
+            <div className="flex justify-between text-xs pt-1 font-semibold text-orange-600">
+              <span>{t("remaining_credit") || "Remaining Credit"}:</span>
+              <span>{Number(receipt.creditAmount).toFixed(2)} ETB</span>
+            </div>
+          )}
         </div>
 
         <Separator className="my-4 border-dashed border-gray-400" />

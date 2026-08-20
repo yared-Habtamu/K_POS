@@ -257,6 +257,9 @@ model Sale {
   cashierId     String?
   cashierName   String?
   receiptId     String?
+  customerId    String?
+  amountPaid    Float       @default(0)
+  creditAmount  Float       @default(0)
   subtotal      Float       @default(0)
   discount      Json? // { type, value, amount }
   extraCharges  Json? // Array of { name, amount }
@@ -272,12 +275,14 @@ model Sale {
   updatedAt     DateTime    @updatedAt
 
   // Relations
-  mart    Mart       @relation(fields: [martId], references: [id])
-  cashier User?      @relation("SaleCashier", fields: [cashierId], references: [id])
-  items   SaleItem[]
+  mart                Mart                     @relation(fields: [martId], references: [id])
+  cashier             User?                    @relation("SaleCashier", fields: [cashierId], references: [id])
+  customer            Customer?                @relation("CustomerSales", fields: [customerId], references: [id])
+  items               SaleItem[]
   cancellationRequest SaleCancellationRequest?
 
   @@index([martId])
+  @@index([customerId])
   @@index([date])
   @@index([status])
   @@map("sales")
@@ -331,8 +336,9 @@ model Customer {
   updatedAt   DateTime @updatedAt
 
   // Relations
-  mart    Mart @relation(fields: [martId], references: [id])
+  mart  Mart   @relation(fields: [martId], references: [id])
   creator User @relation("CustomerCreator", fields: [createdBy], references: [id])
+  sales Sale[] @relation("CustomerSales")
 
   @@index([martId])
   @@index([createdBy])

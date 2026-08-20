@@ -50,6 +50,10 @@ function normalizePendingReceipt(payload) {
     total: Number(payload.total) || 0,
     paymentMethod: String(payload.paymentMethod || ""),
     cashierName: String(payload.cashierName || ""),
+    customerId: payload.customerId ? String(payload.customerId) : undefined,
+    customerName: payload.customerName ? String(payload.customerName) : undefined,
+    amountPaid: payload.amountPaid != null ? Number(payload.amountPaid) : undefined,
+    creditAmount: payload.creditAmount != null ? Number(payload.creditAmount) : undefined,
     date: payload.date || new Date(),
     receiptHeader: String(payload.receiptHeader || "").trim() || undefined,
     receiptSlogan: String(payload.receiptSlogan || "").trim() || undefined,
@@ -119,6 +123,13 @@ async function buildReceiptViewModel(receiptId) {
     return null;
   }
 
+  const customer = sale.customerId
+    ? await prisma.customer.findUnique({
+        where: { id: sale.customerId },
+        select: { name: true },
+      })
+    : null;
+
   const items = Array.isArray(sale.items)
     ? sale.items.map((item) => {
         const qty = Number(item?.quantity) || 0;
@@ -148,6 +159,10 @@ async function buildReceiptViewModel(receiptId) {
     total: Number(sale.total) || 0,
     paymentMethod: String(sale.paymentMethod || ""),
     cashierName: String(sale.cashierName || ""),
+    customerId: sale.customerId || undefined,
+    customerName: customer ? customer.name : undefined,
+    amountPaid: sale.amountPaid != null ? Number(sale.amountPaid) : undefined,
+    creditAmount: sale.creditAmount != null ? Number(sale.creditAmount) : undefined,
     date: sale.date || sale.createdAt || new Date(),
     receiptHeader: String(mart?.receiptHeader || "").trim() || undefined,
     receiptSlogan: String(mart?.receiptMessage || "").trim() || undefined,
@@ -291,7 +306,14 @@ router.post("/", authenticate, async (req, res) => {
           }
         }
 
-        if (String(paymentMethod) === "wallet" && payload.customerId) {
+        const isCredit = String(paymentMethod) === "wallet" || String(paymentMethod) === "credit";
+        let paidAmountNum = computedTotal;
+        let creditAmountNum = 0;
+
+        if (isCredit) {
+          if (!payload.customerId) {
+            throw new Error("Customer selection is required for credit transactions");
+          }
           const cust = await tx.customer.findUnique({
             where: { id: payload.customerId },
           });
@@ -300,13 +322,31 @@ router.post("/", authenticate, async (req, res) => {
             throw new Error("Customer does not belong to this mart");
           }
 
-          const newCredit =
-            Number(cust.totalCredit || 0) + Number(computedTotal || 0);
-          const newUnpaid = newCredit - Number(cust.totalPaid || 0);
+          if (payload.isFullCredit || payload.amountPaid === undefined) {
+            paidAmountNum = 0;
+            creditAmountNum = computedTotal;
+          } else {
+            const rawPaid = Number(payload.amountPaid);
+            paidAmountNum = Number.isFinite(rawPaid)
+              ? Math.max(0, Math.min(computedTotal, rawPaid))
+              : 0;
+            creditAmountNum = Math.max(
+              0,
+              Math.round((computedTotal - paidAmountNum + Number.EPSILON) * 100) / 100
+            );
+          }
+
+          const newTotalCredit = Number(cust.totalCredit || 0) + computedTotal;
+          const newTotalPaid = Number(cust.totalPaid || 0) + paidAmountNum;
+          const newTotalUnpaid = newTotalCredit - newTotalPaid;
 
           await tx.customer.update({
             where: { id: cust.id },
-            data: { totalCredit: newCredit, totalUnpaid: newUnpaid },
+            data: {
+              totalCredit: newTotalCredit,
+              totalPaid: newTotalPaid,
+              totalUnpaid: newTotalUnpaid,
+            },
           });
         }
 
@@ -326,6 +366,9 @@ router.post("/", authenticate, async (req, res) => {
             cashierId: req.user.id,
             cashierName: req.user.username,
             receiptId,
+            customerId: payload.customerId || null,
+            amountPaid: isCredit ? paidAmountNum : computedTotal,
+            creditAmount: isCredit ? creditAmountNum : 0,
             items: {
               create: saleItems,
             },
