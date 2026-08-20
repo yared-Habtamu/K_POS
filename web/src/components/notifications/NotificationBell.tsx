@@ -19,6 +19,9 @@ import { cn } from "@/lib/utils";
 import { AllNotificationsModal } from "./AllNotificationsModal";
 import { CheckCircle2 } from "lucide-react";
 
+import { useAuthStore } from "@/stores/authStore";
+import { getNotificationUrl } from "@/utils/notificationUtils";
+
 function getNotificationKey(notification: any, index: number) {
   return [
     notification?._id || "notification",
@@ -30,6 +33,7 @@ function getNotificationKey(notification: any, index: number) {
 export function NotificationBell() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   const { notifications, unreadCount, markAsRead, markAllAsRead, isConnected } =
     useSSE();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -38,16 +42,10 @@ export function NotificationBell() {
     if (!notification.read) {
       markAsRead(notification._id);
     }
-    // Route based on notification data or type if applicable
-    if (notification.data?.url) {
-      navigate(notification.data.url);
-    } else if (
-      notification.type === "new_order" ||
-      notification.type === "sale_completed"
-    ) {
-      navigate("/transactions"); // Example routing
+    const targetUrl = getNotificationUrl(notification, user?.role);
+    if (targetUrl) {
+      navigate(targetUrl);
     }
-    // Otherwise just mark as read (no navigation target known)
   };
 
   return (
@@ -67,9 +65,8 @@ export function NotificationBell() {
           />
 
           {unreadCount > 0 && (
-            <span className="absolute top-0.5 right-0.5 flex h-2 w-2 items-center justify-center">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive border-[1px] border-background shadow-sm"></span>
+            <span className="absolute -top-1 -right-1 flex h-4.5 min-w-[18px] px-1 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground border border-background shadow-sm leading-none">
+              {unreadCount > 99 ? "99+" : unreadCount}
             </span>
           )}
         </Button>

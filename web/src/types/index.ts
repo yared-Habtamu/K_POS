@@ -100,6 +100,8 @@ export interface Sale {
   cashierId: string;
   cashierName: string;
   customerId?: string;
+  amountPaid?: number;
+  creditAmount?: number;
   receiptId: string;
   qrCodeData: string;
   shopId: string;
@@ -333,7 +335,7 @@ export interface DailyReport {
 export interface Receipt {
   id: string;
   saleId: string;
-  qrCodeData: string;
+  qrCodeData?: string;
   shopName: string;
   shopAddress?: string;
   shopPhone?: string;
@@ -347,6 +349,10 @@ export interface Receipt {
   total: number;
   paymentMethod: PaymentMethod;
   cashierName: string;
+  customerId?: string;
+  customerName?: string;
+  amountPaid?: number;
+  creditAmount?: number;
   date: Date;
   receiptHeader?: string;
   receiptSlogan?: string;
