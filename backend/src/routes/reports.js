@@ -1124,7 +1124,11 @@ router.get("/today-sales", authenticate, async (req, res) => {
     const items = Object.values(prodAgg).map((x) => {
       const paymentMethods = Array.from(x.paymentMethods || []);
       const paymentMethod =
-        paymentMethods.length > 1 ? "mixed" : paymentMethods[0] || "unknown";
+        paymentMethods.length === 1
+          ? paymentMethods[0]
+          : paymentMethods.length > 1
+            ? paymentMethods.join(", ")
+            : "unknown";
 
       return {
         productId: x.productId,
@@ -1137,6 +1141,7 @@ router.get("/today-sales", authenticate, async (req, res) => {
         vatAmount: Number(x.vatAmount || 0),
         total: Number(x.total || 0),
         paymentMethod,
+        paymentMethods,
         soldById: x.soldById || null,
         soldByName: x.soldByName || "unknown",
         priceTiers: Array.isArray(x.priceTiers)

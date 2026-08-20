@@ -144,6 +144,20 @@ router.post("/register", async (req, res) => {
     });
 
     const parsedTaxRate = Number(taxRate);
+    const now = new Date();
+    const trialEndDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const initialSubscription = {
+      isTrial: true,
+      packageName: "7-Day Free Trial",
+      packageMonths: 0,
+      feeEtb: 0,
+      billingPeriodDays: 7,
+      subscriptionStartDate: now.toISOString(),
+      subscriptionEndDate: trialEndDate.toISOString(),
+      subscriptionStatus: "active",
+      lastEvaluatedAt: now.toISOString(),
+    };
+
     const mart = await martRepository.create({
       ownerId: owner.id,
       martName: normalizedMartName,
@@ -160,6 +174,7 @@ router.post("/register", async (req, res) => {
       customPaymentFields: Array.isArray(req.body.customPaymentFields)
         ? req.body.customPaymentFields
         : [],
+      subscription: initialSubscription,
       status: "pending",
     });
 
@@ -290,6 +305,20 @@ router.post("/admin-register", authenticate, async (req, res) => {
     });
 
     const parsedTaxRate = Number(taxRate);
+    const now = new Date();
+    const trialEndDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const initialSubscription = {
+      isTrial: true,
+      packageName: "7-Day Free Trial",
+      packageMonths: 0,
+      feeEtb: 0,
+      billingPeriodDays: 7,
+      subscriptionStartDate: now.toISOString(),
+      subscriptionEndDate: trialEndDate.toISOString(),
+      subscriptionStatus: "active",
+      lastEvaluatedAt: now.toISOString(),
+    };
+
     const mart = await martRepository.create({
       ownerId: owner.id,
       martName: normalizedMartName,
@@ -306,6 +335,7 @@ router.post("/admin-register", authenticate, async (req, res) => {
       customPaymentFields: Array.isArray(req.body.customPaymentFields)
         ? req.body.customPaymentFields
         : [],
+      subscription: initialSubscription,
       status: "approved",
     });
 
@@ -353,8 +383,34 @@ router.put("/:id/approve", authenticate, async (req, res) => {
       return res.status(403).json({ message: "Insufficient permissions" });
 
     const { id } = req.params;
-    const mart = await martRepository.update(id, { status: "approved" });
-    if (!mart) return res.status(404).json({ message: "Mart not found" });
+    const existingMart = await martRepository.findById(id);
+    if (!existingMart) return res.status(404).json({ message: "Mart not found" });
+
+    const now = new Date();
+    const existingSub = existingMart.subscription && typeof existingMart.subscription === "object" ? existingMart.subscription : {};
+    let subscriptionUpdate = existingSub;
+
+    // If it has no subscription or is on an unstarted/expired trial, initialize 7 days starting from approval
+    if (!existingSub.subscriptionEndDate || existingSub.isTrial) {
+      const trialEndDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      subscriptionUpdate = {
+        ...existingSub,
+        isTrial: true,
+        packageName: "7-Day Free Trial",
+        packageMonths: 0,
+        feeEtb: 0,
+        billingPeriodDays: 7,
+        subscriptionStartDate: now.toISOString(),
+        subscriptionEndDate: trialEndDate.toISOString(),
+        subscriptionStatus: "active",
+        lastEvaluatedAt: now.toISOString(),
+      };
+    }
+
+    const mart = await martRepository.update(id, {
+      status: "approved",
+      subscription: subscriptionUpdate,
+    });
 
     // Ensure owner has martId set (in case owner existed before registration)
     try {
@@ -434,6 +490,9 @@ router.put("/:id", authenticate, async (req, res) => {
       "shopLogoUrl",
       "phone",
       "email",
+      "country",
+      "region",
+      "city",
       "address",
     ];
     for (const k of allowed) {

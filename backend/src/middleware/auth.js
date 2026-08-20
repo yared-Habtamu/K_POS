@@ -36,8 +36,11 @@ async function authenticate(req, res, next) {
       permissions: Array.isArray(dbUser.permissions) ? dbUser.permissions : [],
     };
 
-    // Notifications should remain reachable so owners can read suspension messages.
+    // Notifications and subscription endpoints should remain reachable so owners can read messages and renew subscriptions.
     const isNotificationsEndpoint = String(req.originalUrl || "").startsWith("/api/notifications");
+    const isSubscriptionsEndpoint = String(req.originalUrl || "").startsWith("/api/subscriptions");
+    const isAuthMeEndpoint = String(req.originalUrl || "").startsWith("/api/auth/me");
+    const isAllowedWhenBlocked = isNotificationsEndpoint || isSubscriptionsEndpoint || isAuthMeEndpoint;
 
     // Non-admin users must always be assigned to a mart
     if (req.user.role !== "systemAdmin" && !req.user.martId) {
@@ -57,7 +60,7 @@ async function authenticate(req, res, next) {
       }
 
       const blockedStatuses = ["suspended", "disabled", "pending", "rejected"];
-      if (blockedStatuses.includes(String(mart.status || "")) && !isNotificationsEndpoint) {
+      if (blockedStatuses.includes(String(mart.status || "")) && !isAllowedWhenBlocked) {
         return res.status(403).json({
           message: `Access blocked. Your market status is ${mart.status}.`,
           martStatus: mart.status,

@@ -103,11 +103,19 @@ export function useReports(opts: UseReportsOptions = {}) {
       // map to UI-friendly shape
       const pm = (summaryJson.salesByPaymentMethod || []).reduce(
         (acc: any, p: any) => {
-          acc[p.method] = p.total;
+          if (p && p.method) {
+            acc[p.method] = Number(p.total || 0);
+          }
           return acc;
         },
         {},
       );
+
+      const dynamicPaymentMethods: Record<string, string> = {};
+      Object.keys(pm).forEach((k) => {
+        dynamicPaymentMethods[k] = Number(pm[k] || 0).toFixed(2);
+      });
+
       const mapped = {
         totalSales: (summaryJson.totalSales || 0).toFixed
           ? summaryJson.totalSales.toFixed(2)
@@ -137,20 +145,16 @@ export function useReports(opts: UseReportsOptions = {}) {
         taxes: (summaryJson.totalTax || 0).toFixed
           ? (summaryJson.totalTax || 0).toFixed(2)
           : String(summaryJson.totalTax || "0.00"),
-        paymentMethods: {
-          cash: (pm.cash || pm["cash"] || 0).toFixed
-            ? (pm.cash || pm["cash"] || 0).toFixed(2)
-            : String(pm.cash || pm["cash"] || 0),
-          card: (pm.card || pm["card"] || 0).toFixed
-            ? (pm.card || pm["card"] || 0).toFixed(2)
-            : String(pm.card || pm["card"] || 0),
-          mobile: (pm.telebirr || pm.mobile || pm["mobile"] || 0).toFixed
-            ? (pm.telebirr || pm.mobile || pm["mobile"] || 0).toFixed(2)
-            : String(pm.telebirr || pm.mobile || pm["mobile"] || 0),
-          credit: (pm.credit || pm["credit"] || 0).toFixed
-            ? (pm.credit || pm["credit"] || 0).toFixed(2)
-            : String(pm.credit || pm["credit"] || 0),
-        },
+        salesByPaymentMethod: Array.isArray(summaryJson.salesByPaymentMethod)
+          ? summaryJson.salesByPaymentMethod.map((item: any) => ({
+              method: String(item.method || "").toLowerCase(),
+              total: Number(item.total || 0),
+            }))
+          : Object.entries(pm).map(([method, total]) => ({
+              method,
+              total: Number(total || 0),
+            })),
+        paymentMethods: dynamicPaymentMethods,
         topProducts: (summaryJson.topProducts || []).map((p: any) => ({
           name: p.name || p.productName || p.title || "Unknown",
           sold: Number(p.sold ?? p.quantity ?? p.totalSold ?? 0),

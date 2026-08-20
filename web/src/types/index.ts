@@ -432,13 +432,6 @@ export interface BankAccountDTO {
   accountNumber: string;
 }
 
-/** Product Capacity - for subscription product limit guard */
-export interface ProductCapacityDTO {
-  current: number;
-  limit: number;
-  remaining: number;
-}
-
 /** Chat Conversation */
 export interface ChatConversationDTO {
   id: string;

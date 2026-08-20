@@ -4,8 +4,65 @@ const userRepository = require("../repositories/userRepository");
 const notificationRepository = require("../repositories/notificationRepository");
 const subscriptionSettingsRepository = require("../repositories/subscriptionSettingsRepository");
 
+const DEFAULT_PACKAGES = [
+  { months: 1, name: "1 Month", durationDays: 30, defaultPrice: 1000, discountLabel: "" },
+  { months: 3, name: "3 Months", durationDays: 90, defaultPrice: 2700, discountLabel: "Save 10%" },
+  { months: 6, name: "6 Months", durationDays: 180, defaultPrice: 5000, discountLabel: "Save 16%" },
+  { months: 9, name: "9 Months", durationDays: 270, defaultPrice: 7200, discountLabel: "Save 20%" },
+  { months: 12, name: "12 Months", durationDays: 365, defaultPrice: 9000, discountLabel: "Save 25%" },
+];
+
+const DEFAULT_PAYMENT_METHODS = [
+  {
+    id: "telebirr",
+    method: "Telebirr",
+    bankName: "Telebirr",
+    accountName: "Kiya POS Solutions",
+    accountNumber: "0911223344",
+    instructions: "Send the exact subscription fee to our Telebirr account and upload the transaction screenshot.",
+    active: true,
+  },
+  {
+    id: "cbe",
+    method: "Commercial Bank of Ethiopia",
+    bankName: "Commercial Bank of Ethiopia (CBE)",
+    accountName: "Kiya POS Tech PLC",
+    accountNumber: "1000123456789",
+    instructions: "Transfer to our CBE account via CBE Mobile Banking or branch deposit, and upload the receipt image.",
+    active: true,
+  },
+  {
+    id: "awash",
+    method: "Awash Bank",
+    bankName: "Awash Bank",
+    accountName: "Kiya POS Tech PLC",
+    accountNumber: "0132087654321",
+    instructions: "Transfer via Awash Birr / Mobile Banking and upload the confirmation slip.",
+    active: true,
+  },
+];
+
 async function getOrCreateSettings() {
-  return await subscriptionSettingsRepository.getOrCreate();
+  const settings = await subscriptionSettingsRepository.getOrCreate();
+  if (!settings.packagePrices) {
+    const defaultPrices = {};
+    DEFAULT_PACKAGES.forEach((p) => {
+      defaultPrices[p.months] = p.defaultPrice;
+    });
+    settings.packagePrices = defaultPrices;
+  }
+  if (!settings.paymentMethods || !Array.isArray(settings.paymentMethods) || settings.paymentMethods.length === 0) {
+    settings.paymentMethods = DEFAULT_PAYMENT_METHODS;
+  }
+  return settings;
+}
+
+function getPackageList(settings) {
+  const prices = settings?.packagePrices || {};
+  return DEFAULT_PACKAGES.map((pkg) => ({
+    ...pkg,
+    price: Number(prices[pkg.months] ?? pkg.defaultPrice),
+  }));
 }
 
 function clampNumber(value, fallback, min = 0) {
@@ -44,17 +101,9 @@ async function notifySystemAdmins({ mart, type, title, message, data }) {
   );
 
   for (const admin of admins) {
-    const exists = await hasRecentNotification({
-      userId: admin.id,
-      martId: mart.id,
-      type,
-      withinHours: 24,
-    });
-    if (exists) continue;
-
     await notificationRepository.create({
       userId: admin.id,
-      martId: mart.id,
+      martId: mart?.id,
       type,
       title,
       message,
@@ -107,16 +156,6 @@ function deriveEffectivePlan(mart, settings) {
     clampNumber(settings.billingPeriodDays, 30),
     1,
   );
-  const productLimit = clampNumber(
-    sub.productLimit,
-    clampNumber(settings.defaultProductLimit, 100),
-    1,
-  );
-  const transactionLimit = clampNumber(
-    sub.transactionLimit,
-    clampNumber(settings.defaultTransactionLimit, 500),
-    1,
-  );
   const warningDaysBeforeExpiry = clampNumber(
     sub.warningDaysBeforeExpiry,
     clampNumber(settings.warningDaysBeforeExpiry, 5),
@@ -125,8 +164,6 @@ function deriveEffectivePlan(mart, settings) {
   return {
     feeEtb,
     billingPeriodDays,
-    productLimit,
-    transactionLimit,
     warningDaysBeforeExpiry,
   };
 }
@@ -149,6 +186,10 @@ async function evaluateMartSubscription(
       ? mart.subscription
       : {};
 
+  const isTrial = Boolean(subData.isTrial);
+  const packageMonths = subData.packageMonths || null;
+  const packageName = subData.packageName || (isTrial ? "7-Day Free Trial" : "Standard Plan");
+
   const subscriptionStartDateRaw = subData.subscriptionStartDate
     ? new Date(subData.subscriptionStartDate)
     : null;
@@ -164,11 +205,13 @@ async function evaluateMartSubscription(
   const hasExplicitEnd =
     explicitEndDate && Number.isFinite(explicitEndDate.getTime());
 
+  const fallbackDays = isTrial ? (settings.trialPeriodDays || 7) : plan.billingPeriodDays;
+
   const subscriptionEndDate = hasExplicitEnd
     ? explicitEndDate
     : new Date(
         subscriptionStartDate.getTime() +
-          plan.billingPeriodDays * 24 * 60 * 60 * 1000,
+          fallbackDays * 24 * 60 * 60 * 1000,
       );
 
   const hasValidEnd =
@@ -193,18 +236,21 @@ async function evaluateMartSubscription(
   const isNewSuspension = shouldSuspend && previousMartStatus !== "suspended";
 
   if (isNewSuspension) {
-    const reason = "subscription period expired";
+    const reason = isTrial
+      ? "7-day free trial has expired"
+      : "subscription period expired";
 
     await notifyMartOwners({
       mart,
       type: "subscription_suspended",
-      title: "Mart suspended by subscription policy",
-      message: `Your mart has been suspended: ${reason}. Please renew or contact support to restore operations.`,
+      title: isTrial ? "Free Trial Expired" : "Subscription Expired",
+      message: `Your mart has been suspended: ${reason}. Please select a subscription package and complete payment to restore full operations.`,
       data: {
         martId: String(mart.id),
         martName: mart.martName,
         reason,
         daysLeft,
+        isTrial,
       },
     });
   }
@@ -213,6 +259,9 @@ async function evaluateMartSubscription(
     const updatedSub = {
       ...subData,
       ...plan,
+      isTrial,
+      packageName,
+      packageMonths,
       subscriptionStartDate: subscriptionStartDate.toISOString(),
       subscriptionEndDate: subscriptionEndDate.toISOString(),
       subscriptionStatus,
@@ -244,94 +293,48 @@ async function evaluateMartSubscription(
 
   if (nearTimeLimit) {
     const warningParts = [];
-    if (nearTimeLimit && typeof daysLeft === "number") {
-      warningParts.push(`subscription expires in ${daysLeft} day(s)`);
+    if (typeof daysLeft === "number") {
+      warningParts.push(
+        isTrial
+          ? `free trial expires in ${daysLeft} day(s)`
+          : `subscription expires in ${daysLeft} day(s)`
+      );
     }
 
     await notifyMartOwners({
       mart,
       type: "subscription_warning",
-      title: "Subscription warning",
-      message: `Your mart is nearing subscription limits: ${warningParts.join(", ")}. Please renew or upgrade to avoid suspension.`,
+      title: isTrial ? "Free Trial Ending Soon" : "Subscription Expiring Soon",
+      message: `Your mart is nearing expiration: ${warningParts.join(", ")}. Please select a package and renew to avoid suspension.`,
       data: {
         martId: String(mart.id),
         martName: mart.martName,
         daysLeft,
-      },
-    });
-  }
-
-  if (shouldSuspend && !isNewSuspension) {
-    const reason = "subscription period expired";
-
-    await notifyMartOwners({
-      mart,
-      type: "subscription_suspended",
-      title: "Mart suspended by subscription policy",
-      message: `Your mart has been suspended: ${reason}. Please renew or contact support to restore operations.`,
-      data: {
-        martId: String(mart.id),
-        martName: mart.martName,
-        reason,
-        daysLeft,
-      },
-    });
-  }
-
-  if (previousMartStatus === "suspended" && mart.status === "approved") {
-    await notifyMartOwners({
-      mart,
-      type: "subscription_unsuspended",
-      title: "Mart access restored",
-      message:
-        "Your mart is no longer suspended and has been restored to active status.",
-      data: {
-        martId: String(mart.id),
-        martName: mart.martName,
-        daysLeft,
+        isTrial,
       },
     });
   }
 
   // Inform mart owners when deadline is reached or expired.
   if (hasValidEnd && typeof daysLeft === "number" && daysLeft <= 0) {
-    const ownerMessage =
-      daysLeft === 0
-        ? `Your mart subscription deadline is today (${subscriptionEndDate.toDateString()}). Renew to avoid interruption.`
-        : `Your mart subscription expired on ${subscriptionEndDate.toDateString()}. Please renew immediately.`;
+    const ownerMessage = isTrial
+      ? `Your 7-day free trial expired on ${subscriptionEndDate.toDateString()}. Please select a subscription package to continue.`
+      : `Your mart subscription expired on ${subscriptionEndDate.toDateString()}. Please renew immediately.`;
 
     await notifyMartOwners({
       mart,
       type: "subscription_deadline",
-      title: "Subscription deadline reached",
+      title: isTrial ? "Free Trial Expired" : "Subscription Expired",
       message: ownerMessage,
       data: {
         martId: String(mart.id),
         martName: mart.martName,
         daysLeft,
         subscriptionEndDate,
+        isTrial,
       },
     });
   }
-
-  // Count active products for this mart
-  let productCount = 0;
-  try {
-    productCount = await prisma.product.count({
-      where: { martId: mart.id, isDeleted: false },
-    });
-  } catch (_) {}
-
-  // Count transactions (sales) for this mart in current billing period
-  let transactionCount = 0;
-  try {
-    transactionCount = await prisma.sale.count({
-      where: {
-        martId: mart.id,
-        createdAt: { gte: subscriptionStartDate, lte: subscriptionEndDate },
-      },
-    });
-  } catch (_) {}
 
   return {
     martId: String(mart.id),
@@ -339,12 +342,11 @@ async function evaluateMartSubscription(
     status: mart.status,
     subscriptionStatus,
     daysLeft,
+    isTrial,
+    packageName,
+    packageMonths,
     feeEtb: plan.feeEtb,
     billingPeriodDays: plan.billingPeriodDays,
-    productLimit: plan.productLimit,
-    productCount,
-    transactionLimit: plan.transactionLimit,
-    transactionCount,
     startDate: subscriptionStartDate,
     endDate: subscriptionEndDate,
     exceeded: timeExpired,
@@ -372,9 +374,140 @@ async function runSubscriptionChecksForAllMarts({ persist = true } = {}) {
   return results;
 }
 
+// ─── Payment Approval and Rejection Workflow ─────────────────────────────────
+
+async function activateSubscriptionFromPayment({ paymentId, approverId, approverName }) {
+  const payment = await prisma.subscriptionPayment.findUnique({
+    where: { id: paymentId },
+    include: { mart: true, requester: true },
+  });
+
+  if (!payment) {
+    throw new Error("Payment record not found");
+  }
+
+  if (payment.status !== "pending") {
+    throw new Error("Payment has already been processed");
+  }
+
+  const mart = payment.mart;
+  const now = new Date();
+
+  // Calculate start date: if current active subscription hasn't expired yet, extend from current end date
+  const currentSub = mart.subscription && typeof mart.subscription === "object" ? mart.subscription : {};
+  const currentEnd = currentSub.subscriptionEndDate ? new Date(currentSub.subscriptionEndDate) : null;
+  const isCurrentEndValid = currentEnd && Number.isFinite(currentEnd.getTime()) && currentEnd.getTime() > now.getTime();
+
+  const startDate = isCurrentEndValid ? currentEnd : now;
+  const durationDays = payment.packageMonths * 30; // standard month duration calculation
+  const endDate = new Date(startDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
+
+  // Transaction to update payment and mart
+  const result = await prisma.$transaction(async (tx) => {
+    const updatedPayment = await tx.subscriptionPayment.update({
+      where: { id: paymentId },
+      data: {
+        status: "approved",
+        approverId,
+        approverName: approverName || "System Admin",
+        decidedAt: now,
+        periodStartDate: startDate,
+        periodEndDate: endDate,
+      },
+    });
+
+    const updatedSub = {
+      ...currentSub,
+      isTrial: false,
+      packageName: payment.packageName,
+      packageMonths: payment.packageMonths,
+      feeEtb: payment.amount,
+      billingPeriodDays: durationDays,
+      subscriptionStartDate: startDate.toISOString(),
+      subscriptionEndDate: endDate.toISOString(),
+      subscriptionStatus: "active",
+      lastEvaluatedAt: now.toISOString(),
+    };
+
+    const updatedMart = await tx.mart.update({
+      where: { id: mart.id },
+      data: {
+        subscription: updatedSub,
+        status: "approved",
+      },
+    });
+
+    return { updatedPayment, updatedMart };
+  });
+
+  // Notify Mart Owners of approval
+  await notifyMartOwners({
+    mart,
+    type: "subscription_payment_approved",
+    title: "Subscription Activated!",
+    message: `Your payment of ${payment.amount} ETB for ${payment.packageName} has been approved. Your subscription is active until ${endDate.toDateString()}.`,
+    data: {
+      paymentId: payment.id,
+      packageName: payment.packageName,
+      amount: payment.amount,
+      endDate: endDate.toISOString(),
+    },
+  });
+
+  return result.updatedPayment;
+}
+
+async function rejectSubscriptionPayment({ paymentId, approverId, approverName, reason }) {
+  const payment = await prisma.subscriptionPayment.findUnique({
+    where: { id: paymentId },
+    include: { mart: true },
+  });
+
+  if (!payment) {
+    throw new Error("Payment record not found");
+  }
+
+  if (payment.status !== "pending") {
+    throw new Error("Payment has already been processed");
+  }
+
+  const updatedPayment = await prisma.subscriptionPayment.update({
+    where: { id: paymentId },
+    data: {
+      status: "rejected",
+      approverId,
+      approverName: approverName || "System Admin",
+      reason: reason || "Invalid receipt or payment details",
+      decidedAt: new Date(),
+    },
+  });
+
+  // Notify Mart Owner of rejection
+  await notifyMartOwners({
+    mart: payment.mart,
+    type: "subscription_payment_rejected",
+    title: "Payment Receipt Rejected",
+    message: `Your subscription payment receipt was rejected: ${reason || "Invalid receipt"}. You may upload a valid receipt in Subscription settings.`,
+    data: {
+      paymentId: payment.id,
+      reason,
+    },
+  });
+
+  return updatedPayment;
+}
+
 module.exports = {
+  DEFAULT_PACKAGES,
+  DEFAULT_PAYMENT_METHODS,
   getOrCreateSettings,
+  getPackageList,
   evaluateMartSubscription,
   runSubscriptionCheckForMart,
   runSubscriptionChecksForAllMarts,
+  activateSubscriptionFromPayment,
+  rejectSubscriptionPayment,
+  notifySystemAdmins,
+  notifyMartOwners,
 };
+

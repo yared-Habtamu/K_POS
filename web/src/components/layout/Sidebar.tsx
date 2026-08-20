@@ -231,7 +231,10 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
     },
     {
       groupLabel: "settings",
-      items: [{ label: "settings", icon: Settings, path: "/owner/settings" }],
+      items: [
+        { label: "subscriptions", icon: CreditCard, path: "/owner/subscription" },
+        { label: "settings", icon: Settings, path: "/owner/settings" },
+      ],
     },
   ],
   store_keeper: [

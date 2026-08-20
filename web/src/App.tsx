@@ -13,6 +13,7 @@ import { useEffect, useRef } from "react";
 import { useAuthStore } from "./stores/authStore";
 import { useCartStore } from "./stores/cartStore";
 import { initSocket, disconnectSocket } from "./utils/socket";
+import { SubscriptionProvider } from "@/hooks/useSubscriptionStatus";
 import "@/i18n";
 import AutoCompleteExample from "@/components/examples/AutoCompleteExample";
 import AdvancedFiltersExample from "@/components/examples/AdvancedFiltersExample";
@@ -50,6 +51,7 @@ import RegisterWaiting from "./pages/owner/RegisterWaiting";
 import ProfilePage from "./pages/Profile";
 import OwnerOpenCashPage from "./pages/owner/OpenCash";
 import SaleCancellationsPage from "./pages/owner/SaleCancellations";
+import OwnerSubscriptionPage from "./pages/owner/OwnerSubscription";
 
 // Manager Pages
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
@@ -118,11 +120,12 @@ const App = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <NotificationService />
-        <Toaster />
-        <Sonner />
-        <Router future={routerFutureFlags}>
+      <SubscriptionProvider>
+        <TooltipProvider>
+          <NotificationService />
+          <Toaster />
+          <Sonner />
+          <Router future={routerFutureFlags}>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
@@ -186,6 +189,7 @@ const App = () => {
             <Route path="/owner/assets" element={<OwnerAssets />} />
             <Route path="/owner/open-cash" element={<OwnerOpenCashPage />} />
             <Route path="/owner/sale-cancellations" element={<SaleCancellationsPage />} />
+            <Route path="/owner/subscription" element={<OwnerSubscriptionPage />} />
             <Route path="/owner/register" element={<RegisterMart />} />
             <Route
               path="/owner/register/waiting/:id"
@@ -282,7 +286,8 @@ const App = () => {
           </Routes>
         </Router>
       </TooltipProvider>
-    </QueryClientProvider>
+    </SubscriptionProvider>
+  </QueryClientProvider>
   );
 };
 

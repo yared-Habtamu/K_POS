@@ -88,13 +88,35 @@ export default function SoldItemsTable({ items, totals, loading }: Props) {
   const paymentOptions = React.useMemo(() => {
     const unique = new Set<string>();
     (items || []).forEach((it) => {
-      if (it.paymentMethod) {
-        unique.add(it.paymentMethod);
+      if (Array.isArray(it.details)) {
+        it.details.forEach((d) => {
+          const m = String(d.paymentMethod || "").trim();
+          if (m && m.toLowerCase() !== "mixed" && m.toLowerCase() !== "unknown") {
+            unique.add(m.toLowerCase());
+          }
+        });
+      }
+      const pm = String(it.paymentMethod || "").trim();
+      if (pm && pm.toLowerCase() !== "mixed" && pm.toLowerCase() !== "unknown") {
+        unique.add(pm.toLowerCase());
       }
     });
+
     return [
-      { label: t("all"), value: "all" },
-      ...Array.from(unique).map((label) => ({ label, value: label })),
+      { label: t("all", { defaultValue: "All" }), value: "all" },
+      ...Array.from(unique)
+        .sort((a, b) => a.localeCompare(b))
+        .map((method) => {
+          const translated = t(method);
+          const label =
+            translated && translated !== method
+              ? translated
+              : method
+                  .split("_")
+                  .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                  .join(" ");
+          return { label, value: method };
+        }),
     ];
   }, [items, t]);
 
@@ -141,25 +163,60 @@ export default function SoldItemsTable({ items, totals, loading }: Props) {
       .trim()
       .toLowerCase();
     const soldByFilter = String(appliedFilters.soldBy || "all");
-    const paymentFilter = String(appliedFilters.paymentMethod || "all");
+    const paymentFilter = String(appliedFilters.paymentMethod || "all").toLowerCase();
     const sortKey = String(appliedFilters.sort || "name_asc");
 
-    const baseItems = (items || []).filter((it) => {
-      const soldByLabel = it.soldByName || it.soldBy || "";
-      const paymentLabel = it.paymentMethod || "";
-      const matchesSearch = normalizedSearch
-        ? [it.name, soldByLabel, paymentLabel]
-            .filter(Boolean)
-            .some((value) =>
-              String(value).toLowerCase().includes(normalizedSearch),
-            )
-        : true;
-      const matchesSoldBy =
-        soldByFilter === "all" ? true : soldByLabel === soldByFilter;
-      const matchesPayment =
-        paymentFilter === "all" ? true : paymentLabel === paymentFilter;
-      return matchesSearch && matchesSoldBy && matchesPayment;
-    });
+    const baseItems = (items || [])
+      .map((it) => {
+        // If a specific payment method filter is active, slice to only the sales with that method
+        if (paymentFilter !== "all") {
+          const allDetails = Array.isArray(it.details) ? it.details : [];
+          const matchingDetails = allDetails.filter(
+            (d) => String(d.paymentMethod || "").trim().toLowerCase() === paymentFilter,
+          );
+
+          if (matchingDetails.length === 0) {
+            // Check top-level paymentMethod fallback
+            if (String(it.paymentMethod || "").trim().toLowerCase() !== paymentFilter) {
+              return null;
+            }
+            return it;
+          }
+
+          const filteredQty = matchingDetails.reduce((s, d) => s + Number(d.qty || 0), 0);
+          const filteredSubtotal = matchingDetails.reduce((s, d) => s + Number(d.subtotal || 0), 0);
+          const filteredVat = matchingDetails.reduce((s, d) => s + Number(d.vat || 0), 0);
+          const filteredTotal = matchingDetails.reduce((s, d) => s + Number(d.total || 0), 0);
+          const weightedSellingPrice = filteredQty > 0 ? filteredSubtotal / filteredQty : it.sellingPrice;
+
+          return {
+            ...it,
+            qty: filteredQty,
+            sellingPrice: weightedSellingPrice,
+            subtotal: filteredSubtotal,
+            vatAmount: filteredVat,
+            total: filteredTotal,
+            paymentMethod: paymentFilter,
+            details: matchingDetails,
+          };
+        }
+        return it;
+      })
+      .filter((it): it is Item => it !== null)
+      .filter((it) => {
+        const soldByLabel = it.soldByName || it.soldBy || "";
+        const paymentLabel = it.paymentMethod || "";
+        const matchesSearch = normalizedSearch
+          ? [it.name, soldByLabel, paymentLabel]
+              .filter(Boolean)
+              .some((value) =>
+                String(value).toLowerCase().includes(normalizedSearch),
+              )
+          : true;
+        const matchesSoldBy =
+          soldByFilter === "all" ? true : soldByLabel === soldByFilter;
+        return matchesSearch && matchesSoldBy;
+      });
 
     const sortedItems = [...baseItems];
     if (sortKey === "name_desc") {
@@ -309,9 +366,60 @@ export default function SoldItemsTable({ items, totals, loading }: Props) {
                         </div>
                       </td>
                       <td className="py-2">
-                        <div className="text-sm text-muted-foreground capitalize">
-                          {it.paymentMethod || "unknown"}
-                        </div>
+                        {(() => {
+                          const detailsList = Array.isArray(it.details) ? it.details : [];
+                          const methodCounts: Record<string, number> = {};
+                          detailsList.forEach((d) => {
+                            const m = String(d.paymentMethod || "").trim().toLowerCase();
+                            if (m && m !== "mixed" && m !== "unknown") {
+                              methodCounts[m] = (methodCounts[m] || 0) + Number(d.qty || 0);
+                            }
+                          });
+
+                          const distinctMethods = Object.keys(methodCounts);
+                          if (distinctMethods.length > 1) {
+                            return (
+                              <div className="flex flex-wrap gap-1 items-center">
+                                {distinctMethods.map((m) => {
+                                  const translated = t(m);
+                                  const label =
+                                    translated && translated !== m
+                                      ? translated
+                                      : m
+                                          .split("_")
+                                          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                                          .join(" ");
+                                  return (
+                                    <span
+                                      key={m}
+                                      className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-muted text-muted-foreground border"
+                                    >
+                                      {label} ({methodCounts[m]})
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            );
+                          }
+
+                          const singleMethod =
+                            distinctMethods[0] ||
+                            String(it.paymentMethod || "unknown").toLowerCase();
+                          const translated = t(singleMethod);
+                          const label =
+                            translated && translated !== singleMethod
+                              ? translated
+                              : singleMethod
+                                  .split("_")
+                                  .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                                  .join(" ");
+
+                          return (
+                            <div className="text-sm text-muted-foreground capitalize">
+                              {label}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="py-2 text-right font-medium">{it.qty}</td>
                       <td className="py-2 text-right">{currency(it.sellingPrice)}</td>
@@ -346,19 +454,30 @@ export default function SoldItemsTable({ items, totals, loading }: Props) {
                                 </tr>
                               </thead>
                               <tbody>
-                                {detailRows.map((line, index) => (
-                                  <tr
-                                    key={`${rowKey}-detail-${index}`}
-                                    className="border-b last:border-0"
-                                  >
-                                    <td className="py-1.5 pl-4 text-sm text-muted-foreground">
-                                      {line.soldByName ||
-                                        line.soldBy ||
-                                        "unknown"}
-                                    </td>
-                                    <td className="py-1.5 text-sm text-muted-foreground capitalize">
-                                      {line.paymentMethod || "unknown"}
-                                    </td>
+                                {detailRows.map((line, index) => {
+                                  const m = String(line.paymentMethod || "unknown").toLowerCase();
+                                  const translated = t(m);
+                                  const methodLabel =
+                                    translated && translated !== m
+                                      ? translated
+                                      : m
+                                          .split("_")
+                                          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                                          .join(" ");
+
+                                  return (
+                                    <tr
+                                      key={`${rowKey}-detail-${index}`}
+                                      className="border-b last:border-0"
+                                    >
+                                      <td className="py-1.5 pl-4 text-sm text-muted-foreground">
+                                        {line.soldByName ||
+                                          line.soldBy ||
+                                          "unknown"}
+                                      </td>
+                                      <td className="py-1.5 text-sm text-muted-foreground capitalize">
+                                        {methodLabel}
+                                      </td>
                                     <td className="py-1.5 text-right">
                                       {Number(line.qty || 0).toLocaleString()}
                                     </td>
@@ -371,8 +490,8 @@ export default function SoldItemsTable({ items, totals, loading }: Props) {
                                     <td className="py-1.5 pr-4 text-right font-medium">
                                       {currency(Number(line.total || 0))}
                                     </td>
-                                  </tr>
-                                ))}
+                                    </tr>
+                                  ); })}
                               </tbody>
                               <tfoot>
                                 <tr className="bg-muted/30 font-semibold">
