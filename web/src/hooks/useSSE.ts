@@ -2,6 +2,7 @@ import { useEffect, useCallback, useRef } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { toast } from 'sonner';
+import { getNotificationUrl } from '@/utils/notificationUtils';
 
 export interface Notification {
   _id: string;
@@ -77,12 +78,16 @@ export function useSSE() {
       try {
         const payload = JSON.parse(event.data);
         if (payload.type === 'notification') {
-          const newNotif = payload.data;
-          addNotification(newNotif);
-          
+          const targetUrl = getNotificationUrl(newNotif, user?.role);
           toast.info(newNotif.title, {
             description: newNotif.message,
-            duration: 5000,
+            duration: 6000,
+            action: targetUrl ? {
+              label: "View",
+              onClick: () => {
+                window.location.href = targetUrl;
+              },
+            } : undefined,
           });
         } else if (payload.type === 'unread_count') {
           setUnreadCount(payload.count);
