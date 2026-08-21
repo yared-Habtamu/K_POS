@@ -32,7 +32,7 @@ export async function updateCustomer(id: string, payload: { name?: string; phone
   return request(`/api/customers/${id}`, token, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
 }
 
-export async function fetchCustomers(params: { martId?: string } = {}, token?: string) {
+export async function fetchCustomers(params: { martId?: string; cashierId?: string } = {}, token?: string) {
   const qs = new URLSearchParams(params as Record<string, string>).toString();
   const suffix = qs ? `?${qs}` : '';
   return request(`/api/customers${suffix}`, token);
@@ -42,4 +42,21 @@ export async function deleteCustomer(id: string, token?: string) {
   return request(`/api/customers/${id}`, token, { method: 'DELETE' });
 }
 
-export default { createCustomer, updateCustomer, fetchCustomers, deleteCustomer };
+export async function payCustomerCredit(id: string, payload: { amountPaid: number; paymentMethod?: string; note?: string }, token?: string) {
+  return request(`/api/customers/${id}/pay-credit`, token, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchCustomerPayments(id: string, token?: string) {
+  return request(`/api/customers/${id}/payments`, token);
+}
+
+export async function fetchStaffList(martId?: string, token?: string) {
+  const suffix = martId ? `?martId=${encodeURIComponent(martId)}` : '';
+  return request(`/api/customers/staff-list${suffix}`, token);
+}
+
+export default { createCustomer, updateCustomer, fetchCustomers, deleteCustomer, payCustomerCredit, fetchCustomerPayments, fetchStaffList };

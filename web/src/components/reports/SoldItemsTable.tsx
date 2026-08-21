@@ -18,12 +18,16 @@ type Item = {
   total: number;
   soldByName?: string;
   soldBy?: string;
+  soldByRole?: string;
+  date?: string;
   paymentMethod?: string;
   priceTiers?: Array<{ price: number; qty: number; subtotal: number }>;
   details?: Array<{
     soldById?: string | null;
     soldByName?: string;
     soldBy?: string;
+    soldByRole?: string;
+    date?: string;
     paymentMethod?: string;
     price: number;
     qty: number;
@@ -51,6 +55,30 @@ const currency = (v: number) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+
+const formatRoleLabel = (role?: string) => {
+  if (!role) return "Cashier";
+  const r = role.toLowerCase();
+  if (r === "systemadmin" || r === "system_admin") return "Admin";
+  if (r === "storekeeper" || r === "store_keeper") return "Store Keeper";
+  return r.charAt(0).toUpperCase() + r.slice(1);
+};
+
+const formatDateTime = (dateStr?: string) => {
+  if (!dateStr) return "—";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return dateStr;
+  }
+};
 
 export default function SoldItemsTable({ items, totals, loading }: Props) {
   const { t } = useTranslation();
@@ -290,6 +318,8 @@ export default function SoldItemsTable({ items, totals, loading }: Props) {
                 <th className="py-2">{t("item")}</th>
                 <th className="py-2">{t("name")}</th>
                 <th className="py-2">{t("sold_by")}</th>
+                <th className="py-2">{t("role", "Role")}</th>
+                <th className="py-2">{t("date_time", "Date / Time")}</th>
                 <th className="py-2">{t("payment_method")}</th>
                 <th className="py-2 text-right">{t("quantity_short")}</th>
                 <th className="py-2 text-right">{t("selling_price")}</th>
@@ -300,8 +330,9 @@ export default function SoldItemsTable({ items, totals, loading }: Props) {
             <tbody>
               {filteredItems.map((it) => {
                 const rowKey = String(it.id);
-                const hasMultiplePrices =
-                  it.priceTiers && it.priceTiers.length > 1;
+                const isExpandable =
+                  (it.priceTiers && it.priceTiers.length > 1) ||
+                  (Array.isArray(it.details) && it.details.length > 1);
                 const isExpanded = Boolean(expandedRows[rowKey]);
                 const detailRows =
                   Array.isArray(it.details) && it.details.length > 0
@@ -309,6 +340,8 @@ export default function SoldItemsTable({ items, totals, loading }: Props) {
                     : [
                         {
                           soldByName: it.soldByName || it.soldBy || "unknown",
+                          soldByRole: it.soldByRole || "cashier",
+                          date: it.date || "",
                           paymentMethod: it.paymentMethod || "unknown",
                           price: it.sellingPrice,
                           qty: it.qty,
@@ -329,7 +362,7 @@ export default function SoldItemsTable({ items, totals, loading }: Props) {
                   <React.Fragment key={rowKey}>
                     <tr className="border-b last:border-0 hover:bg-accent/20">
                       <td className="py-2 w-10 align-top">
-                        {hasMultiplePrices ? (
+                        {isExpandable ? (
                           <button
                             type="button"
                             onClick={() => toggleRow(it.id)}
@@ -361,8 +394,18 @@ export default function SoldItemsTable({ items, totals, loading }: Props) {
                         <div className="text-sm font-medium text-foreground">{it.name}</div>
                       </td>
                       <td className="py-2">
-                        <div className="text-sm text-muted-foreground">
+                        <div className="text-sm font-medium text-foreground">
                           {it.soldByName || it.soldBy || "unknown"}
+                        </div>
+                      </td>
+                      <td className="py-2">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-muted text-muted-foreground border capitalize">
+                          {formatRoleLabel(it.soldByRole)}
+                        </span>
+                      </td>
+                      <td className="py-2">
+                        <div className="text-xs text-muted-foreground whitespace-nowrap">
+                          {formatDateTime(it.date)}
                         </div>
                       </td>
                       <td className="py-2">
@@ -428,15 +471,21 @@ export default function SoldItemsTable({ items, totals, loading }: Props) {
                         {currency(it.total)}
                       </td>
                     </tr>
-                    {hasMultiplePrices && isExpanded && (
+                    {isExpandable && isExpanded && (
                       <tr>
-                        <td colSpan={9} className="bg-muted/20 px-4 py-3">
+                        <td colSpan={11} className="bg-muted/20 px-4 py-3">
                           <div className="overflow-x-auto rounded-lg border border-border/70 bg-background/40">
                             <table className="min-w-full w-full table-auto">
                               <thead>
                                 <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground border-b">
                                   <th className="py-2 pl-4">
                                     {t("sold_by")}
+                                  </th>
+                                  <th className="py-2">
+                                    {t("role", "Role")}
+                                  </th>
+                                  <th className="py-2">
+                                    {t("date_time", "Date / Time")}
                                   </th>
                                   <th className="py-2">
                                     {t("payment_method")}
@@ -470,33 +519,40 @@ export default function SoldItemsTable({ items, totals, loading }: Props) {
                                       key={`${rowKey}-detail-${index}`}
                                       className="border-b last:border-0"
                                     >
-                                      <td className="py-1.5 pl-4 text-sm text-muted-foreground">
+                                      <td className="py-1.5 pl-4 text-sm font-medium text-foreground">
                                         {line.soldByName ||
                                           line.soldBy ||
                                           "unknown"}
                                       </td>
+                                      <td className="py-1.5 text-xs text-muted-foreground capitalize">
+                                        {formatRoleLabel(line.soldByRole || it.soldByRole)}
+                                      </td>
+                                      <td className="py-1.5 text-xs text-muted-foreground whitespace-nowrap">
+                                        {formatDateTime(line.date || it.date)}
+                                      </td>
                                       <td className="py-1.5 text-sm text-muted-foreground capitalize">
                                         {methodLabel}
                                       </td>
-                                    <td className="py-1.5 text-right">
-                                      {Number(line.qty || 0).toLocaleString()}
-                                    </td>
-                                    <td className="py-1.5 text-right">
-                                      {currency(Number(line.price || 0))}
-                                    </td>
-                                    <td className="py-1.5 text-right">
-                                      {currency(Number(line.vat || 0))}
-                                    </td>
-                                    <td className="py-1.5 pr-4 text-right font-medium">
-                                      {currency(Number(line.total || 0))}
-                                    </td>
+                                      <td className="py-1.5 text-right">
+                                        {Number(line.qty || 0).toLocaleString()}
+                                      </td>
+                                      <td className="py-1.5 text-right">
+                                        {currency(Number(line.price || 0))}
+                                      </td>
+                                      <td className="py-1.5 text-right">
+                                        {currency(Number(line.vat || 0))}
+                                      </td>
+                                      <td className="py-1.5 pr-4 text-right font-medium">
+                                        {currency(Number(line.total || 0))}
+                                      </td>
                                     </tr>
-                                  ); })}
+                                  );
+                                })}
                               </tbody>
                               <tfoot>
                                 <tr className="bg-muted/30 font-semibold">
                                   <td
-                                    colSpan={2}
+                                    colSpan={4}
                                     className="py-1.5 pl-4 text-foreground"
                                   >
                                     {t("total")}

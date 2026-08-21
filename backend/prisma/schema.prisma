@@ -136,6 +136,9 @@ model User {
   subscriptionPaymentsRequested SubscriptionPayment[] @relation("SubPayRequester")
   subscriptionPaymentsApproved  SubscriptionPayment[] @relation("SubPayApprover")
 
+  // Credit Payment relation
+  creditPaymentsCollected CreditPayment[] @relation("CreditPaymentCollector")
+
   @@index([martId])
   @@index([role])
   @@index([isDeleted])
@@ -209,6 +212,7 @@ model Mart {
   saleCancellationRequests  SaleCancellationRequest[]
   chatConversations         ChatConversation[]
   subscriptionPayments      SubscriptionPayment[]
+  creditPayments            CreditPayment[]
 
   @@index([ownerId])
   @@index([martName])
@@ -339,12 +343,37 @@ model Customer {
   mart  Mart   @relation(fields: [martId], references: [id])
   creator User @relation("CustomerCreator", fields: [createdBy], references: [id])
   sales Sale[] @relation("CustomerSales")
+  creditPayments CreditPayment[] @relation("CustomerCreditPayments")
 
   @@index([martId])
   @@index([createdBy])
   @@index([name])
   @@index([isDeleted])
   @@map("customers")
+}
+
+model CreditPayment {
+  id              String   @id @default(uuid())
+  martId          String
+  customerId      String
+  collectedBy     String
+  collectedByName String?
+  collectedByRole String?
+  amountPaid      Float
+  paymentMethod   String   @default("cash")
+  note            String?
+  createdAt       DateTime @default(now())
+
+  // Relations
+  mart      Mart     @relation(fields: [martId], references: [id])
+  customer  Customer @relation("CustomerCreditPayments", fields: [customerId], references: [id])
+  collector User     @relation("CreditPaymentCollector", fields: [collectedBy], references: [id])
+
+  @@index([martId])
+  @@index([customerId])
+  @@index([collectedBy])
+  @@index([createdAt])
+  @@map("credit_payments")
 }
 
 model Expense {
