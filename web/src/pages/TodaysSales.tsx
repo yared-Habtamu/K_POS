@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import useTodaysSales from "@/hooks/useTodaysSales";
@@ -8,7 +8,9 @@ import SoldItemsTable from "@/components/reports/SoldItemsTable";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Calendar, Receipt } from "lucide-react";
+import EthiopianDatePicker from "@/components/ui/ethiopian-date-picker";
+import { formatEthiopianDateValue, isAmharicLanguage } from "@/utils/ethiopian-calendar";
+import { ChevronLeft, ChevronRight, Receipt } from "lucide-react";
 
 const getTodayKey = () => {
   const d = new Date();
@@ -32,12 +34,14 @@ const addDays = (dateStr: string, days: number): string => {
 const formatDisplayDate = (dateStr: string) => {
   const todayKey = getTodayKey();
   if (!dateStr) return "";
-  if (dateStr === todayKey) {
-    const [year, month, day] = dateStr.split("-");
-    return `Today (${day}/${month}/${year})`;
+  if (isAmharicLanguage()) {
+    const eth = formatEthiopianDateValue(`${dateStr}T00:00:00`);
+    return dateStr === todayKey ? `ዛሬ (${eth})` : eth;
   }
   const [year, month, day] = dateStr.split("-");
-  return `${day}/${month}/${year}`;
+  return dateStr === todayKey
+    ? `Today (${day}/${month}/${year})`
+    : `${day}/${month}/${year}`;
 };
 
 const TodaysSales: React.FC = () => {
@@ -47,7 +51,6 @@ const TodaysSales: React.FC = () => {
 
   const todayKey = getTodayKey();
   const [selectedDate, setSelectedDate] = useState<string>(todayKey);
-  const dateInputRef = useRef<HTMLInputElement>(null);
 
   const { items, totals, loading } = useTodaysSales(selectedDate);
 
@@ -97,29 +100,17 @@ const TodaysSales: React.FC = () => {
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
 
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => dateInputRef.current?.showPicker()}
-                    className="flex items-center gap-2 px-4 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-primary shadow-xs hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
-                  >
-                    <span>{formatDisplayDate(selectedDate)}</span>
-                    <Calendar className="h-4 w-4 text-primary" />
-                  </button>
-                  <input
-                    ref={dateInputRef}
-                    type="date"
-                    value={selectedDate}
-                    max={todayKey}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val && val <= todayKey) {
-                        setSelectedDate(val);
-                      }
-                    }}
-                    className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
-                  />
-                </div>
+                <EthiopianDatePicker
+                  value={selectedDate}
+                  onChange={(ymd) => {
+                    if (ymd && ymd <= todayKey) {
+                      setSelectedDate(ymd);
+                    }
+                  }}
+                  disableFuture
+                  placeholder="Select date"
+                  className="w-[190px]"
+                />
 
                 <Button
                   variant="outline"

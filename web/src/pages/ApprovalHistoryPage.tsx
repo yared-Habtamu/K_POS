@@ -1,9 +1,12 @@
+import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import EthiopianDatePicker from "@/components/ui/ethiopian-date-picker";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/stores/authStore";
@@ -20,6 +23,7 @@ import {
   Loader2,
   RotateCw,
   User,
+  ArrowLeft,
   Calendar,
   ArrowRight,
   Tag,
@@ -74,7 +78,7 @@ function formatDate(value?: Date | string | null) {
   if (!value) return "-";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "-";
-  return parsed.toLocaleString();
+  return formatLocalizedDate(parsed, { withTime: true });
 }
 
 function formatCurrency(value?: number | string | null) {
@@ -450,6 +454,7 @@ function HistoryTableRow({
 
 export default function ApprovalHistoryPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const token = user?.token;
   const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
@@ -613,12 +618,31 @@ export default function ApprovalHistoryPage() {
     <RoleLayout allowedRoles={["owner", "manager", "store_keeper"]}>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">{t("approval_history")}</h1>
-            <p className="text-muted-foreground">
-              Full audit trail of stock transfers and product requests. Click any row to see complete details.
-            </p>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0">
+            <Button
+              variant="outline"
+              size="icon"
+              className="mt-1 shrink-0"
+              onClick={() =>
+                navigate(
+                  user?.role === "manager"
+                    ? "/manager/approvals"
+                    : user?.role === "store_keeper"
+                      ? "/store-keeper/approvals"
+                      : "/owner/approvals",
+                )
+              }
+              aria-label={t("back")}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold">{t("approval_history")}</h1>
+              <p className="text-muted-foreground">
+                Full audit trail of stock transfers and product requests. Click any row to see complete details.
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {loading && (
@@ -669,19 +693,19 @@ export default function ApprovalHistoryPage() {
 
             <div className="space-y-2">
               <Label>{t("from")}</Label>
-              <Input
-                type="date"
+              <EthiopianDatePicker
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(ymd) => setStartDate(ymd)}
+                placeholder={t("from")}
               />
             </div>
 
             <div className="space-y-2">
               <Label>{t("to")}</Label>
-              <Input
-                type="date"
+              <EthiopianDatePicker
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(ymd) => setEndDate(ymd)}
+                placeholder={t("to")}
               />
             </div>
           </CardContent>

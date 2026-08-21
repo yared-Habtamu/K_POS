@@ -1,3 +1,4 @@
+import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
 import { ReactNode, useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -104,7 +105,7 @@ export function RoleLayout({ children, allowedRoles }: RoleLayoutProps) {
                 {sub.endDate && (
                   <Badge variant="destructive" className="gap-1.5 px-3 py-1">
                     <Clock className="w-3 h-3" />
-                    {t("expired_label")}: {new Date(sub.endDate).toLocaleDateString()}
+                    {t("expired_label")}: {formatLocalizedDate(sub.endDate)}
                   </Badge>
                 )}
               </div>

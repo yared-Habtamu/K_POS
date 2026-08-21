@@ -111,6 +111,7 @@ const resources = {
       view_all: "View all",
       age: "Age",
       aging_summary: "Products not sold within the selected period, with stock remaining.",
+      swipe_to_see_more: "← Swipe to see more columns →",
       add_stock: "Add Stock",
 
       // Employees
@@ -357,8 +358,8 @@ const resources = {
       warehouse: "Warehouse",
       supermarket: "Supermarket",
       transfer_stock: "Transfer Stock",
-      quantity_to_transfer: "Quantity to Transfer (Store -> Supermarket)",
-      quantity_to_transfer_back: "Quantity to Transfer (Supermarket -> Store)",
+      quantity_to_transfer: "Quantity to Transfer (Store -> Mart)",
+      quantity_to_transfer_back: "Quantity to Transfer (Mart -> Store)",
       valid_name_min2: "Please enter a valid name (min 2 characters)",
       valid_phone_required: "Please enter a valid phone number",
       fix_validation_errors: "Please fix validation errors",
@@ -1184,6 +1185,7 @@ const resources = {
       view_all: "ሁሉንም ይመልከቱ",
       age: "ዕድሜ",
       aging_summary: "በተመረጠው ጊዜ ውስጥ ያልተሸጡ እና ክምችት ያላቸው ምርቶች።",
+      swipe_to_see_more: "ተጨማሪ አምዶችን ለማየት ወደ ጎን ያንሸራትቱ →",
       add_stock: "ክምችት ጨምር",
 
       // Employees
@@ -1399,8 +1401,8 @@ const resources = {
       dark_mode_active: "ጨለማ ሁኔታ ተጠቃሚ ላይ ነው",
       warehouse_stock: "የመጋዘን ክምችት",
       supermarket_stock: "የሱፐርማርኬት ክምችት",
-      quantity_to_transfer: "የሚተላለፍ ብዛት (መጋዘን -> ሱፐርማርኬት)",
-      quantity_to_transfer_back: "የሚተላለፍ ብዛት (ሱፐርማርኬት -> መጋዘን)",
+      quantity_to_transfer: "የሚተላለፍ ብዛት (መጋዘን -> ማርት)",
+      quantity_to_transfer_back: "የሚተላለፍ ብዛት (ማርት -> መጋዘን)",
       enter_quantity: "ብዛት ያስገቡ",
       max_available: "ከፍተኛ የሚገኝ",
       units: "ክፍሎች",
@@ -2178,8 +2180,22 @@ i18n.use(initReactI18next).init({
 
 i18n.on("languageChanged", (language) => {
   if (typeof window === "undefined") return;
-  const normalized = language.startsWith("en") ? "am" : "en";
+  // Persist exactly the language the user selected (am → "am", en → "en")
+  const normalized = language.startsWith("am") ? "am" : "en";
   window.localStorage.setItem(LANGUAGE_STORAGE_KEY, normalized);
 });
+
+// Keep language in sync across open tabs (change it in one tab, all follow)
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (event) => {
+    if (
+      event.key === LANGUAGE_STORAGE_KEY &&
+      (event.newValue === "am" || event.newValue === "en") &&
+      !i18n.language.startsWith(event.newValue)
+    ) {
+      void i18n.changeLanguage(event.newValue);
+    }
+  });
+}
 
 export default i18n;

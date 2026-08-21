@@ -1,3 +1,4 @@
+import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
 // src/pages/manager/MEmployeeManagement.tsx
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -5,6 +6,7 @@ import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import EthiopianDatePicker from "@/components/ui/ethiopian-date-picker";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -1033,17 +1035,17 @@ export default function MEmployeeManagement(): JSX.Element {
     ];
     const rows = filteredAttendance.map((rec) => {
       const emp = employees.find((e) => e.id === rec.employeeId);
-      const inTime = new Date(rec.clockIn).toLocaleString();
+      const inTime = formatLocalizedDate(rec.clockIn, { withTime: true });
       const lunchOutTime = rec.lunchOut
-        ? new Date(rec.lunchOut).toLocaleString()
+        ? formatLocalizedDate(rec.lunchOut, { withTime: true })
         : "—";
       const lunchBackTime = rec.lunchBack
-        ? new Date(rec.lunchBack).toLocaleString()
+        ? formatLocalizedDate(rec.lunchBack, { withTime: true })
         : "—";
       const outTime = rec.clockOut
-        ? new Date(rec.clockOut).toLocaleString()
+        ? formatLocalizedDate(rec.clockOut, { withTime: true })
         : "—";
-      return `"${emp?.name || "Unknown"}", "${rec.date}", "${inTime}", "${lunchOutTime}", "${lunchBackTime}", "${outTime}", "${rec.durationMinutes ?? "—"}"`;
+      return `"${emp?.name || "Unknown"}", "${formatLocalizedDate(rec.date)}", "${inTime}", "${lunchOutTime}", "${lunchBackTime}", "${outTime}", "${rec.durationMinutes ?? "—"}"`;
     });
 
     const csvContent = [headers.join(","), ...rows].join("\n");
@@ -1574,7 +1576,7 @@ export default function MEmployeeManagement(): JSX.Element {
                                       className="flex justify-between"
                                     >
                                       <div>
-                                        {new Date(rec.clockIn).toLocaleString()}
+                                        {formatLocalizedDate(rec.clockIn, { withTime: true })}
                                       </div>
                                       <div>
                                         {rec.clockOut
@@ -1887,18 +1889,15 @@ export default function MEmployeeManagement(): JSX.Element {
                     </div>
                     <div>
                       <Label>Date</Label>
-                      <Input
-                        type="date"
-                        max={new Date().toISOString().split("T")[0]}
+                      <EthiopianDatePicker
                         value={manualEntryForm.date}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          const today = new Date().toISOString().split("T")[0];
+                        onChange={(ymd) => {
                           setManualEntryForm((prev) => ({
                             ...prev,
-                            date: val > today ? today : val,
+                            date: ymd,
                           }));
                         }}
+                        disableFuture
                       />
                     </div>
                     <div>
@@ -1981,9 +1980,11 @@ export default function MEmployeeManagement(): JSX.Element {
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                     <div className="text-sm font-medium">
-                      {attendanceFilter.dateRange === "custom"
-                        ? attendanceFilter.startDate
-                        : new Date().toISOString().split("T")[0]}
+                      {formatLocalizedDate(
+                        attendanceFilter.dateRange === "custom"
+                          ? attendanceFilter.startDate
+                          : new Date().toISOString().split("T")[0],
+                      )}
                     </div>
                     <Button
                       variant="ghost"
@@ -2029,7 +2030,7 @@ export default function MEmployeeManagement(): JSX.Element {
                                 <span>{emp?.name || "Unknown"}</span>
                               </div>
                             </TableCell>
-                            <TableCell>{rec.date}</TableCell>
+                            <TableCell>{formatLocalizedDate(rec.date)}</TableCell>
                             <TableCell>
                               {new Date(rec.clockIn).toLocaleTimeString([], {
                                 hour: "2-digit",
@@ -2145,7 +2146,7 @@ export default function MEmployeeManagement(): JSX.Element {
                                               {emp?.name ||
                                                 rec.employeeName ||
                                                 "this employee"}{" "}
-                                              on {rec.date}? This action cannot be
+                                              on {formatLocalizedDate(rec.date)}? This action cannot be
                                               undone.
                                             </AlertDialogDescription>
                                           </AlertDialogHeader>
@@ -2187,7 +2188,7 @@ export default function MEmployeeManagement(): JSX.Element {
           open={attendanceDialogOpen}
           onOpenChange={setAttendanceDialogOpen}
         >
-          <DialogContent>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Set Attendance</DialogTitle>
               <p className="text-sm text-muted-foreground">
@@ -2353,7 +2354,7 @@ export default function MEmployeeManagement(): JSX.Element {
 
         {/* Monthly Attendance Dialog */}
         <Dialog open={monthlyDialogOpen} onOpenChange={setMonthlyDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
+          <DialogContent className="max-h-[85vh] overflow-y-auto max-w-2xl max-h-[80vh] overflow-auto">
             <DialogHeader>
               <DialogTitle>Monthly Attendance</DialogTitle>
               <p className="text-sm text-muted-foreground">
@@ -2488,7 +2489,7 @@ export default function MEmployeeManagement(): JSX.Element {
 
         {/* Daily Attendance Detail Dialog */}
         <Dialog open={dailyDialogOpen} onOpenChange={setDailyDialogOpen}>
-          <DialogContent>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 Attendance on {selectedDate?.toDateString()}
@@ -2560,7 +2561,7 @@ export default function MEmployeeManagement(): JSX.Element {
         </Dialog>
 
         <Dialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen}>
-          <DialogContent>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 Change Password for {passwordTarget?.name}

@@ -1820,7 +1820,7 @@ export default function OwnerSettings() {
           open={Boolean(editingPaymentType)}
           onOpenChange={(open) => !open && setEditingPaymentType(null)}
         >
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
             <DialogHeader>
               <DialogTitle>
                 {t("edit_payment_method", { defaultValue: "Edit Payment Method" })}

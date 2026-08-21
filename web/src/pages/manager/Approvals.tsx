@@ -1,10 +1,12 @@
+import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import EthiopianDatePicker from "@/components/ui/ethiopian-date-picker";
 import { Label } from "@/components/ui/label";
 import {
   Table,
@@ -42,6 +44,9 @@ type ApprovalDecision = {
 };
 
 export default function Approvals() {
+  // Subscribe to language changes so date formatting (Ethiopian vs Gregorian)
+  // re-renders immediately when the user switches language.
+  useTranslation();
   const navigate = useNavigate();
   const token = useAuthStore.getState().user?.token;
   const [addRequests, setAddRequests] = useState<ProductAddRequest[]>([]);
@@ -71,7 +76,7 @@ export default function Approvals() {
     if (!value) return "-";
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) return "-";
-    return parsed.toLocaleDateString();
+    return formatLocalizedDate(parsed);
   };
 
   const fetchAll = async () => {
@@ -251,18 +256,18 @@ export default function Approvals() {
             </div>
             <div className="space-y-2">
               <Label>From</Label>
-              <Input
-                type="date"
+              <EthiopianDatePicker
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(ymd) => setStartDate(ymd)}
+                placeholder="From"
               />
             </div>
             <div className="space-y-2">
               <Label>To</Label>
-              <Input
-                type="date"
+              <EthiopianDatePicker
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(ymd) => setEndDate(ymd)}
+                placeholder="To"
               />
             </div>
             <div className="space-y-2">

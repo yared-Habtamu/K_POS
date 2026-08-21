@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import EthiopianDatePicker from "@/components/ui/ethiopian-date-picker";
 import {
   Select,
   SelectContent,
@@ -302,10 +303,9 @@ export function AdvancedFilters({
                   ) : null}
 
                   {field.type === "date" ? (
-                    <Input
-                      type="date"
+                    <EthiopianDatePicker
                       value={typeof value === "string" ? value : ""}
-                      onChange={(event) => setFieldValue(field.key, event.target.value)}
+                      onChange={(ymd) => setFieldValue(field.key, ymd)}
                     />
                   ) : null}
 
@@ -313,12 +313,11 @@ export function AdvancedFilters({
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
                         <p className="text-xs text-muted-foreground">{field.fromLabel ?? t("from")}</p>
-                        <Input
-                          type="date"
+                        <EthiopianDatePicker
                           value={isDateRangeValue(value) ? value.from ?? "" : ""}
-                          onChange={(event) =>
+                          onChange={(ymd) =>
                             setFieldValue(field.key, {
-                              from: event.target.value,
+                              from: ymd,
                               to: isDateRangeValue(value) ? value.to ?? "" : "",
                             })
                           }
@@ -326,13 +325,12 @@ export function AdvancedFilters({
                       </div>
                       <div className="space-y-2">
                         <p className="text-xs text-muted-foreground">{field.toLabel ?? t("to")}</p>
-                        <Input
-                          type="date"
+                        <EthiopianDatePicker
                           value={isDateRangeValue(value) ? value.to ?? "" : ""}
-                          onChange={(event) =>
+                          onChange={(ymd) =>
                             setFieldValue(field.key, {
                               from: isDateRangeValue(value) ? value.from ?? "" : "",
-                              to: event.target.value,
+                              to: ymd,
                             })
                           }
                         />

@@ -1,3 +1,4 @@
+import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RoleLayout } from "@/components/layout/RoleLayout";
@@ -53,6 +54,7 @@ export default function OwnerOpenCashPage() {
   const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
   const [requests, setRequests] = useState<OpenCashRequestDTO[]>([]);
+  const [allRequests, setAllRequests] = useState<OpenCashRequestDTO[]>([]);
   const [managers, setManagers] = useState<ManagerOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -123,6 +125,21 @@ export default function OwnerOpenCashPage() {
     }
   };
 
+  // Full (unfiltered) request list — used to compute per-manager aggregates
+  const fetchAllRequests = async () => {
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/open-cash-requests/transactions`,
+        { headers: { Authorization: token ? `Bearer ${token}` : "" } },
+      );
+      if (!res.ok) return;
+      const json = await res.json();
+      setAllRequests(Array.isArray(json.data) ? json.data : []);
+    } catch {
+      // ignore — summary just stays empty
+    }
+  };
+
   useEffect(() => {
     fetchRequests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -130,8 +147,27 @@ export default function OwnerOpenCashPage() {
 
   useEffect(() => {
     fetchManagers();
+    fetchAllRequests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Per-manager open cash summary:
+  //   Allocated = Σ approved allocations, Returned = Σ approved returns,
+  //   Left = current balance, Spent = Allocated − Returned − Left
+  const managerSummaries = managers.map((m) => {
+    const approved = allRequests.filter(
+      (r) => String(r.managerId) === m.id && r.status === "approved",
+    );
+    const allocated = approved
+      .filter((r) => r.direction === "allocation")
+      .reduce((s, r) => s + Number(r.amount || 0), 0);
+    const returned = approved
+      .filter((r) => r.direction === "return")
+      .reduce((s, r) => s + Number(r.amount || 0), 0);
+    const left = Number(m.openCashBalance || 0);
+    const spent = Math.max(allocated - returned - left, 0);
+    return { ...m, allocated, returned, spent, left };
+  });
 
   const selectedManager = managers.find((m) => m.id === managerId);
 
@@ -187,7 +223,7 @@ export default function OwnerOpenCashPage() {
       setAmount("");
       setReceiptFile(null);
       setReceiptPreview(null);
-      await fetchRequests();
+      await Promise.all([fetchRequests(), fetchAllRequests()]);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       toast.error(
@@ -233,7 +269,7 @@ export default function OwnerOpenCashPage() {
               defaultValue: "Request rejected",
             }),
       );
-      await fetchRequests();
+      await Promise.all([fetchRequests(), fetchAllRequests()]);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       toast.error(
@@ -292,6 +328,67 @@ export default function OwnerOpenCashPage() {
             </Button>
           </div>
         </div>
+
+        {/* Per-manager open cash summary: allocated / spent / left */}
+        {managerSummaries.length > 0 && (
+          <Card className="border-border/60">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Banknote className="h-4 w-4 text-primary" />
+                {t("manager_open_cash_summary", {
+                  defaultValue: "Manager Open Cash Summary",
+                })}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-muted-foreground text-left border-b border-border/60">
+                      <th className="py-2 pr-3 font-medium">
+                        {t("manager", { defaultValue: "Manager" })}
+                      </th>
+                      <th className="py-2 px-3 font-medium text-right">
+                        {t("allocated", { defaultValue: "Allocated" })}
+                      </th>
+                      <th className="py-2 px-3 font-medium text-right">
+                        {t("spent", { defaultValue: "Spent" })}
+                      </th>
+                      <th className="py-2 px-3 font-medium text-right">
+                        {t("returned", { defaultValue: "Returned" })}
+                      </th>
+                      <th className="py-2 pl-3 font-medium text-right">
+                        {t("left", { defaultValue: "Left" })}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {managerSummaries.map((m) => (
+                      <tr
+                        key={m.id}
+                        className="border-b border-border/40 last:border-0"
+                      >
+                        <td className="py-2 pr-3 font-medium">{m.name}</td>
+                        <td className="py-2 px-3 text-right tabular-nums">
+                          {m.allocated.toLocaleString()} ETB
+                        </td>
+                        <td className="py-2 px-3 text-right tabular-nums text-destructive">
+                          {m.spent.toLocaleString()} ETB
+                        </td>
+                        <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">
+                          {m.returned.toLocaleString()} ETB
+                        </td>
+                        <td className="py-2 pl-3 text-right font-semibold tabular-nums text-emerald-600">
+                          {m.left.toLocaleString()} ETB
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-2">
           <Card className="border-border/60 bg-gradient-to-br from-background via-background to-muted/40">
@@ -478,7 +575,7 @@ export default function OwnerOpenCashPage() {
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
                           {r.requesterName || r.requesterId} ·{" "}
-                          {new Date(r.createdAt).toLocaleString()}
+                          {formatLocalizedDate(r.createdAt, { withTime: true })}
                         </p>
                         {r.receiptUrl ? (
                           <a
@@ -566,7 +663,7 @@ export default function OwnerOpenCashPage() {
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
                         {r.managerName || r.managerId || ""} ·{" "}
-                        {new Date(r.createdAt).toLocaleString()}
+                        {formatLocalizedDate(r.createdAt, { withTime: true })}
                       </p>
                       {r.receiptUrl ? (
                         <a

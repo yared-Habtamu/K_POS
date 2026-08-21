@@ -5,6 +5,7 @@ import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import EthiopianDatePicker from "@/components/ui/ethiopian-date-picker";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/stores/authStore";
@@ -150,17 +151,15 @@ export default function DailyReport() {
               >
                 &lt;
               </Button>
-              <Input
-                type="date"
+              <EthiopianDatePicker
                 value={reportDate}
-                max={todayKey}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  if (next && next <= todayKey) {
-                    setReportDate(next);
+                onChange={(ymd) => {
+                  if (ymd && ymd <= todayKey) {
+                    setReportDate(ymd);
                   }
                 }}
-                className="h-8 w-[160px]"
+                disableFuture
+                className="w-[180px]"
               />
               <Button
                 type="button"

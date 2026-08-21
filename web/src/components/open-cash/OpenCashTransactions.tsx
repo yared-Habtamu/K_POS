@@ -1,3 +1,4 @@
+import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +32,7 @@ export function OpenCashTransactions({ requests }: OpenCashTransactionsProps) {
     if (!value) return "-";
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) return "-";
-    return parsed.toLocaleString();
+    return formatLocalizedDate(parsed, { withTime: true });
   };
 
   return (

@@ -1,3 +1,4 @@
+import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RoleLayout } from "@/components/layout/RoleLayout";
@@ -422,7 +423,7 @@ export default function ManagerOpenCashPage() {
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
                           {r.requesterName || r.requesterId} ·{" "}
-                          {new Date(r.createdAt).toLocaleString()}
+                          {formatLocalizedDate(r.createdAt, { withTime: true })}
                         </p>
                         {r.receiptUrl ? (
                           <a
@@ -509,7 +510,7 @@ export default function ManagerOpenCashPage() {
                         {Number(r.amount || 0).toLocaleString()} ETB
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
-                        {new Date(r.createdAt).toLocaleString()}
+                        {formatLocalizedDate(r.createdAt, { withTime: true })}
                       </p>
                       {r.receiptUrl ? (
                         <a

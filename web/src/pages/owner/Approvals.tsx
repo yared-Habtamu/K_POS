@@ -1,5 +1,7 @@
+import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +30,9 @@ import {
 } from "@/components/ui/table";
 
 export default function OwnerApprovals() {
+  // Subscribe to language changes so date formatting (Ethiopian vs Gregorian)
+  // re-renders immediately when the user switches language.
+  useTranslation();
   const navigate = useNavigate();
   const token = useAuthStore.getState().user?.token;
   const [assetRequests, setAssetRequests] = useState<AssetActionRequest[]>([]);
@@ -174,7 +179,7 @@ export default function OwnerApprovals() {
   const formatDate = (value?: Date | string | null) => {
     if (!value) return "-";
     const d = new Date(value);
-    return Number.isNaN(d.getTime()) ? "-" : d.toLocaleString();
+    return Number.isNaN(d.getTime()) ? "-" : formatLocalizedDate(d, { withTime: true });
   };
 
   return (

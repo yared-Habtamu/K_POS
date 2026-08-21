@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { RoleLayout } from "@/components/layout/RoleLayout";
@@ -36,6 +36,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -60,9 +61,9 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Calendar,
 } from "lucide-react";
-import { format } from "date-fns";
+import EthiopianDatePicker from "@/components/ui/ethiopian-date-picker";
+import { formatLocalizedDate, ethiopianMonthLabel } from "@/utils/ethiopian-calendar";
 import { toast } from "sonner";
 import type { Expense, ExpenseCategory } from "@/types";
 import { useProductStore } from "@/stores/productStore";
@@ -238,13 +239,6 @@ export default function ExpenseManagement() {
   );
   const [exactDate, setExactDate] = useState("");
   const [paymentTypeFilter, setPaymentTypeFilter] = useState("all");
-  const dateInputRef = useRef<HTMLInputElement>(null);
-
-  const formatDisplayDate = (dateStr: string) => {
-    if (!dateStr) return "";
-    const [year, month, day] = dateStr.split("-");
-    return `${day}/${month}/${year}`;
-  };
 
   const getTodayStr = () => {
     const d = new Date();
@@ -343,13 +337,11 @@ export default function ExpenseManagement() {
     );
   });
 
-  // total expenses for the selected month (or current if not set)
-  const totalExpensesThisMonth = expenses
-    .filter((e) => {
-      if (!monthFilter) return true;
-      return new Date(e.date).toISOString().slice(0, 7) === monthFilter;
-    })
-    .reduce((sum, e) => sum + e.amount, 0);
+  // Total reflects ALL active filters (search, category, creator, date, payment)
+  const totalExpensesThisMonth = filteredExpenses.reduce(
+    (sum, e) => sum + e.amount,
+    0,
+  );
 
   const {
     categories: productCategories,
@@ -1138,12 +1130,10 @@ export default function ExpenseManagement() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="date">{t("date")} *</Label>
-                  <Input
+                  <EthiopianDatePicker
                     id="date"
-                    type="date"
                     value={form.date}
-                    onChange={(e) => setForm({ ...form, date: e.target.value })}
-                    required
+                    onChange={(ymd) => setForm({ ...form, date: ymd })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -1287,7 +1277,7 @@ export default function ExpenseManagement() {
                       <div>
                         <p className="text-sm text-muted-foreground">
                           {monthFilter
-                            ? `${format(new Date(monthFilter + "-01"), "MMMM yyyy")} ${t("expenses")}`
+                            ? `${ethiopianMonthLabel(monthFilter)} ${t("expenses")}`
                             : t("expenses")}
                         </p>
                         <p className="text-2xl font-bold">
@@ -1325,7 +1315,7 @@ export default function ExpenseManagement() {
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="order-2 lg:col-span-3"
+            className="order-2 lg:col-span-3 min-w-0"
           >
             <Card className="max-w-xl h-full">
               <CardHeader>
@@ -1366,7 +1356,7 @@ export default function ExpenseManagement() {
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="order-1 lg:col-span-3"
+            className="order-1 lg:col-span-3 min-w-0"
           >
             <Card>
               <CardHeader>
@@ -1441,7 +1431,7 @@ export default function ExpenseManagement() {
                           <SelectValue
                             placeholder={
                               monthFilter
-                                ? format(new Date(monthFilter + "-01"), "MMM yyyy")
+                                ? ethiopianMonthLabel(monthFilter)
                                 : t("all_months")
                             }
                           />
@@ -1450,7 +1440,7 @@ export default function ExpenseManagement() {
                           <SelectItem value="all">{t("all_months")}</SelectItem>
                           {monthOptions.map((m) => (
                             <SelectItem key={m} value={m}>
-                              {format(new Date(m + "-01"), "MMM yyyy")}
+                              {ethiopianMonthLabel(m)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -1482,7 +1472,7 @@ export default function ExpenseManagement() {
               </CardHeader>
 
               {/* Date Navigation Bar */}
-              <div className="flex items-center justify-between border-t border-b py-3 px-6 bg-slate-50/50 dark:bg-slate-900/10">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-b py-3 px-6 bg-slate-50/50 dark:bg-slate-900/10">
                 <Button
                   variant="outline"
                   size="icon"
@@ -1494,28 +1484,15 @@ export default function ExpenseManagement() {
                 </Button>
 
                 <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => dateInputRef.current?.showPicker()}
-                      className="flex items-center gap-2.5 px-5 py-1.5 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100/80 dark:border-blue-900/50 rounded-xl text-sm font-semibold text-blue-600 dark:text-blue-400 shadow-sm hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
-                    >
-                      <span>
-                        {exactDate ? formatDisplayDate(exactDate) : "All Days (Select Date)"}
-                      </span>
-                      <Calendar className="h-4 w-4 text-blue-500 dark:text-blue-400" />
-                    </button>
-                    <input
-                      ref={dateInputRef}
-                      type="date"
-                      value={exactDate}
-                      onChange={(e) => {
-                        setExactDate(e.target.value);
-                        setCurrentPage(1);
-                      }}
-                      className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
-                    />
-                  </div>
+                  <EthiopianDatePicker
+                    value={exactDate}
+                    onChange={(ymd) => {
+                      setExactDate(ymd || "");
+                      setCurrentPage(1);
+                    }}
+                    placeholder="All Days (Select Date)"
+                    className="w-[230px]"
+                  />
                   {exactDate && (
                     <Button
                       variant="ghost"
@@ -1617,7 +1594,7 @@ export default function ExpenseManagement() {
                                 {expense.amount.toLocaleString()} ETB
                               </TableCell>
                               <TableCell>
-                                {format(new Date(expense.date), "MMM dd, yyyy")}
+                                {formatLocalizedDate(expense.date)}
                               </TableCell>
                               <TableCell className="text-right">
                                 <Button
@@ -1654,6 +1631,24 @@ export default function ExpenseManagement() {
                         </TableRow>
                       )}
                     </TableBody>
+                    {filteredExpenses.length > 0 && (
+                      <TableFooter>
+                        <TableRow className="bg-muted/40 hover:bg-muted/40">
+                          <TableCell
+                            colSpan={6}
+                            className="font-semibold text-foreground"
+                          >
+                            {t("total", { defaultValue: "Total" })}(
+                            {filteredExpenses.length}{" "}
+                            {t("items", { defaultValue: "items" })})
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-foreground">
+                            {totalExpensesThisMonth.toLocaleString()} ETB
+                          </TableCell>
+                          <TableCell colSpan={2} />
+                        </TableRow>
+                      </TableFooter>
+                    )}
                   </Table>
                 </div>
 

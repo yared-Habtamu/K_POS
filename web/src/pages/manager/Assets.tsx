@@ -1,3 +1,4 @@
+import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
 // src/pages/manager/Assets.tsx
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -5,6 +6,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import EthiopianDatePicker from "@/components/ui/ethiopian-date-picker";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/Modal";
 import {
@@ -836,10 +838,9 @@ export default function ManagerAssets() {
                 <label className="text-sm font-medium">
                   {t("purchase_date")}
                 </label>
-                <Input
-                  type="date"
+                <EthiopianDatePicker
                   value={purchaseDate}
-                  onChange={(e) => setPurchaseDate(e.target.value)}
+                  onChange={(ymd) => setPurchaseDate(ymd)}
                 />
               </div>
 
@@ -951,7 +952,7 @@ export default function ManagerAssets() {
                   <p className="text-muted-foreground">{t("purchase_date")}</p>
                   <p className="font-bold">
                     {viewingAsset.purchaseDate
-                      ? new Date(viewingAsset.purchaseDate).toLocaleDateString()
+                      ? formatLocalizedDate(viewingAsset.purchaseDate)
                       : "-"}
                   </p>
                 </div>

@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -16,9 +17,10 @@ import {
   type AdvancedFilterValues,
 } from "@/components/ui/AdvancedFilters";
 import { useProductStore } from "@/stores/productStore";
+import { useAuthStore } from "@/stores/authStore";
 import { useLastSaleDates } from "@/hooks/useLastSaleDates";
 import { productAgeDays } from "@/utils/agingStock";
-import { Clock, Package } from "lucide-react";
+import { Clock, Package, ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 // Aging stock thresholds: "X or more days since last sale / created".
@@ -33,6 +35,8 @@ const defaultFilterValues: AdvancedFilterValues = {
 
 export default function AgingStockPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
   const { getAgingProducts, fetchProducts } = useProductStore();
   const [searchParams] = useSearchParams();
 
@@ -117,14 +121,27 @@ export default function AgingStockPage() {
     <RoleLayout allowedRoles={["owner", "manager"]}>
       <div className="space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Clock className="h-6 w-6 text-warning" />
-              {t("aging_stock")}
-            </h1>
-            <p className="text-muted-foreground">
-              {t("aging_summary")} ({aging.length})
-            </p>
+          <div className="flex items-start gap-3">
+            <Button
+              variant="outline"
+              size="icon"
+              className="mt-1 shrink-0"
+              onClick={() =>
+                navigate(user?.role === "manager" ? "/alerts" : "/owner/alerts")
+              }
+              aria-label={t("back")}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                <Clock className="h-6 w-6 text-warning" />
+                {t("aging_stock")}
+              </h1>
+              <p className="text-muted-foreground">
+                {t("aging_summary")} ({aging.length})
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">

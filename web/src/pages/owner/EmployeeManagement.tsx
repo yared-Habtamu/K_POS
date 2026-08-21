@@ -1,3 +1,4 @@
+import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
 // src/pages/owner/EmployeeManagement.tsx
 import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -5,6 +6,7 @@ import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import EthiopianDatePicker from "@/components/ui/ethiopian-date-picker";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -422,6 +424,9 @@ export default function OwnerEmployeeManagement(): JSX.Element {
           martId,
           phone: form.phone,
           salary: Number(form.salary),
+          // Store keepers need "transferStock" so Add Stock works immediately
+          permissions:
+            apiRole === "storeKeeper" ? ["transferStock"] : [],
         };
         const res = await fetch(`${API_BASE}/api/auth/register`, {
           method: "POST",
@@ -455,7 +460,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
             newEmployee.role === "store_keeper" ||
             newEmployee.role === "storeKeeper"
           )
-            newPerms[newEmployee.id] = { transferStock: false };
+            newPerms[newEmployee.id] = { transferStock: true };
           else newPerms[newEmployee.id] = { discount: false };
           return newPerms;
         });
@@ -1105,7 +1110,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
       const outTime = rec.clockOut
         ? new Date(rec.clockOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
         : "—";
-      return `"${emp?.name || "Unknown"}", "${rec.date}", "${inTime}", "${lOutTime}", "${lBackTime}", "${outTime}", "${rec.durationMinutes ?? "—"}"`;
+      return `"${emp?.name || "Unknown"}", "${formatLocalizedDate(rec.date)}", "${inTime}", "${lOutTime}", "${lBackTime}", "${outTime}", "${rec.durationMinutes ?? "—"}"`;
     });
 
     const csvContent = [headers.join(","), ...rows].join("\n");
@@ -1200,7 +1205,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
         const lBackStr = rec.lunchBack ? new Date(rec.lunchBack).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
         row.innerHTML = `
           <td style="border: 1px solid #e5e7eb; padding: 8px;">${escapeHtml(emp?.name || "Unknown")}</td>
-          <td style="border: 1px solid #e5e7eb; padding: 8px;">${escapeHtml(rec.date)}</td>
+          <td style="border: 1px solid #e5e7eb; padding: 8px;">${escapeHtml(formatLocalizedDate(rec.date))}</td>
           <td style="border: 1px solid #e5e7eb; padding: 8px;">${escapeHtml(new Date(rec.clockIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</td>
           <td style="border: 1px solid #e5e7eb; padding: 8px;">${escapeHtml(lOutStr)}</td>
           <td style="border: 1px solid #e5e7eb; padding: 8px;">${escapeHtml(lBackStr)}</td>
@@ -1292,7 +1297,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                     {t("add_employee")}
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
+                <DialogContent className="max-h-[85vh] overflow-y-auto max-w-2xl max-h-[80vh] overflow-auto">
                   <DialogHeader>
                     <DialogTitle>
                       {editingEmployee ? "Edit Employee" : t("add_employee")}
@@ -1992,18 +1997,15 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                     </div>
                     <div>
                       <Label>Date</Label>
-                      <Input
-                        type="date"
-                        max={new Date().toISOString().split("T")[0]}
+                      <EthiopianDatePicker
                         value={manualEntry.date}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          const today = new Date().toISOString().split("T")[0];
+                        onChange={(ymd) => {
                           setManualEntry((prev) => ({
                             ...prev,
-                            date: val > today ? today : val,
+                            date: ymd,
                           }));
                         }}
+                        disableFuture
                       />
                     </div>
                     <div>
@@ -2086,9 +2088,11 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                     <div className="text-sm font-medium">
-                      {attendanceFilter.dateRange === "custom"
-                        ? attendanceFilter.startDate
-                        : new Date().toISOString().split("T")[0]}
+                      {formatLocalizedDate(
+                        attendanceFilter.dateRange === "custom"
+                          ? attendanceFilter.startDate
+                          : new Date().toISOString().split("T")[0],
+                      )}
                     </div>
                     <Button
                       variant="ghost"
@@ -2136,7 +2140,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                                   <span>{emp?.name || "Unknown"}</span>
                                 </div>
                               </TableCell>
-                              <TableCell>{rec.date}</TableCell>
+                              <TableCell>{formatLocalizedDate(rec.date)}</TableCell>
                               <TableCell>
                                 {new Date(rec.clockIn).toLocaleTimeString([], {
                                   hour: "2-digit",
@@ -2292,7 +2296,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                                             {emp?.name ||
                                               rec.employeeName ||
                                               "this employee"}{" "}
-                                            on {rec.date}? This action cannot be
+                                            on {formatLocalizedDate(rec.date)}? This action cannot be
                                             undone.
                                           </AlertDialogDescription>
                                         </AlertDialogHeader>
@@ -2562,7 +2566,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
         )}
 
         <Dialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen}>
-          <DialogContent>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 Change Password for {passwordTarget?.name}

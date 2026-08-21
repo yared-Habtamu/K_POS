@@ -6,6 +6,7 @@ import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import EthiopianDatePicker from "@/components/ui/ethiopian-date-picker";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -22,6 +23,8 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -48,6 +51,7 @@ import {
   Printer,
   RotateCw,
   ScanBarcode,
+  ArrowLeftRight,
 } from "lucide-react";
 import { BarcodeScanner } from "@/components/barcode/BarcodeScanner";
 import { BarcodePreview } from "@/components/barcode/BarcodePreview";
@@ -365,6 +369,84 @@ export default function ProductManagement() {
     }
   };
 
+  // ===== STOCK TRANSFER (owner) =====
+  const [transferProduct, setTransferProduct] = useState<Product | null>(null);
+  const [transferDirection, setTransferDirection] = useState<
+    "mart_to_store" | "store_to_mart"
+  >("mart_to_store");
+  const [transferQty, setTransferQty] = useState("");
+  const [isTransferSubmitting, setIsTransferSubmitting] = useState(false);
+
+  const getStoreQuantity = (p: Product) => Number(p.storeQuantity ?? 0);
+  const getMartQuantity = (p: Product) =>
+    Number(p.quantity ?? p.supermarketQuantity ?? 0);
+  const transferMax =
+    transferProduct == null
+      ? 0
+      : transferDirection === "mart_to_store"
+        ? getMartQuantity(transferProduct)
+        : getStoreQuantity(transferProduct);
+
+  const handleTransferStock = async () => {
+    if (!transferProduct || !transferQty) return;
+    const qty = parseInt(transferQty, 10);
+    if (qty <= 0 || qty > transferMax) return;
+    const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+    const token = useAuthStore.getState().user?.token;
+    setIsTransferSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/stock-transfer-requests`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({
+          productId: transferProduct.id,
+          quantity: qty,
+          transferType: transferDirection,
+        }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(body?.message || `Request failed ${res.status}`);
+      }
+
+      if (res.status === 201) {
+        toast({
+          title: t("transfer_completed"),
+          description: `${qty} ${t("units_of")} ${transferProduct.name}.`,
+        });
+      } else {
+        toast({
+          title: t("transfer_submitted"),
+          description: `${t("request_sent_for")} ${qty} ${t("units_of")} ${
+            transferProduct.name
+          }. ${
+            transferDirection === "mart_to_store"
+              ? t("awaiting_storekeeper_approval")
+              : t("awaiting_manager_approval")
+          }`,
+        });
+      }
+      await useProductStore.getState().fetchProducts?.(1, ITEMS_PER_PAGE);
+      window.dispatchEvent(new CustomEvent("stock-transfer-updated"));
+      setTransferProduct(null);
+      setTransferQty("");
+    } catch (err: unknown) {
+      let msg = t("please_try_again");
+      if (err instanceof Error && err.message) msg = err.message;
+      else if (typeof err === "string") msg = err;
+      toast({
+        title: t("could_not_submit_transfer"),
+        description: msg,
+        variant: "destructive",
+      });
+    } finally {
+      setIsTransferSubmitting(false);
+    }
+  };
+
   useEffect(() => {
     const editId = (location.state as any)?.editProductId;
     if (!editId) return;
@@ -478,14 +560,21 @@ export default function ProductManagement() {
         const result: any = await addProduct(productData as any);
         if (result?.status === 202) {
           toast({
-            title: "Sent for manager approval",
-            description: "Your new product will be created after approval.",
+            title: "Sent for approval",
+            description:
+              (result?.data?.message as string) ||
+              "Your new product will be created after approval.",
           });
         } else {
           toast({ title: t("product_added") });
         }
         setCurrentPage(1); // Reset to first page after adding
       }
+      // Refresh the visible list in the background so the dialog closes and
+      // the toast shows immediately instead of waiting on the refetch chain.
+      void Promise.resolve(
+        useProductStore.getState().fetchProducts?.(1, ITEMS_PER_PAGE),
+      ).catch(() => {});
     } catch (error) {
       console.error("Save failed:", error);
       toast({ title: "Error saving product", variant: "destructive" });
@@ -571,7 +660,7 @@ export default function ProductManagement() {
               if (!open) resetForm();
             }}
           >
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-h-[85vh] overflow-y-auto max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
                   {editingProduct ? t("edit_product") : t("add_product")}
@@ -751,12 +840,11 @@ export default function ProductManagement() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="expiryDate">{t("expiry_date")}</Label>
-                    <Input
+                    <EthiopianDatePicker
                       id="expiryDate"
-                      type="date"
                       value={form.expiryDate}
-                      onChange={(e) =>
-                        setForm({ ...form, expiryDate: e.target.value })
+                      onChange={(ymd) =>
+                        setForm({ ...form, expiryDate: ymd })
                       }
                     />
                   </div>
@@ -1085,6 +1173,124 @@ export default function ProductManagement() {
               />
             </DialogContent>
           </Dialog>
+
+          {/* Stock transfer dialog (Mart <-> Store) */}
+          <Dialog
+            open={Boolean(transferProduct)}
+            onOpenChange={(open) => {
+              if (!open) {
+                setTransferProduct(null);
+                setTransferQty("");
+              }
+            }}
+          >
+            <DialogContent className="max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{t("transfer_to_store")}</DialogTitle>
+                <DialogDescription>
+                  {t("add_stock_subtitle")}
+                </DialogDescription>
+              </DialogHeader>
+              {transferProduct && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4 p-4 rounded-xl bg-accent/50">
+                    {transferProduct.pictureUrl ? (
+                      <img
+                        src={transferProduct.pictureUrl}
+                        alt=""
+                        className="w-16 h-16 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center">
+                        <Package className="w-8 h-8 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-medium">{transferProduct.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {transferProduct.category}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Direction toggle */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={
+                        transferDirection === "mart_to_store"
+                          ? "default"
+                          : "outline"
+                      }
+                      onClick={() => {
+                        setTransferDirection("mart_to_store");
+                        setTransferQty("");
+                      }}
+                    >
+                      {t("mart_qty")} → {t("stock")}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={
+                        transferDirection === "store_to_mart"
+                          ? "default"
+                          : "outline"
+                      }
+                      onClick={() => {
+                        setTransferDirection("store_to_mart");
+                        setTransferQty("");
+                      }}
+                    >
+                      {t("stock")} → {t("mart_qty")}
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="transferQty">{t("quantity_to_transfer")}</Label>
+                    <Input
+                      id="transferQty"
+                      type="number"
+                      min={1}
+                      max={transferMax}
+                      placeholder={t("enter_quantity")}
+                      value={transferQty}
+                      onChange={(e) => setTransferQty(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t("max_available")}: {transferMax} {t("units")}
+                    </p>
+                  </div>
+                </div>
+              )}
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setTransferProduct(null);
+                    setTransferQty("");
+                  }}
+                >
+                  {t("cancel")}
+                </Button>
+                <Button
+                  onClick={() => void handleTransferStock()}
+                  disabled={
+                    !transferQty ||
+                    parseInt(transferQty, 10) <= 0 ||
+                    parseInt(transferQty, 10) > transferMax ||
+                    isTransferSubmitting
+                  }
+                >
+                  {isTransferSubmitting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <ArrowLeftRight className="mr-2 h-4 w-4" />
+                  )}
+                  {t("transfer_to_store")}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <AdvancedFilters
@@ -1256,6 +1462,19 @@ export default function ProductManagement() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setTransferDirection("mart_to_store");
+                                setTransferQty("");
+                                setTransferProduct(product);
+                              }}
+                              title={t("transfer_to_store")}
+                              aria-label={t("transfer_to_store")}
+                            >
+                              <ArrowLeftRight className="h-4 w-4" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="icon"
