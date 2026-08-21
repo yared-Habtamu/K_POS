@@ -135,7 +135,12 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
       groupLabel: "employees",
       items: [
         { label: "customers", icon: Users, path: "/manager/customers" },
-        { label: "approvals", icon: ClipboardList, path: "/manager/approvals" },
+        {
+          label: "approvals",
+          icon: ClipboardList,
+          path: "/manager/approvals",
+          activePaths: ["/manager/approval-history"],
+        },
       ],
     },
     {
@@ -154,7 +159,12 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
         { label: "reports", icon: BarChart3, path: "/manager/reports" },
         { label: "sales_report", icon: Receipt, path: "/manager/today-sales" },
         { label: "chat", icon: MessageSquare, path: "/manager/chat" },
-        { label: "alerts", icon: AlertTriangle, path: "/alerts" },
+        {
+          label: "alerts",
+          icon: AlertTriangle,
+          path: "/alerts",
+          activePaths: ["/manager/aging-stock"],
+        },
         { label: "settings", icon: Settings, path: "/manager/settings" },
       ],
     },
@@ -225,7 +235,7 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
           label: "alerts",
           icon: AlertTriangle,
           path: "/owner/alerts",
-          activePaths: ["/alerts"],
+          activePaths: ["/alerts", "/owner/aging-stock"],
         },
       ],
     },

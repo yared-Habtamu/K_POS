@@ -168,26 +168,19 @@ router.post("/", authenticate, async (req, res) => {
         ? await userRepository.findMany({
             martId: product.martId,
             role: "storeKeeper",
+            isDeleted: false,
+            active: true,
           })
         : await userRepository.findMany({
             martId: product.martId,
             role: "manager",
+            isDeleted: false,
+            active: true,
           });
 
-    if (
-      requiredApprovalRole === "store_keeper" &&
-      (!approvers || approvers.length === 0)
-    ) {
-      return res.status(400).json({
-        message: "No store keeper available to approve this transfer",
-      });
-    }
-
-    // If there are no managers, apply the transfer immediately inside a transaction
-    if (
-      requiredApprovalRole === "manager" &&
-      (!approvers || approvers.length === 0)
-    ) {
+    // If there are no eligible approvers (store keeper or manager),
+    // apply the transfer immediately inside a transaction.
+    if (!approvers || approvers.length === 0) {
       try {
         const result = await prisma.$transaction(async (tx) => {
           const prod = await tx.product.findUnique({
@@ -290,14 +283,6 @@ router.post("/", authenticate, async (req, res) => {
           metadata: { requestId: reqDoc.id || reqDoc._id, productId },
         });
       }
-    } else {
-      await createNotification({
-        martId: product.martId,
-        type: "stock_transfer_request",
-        title: "Stock transfer requested",
-        message: `${reqDoc.requesterName || "User"} requested to move ${qty} units (${fromLocation} -> ${toLocation})`,
-        metadata: { requestId: reqDoc.id || reqDoc._id, productId },
-      });
     }
 
     // debug: log requester and their permissions for auditing

@@ -6,6 +6,7 @@ import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import EthiopianDatePicker from "@/components/ui/ethiopian-date-picker";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -599,7 +600,7 @@ export default function ManagerProductManagement() {
               if (!open) resetForm();
             }}
           >
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-h-[85vh] overflow-y-auto max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
                   {editingProduct ? t("edit_product") : t("add_product")}
@@ -764,12 +765,11 @@ export default function ManagerProductManagement() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="expiryDate">{t("expiry_date")}</Label>
-                    <Input
+                    <EthiopianDatePicker
                       id="expiryDate"
-                      type="date"
                       value={form.expiryDate}
-                      onChange={(e) =>
-                        setForm({ ...form, expiryDate: e.target.value })
+                      onChange={(ymd) =>
+                        setForm({ ...form, expiryDate: ymd })
                       }
                     />
                   </div>
@@ -1016,7 +1016,7 @@ export default function ManagerProductManagement() {
                 open={barcodeConflictOpen}
                 onOpenChange={setBarcodeConflictOpen}
               >
-                <DialogContent>
+                <DialogContent className="max-h-[85vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>{t("barcode_conflict")}</DialogTitle>
                     <DialogDescription>
@@ -1230,15 +1230,18 @@ export default function ManagerProductManagement() {
                             >
                               <ScanBarcode className="h-4 w-4" />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleEdit(product)}
-                              title={t("edit")}
-                              aria-label={t("edit")}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
+                            {/* Edit is owner-only: managers have read-only access */}
+                            {user?.role === "owner" && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleEdit(product)}
+                                title={t("edit")}
+                                aria-label={t("edit")}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
@@ -1345,7 +1348,7 @@ export default function ManagerProductManagement() {
             }
           }}
         >
-          <DialogContent>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{t("transfer_to_store")}</DialogTitle>
               <DialogDescription>

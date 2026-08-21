@@ -1,3 +1,4 @@
+import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
 import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -76,7 +77,7 @@ export function SubscriptionGate({ children }: { children: React.ReactNode }) {
                 {sub.endDate && (
                   <Badge variant="destructive" className="gap-1.5 px-3 py-1">
                     <Clock className="w-3 h-3" />
-                    {t("expired_label")}: {new Date(sub.endDate).toLocaleDateString()}
+                    {t("expired_label")}: {formatLocalizedDate(sub.endDate)}
                   </Badge>
                 )}
               </div>

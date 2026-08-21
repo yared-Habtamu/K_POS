@@ -1,3 +1,4 @@
+import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RoleLayout } from "@/components/layout/RoleLayout";
@@ -419,7 +420,7 @@ export default function SaleCancellationsPage() {
                           {t("sale_total", { defaultValue: "Sale Total" })}:{" "}
                           {Number(r.sale?.total || 0).toLocaleString()} ETB ·{" "}
                           {r.sale?.date
-                            ? new Date(r.sale.date).toLocaleString()
+                            ? formatLocalizedDate(r.sale.date, { withTime: true })
                             : ""}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
@@ -428,14 +429,14 @@ export default function SaleCancellationsPage() {
                           · {t("reason", { defaultValue: "Reason" })}: {r.reason}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {new Date(r.createdAt).toLocaleString()}
+                          {formatLocalizedDate(r.createdAt, { withTime: true })}
                         </p>
                         {r.status !== "pending" && (
                           <p className="text-xs text-muted-foreground truncate">
                             {t("approver", { defaultValue: "Approver" })}:{" "}
                             {r.approver?.name || r.approverName || r.approverId}
                             {r.decidedAt
-                              ? ` · ${new Date(r.decidedAt).toLocaleString()}`
+                              ? ` · ${formatLocalizedDate(r.decidedAt, { withTime: true })}`
                               : ""}
                           </p>
                         )}
@@ -565,7 +566,7 @@ export default function SaleCancellationsPage() {
                               />
                               {s.receiptId || s.id} —{" "}
                               {Number(s.total || 0).toLocaleString()} ETB —{" "}
-                              {new Date(s.date).toLocaleDateString()}
+                              {formatLocalizedDate(s.date)}
                             </CommandItem>
                           ))}
                         </CommandGroup>
@@ -722,7 +723,7 @@ export default function SaleCancellationsPage() {
                                 />
                                 {s.receiptId || s.id} —{" "}
                                 {Number(s.total || 0).toLocaleString()} ETB —{" "}
-                                {new Date(s.date).toLocaleDateString()}
+                                {formatLocalizedDate(s.date)}
                               </CommandItem>
                             ))}
                           </CommandGroup>
@@ -805,7 +806,7 @@ export default function SaleCancellationsPage() {
                           <p className="text-xs text-muted-foreground truncate">
                             {t("sale_total", { defaultValue: "Sale Total" })}:{" "}
                             {Number(r.sale?.total || 0).toLocaleString()} ETB ·{" "}
-                            {new Date(r.createdAt).toLocaleString()}
+                            {formatLocalizedDate(r.createdAt, { withTime: true })}
                           </p>
                           <p className="text-xs text-muted-foreground truncate">
                             {t("reason", { defaultValue: "Reason" })}: {r.reason}

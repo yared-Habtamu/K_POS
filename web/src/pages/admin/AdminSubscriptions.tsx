@@ -1,3 +1,4 @@
+import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RoleLayout } from "@/components/layout/RoleLayout";
@@ -5,6 +6,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import EthiopianDatePicker from "@/components/ui/ethiopian-date-picker";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -597,7 +599,7 @@ export default function AdminSubscriptionsPage() {
                       {pendingPayments.map((p) => (
                         <TableRow key={p.id} className="hover:bg-muted/40">
                           <TableCell className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                            {new Date(p.createdAt).toLocaleDateString()} {new Date(p.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            {formatLocalizedDate(p.createdAt, { withTime: true })}
                           </TableCell>
                           <TableCell className="font-bold text-sm">{p.martName || t("unknown_mart")}</TableCell>
                           <TableCell className="text-xs">
@@ -699,7 +701,7 @@ export default function AdminSubscriptionsPage() {
                       {payments.map((p) => (
                         <TableRow key={p.id}>
                           <TableCell className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                            {new Date(p.createdAt).toLocaleDateString()}
+                            {formatLocalizedDate(p.createdAt)}
                           </TableCell>
                           <TableCell className="font-semibold text-sm">{p.martName || p.martId}</TableCell>
                           <TableCell className="text-xs font-medium">{p.packageName}</TableCell>
@@ -736,7 +738,7 @@ export default function AdminSubscriptionsPage() {
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
                             {p.status === "approved" && (
-                              <span>{t("approved_by")} {p.approverName} {t("on")} {p.decidedAt ? new Date(p.decidedAt).toLocaleDateString() : ""}</span>
+                              <span>{t("approved_by")} {p.approverName} {t("on")} {p.decidedAt ? formatLocalizedDate(p.decidedAt) : ""}</span>
                             )}
                             {p.status === "rejected" && (
                               <span className="text-destructive">{t("rejected")}: {p.reason || t("no_reason")}</span>
@@ -1068,7 +1070,7 @@ export default function AdminSubscriptionsPage() {
 
         {/* Modal: Approve Payment */}
         <Dialog open={isApproveOpen} onOpenChange={setIsApproveOpen}>
-          <DialogContent>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-emerald-600">
                 <CheckCircle2 className="w-5 h-5" />
@@ -1124,7 +1126,7 @@ export default function AdminSubscriptionsPage() {
 
         {/* Modal: Reject Payment */}
         <Dialog open={isRejectOpen} onOpenChange={setIsRejectOpen}>
-          <DialogContent>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-destructive">
                 <XCircle className="w-5 h-5" />
@@ -1164,7 +1166,7 @@ export default function AdminSubscriptionsPage() {
 
         {/* Modal: Add Payment Method */}
         <Dialog open={isAddPaymentMethodOpen} onOpenChange={setIsAddPaymentMethodOpen}>
-          <DialogContent>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Plus className="w-5 h-5 text-primary" />
@@ -1235,7 +1237,7 @@ export default function AdminSubscriptionsPage() {
 
         {/* Modal: View Receipt Lightbox */}
         <Dialog open={Boolean(viewReceiptUrl)} onOpenChange={(open) => !open && setViewReceiptUrl(null)}>
-          <DialogContent className="max-w-3xl">
+          <DialogContent className="max-h-[85vh] overflow-y-auto max-w-3xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-primary" />
@@ -1261,7 +1263,7 @@ export default function AdminSubscriptionsPage() {
 
         {/* Modal: Mart Details */}
         <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-          <DialogContent>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{selectedMart?.martName || t("mart_details")}</DialogTitle>
               <DialogDescription>{t("mart_details_desc")}</DialogDescription>
@@ -1274,8 +1276,8 @@ export default function AdminSubscriptionsPage() {
                 <div>{t("fee_etb")}: <span className="font-medium">{selectedMart.feeEtb} {t("etb")}</span></div>
                 <div>{t("billing_days")}: <span className="font-medium">{selectedMart.billingPeriodDays || 30}</span></div>
                 <div>{t("days_left")}: <span className="font-medium">{selectedMart.daysLeft ?? "N/A"}</span></div>
-                <div>{t("start_date")}: <span className="font-medium">{selectedMart.startDate ? new Date(selectedMart.startDate).toLocaleDateString() : "N/A"}</span></div>
-                <div>{t("expiration_date")}: <span className="font-medium">{selectedMart.endDate ? new Date(selectedMart.endDate).toLocaleDateString() : "N/A"}</span></div>
+                <div>{t("start_date")}: <span className="font-medium">{selectedMart.startDate ? formatLocalizedDate(selectedMart.startDate) : "N/A"}</span></div>
+                <div>{t("expiration_date")}: <span className="font-medium">{selectedMart.endDate ? formatLocalizedDate(selectedMart.endDate) : "N/A"}</span></div>
               </div>
             )}
             <DialogFooter>
@@ -1296,7 +1298,7 @@ export default function AdminSubscriptionsPage() {
 
         {/* Modal: Edit Mart Plan */}
         <Dialog open={Boolean(editingMartId)} onOpenChange={(open) => !open && setEditingMartId(null)}>
-          <DialogContent>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{t("update_mart_plan")}</DialogTitle>
               <DialogDescription>{t("update_mart_plan_desc")}</DialogDescription>
@@ -1306,18 +1308,16 @@ export default function AdminSubscriptionsPage() {
               <div className="grid gap-3">
                 <div className="space-y-1">
                   <Label>{t("start_date")}</Label>
-                  <Input
-                    type="date"
+                  <EthiopianDatePicker
                     value={editingForm.subscriptionStartDate}
-                    onChange={(e) => updatePlanForm(editingMartId, { subscriptionStartDate: e.target.value })}
+                    onChange={(ymd) => updatePlanForm(editingMartId, { subscriptionStartDate: ymd })}
                   />
                 </div>
                 <div className="space-y-1">
                   <Label>{t("expiration_date")}</Label>
-                  <Input
-                    type="date"
+                  <EthiopianDatePicker
                     value={editingForm.subscriptionEndDate}
-                    onChange={(e) => updatePlanForm(editingMartId, { subscriptionEndDate: e.target.value })}
+                    onChange={(ymd) => updatePlanForm(editingMartId, { subscriptionEndDate: ymd })}
                   />
                 </div>
               </div>

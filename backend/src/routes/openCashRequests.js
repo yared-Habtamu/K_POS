@@ -58,6 +58,7 @@ async function getMartOwners(martId) {
     martId,
     role: "owner",
     isDeleted: false,
+    active: true,
   });
 }
 

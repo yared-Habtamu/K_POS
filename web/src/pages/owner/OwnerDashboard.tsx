@@ -1,3 +1,4 @@
+import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
@@ -465,7 +466,7 @@ export default function OwnerDashboard() {
                       <span className="font-medium">{item.name || "-"}</span>
                       <span className="text-muted-foreground">
                         {item.expiryDate
-                          ? new Date(item.expiryDate).toLocaleDateString()
+                          ? formatLocalizedDate(item.expiryDate)
                           : "-"}
                       </span>
                     </div>

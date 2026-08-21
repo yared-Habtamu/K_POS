@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -7,7 +7,7 @@ import {
   gregorianToEthiopian,
   parseGregorianYmd,
   getDaysInEthiopianMonth,
-  ETHIOPIAN_MONTHS_EN,
+  currentEthiopianDate,
   ETHIOPIAN_MONTHS_AM,
   type EthiopianDate,
 } from "@/utils/ethiopian-calendar";
@@ -38,14 +38,21 @@ export interface EthiopianDatePickerProps {
   mode?: "single" | "range";
   /** Disable future dates */
   disableFuture?: boolean;
-  /** Language for month names */
-  locale?: "en" | "am";
   /** Additional class names */
   className?: string;
   /** Placeholder text */
   placeholder?: string;
   /** Disabled state */
   disabled?: boolean;
+  /** Optional id for label association */
+  id?: string;
+}
+
+/** Format a Gregorian YMD string as an Ethiopian display label (always Amharic). */
+function ethLabel(ymd: string): string | null {
+  const eth = parseGregorianYmd(ymd);
+  if (!eth) return null;
+  return `${ETHIOPIAN_MONTHS_AM[eth.month - 1]} ${eth.day}, ${eth.year}`;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -55,19 +62,62 @@ export function EthiopianDatePicker({
   onChange,
   mode = "single",
   disableFuture = false,
-  locale = "en",
   className,
-  placeholder = "Select date",
+  placeholder = "ቀን ይምረጡ",
   disabled = false,
+  id,
 }: EthiopianDatePickerProps) {
-  const monthNames = locale === "am" ? ETHIOPIAN_MONTHS_AM : ETHIOPIAN_MONTHS_EN;
+  // The Ethiopian calendar UI is always shown in Amharic regardless of app language
+  const monthNames = ETHIOPIAN_MONTHS_AM;
 
   // Convert Gregorian value to Ethiopian for display
   const ethDate = parseGregorianYmd(value || "");
-  const [ethYear, setEthYear] = React.useState(ethDate?.year || 2017);
-  const [ethMonth, setEthMonth] = React.useState(ethDate?.month || 1);
-  const [ethDay, setEthDay] = React.useState(ethDate?.day || 1);
+  const todayEth = currentEthiopianDate();
+  const [navYear, setNavYear] = React.useState(
+    ethDate?.year ?? todayEth.year,
+  );
+  const [navMonth, setNavMonth] = React.useState(
+    ethDate?.month ?? todayEth.month,
+  );
   const [isOpen, setIsOpen] = React.useState(false);
+  const rootRef = React.useRef<HTMLDivElement>(null);
+
+  // Sync navigation state when the external value changes
+  React.useEffect(() => {
+    if (ethDate) {
+      setNavYear(ethDate.year);
+      setNavMonth(ethDate.month);
+    }
+  }, [value]);
+
+  // Close on outside click / Escape
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  const openPicker = () => {
+    if (disabled) return;
+    if (!isOpen && !ethDate) {
+      // Start navigation from today when nothing is selected
+      setNavYear(todayEth.year);
+      setNavMonth(todayEth.month);
+    }
+    setIsOpen(!isOpen);
+  };
 
   // Check if a date is today or in the future (Gregorian)
   const isDateDisabled = (ethY: number, ethM: number, ethD: number): boolean => {
@@ -80,11 +130,10 @@ export function EthiopianDatePicker({
   };
 
   const handleSelectDay = (day: number) => {
-    if (isDateDisabled(ethYear, ethMonth, day)) return;
-    setEthDay(day);
+    if (isDateDisabled(navYear, navMonth, day)) return;
 
     if (mode === "single") {
-      const greg = ethiopianToGregorian(ethYear, ethMonth, day);
+      const greg = ethiopianToGregorian(navYear, navMonth, day);
       const mm = String(greg.month).padStart(2, "0");
       const dd = String(greg.day).padStart(2, "0");
       onChange?.(`${greg.year}-${mm}-${dd}`);
@@ -93,129 +142,138 @@ export function EthiopianDatePicker({
   };
 
   const handlePrevMonth = () => {
-    if (ethMonth === 1) {
-      setEthMonth(13);
-      setEthYear(ethYear - 1);
+    if (navMonth === 1) {
+      setNavMonth(13);
+      setNavYear(navYear - 1);
     } else {
-      setEthMonth(ethMonth - 1);
+      setNavMonth(navMonth - 1);
     }
-    setEthDay(1);
   };
 
   const handleNextMonth = () => {
-    if (ethMonth === 13) {
-      setEthMonth(1);
-      setEthYear(ethYear + 1);
+    if (navMonth === 13) {
+      setNavMonth(1);
+      setNavYear(navYear + 1);
     } else {
-      setEthMonth(ethMonth + 1);
+      setNavMonth(navMonth + 1);
     }
-    setEthDay(1);
   };
 
-  const handlePrevYear = () => {
-    setEthYear(ethYear - 1);
-    setEthDay(1);
-  };
+  const handlePrevYear = () => setNavYear(navYear - 1);
+  const handleNextYear = () => setNavYear(navYear + 1);
 
-  const handleNextYear = () => {
-    setEthYear(ethYear + 1);
-    setEthDay(1);
-  };
-
-  const daysInMonth = getDaysInEthiopianMonth(ethYear, ethMonth);
+  const daysInMonth = getDaysInEthiopianMonth(navYear, navMonth);
 
   // Get day of week for first day of month (0 = Sunday)
-  const firstGreg = ethiopianToGregorian(ethYear, ethMonth, 1);
+  const firstGreg = ethiopianToGregorian(navYear, navMonth, 1);
   const firstDayOfWeek = new Date(
     firstGreg.year,
     firstGreg.month - 1,
     firstGreg.day,
   ).getDay();
 
-  const displayValue = value
-    ? (() => {
-        const eth = parseGregorianYmd(value);
-        if (!eth) return placeholder;
-        return `${monthNames[eth.month - 1]} ${eth.day}, ${eth.year}`;
-      })()
-    : placeholder;
+  const dayHeaders = ["እ", "ሰ", "ማ", "ረ", "ሐ", "ዓ", "ቅ"];
+
+  const displayValue = value ? ethLabel(value) : null;
+  const gregHint = value
+    ? new Date(`${value}T00:00:00`).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })
+    : null;
 
   return (
-    <div className={cn("relative", className)}>
+    <div ref={rootRef} className={cn("relative", className)}>
       {/* Trigger */}
       <button
         type="button"
+        id={id}
         disabled={disabled}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={openPicker}
         className={cn(
-          "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background",
+          "flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-left text-sm ring-offset-background",
           "placeholder:text-muted-foreground",
           "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
           "disabled:cursor-not-allowed disabled:opacity-50",
-          !value && "text-muted-foreground",
         )}
       >
-        <span>{displayValue}</span>
-        <ChevronRight className="h-4 w-4 opacity-50" />
+        <span className="flex min-w-0 flex-col leading-tight">
+          <span
+            className={cn("truncate", !displayValue && "text-muted-foreground")}
+          >
+            {displayValue || placeholder}
+          </span>
+          {gregHint && (
+            <span className="truncate text-[0.7rem] text-muted-foreground">
+              {gregHint}
+            </span>
+          )}
+        </span>
+        <CalendarDays className="h-4 w-4 shrink-0 opacity-50" />
       </button>
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute z-50 mt-1 rounded-md border bg-popover p-3 shadow-md">
+        <div className="absolute z-50 mt-1 w-72 rounded-md border bg-popover p-3 shadow-md">
           {/* Year and Month navigation */}
-          <div className="flex items-center justify-between mb-3">
-            <button
-              type="button"
-              onClick={handlePrevYear}
-              className={cn(
-                buttonVariants({ variant: "outline" }),
-                "h-7 w-7 p-0 opacity-50 hover:opacity-100",
-              )}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              <ChevronLeft className="h-4 w-4 -ml-2" />
-            </button>
-            <button
-              type="button"
-              onClick={handlePrevMonth}
-              className={cn(
-                buttonVariants({ variant: "outline" }),
-                "h-7 w-7 p-0 opacity-50 hover:opacity-100",
-              )}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-
-            <div className="text-sm font-medium">
-              {monthNames[ethMonth - 1]} {ethYear}
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={handlePrevYear}
+                className={cn(
+                  buttonVariants({ variant: "outline" }),
+                  "h-7 w-7 p-0 opacity-50 hover:opacity-100",
+                )}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="-ml-2 h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handlePrevMonth}
+                className={cn(
+                  buttonVariants({ variant: "outline" }),
+                  "h-7 w-7 p-0 opacity-50 hover:opacity-100",
+                )}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={handleNextMonth}
-              className={cn(
-                buttonVariants({ variant: "outline" }),
-                "h-7 w-7 p-0 opacity-50 hover:opacity-100",
-              )}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={handleNextYear}
-              className={cn(
-                buttonVariants({ variant: "outline" }),
-                "h-7 w-7 p-0 opacity-50 hover:opacity-100",
-              )}
-            >
-              <ChevronRight className="h-4 w-4" />
-              <ChevronRight className="h-4 w-4 -ml-2" />
-            </button>
+            <div className="text-sm font-medium">
+              {monthNames[navMonth - 1]} {navYear}
+            </div>
+
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={handleNextMonth}
+                className={cn(
+                  buttonVariants({ variant: "outline" }),
+                  "h-7 w-7 p-0 opacity-50 hover:opacity-100",
+                )}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleNextYear}
+                className={cn(
+                  buttonVariants({ variant: "outline" }),
+                  "h-7 w-7 p-0 opacity-50 hover:opacity-100",
+                )}
+              >
+                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="-ml-2 h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           {/* Day headers */}
-          <div className="grid grid-cols-7 gap-1 mb-1">
-            {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+          <div className="mb-1 grid grid-cols-7 gap-1">
+            {dayHeaders.map((d, i) => (
               <div
                 key={i}
                 className="text-center text-[0.7rem] font-medium text-muted-foreground"
@@ -237,20 +295,14 @@ export function EthiopianDatePicker({
               const day = i + 1;
               const isSelected =
                 mode === "single" &&
-                ethDate?.year === ethYear &&
-                ethDate?.month === ethMonth &&
+                ethDate?.year === navYear &&
+                ethDate?.month === navMonth &&
                 ethDate?.day === day;
-              const isDisabled = isDateDisabled(ethYear, ethMonth, day);
+              const isDisabled = isDateDisabled(navYear, navMonth, day);
               const isToday = (() => {
-                const now = new Date();
-                const todayEth = gregorianToEthiopian(
-                  now.getFullYear(),
-                  now.getMonth() + 1,
-                  now.getDate(),
-                );
                 return (
-                  todayEth.year === ethYear &&
-                  todayEth.month === ethMonth &&
+                  todayEth.year === navYear &&
+                  todayEth.month === navMonth &&
                   todayEth.day === day
                 );
               })();
@@ -278,8 +330,20 @@ export function EthiopianDatePicker({
             })}
           </div>
 
-          {/* Close button */}
-          <div className="flex justify-end mt-3">
+          {/* Quick actions */}
+          <div className="mt-3 flex justify-between">
+            <button
+              type="button"
+              onClick={() => {
+                setNavYear(todayEth.year);
+                setNavMonth(todayEth.month);
+                handleSelectDay(todayEth.day);
+              }}
+              disabled={isDateDisabled(todayEth.year, todayEth.month, todayEth.day)}
+              className={cn(buttonVariants({ variant: "ghost" }), "h-8 px-3 text-xs")}
+            >
+              ዛሬ
+            </button>
             <button
               type="button"
               onClick={() => setIsOpen(false)}
@@ -288,7 +352,7 @@ export function EthiopianDatePicker({
                 "h-8 px-3 text-xs",
               )}
             >
-              Close
+              ዝጋ
             </button>
           </div>
         </div>

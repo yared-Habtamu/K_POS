@@ -1,3 +1,4 @@
+import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { RoleLayout } from "@/components/layout/RoleLayout";
@@ -305,13 +306,15 @@ export default function OwnerAlerts() {
                         <Badge variant="destructive">
                           {getRemaining(product)} left
                         </Badge>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => goToEdit(product)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
+                        {canDelete && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => goToEdit(product)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
                         {canDelete && (
                           <Button
                             variant="ghost"
@@ -378,15 +381,17 @@ export default function OwnerAlerts() {
                       <div className="flex items-center gap-2">
                         <Badge variant="destructive">
                           {product.expiryDate &&
-                            new Date(product.expiryDate).toLocaleDateString()}
+                            formatLocalizedDate(product.expiryDate)}
                         </Badge>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => goToEdit(product)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
+                        {canDelete && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => goToEdit(product)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
                         {canDelete && (
                           <Button
                             variant="ghost"

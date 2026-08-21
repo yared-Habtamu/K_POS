@@ -1,3 +1,4 @@
+import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RoleLayout } from "@/components/layout/RoleLayout";
@@ -407,14 +408,14 @@ export default function OwnerSubscriptionPage() {
               <div className="p-4 rounded-xl bg-muted/40 border border-border/50">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("start_date")}</p>
                 <p className="text-base font-semibold mt-1.5 text-foreground">
-                  {subData?.startDate ? new Date(subData.startDate).toLocaleDateString() : "N/A"}
+                  {subData?.startDate ? formatLocalizedDate(subData.startDate) : "N/A"}
                 </p>
               </div>
 
               <div className="p-4 rounded-xl bg-muted/40 border border-border/50">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("expiration_date")}</p>
                 <p className="text-base font-semibold mt-1.5 text-foreground">
-                  {subData?.endDate ? new Date(subData.endDate).toLocaleDateString() : "N/A"}
+                  {subData?.endDate ? formatLocalizedDate(subData.endDate) : "N/A"}
                 </p>
               </div>
             </div>
@@ -548,7 +549,7 @@ export default function OwnerSubscriptionPage() {
                   {payments.map((p) => (
                     <TableRow key={p.id}>
                       <TableCell className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                        {new Date(p.createdAt).toLocaleDateString()} {new Date(p.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {formatLocalizedDate(p.createdAt, { withTime: true })}
                       </TableCell>
                       <TableCell className="font-semibold text-sm">{p.packageName}</TableCell>
                       <TableCell className="font-bold text-sm">{p.amount.toLocaleString()} {p.currency}</TableCell>
@@ -606,7 +607,7 @@ export default function OwnerSubscriptionPage() {
 
         {/* Payment & Receipt Upload Modal */}
         <Dialog open={isPaymentOpen} onOpenChange={setIsPaymentOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-h-[85vh] overflow-y-auto max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-xl">
                 <CreditCard className="w-5 h-5 text-primary" />
@@ -762,7 +763,7 @@ export default function OwnerSubscriptionPage() {
 
         {/* View Full Receipt Lightbox Modal */}
         <Dialog open={Boolean(viewReceiptUrl)} onOpenChange={(open) => !open && setViewReceiptUrl(null)}>
-          <DialogContent className="max-w-3xl">
+          <DialogContent className="max-h-[85vh] overflow-y-auto max-w-3xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-primary" />

@@ -46,6 +46,8 @@ async function getMartManagers(martId) {
     {
       martId,
       role: "manager",
+      isDeleted: false,
+      active: true,
     },
     { select: { id: true, username: true, name: true } },
   );
@@ -57,6 +59,8 @@ async function getMartOwners(martId) {
     {
       martId,
       role: "owner",
+      isDeleted: false,
+      active: true,
     },
     { select: { id: true, username: true, name: true } },
   );

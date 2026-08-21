@@ -31,6 +31,7 @@ async function getMartOwners(martId) {
     martId,
     role: "owner",
     isDeleted: false,
+    active: true,
   });
 }
 
@@ -268,6 +269,14 @@ router.put(
             .status(403)
             .json({ message: "Insufficient permissions to update expense" });
         }
+      }
+
+      // Role restriction: only the mart owner (or systemAdmin) may edit expenses.
+      const requesterRole = String(req.user.role || "").toLowerCase();
+      if (requesterRole !== "owner" && requesterRole !== "systemadmin") {
+        return res
+          .status(403)
+          .json({ message: "Only the mart owner can edit expenses" });
       }
 
       const updateData = {};

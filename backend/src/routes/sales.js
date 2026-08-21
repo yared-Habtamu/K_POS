@@ -765,6 +765,43 @@ router.get("/receipt/:receiptId/pdf", async (req, res) => {
   }
 });
 
+// Sold counts per product for a mart (completed sales only).
+// GET /api/sales/sold-counts?martId=...
+// Returns a tiny { productId: totalSoldQuantity } map — used by product
+// listings instead of fetching every sale just to compute "sold" in the UI.
+router.get("/sold-counts", authenticate, async (req, res) => {
+  try {
+    const martId = req.query.martId || req.user.martId;
+    if (!martId) {
+      return res.status(400).json({ message: "martId is required" });
+    }
+    if (
+      req.user.role !== "systemAdmin" &&
+      String(martId) !== String(req.user.martId)
+    ) {
+      return res.status(403).json({ message: "Insufficient permissions" });
+    }
+
+    const rows = await prisma.saleItem.groupBy({
+      by: ["productId"],
+      where: {
+        productId: { not: null },
+        sale: { martId, status: "completed" },
+      },
+      _sum: { quantity: true },
+    });
+
+    const counts = {};
+    for (const row of rows) {
+      if (row.productId) counts[row.productId] = Number(row._sum.quantity || 0);
+    }
+    return res.json(counts);
+  } catch (err) {
+    console.error("Failed to compute sold counts", err);
+    return res.status(500).json({ message: "Failed to compute sold counts" });
+  }
+});
+
 // List sales for a mart and optional date (date in YYYY-MM-DD)
 router.get("/", authenticate, async (req, res) => {
   try {

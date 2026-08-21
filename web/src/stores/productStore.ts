@@ -99,18 +99,26 @@ export const useProductStore = create<ProductState>((set, get) => ({
     const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
     const martId = useAuthStore.getState().user?.martId;
     try {
-      const res = await fetch(
-        `${API_BASE}/api/products?page=${page}&limit=${limit}${martId ? `&martId=${martId}` : ""}`,
-        {
-          headers: authHeader,
-        },
-      );
-      if (res.status === 401) {
+      // Fetch the product page and the aggregated sold-counts map in parallel.
+      // The old approach fetched EVERY sale of the mart and summed quantities
+      // client-side, which slowed down as sales history grew.
+      const [productsRes, soldCounts] = await Promise.all([
+        fetch(
+          `${API_BASE}/api/products?page=${page}&limit=${limit}${martId ? `&martId=${martId}` : ""}`,
+          { headers: authHeader },
+        ),
+        fetch(
+          `${API_BASE}/api/sales/sold-counts${martId ? `?martId=${martId}` : ""}`,
+          { headers: authHeader },
+        ).catch(() => null),
+      ]);
+
+      if (productsRes.status === 401) {
         useAuthStore.getState().logout();
         throw new Error("Unauthorized - Session expired");
       }
-      if (!res.ok) throw new Error("Failed to fetch products");
-      const data = await res.json();
+      if (!productsRes.ok) throw new Error("Failed to fetch products");
+      const data = await productsRes.json();
       // support paginated response { data, total } or legacy array response
       const items = Array.isArray(data)
         ? data
@@ -123,34 +131,43 @@ export const useProductStore = create<ProductState>((set, get) => ({
 
       set({ totalProducts: total });
 
-      // fetch sales for mart to compute sold counts (so remaining = quantity - sold can be derived)
+      // Build the sold map from the aggregated endpoint when available;
+      // otherwise fall back to computing it from the full sales list.
       let soldMap: Record<string, number> = {};
-      try {
-        if (martId) {
-          const salesRes = await fetch(
-            `${API_BASE}/api/sales?martId=${martId}`,
-            {
-              headers: authHeader,
-            },
-          );
-          if (salesRes.ok) {
-            const sales = await salesRes.json();
-            for (const s of sales || []) {
-              for (const it of s.items || []) {
-                const pid = (
-                  it.productId ||
-                  it.product?._id ||
-                  it.product?.id ||
-                  it.id ||
-                  ""
-                ).toString();
-                soldMap[pid] = (soldMap[pid] || 0) + Number(it.quantity || 0);
+      if (soldCounts && soldCounts.ok) {
+        try {
+          soldMap = (await soldCounts.json()) as Record<string, number>;
+        } catch {
+          soldMap = {};
+        }
+      } else {
+        try {
+          if (martId) {
+            const salesRes = await fetch(
+              `${API_BASE}/api/sales?martId=${martId}`,
+              {
+                headers: authHeader,
+              },
+            );
+            if (salesRes.ok) {
+              const sales = await salesRes.json();
+              for (const s of sales || []) {
+                for (const it of s.items || []) {
+                  const pid = (
+                    it.productId ||
+                    it.product?._id ||
+                    it.product?.id ||
+                    it.id ||
+                    ""
+                  ).toString();
+                  soldMap[pid] = (soldMap[pid] || 0) + Number(it.quantity || 0);
+                }
               }
             }
           }
+        } catch {
+          // ignore sales fetch errors
         }
-      } catch (e) {
-        // ignore sales fetch errors
       }
 
       // attach _sold to normalized products

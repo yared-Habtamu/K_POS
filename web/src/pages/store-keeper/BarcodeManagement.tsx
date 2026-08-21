@@ -316,7 +316,7 @@ export default function BarcodeManagement() {
             if (!open) setBarcodeImage("");
           }}
         >
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-h-[85vh] overflow-y-auto max-w-md">
             <DialogHeader>
               <DialogTitle>{t("barcode_management")}</DialogTitle>
             </DialogHeader>

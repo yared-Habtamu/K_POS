@@ -5,6 +5,7 @@ import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import EthiopianDatePicker from "@/components/ui/ethiopian-date-picker";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -728,12 +729,11 @@ export default function ProductAdd() {
 
                 <div className="space-y-2">
                   <Label htmlFor="expiryDate">{t("expiry_date")}</Label>
-                  <Input
+                  <EthiopianDatePicker
                     id="expiryDate"
-                    type="date"
                     value={form.expiryDate}
-                    onChange={(e) =>
-                      setForm({ ...form, expiryDate: e.target.value })
+                    onChange={(ymd) =>
+                      setForm({ ...form, expiryDate: ymd })
                     }
                   />
                 </div>

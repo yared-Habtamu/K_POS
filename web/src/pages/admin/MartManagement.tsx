@@ -1215,7 +1215,7 @@ export default function MartManagement() {
           open={Boolean(editForm)}
           onOpenChange={(open) => !open && setEditForm(null)}
         >
-          <DialogContent className="sm:max-w-xl">
+          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
             <DialogHeader>
               <DialogTitle>Update market details</DialogTitle>
               <DialogDescription>
@@ -1385,7 +1385,7 @@ export default function MartManagement() {
             }
           }}
         >
-          <DialogContent>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 Reset Password for {resetPasswordTarget?.owner}
@@ -1444,7 +1444,7 @@ export default function MartManagement() {
           open={!!viewShop}
           onOpenChange={(open) => !open && setViewShop(null)}
         >
-          <DialogContent className="sm:max-w-2xl">
+          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>Market Details</DialogTitle>
               <DialogDescription>

@@ -1,3 +1,4 @@
+import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { RoleLayout } from "@/components/layout/RoleLayout";
@@ -386,7 +387,7 @@ export default function OwnerAlerts() {
                       <div className="flex items-center gap-2">
                         <Badge variant="destructive">
                           {product.expiryDate &&
-                            new Date(product.expiryDate).toLocaleDateString()}
+                            formatLocalizedDate(product.expiryDate)}
                         </Badge>
                         {isOwner && (
                           <Button

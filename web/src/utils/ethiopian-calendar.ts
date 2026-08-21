@@ -203,3 +203,105 @@ export function getDaysInEthiopianMonth(
   if (ethMonth === 13) return pagumeDays(ethYear);
   return 30;
 }
+
+/**
+ * Format any date-like value (Date | ISO string | YYYY-MM-DD) as an
+ * Ethiopian calendar label in Amharic, e.g. "ነሐሴ 29, 2018".
+ * Always Amharic regardless of the app language.
+ * Returns "-" when the value is missing or invalid.
+ */
+export function formatEthiopianDateValue(
+  value: Date | string | number | null | undefined,
+  options: { withTime?: boolean } = {},
+): string {
+  const { withTime = false } = options;
+  if (value === null || value === undefined || value === "") return "-";
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d.getTime())) return "-";
+  const eth = gregorianToEthiopian(
+    d.getFullYear(),
+    d.getMonth() + 1,
+    d.getDate(),
+  );
+  const base = `${ETHIOPIAN_MONTHS_AM[eth.month - 1]} ${eth.day}, ${eth.year}`;
+  if (!withTime) return base;
+  const time = d.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return `${base} ${time}`;
+}
+
+/**
+ * Given a Gregorian year-month key like "2026-08", return the Ethiopian
+ * month label that covers most of it, e.g. "ነሐሴ 2018" (always Amharic).
+ */
+export function ethiopianMonthLabel(gregYearMonth: string): string {
+  if (!gregYearMonth) return "-";
+  const [y, m] = gregYearMonth.split("-").map(Number);
+  if (!y || !m || m < 1 || m > 12) return gregYearMonth;
+  const eth = gregorianToEthiopian(y, m, 15);
+  return `${ETHIOPIAN_MONTHS_AM[eth.month - 1]} ${eth.year}`;
+}
+
+// ─── Language-aware display helpers ──────────────────────────────────────────
+
+import i18n from "@/i18n";
+
+/**
+ * True when the app's selected language is Amharic.
+ */
+export function isAmharicLanguage(): boolean {
+  return !!i18n.language?.startsWith?.("am");
+}
+
+/**
+ * Display formatter that follows the app language:
+ * - Amharic selected → Ethiopian calendar with Amharic month names
+ *   e.g. "ነሐሴ 15, 2018" (+ optional time)
+ * - English selected → Gregorian, as before ("Aug 21, 2026")
+ */
+export function formatLocalizedDate(
+  value: Date | string | number | null | undefined,
+  options: { withTime?: boolean } = {},
+): string {
+  const { withTime = false } = options;
+  if (value === null || value === undefined || value === "") return "-";
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d.getTime())) return "-";
+
+  if (!isAmharicLanguage()) {
+    return withTime ? d.toLocaleString() : d.toLocaleDateString();
+  }
+
+  const eth = gregorianToEthiopian(
+    d.getFullYear(),
+    d.getMonth() + 1,
+    d.getDate(),
+  );
+  const base = `${ETHIOPIAN_MONTHS_AM[eth.month - 1]} ${eth.day}, ${eth.year}`;
+  if (!withTime) return base;
+  return `${base} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+}
+
+/**
+ * Month label for filter dropdowns that follow the app language:
+ * - Amharic → Ethiopian month covering most of that Gregorian month,
+ *   e.g. "ነሐሴ 2018"
+ * - English → Gregorian label, e.g. "Aug 2026" (short) / "August 2026" (long)
+ */
+export function localizedMonthLabel(
+  gregYearMonth: string,
+  options: { short?: boolean } = {},
+): string {
+  if (!gregYearMonth) return "-";
+  if (!isAmharicLanguage()) {
+    const [y, m] = gregYearMonth.split("-").map(Number);
+    if (!y || !m || m < 1 || m > 12) return gregYearMonth;
+    return new Date(y, m - 1, 1).toLocaleDateString("en-US", {
+      month: options.short ? "short" : "long",
+      year: "numeric",
+    });
+  }
+  return ethiopianMonthLabel(gregYearMonth);
+}

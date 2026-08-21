@@ -24,6 +24,8 @@ import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import useReports from "@/hooks/useReports";
+import EthiopianDatePicker from "@/components/ui/ethiopian-date-picker";
+import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
 import {
   TrendingUp,
   ShoppingBag,
@@ -60,7 +62,7 @@ const COLORS = [
 // ─── component ──────────────────────────────────────────────────────────────
 
 const ReportPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const [period, setPeriod] = useState<
     "daily" | "weekly" | "monthly" | "custom"
@@ -73,23 +75,19 @@ const ReportPage: React.FC = () => {
 
   const getDateRangeLabel = () => {
     const today = new Date();
-    const opts: Intl.DateTimeFormatOptions = {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    };
-    if (period === "daily") return today.toLocaleDateString(undefined, opts);
+    if (period === "daily")
+      return formatLocalizedDate(today);
     if (period === "weekly") {
       const s = new Date(today);
       s.setDate(today.getDate() - 6);
-      return `${s.toLocaleDateString(undefined, opts)} – ${today.toLocaleDateString(undefined, opts)}`;
+      return `${formatLocalizedDate(s)} – ${formatLocalizedDate(today)}`;
     }
     if (period === "monthly") {
       const s = new Date(today.getFullYear(), today.getMonth(), 1);
       const e = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-      return `${s.toLocaleDateString(undefined, opts)} – ${e.toLocaleDateString(undefined, opts)}`;
+      return `${formatLocalizedDate(s)} – ${formatLocalizedDate(e)}`;
     }
-    return `${new Date(customDates.start).toLocaleDateString(undefined, opts)} – ${new Date(customDates.end).toLocaleDateString(undefined, opts)}`;
+    return `${formatLocalizedDate(customDates.start)} – ${formatLocalizedDate(customDates.end)}`;
   };
 
   const {
@@ -406,7 +404,7 @@ const ReportPage: React.FC = () => {
           Type: "Expired Product",
           Name: p.name,
           Date: p.expiryDate
-            ? new Date(p.expiryDate).toLocaleDateString()
+            ? formatLocalizedDate(p.expiryDate)
             : "-",
           Quantity: p.quantity,
         })),
@@ -613,7 +611,7 @@ const ReportPage: React.FC = () => {
       ...(localData.expiredProducts || []).map((p: any) => [
         "Expired Product",
         p.name,
-        p.expiryDate ? new Date(p.expiryDate).toLocaleDateString() : "-",
+        p.expiryDate ? formatLocalizedDate(p.expiryDate) : "-",
         fmtN(p.quantity || 0),
       ]),
       ...(localData.brokenAssets || []).map((a: any) => [
@@ -836,22 +834,22 @@ const ReportPage: React.FC = () => {
               ))}
               {period === "custom" && (
                 <div className="flex items-center gap-2 ml-2">
-                  <input
-                    type="date"
+                  <EthiopianDatePicker
                     value={customDates.start}
-                    onChange={(e) =>
-                      setCustomDates({ ...customDates, start: e.target.value })
+                    onChange={(ymd) =>
+                      setCustomDates({ ...customDates, start: ymd })
                     }
-                    className="border rounded px-2 py-1 text-sm bg-background"
+                    placeholder="Start"
+                    className="w-[170px]"
                   />
                   <span className="text-muted-foreground">–</span>
-                  <input
-                    type="date"
+                  <EthiopianDatePicker
                     value={customDates.end}
-                    onChange={(e) =>
-                      setCustomDates({ ...customDates, end: e.target.value })
+                    onChange={(ymd) =>
+                      setCustomDates({ ...customDates, end: ymd })
                     }
-                    className="border rounded px-2 py-1 text-sm bg-background"
+                    placeholder="End"
+                    className="w-[170px]"
                   />
                 </div>
               )}
@@ -1138,7 +1136,7 @@ const ReportPage: React.FC = () => {
                         <td className="py-2 px-4">{p.name}</td>
                         <td className="py-2 px-4">
                           {p.expiryDate
-                            ? new Date(p.expiryDate).toLocaleDateString()
+                            ? formatLocalizedDate(p.expiryDate)
                             : "-"}
                         </td>
                         <td className="py-2 px-4 text-right">

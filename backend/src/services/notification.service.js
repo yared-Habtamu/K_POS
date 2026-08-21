@@ -8,6 +8,17 @@ async function createNotification(data, tx = null) {
   try {
     const { martId, userId, type, title, message, metadata } = data;
 
+    // INVARIANT: every notification belongs to exactly one recipient.
+    // Notifications without a specific recipient are dropped — this prevents
+    // anyone in a mart from seeing notifications not meant for them
+    // (e.g., a manager seeing an owner-only approval request).
+    if (!userId) {
+      console.warn(
+        `[NotificationService] Dropped "${type}" notification without a recipient (martId=${martId})`,
+      );
+      return null;
+    }
+
     const notifData = {
       martId,
       userId,
@@ -25,21 +36,12 @@ async function createNotification(data, tx = null) {
         notification = await notificationRepository.create(notifData);
     }
 
-    // Broadcast the notification
-    if (userId) {
-      // Send to specific user
-      sseManager.sendToUser(userId, notification);
-      
-      // Send updated unread count
-      const unreadCount = await notificationRepository.countDocuments({ userId, read: false });
-      sseManager.sendUnreadCountUpdate(userId, unreadCount);
-    } else if (martId) {
-      // Broadcast to all users in the mart
-      // Note: sseManager would need a broad cast method for marts if needed, 
-      // but usually notifications are user-specific or we can filter on the client.
-      // For now, we assume user-specific notification for high relevance.
-      // If needed, we can add sendToMart in sseManager.
-    }
+    // Broadcast to the specific recipient only
+    sseManager.sendToUser(userId, notification);
+
+    // Send updated unread count (scoped to the user's mart when provided)
+    const unreadCount = await getUnreadCount(userId, martId);
+    sseManager.sendUnreadCountUpdate(userId, unreadCount);
 
     return notification;
   } catch (error) {
@@ -49,10 +51,13 @@ async function createNotification(data, tx = null) {
 }
 
 /**
- * Get unread count for a user
+ * Get unread count for a user, optionally scoped to a mart.
+ * Scoping by mart guarantees notifications from other stores are never counted.
  */
-async function getUnreadCount(userId) {
-  return await notificationRepository.countDocuments({ userId, read: false });
+async function getUnreadCount(userId, martId = null) {
+  const query = { userId, read: false };
+  if (martId) query.martId = martId;
+  return await notificationRepository.countDocuments(query);
 }
 
 module.exports = {
