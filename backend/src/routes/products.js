@@ -193,21 +193,24 @@ async function createProductFromRequest(req, res, options = {}) {
     const managers = await userRepository.findMany({
       martId: finalMartId,
       role: { in: ["manager"] },
+      isDeleted: false,
+      active: true,
     });
 
     const storeKeepers = await userRepository.findMany({
       martId: finalMartId,
       role: { in: ["storeKeeper"] },
+      isDeleted: false,
+      active: true,
     });
 
     const approvalRole =
       initialStockTarget === "mart" ? "manager" : "store_keeper";
-    const primaryApprovers =
+    // Role-specific approval only: if the responsible role does not exist
+    // (e.g., no store keeper), the product is created immediately instead of
+    // falling back to another role.
+    const approvers =
       approvalRole === "store_keeper" ? storeKeepers : managers;
-    const fallbackApprovers = approvalRole === "store_keeper" ? managers : [];
-    const approvers = primaryApprovers?.length
-      ? primaryApprovers
-      : fallbackApprovers;
 
     if (!approvers || approvers.length === 0) {
       const product = await productRepository.create(productPayload);
@@ -245,14 +248,6 @@ async function createProductFromRequest(req, res, options = {}) {
           }),
         ),
       );
-    } else {
-      await createNotification({
-        martId: finalMartId,
-        type: "product_add_request",
-        title: "Product creation requested",
-        message: `${reqDoc.requesterName || "Owner"} requested to add product ${name}`,
-        metadata: { requestId: reqDoc.id, name, approvalRole },
-      });
     }
 
     return res.status(202).json({
@@ -446,6 +441,15 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
+    // Role restriction: only the mart owner (or systemAdmin) may edit products.
+    // Managers / store keepers have read-only access.
+    const requesterRole = String(user.role || "").toLowerCase();
+    if (requesterRole !== "owner" && requesterRole !== "systemadmin") {
+      return res
+        .status(403)
+        .json({ message: "Only the mart owner can edit products" });
+    }
+
     if (
       user.role !== "systemAdmin" &&
       String(product.martId) !== String(user.martId)
@@ -518,11 +522,15 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
       const managers = await userRepository.findMany({
         martId: product.martId,
         role: { in: ["manager"] },
+        isDeleted: false,
+        active: true,
       });
 
       const storeKeepers = await userRepository.findMany({
         martId: product.martId,
         role: { in: ["storeKeeper"] },
+        isDeleted: false,
+        active: true,
       });
 
       const managerChanges = { ...changes };

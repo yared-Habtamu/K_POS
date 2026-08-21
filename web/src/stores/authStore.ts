@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import type { UserRole } from '@/types';
 import { useCartStore } from './cartStore';
 import { useProductStore } from './productStore';
+import { useNotificationStore } from './notificationStore';
 
 type AuthUser = {
   id?: string;
@@ -113,6 +114,8 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         useCartStore.getState().clearCart();
         useProductStore.setState({ products: [], totalProducts: 0 });
+        // Never leak this store's notifications into the next login
+        useNotificationStore.setState({ notifications: [], unreadCount: 0, isConnected: false });
         try {
           (window as any).posApi?.setCachedProducts?.([]);
         } catch (e) {}
@@ -126,7 +129,10 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'auth-storage',
       onRehydrateStorage: () => () => {
-        set({ isHydrated: true });
+        // `set` is not in scope here — use the store's own setState.
+        // This was silently throwing before, leaving isHydrated false forever
+        // and forcing the 1.5s hydration timeout on every page load.
+        useAuthStore.setState({ isHydrated: true });
       },
       storage: createJSONStorage(() => ({
         getItem: (name) => {

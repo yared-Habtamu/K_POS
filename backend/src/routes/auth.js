@@ -196,6 +196,7 @@ router.post("/register", authenticate, async (req, res) => {
     email,
     salary,
     profilePictureUrl,
+    permissions: requestedPermissions,
   } = req.body;
   const requesterRole = String(req.user.role || "")
     .trim()
@@ -263,6 +264,27 @@ router.post("/register", authenticate, async (req, res) => {
     return res.status(409).json({ message: "Username already exists" });
   
   const passwordHash = await bcrypt.hash(password, 10);
+  // Permissions: validate any provided list against the target role, and give
+  // store keepers their core "transferStock" permission by default so the
+  // Add Stock action works out of the box.
+  const allowedPerTarget = (r) => {
+    if (r === "manager") return ["discount", "addItem"];
+    if (r === "storeKeeper" || r === "store_keeper") return ["transferStock"];
+    if (r === "cashier") return ["discount"];
+    return [];
+  };
+  const allowedForTarget = allowedPerTarget(normalizedTargetRole);
+  let effectivePermissions = [];
+  if (Array.isArray(requestedPermissions)) {
+    effectivePermissions = requestedPermissions.filter((p) =>
+      allowedForTarget.includes(p),
+    );
+  } else if (
+    normalizedTargetRole === "storeKeeper" ||
+    normalizedTargetRole === "store_keeper"
+  ) {
+    effectivePermissions = ["transferStock"];
+  }
   const user = await userRepository.create({
     name,
     username,
@@ -273,6 +295,7 @@ router.post("/register", authenticate, async (req, res) => {
     email,
     salary,
     profilePictureUrl,
+    permissions: effectivePermissions,
   });
   
   res.status(201).json({

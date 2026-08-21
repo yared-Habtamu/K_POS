@@ -9,6 +9,16 @@ const { sseManager } = require('../utils/sse');
 const { getUnreadCount } = require('../services/notification.service');
 
 /**
+ * Returns the mart scoping for a user's notifications.
+ * systemAdmin (or users without a mart) are exempt so they keep seeing
+ * everything addressed to them; everyone else is locked to their own store.
+ */
+function martScopeFor(user) {
+  if (!user.martId || user.role === 'systemAdmin') return {};
+  return { martId: user.martId };
+}
+
+/**
  * SSE Stream for real-time notifications
  * GET /api/notifications/stream?token=...
  */
@@ -20,8 +30,8 @@ router.get('/stream', authenticate, (req, res) => {
   // Add client to manager
   sseManager.addClient(clientId, userId, martId, res);
 
-  // Send initial unread count
-  getUnreadCount(userId).then(count => {
+  // Send initial unread count (scoped to the user's store)
+  getUnreadCount(userId, req.user.martId).then(count => {
     sseManager.sendUnreadCountUpdate(userId, count);
   });
 
@@ -55,11 +65,12 @@ router.post('/test', authenticate, async (req, res) => {
 /**
  * Get recent notifications for the logged-in user
  * GET /api/notifications
+ * Only returns notifications belonging to the user's own store.
  */
 router.get('/', authenticate, async (req, res) => {
   try {
     const notifications = await notificationRepository.findMany(
-      { userId: req.user.id },
+      { userId: req.user.id, ...martScopeFor(req.user) },
       { orderBy: { createdAt: 'desc' }, take: 50 }
     );
     res.json(notifications);
@@ -75,10 +86,10 @@ router.get('/', authenticate, async (req, res) => {
 router.patch('/read-all', authenticate, async (req, res) => {
   try {
     await notificationRepository.updateMany(
-      { userId: req.user.id, read: false },
+      { userId: req.user.id, read: false, ...martScopeFor(req.user) },
       { read: true }
     );
-    
+
     // Broadcast updated unread count (should be 0)
     sseManager.sendUnreadCountUpdate(req.user.id, 0);
 
@@ -97,13 +108,14 @@ router.patch('/:id/read', authenticate, async (req, res) => {
     const notification = await notificationRepository.findOne({
       id: req.params.id,
       userId: req.user.id,
+      ...martScopeFor(req.user),
     });
     if (!notification) return res.status(404).json({ message: 'Notification not found' });
 
     const updated = await notificationRepository.update(req.params.id, { read: true });
 
     // Broadcast updated unread count
-    const count = await getUnreadCount(req.user.id);
+    const count = await getUnreadCount(req.user.id, req.user.martId);
     sseManager.sendUnreadCountUpdate(req.user.id, count);
 
     res.json(updated);

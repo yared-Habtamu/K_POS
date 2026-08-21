@@ -17,15 +17,19 @@ export interface Notification {
 // Module-level singleton to persist across hook instantiations
 let globalEventSource: EventSource | null = null;
 
+// Tracks which user the current notification list belongs to,
+// so switching accounts/stores never shows the previous store's notifications
+let notificationsOwnerId: string | null = null;
+
 export function useSSE() {
   const { user } = useAuthStore();
-  const { 
-    notifications, 
-    unreadCount, 
-    isConnected, 
-    setNotifications, 
-    addNotification, 
-    setUnreadCount, 
+  const {
+    notifications,
+    unreadCount,
+    isConnected,
+    setNotifications,
+    addNotification,
+    setUnreadCount,
     setIsConnected,
     markAsRead: storeMarkAsRead,
     markAllAsRead: storeMarkAllAsRead
@@ -58,6 +62,13 @@ export function useSSE() {
       return;
     }
 
+    // If a different user logged in, wipe stale notifications from the previous store
+    if (notificationsOwnerId !== user.id) {
+      notificationsOwnerId = user.id;
+      setNotifications([]);
+      setUnreadCount(0);
+    }
+
     // Only fetch if we don't have notifications yet or to refresh
     if (notifications.length === 0) {
       fetchNotifications();
@@ -78,8 +89,12 @@ export function useSSE() {
       try {
         const payload = JSON.parse(event.data);
         if (payload.type === 'notification') {
+          const newNotif = payload.data;
+          if (!newNotif) return;
+          // Add to the bell so it appears immediately without a refetch
+          addNotification(newNotif);
           const targetUrl = getNotificationUrl(newNotif, user?.role);
-          toast.info(newNotif.title, {
+          toast.info(newNotif.title || 'Notification', {
             description: newNotif.message,
             duration: 6000,
             action: targetUrl ? {
