@@ -10,16 +10,24 @@ import {
   Pencil,
   Trash2,
   UserCheck,
+  UserPlus,
   Users,
   Wallet,
 } from "lucide-react";
 
 import { RoleLayout } from "@/components/layout/RoleLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/Modal";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import {
   AdvancedFilters,
@@ -149,20 +157,23 @@ export default function CustomerManagement() {
   const [paymentsHistory, setPaymentsHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // Staff List for Owner/Manager filter
+  // Staff List for Owner filter
   const [staffList, setStaffList] = useState<Array<{ id: string; name: string; username: string; role: string }>>([]);
+
+  // Add Customer dialog
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
 
   const isOwner = user?.role === "owner";
   const isManagement = user?.role === "owner" || user?.role === "manager";
   const isCashier = user?.role === "cashier";
 
+  // Fetch staff list whenever user changes (wait for auth to be available)
   useEffect(() => {
+    if (!user?.id) return;
     getStaffList().then((res) => {
-      if (Array.isArray(res)) {
-        setStaffList(res);
-      }
+      if (Array.isArray(res)) setStaffList(res);
     }).catch(console.error);
-  }, []);
+  }, [user?.id]);
 
   const validateCustomer = (values: CustomerFormState) => {
     const errors: { name?: string; phoneNumber?: string } = {};
@@ -171,8 +182,11 @@ export default function CustomerManagement() {
       errors.name = t("valid_name_min2");
     }
 
-    if (!values.phoneNumber || String(values.phoneNumber).trim().length < 7) {
+    const cleanPhone = String(values.phoneNumber || "").trim();
+    if (!cleanPhone || cleanPhone.length < 7) {
       errors.phoneNumber = t("valid_phone_required");
+    } else if (!/^\+?[0-9\s-]+$/.test(cleanPhone)) {
+      errors.phoneNumber = t("valid_phone_digits_only", "Phone number must contain only numbers.");
     }
 
     return errors;
@@ -373,6 +387,14 @@ export default function CustomerManagement() {
   };
 
   const openPayCreditModal = (customer: CustomerRow) => {
+    const unpaid = Number(customer.totalUnpaid || 0);
+    if (unpaid <= 0) {
+      toast({
+        title: t("no_unpaid_balance", "No Unpaid Balance"),
+        description: `${customer.name} ${t("customer_has_no_debt", "has no outstanding credit balance to pay.")}`,
+      });
+      return;
+    }
     setPayingCustomer(customer);
     setPayAmount("");
     setPayMethod("cash");
@@ -385,10 +407,30 @@ export default function CustomerManagement() {
     if (!payingCustomer) return;
 
     const amountNum = Number(payAmount);
+    const unpaid = Number(payingCustomer.totalUnpaid || 0);
+
+    if (unpaid <= 0) {
+      toast({
+        title: t("no_unpaid_balance", "No Unpaid Balance"),
+        description: t("customer_has_no_debt", "This customer has no outstanding credit balance to pay."),
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!Number.isFinite(amountNum) || amountNum <= 0) {
       toast({
         title: t("invalid_amount", "Invalid Amount"),
         description: t("enter_valid_amount_paid", "Please enter a valid payment amount greater than 0."),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (amountNum > unpaid) {
+      toast({
+        title: t("amount_exceeds_balance", "Amount Exceeds Unpaid Balance"),
+        description: `${t("amount_cannot_exceed", "Payment amount cannot exceed customer's unpaid balance of")} ${formatMoney(unpaid)}.`,
         variant: "destructive",
       });
       return;
@@ -445,6 +487,7 @@ export default function CustomerManagement() {
       });
       setForm(emptyCustomerForm);
       setFormErrors({});
+      setAddDialogOpen(false);
     } catch (err: any) {
       console.error(err);
       toast({
@@ -538,7 +581,7 @@ export default function CustomerManagement() {
       },
       {
         key: "cashierCredit",
-        header: t("credit_given_by_me", "Credit Given By Me"),
+        header: t("credit_given", "Credit Given"),
         accessor: (row) => Number(row.cashierCredit || 0),
         cell: (row) => (
           <div className="inline-flex items-center gap-1.5 font-medium text-purple-700 dark:text-purple-300">
@@ -549,7 +592,7 @@ export default function CustomerManagement() {
       },
       {
         key: "myRepayments",
-        header: t("repayments_collected_by_me", "Repayments Collected by Me"),
+        header: t("repayments_collected", "Repayments Collected"),
         accessor: (row) => Number(row.myRepayments || 0),
         cell: (row) => (
           <div
@@ -617,6 +660,18 @@ export default function CustomerManagement() {
               {t("manage_customers_credit")}
             </p>
           </div>
+          <Button
+            id="open-add-customer-dialog"
+            onClick={() => {
+              setForm(emptyCustomerForm);
+              setFormErrors({});
+              setAddDialogOpen(true);
+            }}
+            className="gap-2"
+          >
+            <UserPlus className="h-4 w-4" />
+            {t("add_customer")}
+          </Button>
         </div>
 
         {/* Top Metric Cards */}
@@ -626,7 +681,7 @@ export default function CustomerManagement() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-purple-700 dark:text-purple-300">
-                    {t("credit_given_by_me", "Credit Given By Me")}
+                    {t("credit_given", "Credit Given")}
                   </p>
                   <h3 className="mt-1 text-xl font-bold text-purple-900 dark:text-purple-100">
                     {formatMoney(totalCreditGivenByMe)}
@@ -701,78 +756,6 @@ export default function CustomerManagement() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Add Customer Form */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("add_new_customer")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form
-              onSubmit={handleCreate}
-              className="grid grid-cols-1 gap-4 md:grid-cols-4"
-            >
-              <div className="space-y-2">
-                <Label htmlFor="customer-name">{t("name")}</Label>
-                <Input
-                  id="customer-name"
-                  value={form.name}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      name: event.target.value,
-                    }))
-                  }
-                  placeholder={t("name")}
-                />
-                {formErrors.name ? (
-                  <p className="text-xs text-destructive">{formErrors.name}</p>
-                ) : null}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="customer-phone">{t("phone_number")}</Label>
-                <Input
-                  id="customer-phone"
-                  value={form.phoneNumber}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      phoneNumber: event.target.value,
-                    }))
-                  }
-                  placeholder={t("phone_number")}
-                />
-                {formErrors.phoneNumber ? (
-                  <p className="text-xs text-destructive">
-                    {formErrors.phoneNumber}
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="customer-city">{t("city")}</Label>
-                <Input
-                  id="customer-city"
-                  value={form.city}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      city: event.target.value,
-                    }))
-                  }
-                  placeholder={t("city")}
-                />
-              </div>
-
-              <div className="flex items-end">
-                <Button type="submit" className="w-full" disabled={submitting}>
-                  {submitting ? t("adding") : t("add_customer")}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
 
         {/* Search & Filters */}
         <AdvancedFilters
@@ -883,6 +866,96 @@ export default function CustomerManagement() {
         />
 
         {error ? <div className="text-sm text-destructive">{error}</div> : null}
+
+        {/* Add Customer Dialog */}
+        <Dialog
+          open={addDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setForm(emptyCustomerForm);
+              setFormErrors({});
+            }
+            setAddDialogOpen(open);
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5 text-primary" />
+                {t("add_new_customer")}
+              </DialogTitle>
+            </DialogHeader>
+
+            <form id="add-customer-form" onSubmit={handleCreate} className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="dlg-customer-name">{t("name")} *</Label>
+                <Input
+                  id="dlg-customer-name"
+                  value={form.name}
+                  onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))}
+                  placeholder={t("name")}
+                  autoFocus
+                  aria-invalid={!!formErrors.name}
+                />
+                {formErrors.name ? (
+                  <p className="text-xs text-destructive">{formErrors.name}</p>
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="dlg-customer-phone">{t("phone_number")} *</Label>
+                <Input
+                  id="dlg-customer-phone"
+                  type="tel"
+                  value={form.phoneNumber}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9+\s-]/g, "");
+                    setForm((c) => ({ ...c, phoneNumber: val }));
+                  }}
+                  placeholder={t("phone_number")}
+                  aria-invalid={!!formErrors.phoneNumber}
+                />
+                {formErrors.phoneNumber ? (
+                  <p className="text-xs text-destructive">{formErrors.phoneNumber}</p>
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="dlg-customer-city">{t("city")}</Label>
+                <Input
+                  id="dlg-customer-city"
+                  value={form.city}
+                  onChange={(e) => setForm((c) => ({ ...c, city: e.target.value }))}
+                  placeholder={t("city")}
+                />
+              </div>
+            </form>
+
+            <DialogFooter className="gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setForm(emptyCustomerForm);
+                  setFormErrors({});
+                  setAddDialogOpen(false);
+                }}
+                disabled={submitting}
+              >
+                {t("cancel")}
+              </Button>
+              <Button
+                type="submit"
+                form="add-customer-form"
+                disabled={submitting}
+                className="gap-2"
+              >
+                <UserPlus className="h-4 w-4" />
+                {submitting ? t("adding") : t("add_customer")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Pay Credit Modal */}
         <Modal
@@ -1033,13 +1106,15 @@ export default function CustomerManagement() {
                     </Label>
                     <Input
                       id="modal-customer-phone"
+                      type="tel"
                       value={editForm.phoneNumber}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        const val = event.target.value.replace(/[^0-9+\s-]/g, "");
                         setEditForm((current) => ({
                           ...current,
-                          phoneNumber: event.target.value,
-                        }))
-                      }
+                          phoneNumber: val,
+                        }));
+                      }}
                       readOnly={modalMode === "view"}
                     />
                   </div>

@@ -51,7 +51,7 @@ router.get('/staff-list', authenticate, async (req, res) => {
       where: {
         martId: targetMartId,
         isDeleted: false,
-        role: { not: 'storekeeper' },
+        role: { notIn: ['storeKeeper', 'systemAdmin', 'other'] },
       },
       select: { id: true, name: true, username: true, role: true },
       orderBy: { name: 'asc' },
