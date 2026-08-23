@@ -958,7 +958,7 @@ const resources = {
       refresh: "Refresh",
       run_global_check: "Run Global Check",
       running: "Running...",
-      approvals: "Approvals",
+      approvals: "Approval",
       all_payment_history: "Payment History",
       mart_subscriptions: "Mart Subscriptions",
       package_pricing: "Package Pricing",

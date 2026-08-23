@@ -60,7 +60,7 @@ export default function useTodaysSales(date?: string) {
           ? Number(p.currentPrice)
           : weightedSellingPrice;
       return {
-        id: `${p.productId || p.id || p.sku || p.name}-${p.soldById || p.soldByName || ''}-${p.paymentMethod || ''}`,
+        id: `${p.productId || p.id || p.sku || p.name}-${p.soldById || p.soldByName || ''}-${p.soldByRole || ''}-${p.paymentMethod || ''}`,
         name: p.name || "Unknown",
         qty,
         sellingPrice: rowSellingPrice,
@@ -71,6 +71,8 @@ export default function useTodaysSales(date?: string) {
         paymentMethods: Array.isArray(p.paymentMethods) ? p.paymentMethods : (p.paymentMethod ? [p.paymentMethod] : []),
         soldById: p.soldById || null,
         soldByName: p.soldByName || p.soldBy || "unknown",
+        soldByRole: p.soldByRole || "cashier",
+        date: p.date || p.lastSaleDate || "",
         total,
         priceTiers: Array.isArray(p.priceTiers)
           ? p.priceTiers.map((tier: any) => ({
@@ -83,12 +85,14 @@ export default function useTodaysSales(date?: string) {
           ? p.details.map((line: any) => ({
               soldById: line.soldById || null,
               soldByName: line.soldByName || line.soldBy || "unknown",
+              soldByRole: line.soldByRole || p.soldByRole || "cashier",
               paymentMethod: String(line.paymentMethod || "unknown"),
               price: Number(line.price || 0),
               qty: Number(line.qty || 0),
               subtotal: Number(line.subtotal || 0),
               vat: Number(line.vat || 0),
               total: Number(line.total || 0),
+              date: line.date || p.date || p.lastSaleDate || "",
             }))
           : [],
       };

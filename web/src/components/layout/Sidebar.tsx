@@ -204,7 +204,7 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
       items: [
         { label: "customers", icon: Users, path: "/owner/customers" },
         {
-          label: "approval",
+          label: "approvals",
           icon: ClipboardList,
           path: "/owner/approvals",
           activePaths: ["/owner/approval-history"],

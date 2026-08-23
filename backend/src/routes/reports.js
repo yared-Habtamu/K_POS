@@ -984,12 +984,19 @@ router.get("/today-sales", authenticate, async (req, res) => {
       filter.martId = queryMartId;
     }
 
-    const sales = await saleRepository.findMany(filter);
+    const sales = await saleRepository.findMany(filter, {
+      include: {
+        items: true,
+        cashier: {
+          select: { id: true, name: true, username: true, role: true },
+        },
+      },
+    });
 
     // Determine the effective mart for product lookups
     const effectiveMartId = filter.martId ? String(filter.martId) : null;
 
-    // aggregate by productId when available, else by name
+    // aggregate by (productId/name + seller)
     const prodAgg = {};
     const productIds = Array.from(
       new Set(
@@ -1009,14 +1016,29 @@ router.get("/today-sales", authenticate, async (req, res) => {
 
     for (const s of sales) {
       const paymentMethod = String(s.paymentMethod || "unknown");
-      const soldById = s.cashierId ? String(s.cashierId) : null;
-      const soldByName = s.cashierName || "unknown";
+      const soldById = s.cashierId
+        ? String(s.cashierId)
+        : s.cashier?.id
+          ? String(s.cashier.id)
+          : null;
+      const soldByName =
+        s.cashier?.name || s.cashier?.username || s.cashierName || "unknown";
+      const soldByRole = s.cashier?.role || "cashier";
+      const saleDateStr = s.date
+        ? new Date(s.date).toISOString()
+        : s.createdAt
+          ? new Date(s.createdAt).toISOString()
+          : "";
+
       for (const it of s.items || []) {
         const rawPid = it.productId ? String(it.productId) : null;
         const baseKey = rawPid
           ? `pid:${rawPid}`
           : `name:${(it.name || "").trim().toLowerCase()}`;
-        const key = baseKey;
+        const sellerKey = soldById
+          ? `id:${soldById}`
+          : `seller:${String(soldByName).toLowerCase()}:${soldByRole}`;
+        const key = `${baseKey}:${sellerKey}`;
 
         const soldAtPrice =
           it.price != null && it.price !== undefined
@@ -1050,9 +1072,10 @@ router.get("/today-sales", authenticate, async (req, res) => {
             vatAmount: 0,
             total: 0,
             paymentMethods: new Set([paymentMethod]),
-            soldById: null,
-            soldByName: "unknown",
-            lastSaleDate: "",
+            soldById,
+            soldByName,
+            soldByRole,
+            lastSaleDate: saleDateStr,
             priceTiers: [],
             details: [],
           };
@@ -1060,16 +1083,11 @@ router.get("/today-sales", authenticate, async (req, res) => {
 
         prodAgg[key].paymentMethods.add(paymentMethod);
 
-        // Track the seller of the most recent sale so per-product rows show the
-        // correct (latest) cashier instead of a generic "multiple".
-        const saleDateStr = String(s.date || "");
         if (
           !prodAgg[key].lastSaleDate ||
           saleDateStr >= prodAgg[key].lastSaleDate
         ) {
           prodAgg[key].lastSaleDate = saleDateStr;
-          prodAgg[key].soldById = soldById;
-          prodAgg[key].soldByName = soldByName;
         }
 
         const qty = Number(it.quantity || 0);
@@ -1111,12 +1129,14 @@ router.get("/today-sales", authenticate, async (req, res) => {
         prodAgg[key].details.push({
           soldById,
           soldByName,
+          soldByRole,
           paymentMethod,
           price: soldAtPrice,
           qty,
           subtotal: lineSubtotal,
           vat: lineVat,
           total: lineTotal,
+          date: saleDateStr,
         });
       }
     }
@@ -1144,6 +1164,9 @@ router.get("/today-sales", authenticate, async (req, res) => {
         paymentMethods,
         soldById: x.soldById || null,
         soldByName: x.soldByName || "unknown",
+        soldByRole: x.soldByRole || "cashier",
+        date: x.lastSaleDate || "",
+        lastSaleDate: x.lastSaleDate || "",
         priceTiers: Array.isArray(x.priceTiers)
           ? x.priceTiers
               .map((tier) => ({
@@ -1157,12 +1180,14 @@ router.get("/today-sales", authenticate, async (req, res) => {
           ? x.details.map((line) => ({
               soldById: line.soldById || null,
               soldByName: line.soldByName || "unknown",
+              soldByRole: line.soldByRole || "cashier",
               paymentMethod: String(line.paymentMethod || "unknown"),
               price: Number(line.price || 0),
               qty: Number(line.qty || 0),
               subtotal: Number(line.subtotal || 0),
               vat: Number(line.vat || 0),
               total: Number(line.total || 0),
+              date: line.date || "",
             }))
           : [],
       };

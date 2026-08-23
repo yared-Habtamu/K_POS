@@ -336,8 +336,8 @@ router.post("/", authenticate, async (req, res) => {
             );
           }
 
-          const newTotalCredit = Number(cust.totalCredit || 0) + computedTotal;
-          const newTotalPaid = Number(cust.totalPaid || 0) + paidAmountNum;
+          const newTotalCredit = Number(cust.totalCredit || 0) + creditAmountNum;
+          const newTotalPaid = Number(cust.totalPaid || 0);
           const newTotalUnpaid = newTotalCredit - newTotalPaid;
 
           await tx.customer.update({
