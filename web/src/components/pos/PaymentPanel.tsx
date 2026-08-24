@@ -797,14 +797,14 @@ export function PaymentPanel() {
         }
 
         const incomingDiscountRate = Number(json.globalDiscountRate) || 0;
-        const incomingDiscountType =
+        const incomingDiscountType: DiscountType =
           json.globalDiscountType === "fixed" ? "fixed" : "percentage";
         const incomingEnableByItems = Boolean(json.enableDiscountByItems);
         const incomingEnableByAmount = Boolean(json.enableDiscountByAmount);
         const incomingMinItems = Number(json.discountMinItems) || 0;
         const incomingMinAmount = Number(json.discountMinAmount) || 0;
         setMartDiscountPolicy((prev) => {
-          const next = {
+          const next: MartDiscountPolicy = {
             type: incomingDiscountType,
             rate: Math.max(0, incomingDiscountRate),
             enableByItems: incomingEnableByItems,
@@ -1063,21 +1063,21 @@ export function PaymentPanel() {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {/* Payment Method */}
       <div className="space-y-2">
-        <Label>{t("payment_method")}</Label>
+        <Label className="text-sm">{t("payment_method")}</Label>
         {isLoadingPaymentMethods ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs sm:text-sm text-muted-foreground">
             {t("loading_payment_methods") || "Loading payment methods..."}
           </p>
         ) : configuredPaymentMethods.length === 0 ? (
-          <p className="text-sm text-destructive">
+          <p className="text-xs sm:text-sm text-destructive">
             No POS payment methods are configured. Ask the owner to add them in
             Settings.
           </p>
         ) : (
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {configuredPaymentMethods.map((method) => {
               const Icon = method.icon;
               return (
@@ -1086,11 +1086,11 @@ export function PaymentPanel() {
                   variant={
                     paymentMethod === method.value ? "default" : "outline"
                   }
-                  className="h-auto py-3 flex flex-col items-center gap-1"
+                  className="h-auto py-2.5 sm:py-3 flex flex-col items-center gap-1"
                   onClick={() => setPaymentMethod(method.value)}
                 >
-                  <Icon className="h-5 w-5" />
-                  <span className="text-xs">
+                  <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="text-[10px] sm:text-xs leading-tight">
                     {t(method.label) || method.label}
                   </span>
                 </Button>
@@ -1100,18 +1100,18 @@ export function PaymentPanel() {
         )}
       </div>
       {isCreditPayment && (
-        <div className="space-y-3">
+        <div className="space-y-2 sm:space-y-3">
           <div className="space-y-2">
-            <Label>{t("customer") || "Customer"}</Label>
+            <Label className="text-sm">{t("customer") || "Customer"}</Label>
             <div className="flex items-center gap-2">
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <Select
                   value={customerId || undefined}
                   onValueChange={(v) =>
                     setCustomer(v && v !== "__none" ? v : null)
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1137,6 +1137,7 @@ export function PaymentPanel() {
                 variant="outline"
                 onClick={() => setShowAddCustomerDialog(true)}
                 title={t("add_customer")}
+                className="h-9 w-9 p-0"
               >
                 <Plus className="h-4 w-4" />
               </Button>
@@ -1144,14 +1145,14 @@ export function PaymentPanel() {
           </div>
 
           {customerId && (
-            <div className="p-3.5 rounded-xl border border-blue-200/60 bg-blue-50/40 dark:border-blue-900/30 dark:bg-blue-950/20 space-y-3">
-              <div className="flex items-center justify-between gap-2">
+            <div className="p-3 sm:p-3.5 rounded-lg sm:rounded-xl border border-blue-200/60 bg-blue-50/40 dark:border-blue-900/30 dark:bg-blue-950/20 space-y-2 sm:space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div className="space-y-0.5">
                   <span className="text-xs font-semibold text-foreground block">
                     {t("credit_payment_type") || "Credit payment type"}
                   </span>
                   {selectedCustomerObj && (
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-[10px] sm:text-[11px] text-muted-foreground">
                       {t("unpaid_balance") || "Unpaid Balance"}:{" "}
                       <span className="font-semibold text-orange-600 dark:text-orange-400">
                         {formatMoney(selectedCustomerObj.totalUnpaid)}
@@ -1159,10 +1160,10 @@ export function PaymentPanel() {
                     </p>
                   )}
                 </div>
-                <div className="flex rounded-lg border border-input bg-background p-0.5 gap-0.5 shadow-sm">
+                <div className="flex rounded-lg border border-input bg-background p-0.5 gap-0.5 shadow-sm self-start sm:self-auto">
                   <button
                     type="button"
-                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                    className={`px-2 sm:px-2.5 py-1 text-[10px] sm:text-xs font-medium rounded-md transition-all ${
                       isFullCredit
                         ? "bg-primary text-primary-foreground shadow"
                         : "text-muted-foreground hover:text-foreground"
@@ -1177,7 +1178,7 @@ export function PaymentPanel() {
                   </button>
                   <button
                     type="button"
-                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                    className={`px-2 sm:px-2.5 py-1 text-[10px] sm:text-xs font-medium rounded-md transition-all ${
                       !isFullCredit
                         ? "bg-primary text-primary-foreground shadow"
                         : "text-muted-foreground hover:text-foreground"
@@ -1194,8 +1195,8 @@ export function PaymentPanel() {
               </div>
 
               {isFullCredit ? (
-                <div className="p-2.5 rounded-lg bg-background/80 border border-blue-200/60 dark:border-blue-900/30 text-xs flex items-center justify-between">
-                  <span className="text-muted-foreground">
+                <div className="p-2 sm:p-2.5 rounded-lg bg-background/80 border border-blue-200/60 dark:border-blue-900/30 text-xs flex items-center justify-between flex-wrap gap-1">
+                  <span className="text-muted-foreground text-[10px] sm:text-xs">
                     {t("full_credit_summary") ||
                       "Full order total will be added to unpaid balance:"}
                   </span>
@@ -1204,8 +1205,8 @@ export function PaymentPanel() {
                   </span>
                 </div>
               ) : (
-                <div className="space-y-3 pt-1">
-                  <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2 sm:space-y-3 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                     <div className="space-y-1">
                       <Label
                         htmlFor="amount-paid-input"
@@ -1248,14 +1249,14 @@ export function PaymentPanel() {
                     </div>
                   </div>
 
-                  <div className="p-2.5 rounded-lg bg-background border border-border text-xs space-y-1">
-                    <div className="flex justify-between items-center text-emerald-700 dark:text-emerald-400 font-medium">
+                  <div className="p-2 sm:p-2.5 rounded-lg bg-background border border-border text-xs space-y-1">
+                    <div className="flex justify-between items-center text-emerald-700 dark:text-emerald-400 font-medium text-[10px] sm:text-xs">
                       <span>{t("paid_now") || "Paid upfront"}:</span>
                       <span className="font-bold">
                         {formatMoney(parseFloat(amountPaidInput) || 0)}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center text-orange-600 dark:text-orange-400 font-semibold">
+                    <div className="flex justify-between items-center text-orange-600 dark:text-orange-400 font-semibold text-[10px] sm:text-xs">
                       <span>
                         {t("added_to_unpaid") || "Added to unpaid balance"}:
                       </span>
@@ -1267,7 +1268,7 @@ export function PaymentPanel() {
 
                   {(parseFloat(amountPaidInput) < 0 ||
                     parseFloat(amountPaidInput) > getTotal()) && (
-                    <p className="text-xs text-destructive font-medium">
+                    <p className="text-[10px] sm:text-xs text-destructive font-medium">
                       {t("paid_amount_invalid") ||
                         `Amount paid must be between 0 ETB and ${getTotal().toFixed(2)} ETB.`}
                     </p>
@@ -1383,8 +1384,8 @@ export function PaymentPanel() {
       {/* Saved Accounts (show all configured payment accounts) */}
       {Object.keys(paymentAccounts || {}).length > 0 && (
         <div className="space-y-2 pt-2">
-          <Label>{t("saved_accounts") || "Saved Accounts"}</Label>
-          <div className="grid grid-cols-2 gap-2">
+          <Label className="text-sm">{t("saved_accounts") || "Saved Accounts"}</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {Object.entries(paymentAccounts).map(([key, value]) => {
               const account = value;
               const copyValue =
@@ -1395,19 +1396,19 @@ export function PaymentPanel() {
               return (
                 <div
                   key={key}
-                  className="p-2 border rounded-lg bg-muted flex items-center justify-between"
+                  className="p-2 border rounded-lg bg-muted flex items-center justify-between gap-2"
                 >
-                  <div className="text-sm">
-                    <div className="text-xs text-muted-foreground">
+                  <div className="text-sm min-w-0 flex-1">
+                    <div className="text-[10px] sm:text-xs text-muted-foreground">
                       {niceKey}
                     </div>
-                    <div className="text-sm font-medium mt-1">
+                    <div className="text-xs sm:text-sm font-medium mt-1">
                       {account.accountHolderName ? (
-                        <span className="block text-xs text-muted-foreground">
+                        <span className="block text-[10px] sm:text-xs text-muted-foreground truncate">
                           {account.accountHolderName}
                         </span>
                       ) : null}
-                      {copyValue || t("not_configured")}
+                      <span className="truncate block">{copyValue || t("not_configured")}</span>
                     </div>
                   </div>
                   {copyValue ? (
@@ -1424,8 +1425,9 @@ export function PaymentPanel() {
                           console.warn("copy to clipboard failed", err);
                         }
                       }}
+                      className="h-8 w-8 shrink-0"
                     >
-                      <Copy className="h-4 w-4" />
+                      <Copy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </Button>
                   ) : null}
                 </div>
@@ -1437,16 +1439,16 @@ export function PaymentPanel() {
 
       {/* Discount Section */}
       <div className="space-y-2">
-        <Label>{t("discount")}</Label>
+        <Label className="text-sm">{t("discount")}</Label>
         {martDiscountPolicy.rate > 0 ? (
-          <div className="space-y-1 rounded-lg border p-3">
-            <p className="text-sm text-muted-foreground">
+          <div className="space-y-1 rounded-lg border p-2.5 sm:p-3">
+            <p className="text-xs sm:text-sm text-muted-foreground">
               Auto discount policy:{" "}
               {martDiscountPolicy.type === "percentage"
                 ? `${martDiscountPolicy.rate}% off`
                 : `${martDiscountPolicy.rate} ETB off`}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[10px] sm:text-xs text-muted-foreground">
               Conditions:{" "}
               {martDiscountPolicy.enableByItems
                 ? `items > ${martDiscountPolicy.minItems}`
@@ -1456,14 +1458,14 @@ export function PaymentPanel() {
                 ? `subtotal > ${martDiscountPolicy.minAmount} ETB`
                 : "amount condition disabled"}
             </p>
-            <p className="text-sm font-medium">
+            <p className="text-xs sm:text-sm font-medium">
               {discount
                 ? `Applied: -${getDiscountAmount().toFixed(2)} ETB`
                 : "Not applied for current cart"}
             </p>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs sm:text-sm text-muted-foreground">
             {t("no_mart_discount_policy_configured")}
           </p>
         )}
@@ -1471,29 +1473,30 @@ export function PaymentPanel() {
 
       {/* Extra Charges */}
       <div className="space-y-2">
-        <Label>{t("extra_charges")}</Label>
+        <Label className="text-sm">{t("extra_charges")}</Label>
         {extraCharges.map((charge) => (
           <div
             key={charge.id}
             className="flex items-center gap-2 p-2 bg-accent rounded-lg"
           >
-            <span className="flex-1 text-sm">{charge.name}</span>
-            <span className="text-sm font-medium">{charge.amount} ETB</span>
+            <span className="flex-1 text-xs sm:text-sm truncate">{charge.name}</span>
+            <span className="text-xs sm:text-sm font-medium shrink-0">{charge.amount} ETB</span>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => removeExtraCharge(charge.id)}
+              className="h-7 w-7 p-0 shrink-0"
             >
-              <X className="h-4 w-4" />
+              <X className="h-3.5 w-3.5" />
             </Button>
           </div>
         ))}
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
           <Select
             value={newChargeType}
             onValueChange={(v) => setNewChargeType(v)}
           >
-            <SelectTrigger className="w-44">
+            <SelectTrigger className="w-full sm:w-44 h-9 text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -1515,27 +1518,29 @@ export function PaymentPanel() {
               placeholder={t("custom_name")}
               value={newChargeCustomName}
               onChange={(e) => setNewChargeCustomName(e.target.value)}
-              className="flex-1"
+              className="flex-1 h-9 text-sm"
             />
           )}
 
-          <Input
-            type="number"
-            placeholder={t("amount")}
-            value={newChargeAmount}
-            onChange={(e) => setNewChargeAmount(e.target.value)}
-            className="w-24"
-          />
-          <Button onClick={handleAddCharge} size="icon">
-            <Plus className="h-4 w-4" />
-          </Button>
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              placeholder={t("amount")}
+              value={newChargeAmount}
+              onChange={(e) => setNewChargeAmount(e.target.value)}
+              className="w-full sm:w-24 h-9 text-sm"
+            />
+            <Button onClick={handleAddCharge} size="icon" className="h-9 w-9 shrink-0">
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Action Buttons */}
-      <div className="space-y-2 pt-4">
+      <div className="space-y-2 pt-2 sm:pt-4">
         <Button
-          className="w-full h-14 text-lg font-bold"
+          className="w-full h-12 sm:h-14 text-base sm:text-lg font-bold"
           onClick={() => setConfirmCompleteOpen(true)}
           disabled={
             items.length === 0 ||
@@ -1545,19 +1550,19 @@ export function PaymentPanel() {
         >
           {isProcessing ? (
             <>
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              <Loader2 className="mr-2 h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
               {t("processing")}
             </>
           ) : (
             <>
-              <ReceiptIcon className="mr-2 h-5 w-5" />
-              {t("complete_sale")} - {getTotal().toFixed(2)} {t("etb")}
+              <ReceiptIcon className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+              <span className="truncate">{t("complete_sale")} - {getTotal().toFixed(2)} {t("etb")}</span>
             </>
           )}
         </Button>
         <Button
           variant="outline"
-          className="w-full"
+          className="w-full h-10 text-sm"
           onClick={clearCart}
           disabled={items.length === 0}
         >

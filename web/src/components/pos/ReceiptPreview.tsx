@@ -273,27 +273,27 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
 
   return (
     <div className="flex flex-col">
-      <div className="receipt-preview bg-white text-black p-6 rounded-lg max-h-[60vh] overflow-y-auto">
+      <div className="receipt-preview bg-white text-black p-4 sm:p-6 rounded-lg max-h-[50vh] sm:max-h-[60vh] overflow-y-auto">
         {/* Header */}
-        <div className="text-center mb-4">
-          <h2 className="text-xl font-bold">{receipt.shopName}</h2>
+        <div className="text-center mb-3 sm:mb-4">
+          <h2 className="text-lg sm:text-xl font-bold">{receipt.shopName}</h2>
           {receipt.shopAddress && (
-            <p className="text-xs">{receipt.shopAddress}</p>
+            <p className="text-[10px] sm:text-xs">{receipt.shopAddress}</p>
           )}
-          {receipt.shopPhone && <p className="text-xs">{receipt.shopPhone}</p>}
+          {receipt.shopPhone && <p className="text-[10px] sm:text-xs">{receipt.shopPhone}</p>}
           {receipt.receiptSlogan ? (
-            <p className="text-xs mt-2">{receipt.receiptSlogan}</p>
+            <p className="text-[10px] sm:text-xs mt-2">{receipt.receiptSlogan}</p>
           ) : (
             receipt.receiptHeader && (
-              <p className="text-xs mt-2">{receipt.receiptHeader}</p>
+              <p className="text-[10px] sm:text-xs mt-2">{receipt.receiptHeader}</p>
             )
           )}
         </div>
 
-        <Separator className="my-3 border-dashed border-gray-400" />
+        <Separator className="my-2 sm:my-3 border-dashed border-gray-400" />
 
         {/* Receipt info */}
-        <div className="flex justify-between text-xs mb-3">
+        <div className="flex flex-col sm:flex-row sm:justify-between text-[10px] sm:text-xs mb-2 sm:mb-3 gap-1 sm:gap-0">
           <div>
             <p>
               {t("receipt_label")}: {receipt.id}
@@ -302,40 +302,51 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
               {t("cashier")}: {receipt.cashierName}
             </p>
           </div>
-          <div className="text-right">
+          <div className="sm:text-right">
             <p>{format(new Date(receipt.date), "MMM dd, yyyy")}</p>
             <p>{format(new Date(receipt.date), "HH:mm:ss")}</p>
           </div>
         </div>
 
-        <Separator className="my-3 border-dashed border-gray-400" />
+        <Separator className="my-2 sm:my-3 border-dashed border-gray-400" />
 
         {/* Items */}
-        <div className="space-y-2 mb-3">
-          <div className="flex justify-between text-xs font-bold">
+        <div className="space-y-1.5 sm:space-y-2 mb-2 sm:mb-3">
+          <div className="hidden sm:flex justify-between text-xs font-bold">
             <span className="flex-1">{t("item")}</span>
             <span className="w-12 text-center">{t("quantity_short")}</span>
             <span className="w-16 text-right">{t("price")}</span>
             <span className="w-20 text-right">{t("total")}</span>
           </div>
           {receipt.items.map((item, idx) => (
-            <div key={idx} className="flex justify-between text-xs">
-              <span className="flex-1 truncate pr-2">{item.product.name}</span>
-              <span className="w-12 text-center">{item.quantity}</span>
-              <span className="w-16 text-right">
-                {item.product.sellingPrice.toFixed(2)}
-              </span>
-              <span className="w-20 text-right">
-                {item.subtotal.toFixed(2)}
-              </span>
+            <div key={idx} className="text-[10px] sm:text-xs">
+              {/* Mobile layout - stacked */}
+              <div className="sm:hidden space-y-0.5">
+                <div className="font-medium">{item.product.name}</div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>{item.quantity} x {item.product.sellingPrice.toFixed(2)} ETB</span>
+                  <span className="font-semibold text-foreground">{item.subtotal.toFixed(2)} ETB</span>
+                </div>
+              </div>
+              {/* Desktop layout - row */}
+              <div className="hidden sm:flex justify-between">
+                <span className="flex-1 truncate pr-2">{item.product.name}</span>
+                <span className="w-12 text-center">{item.quantity}</span>
+                <span className="w-16 text-right">
+                  {item.product.sellingPrice.toFixed(2)}
+                </span>
+                <span className="w-20 text-right">
+                  {item.subtotal.toFixed(2)}
+                </span>
+              </div>
             </div>
           ))}
         </div>
 
-        <Separator className="my-3 border-dashed border-gray-400" />
+        <Separator className="my-2 sm:my-3 border-dashed border-gray-400" />
 
         {/* Totals */}
-        <div className="space-y-1 text-sm">
+        <div className="space-y-0.5 sm:space-y-1 text-xs sm:text-sm">
           <div className="flex justify-between">
             <span>{t("subtotal")}:</span>
             <span>{receipt.subtotal.toFixed(2)} ETB</span>
@@ -348,8 +359,8 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
           )}
           {(receipt.extraCharges || []).map((charge) => (
             <div key={charge.id} className="flex justify-between">
-              <span>{charge.name}:</span>
-              <span>+{charge.amount.toFixed(2)} ETB</span>
+              <span className="truncate pr-2">{charge.name}:</span>
+              <span className="shrink-0">+{charge.amount.toFixed(2)} ETB</span>
             </div>
           ))}
           <div className="flex justify-between">
@@ -358,37 +369,37 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
             </span>
             <span>{receipt.tax.toFixed(2)} ETB</span>
           </div>
-          <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-400">
+          <div className="flex justify-between font-bold text-base sm:text-lg pt-1.5 sm:pt-2 border-t border-gray-400">
             <span>{t("total").toUpperCase()}:</span>
             <span>{receipt.total.toFixed(2)} ETB</span>
           </div>
-          <div className="flex justify-between text-xs pt-1">
+          <div className="flex justify-between text-[10px] sm:text-xs pt-1">
             <span>{t("payment_method")}:</span>
             <span className="uppercase">
               {receipt.paymentMethod.replace("_", " ")}
             </span>
           </div>
           {receipt.customerName && (
-            <div className="flex justify-between text-xs pt-1">
+            <div className="flex justify-between text-[10px] sm:text-xs pt-1">
               <span>{t("customer") || "Customer"}:</span>
-              <span>{receipt.customerName}</span>
+              <span className="truncate ml-2">{receipt.customerName}</span>
             </div>
           )}
           {receipt.amountPaid != null && (receipt.paymentMethod === "credit" || receipt.paymentMethod === "wallet") && (
-            <div className="flex justify-between text-xs pt-1 font-medium text-green-700">
+            <div className="flex justify-between text-[10px] sm:text-xs pt-1 font-medium text-green-700">
               <span>{t("paid_upfront") || "Paid Upfront"}:</span>
               <span>{Number(receipt.amountPaid).toFixed(2)} ETB</span>
             </div>
           )}
           {receipt.creditAmount != null && receipt.creditAmount > 0 && (receipt.paymentMethod === "credit" || receipt.paymentMethod === "wallet") && (
-            <div className="flex justify-between text-xs pt-1 font-semibold text-orange-600">
+            <div className="flex justify-between text-[10px] sm:text-xs pt-1 font-semibold text-orange-600">
               <span>{t("remaining_credit") || "Remaining Credit"}:</span>
               <span>{Number(receipt.creditAmount).toFixed(2)} ETB</span>
             </div>
           )}
         </div>
 
-        <Separator className="my-4 border-dashed border-gray-400" />
+        <Separator className="my-3 sm:my-4 border-dashed border-gray-400" />
 
         {/* QR Code */}
         <div className="flex flex-col items-center">
@@ -397,38 +408,38 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
 
         {/* Footer */}
         {/* Footer slogan removed to avoid duplicate; slogan shown at top instead */}
-        <p className="receipt-powered-by text-center mt-2">
+        <p className="receipt-powered-by text-center mt-2 text-[10px] sm:text-xs">
           {t("powered_by_smart_pos")}
         </p>
-        <p className="receipt-provider-phone text-center mt-1">
+        <p className="receipt-provider-phone text-center mt-1 text-[10px] sm:text-xs">
           {SYSTEM_PROVIDER_PHONE}
         </p>
       </div>
 
       {/* Actions */}
-      <div className="flex gap-2 mt-4 pt-4 border-t border-border">
-        <Button onClick={handlePrint} className="flex-1">
-          <Printer className="mr-2 h-4 w-4" />
+      <div className="grid grid-cols-2 sm:flex gap-2 mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-border">
+        <Button onClick={handlePrint} className="flex-1 h-9 sm:h-10 text-xs sm:text-sm">
+          <Printer className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
           {t("print")}
         </Button>
         <Button
           variant="outline"
           onClick={handleDownloadPDF}
-          className="flex-1"
+          className="flex-1 h-9 sm:h-10 text-xs sm:text-sm"
         >
-          <Download className="mr-2 h-4 w-4" />
+          <Download className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
           PDF
         </Button>
         <Button
           variant="outline"
           onClick={() => setSmsOpen(true)}
-          className="flex-1"
+          className="flex-1 h-9 sm:h-10 text-xs sm:text-sm"
         >
-          <MessageSquare className="mr-2 h-4 w-4" />
+          <MessageSquare className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
           SMS
         </Button>
-        <Button onClick={onDone} className="flex-1">
-          <CheckCircle2 className="mr-2 h-4 w-4" />
+        <Button onClick={onDone} className="flex-1 h-9 sm:h-10 text-xs sm:text-sm col-span-2 sm:col-span-1">
+          <CheckCircle2 className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
           {t("done") || "Done"}
         </Button>
       </div>
@@ -442,33 +453,35 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
           </DialogDescription>
           <div className="space-y-2 mt-4">
             <div>
-              <label className="text-sm">{t("name")}</label>
+              <label className="text-xs sm:text-sm">{t("name")}</label>
               <Input
                 value={smsName}
                 onChange={(e) =>
                   setSmsName((e.target as HTMLInputElement).value)
                 }
+                className="h-9 text-sm"
               />
             </div>
             <div>
-              <label className="text-sm">{t("phone")}</label>
+              <label className="text-xs sm:text-sm">{t("phone")}</label>
               <Input
                 value={smsPhone}
                 onChange={(e) =>
                   setSmsPhone((e.target as HTMLInputElement).value)
                 }
                 placeholder={t("phone_example")}
+                className="h-9 text-sm"
               />
             </div>
             {smsResult && (
-              <div className="text-sm text-muted-foreground">{smsResult}</div>
+              <div className="text-xs sm:text-sm text-muted-foreground">{smsResult}</div>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSmsOpen(false)}>
+            <Button variant="outline" onClick={() => setSmsOpen(false)} className="text-sm">
               {t("cancel")}
             </Button>
-            <Button onClick={sendSms} disabled={sendingSms}>
+            <Button onClick={sendSms} disabled={sendingSms} className="text-sm">
               {sendingSms ? t("sending") : t("send_sms")}
             </Button>
           </DialogFooter>

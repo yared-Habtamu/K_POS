@@ -280,7 +280,11 @@ export default function CustomerManagement() {
         (balanceStatus === "unpaid" && unpaidBalance > 0) ||
         (balanceStatus === "high_debt" && unpaidBalance >= HIGH_DEBT_THRESHOLD);
 
-      return matchesQuery && matchesCity && matchesBalanceStatus;
+      // Cashiers only see customers they personally gave credit to
+      const matchesCashierScope =
+        !isCashier || Number(customer.cashierCredit || 0) > 0;
+
+      return matchesQuery && matchesCity && matchesBalanceStatus && matchesCashierScope;
     });
 
     const [sortField, sortDirection] = sortBy.split("_");
@@ -310,7 +314,7 @@ export default function CustomerManagement() {
       if (leftValue > rightValue) return 1 * direction;
       return 0;
     });
-  }, [appliedFilters, customers, t]);
+  }, [appliedFilters, customers, t, isCashier]);
 
   // Overall metric totals
   const totalUnpaidBalance = useMemo(() => {
@@ -559,6 +563,26 @@ export default function CustomerManagement() {
     }
   };
 
+  // Label for the "cashierCredit" column changes depending on who is viewing
+  // and which staff member is selected in the filter dropdown.
+  const creditGivenColumnLabel = useMemo(() => {
+    if (isCashier) return t("my_credit_given", "My Credit Given");
+    const selected = selectedCashierFilter !== "all"
+      ? staffList.find((s) => s.id === selectedCashierFilter)
+      : null;
+    if (selected) return `${selected.name || selected.username} ${t("credit_given_short", "Credit")}`;
+    return t("my_credit_given", "My Credit Given");
+  }, [isCashier, selectedCashierFilter, staffList, t]);
+
+  const repaymentColumnLabel = useMemo(() => {
+    if (isCashier) return t("my_repayments_collected", "My Repayments");
+    const selected = selectedCashierFilter !== "all"
+      ? staffList.find((s) => s.id === selectedCashierFilter)
+      : null;
+    if (selected) return `${selected.name || selected.username} ${t("repayments_short", "Repayments")}`;
+    return t("my_repayments_collected", "My Repayments");
+  }, [isCashier, selectedCashierFilter, staffList, t]);
+
   const columns = useMemo<Array<DataTableColumn<CustomerRow>>>(
     () => [
       {
@@ -581,7 +605,7 @@ export default function CustomerManagement() {
       },
       {
         key: "cashierCredit",
-        header: t("credit_given", "Credit Given"),
+        header: creditGivenColumnLabel,
         accessor: (row) => Number(row.cashierCredit || 0),
         cell: (row) => (
           <div className="inline-flex items-center gap-1.5 font-medium text-purple-700 dark:text-purple-300">
@@ -592,7 +616,7 @@ export default function CustomerManagement() {
       },
       {
         key: "myRepayments",
-        header: t("repayments_collected", "Repayments Collected"),
+        header: repaymentColumnLabel,
         accessor: (row) => Number(row.myRepayments || 0),
         cell: (row) => (
           <div
@@ -609,7 +633,7 @@ export default function CustomerManagement() {
       },
       {
         key: "totalCredit",
-        header: t("total_credit"),
+        header: t("total_credit_all", "Total Credit (All)"),
         accessor: (row) => Number(row.totalCredit || 0),
         cell: (row) => (
           <div className="inline-flex items-center gap-1.5 font-medium text-blue-700 dark:text-blue-300">
@@ -647,7 +671,7 @@ export default function CustomerManagement() {
         ),
       },
     ],
-    [t],
+    [t, creditGivenColumnLabel, repaymentColumnLabel],
   );
 
   return (
@@ -681,11 +705,20 @@ export default function CustomerManagement() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-purple-700 dark:text-purple-300">
-                    {t("credit_given", "Credit Given")}
+                    {isCashier
+                      ? t("my_credit_given", "My Credit Given")
+                      : selectedCashierFilter !== "all"
+                        ? `${staffList.find((s) => s.id === selectedCashierFilter)?.name || "Staff"} ${t("credit_given_short", "Credit")}`
+                        : t("credit_given", "Credit Given (Me)")}
                   </p>
                   <h3 className="mt-1 text-xl font-bold text-purple-900 dark:text-purple-100">
                     {formatMoney(totalCreditGivenByMe)}
                   </h3>
+                  {isCashier && (
+                    <p className="mt-0.5 text-xs text-purple-700/70 dark:text-purple-400/60">
+                      {t("credits_given_by_you", "Credits you personally gave")}
+                    </p>
+                  )}
                 </div>
                 <div className="rounded-xl bg-purple-100 p-3 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
                   <UserCheck className="h-5 w-5" />
@@ -694,25 +727,50 @@ export default function CustomerManagement() {
             </CardContent>
           </Card>
 
-          <Card className="border-blue-100 bg-blue-50/50 dark:border-blue-950 dark:bg-blue-950/20">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                    {isManagement
-                      ? t("total_credit_all_staff", "Total Credit (All Staff)")
-                      : t("total_credit", "Total Credit")}
-                  </p>
-                  <h3 className="mt-1 text-xl font-bold text-blue-900 dark:text-blue-100">
-                    {formatMoney(totalCreditIssued)}
-                  </h3>
+          {/* Second card: cashiers see their own repayments; management sees all-staff total credit */}
+          {isCashier ? (
+            <Card className="border-green-100 bg-green-50/50 dark:border-green-950 dark:bg-green-950/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-green-700 dark:text-green-300">
+                      {t("my_repayments_collected", "My Repayments Collected")}
+                    </p>
+                    <h3 className="mt-1 text-xl font-bold text-green-900 dark:text-green-100">
+                      {formatMoney(totalMyRepayments)}
+                    </h3>
+                    <p className="mt-0.5 text-xs text-green-700/70 dark:text-green-400/60">
+                      {t("repayments_you_collected", "Repayments you collected")}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-green-100 p-3 text-green-700 dark:bg-green-900/50 dark:text-green-300">
+                    <Banknote className="h-5 w-5" />
+                  </div>
                 </div>
-                <div className="rounded-xl bg-blue-100 p-3 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-                  <CreditCard className="h-5 w-5" />
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-blue-100 bg-blue-50/50 dark:border-blue-950 dark:bg-blue-950/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                      {t("total_credit_all", "Total Credit (All Roles)")}
+                    </p>
+                    <h3 className="mt-1 text-xl font-bold text-blue-900 dark:text-blue-100">
+                      {formatMoney(totalCreditIssued)}
+                    </h3>
+                    <p className="mt-0.5 text-xs text-blue-700/70 dark:text-blue-400/60">
+                      {t("all_roles_combined", "All roles combined")}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-blue-100 p-3 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                    <CreditCard className="h-5 w-5" />
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="border-orange-100 bg-orange-50/50 dark:border-orange-950 dark:bg-orange-950/20">
             <CardContent className="pt-6">
@@ -732,29 +790,51 @@ export default function CustomerManagement() {
             </CardContent>
           </Card>
 
-          <Card className="border-green-100 bg-green-50/50 dark:border-green-950 dark:bg-green-950/20">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-green-700 dark:text-green-300">
-                    {t("total_repayments_collected", "Total Repayments Collected")}
-                  </p>
-                  <h3 className="mt-1 text-xl font-bold text-green-900 dark:text-green-100">
-                    {formatMoney(totalMyRepayments)}
-                  </h3>
-                  {isManagement && (
+          {/* Last card: management sees total repayments; cashiers see total credit (all roles, for awareness) */}
+          {isCashier ? (
+            <Card className="border-blue-100 bg-blue-50/50 dark:border-blue-950 dark:bg-blue-950/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                      {t("total_credit_all", "Total Credit (All)")}
+                    </p>
+                    <h3 className="mt-1 text-xl font-bold text-blue-900 dark:text-blue-100">
+                      {formatMoney(totalCreditIssued)}
+                    </h3>
+                    <p className="mt-0.5 text-xs text-blue-700/70 dark:text-blue-400/60">
+                      {t("all_roles_combined", "All roles combined")}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-blue-100 p-3 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                    <CreditCard className="h-5 w-5" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-green-100 bg-green-50/50 dark:border-green-950 dark:bg-green-950/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-green-700 dark:text-green-300">
+                      {t("total_repayments_collected", "Total Repayments Collected")}
+                    </p>
+                    <h3 className="mt-1 text-xl font-bold text-green-900 dark:text-green-100">
+                      {formatMoney(totalMyRepayments)}
+                    </h3>
                     <p className="mt-0.5 text-xs text-green-700/70 dark:text-green-400/60">
                       {t("all_staff_total", "All Staff Total")}:{" "}
                       <span className="font-medium">{formatMoney(totalPaidCollected)}</span>
                     </p>
-                  )}
+                  </div>
+                  <div className="rounded-xl bg-green-100 p-3 text-green-700 dark:bg-green-900/50 dark:text-green-300">
+                    <Banknote className="h-5 w-5" />
+                  </div>
                 </div>
-                <div className="rounded-xl bg-green-100 p-3 text-green-700 dark:bg-green-900/50 dark:text-green-300">
-                  <Banknote className="h-5 w-5" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Search & Filters */}
@@ -823,7 +903,7 @@ export default function CustomerManagement() {
           rowKey="id"
           isLoading={loading}
           loadingMessage={t("loading")}
-          emptyMessage={t("no_customers_yet")}
+          emptyMessage={isCashier ? t("no_credited_customers_yet", "You haven't given credit to any customers yet.") : t("no_customers_yet")}
           pagination
           initialPageSize={10}
           pageSizeOptions={[10, 25, 50]}
