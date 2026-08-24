@@ -296,10 +296,10 @@ export default function CashierPOS() {
 
   return (
     <RoleLayout allowedRoles={["cashier", "owner", "manager"]}>
-      <div className="flex h-full min-h-0 flex-col gap-4">
-        {/* Top row: left half Search + Cart, right half Payment */}
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="space-y-4 min-w-0">
+      <div className="flex h-full min-h-0 flex-col gap-3 sm:gap-4">
+        {/* Top row: Search, Cart, and Payment - stacks vertically on mobile, side-by-side on desktop */}
+        <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
+          <div className="space-y-3 sm:space-y-4 min-w-0">
             <motion.div
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -319,23 +319,23 @@ export default function CashierPOS() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
-              className="min-h-[320px]"
+              className="min-h-[280px] sm:min-h-[320px]"
             >
               <Card className="flex h-full flex-col">
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center justify-between">
+                <CardHeader className="pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
+                  <CardTitle className="flex items-center justify-between text-base sm:text-lg">
                     <div className="flex items-center gap-2">
-                      <ShoppingCart className="h-5 w-5" />
+                      <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5" />
                       {t("cart")}
                     </div>
                     {items.length > 0 && (
-                      <Badge>
+                      <Badge className="text-xs">
                         {items.length} {t("items")}
                       </Badge>
                     )}
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="flex flex-1 flex-col min-h-0 pb-4">
+                <CardContent className="flex flex-1 flex-col min-h-0 pb-3 sm:pb-4 px-4 sm:px-6">
                   <Cart />
                 </CardContent>
               </Card>
@@ -349,21 +349,21 @@ export default function CashierPOS() {
             className="min-w-0"
           >
             <Card className="h-full">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2">
-                  <Package className="h-5 w-5" />
+              <CardHeader className="pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <Package className="h-4 w-4 sm:h-5 sm:w-5" />
                   {t("payment_method")}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 sm:px-6">
                 <PaymentPanel />
               </CardContent>
             </Card>
           </motion.div>
         </div>
 
-        {/* Rest stays as before */}
-        <div className="space-y-4 overflow-y-auto pr-1">
+        {/* Products section - scrollable on mobile */}
+        <div className="space-y-3 sm:space-y-4 overflow-y-auto pr-1">
           {/* Quick Alerts */}
           {(lowStock.length > 0 || expiring.length > 0) && (
             <motion.div
@@ -375,7 +375,7 @@ export default function CashierPOS() {
               {lowStock.length > 0 && (
                 <Badge
                   variant="secondary"
-                  className="gap-1.5 bg-warning/10 text-warning border-warning/20"
+                  className="gap-1.5 bg-warning/10 text-warning border-warning/20 text-xs"
                 >
                   <AlertTriangle className="h-3 w-3" />
                   {lowStock.length} {t("low_stock")}
@@ -384,7 +384,7 @@ export default function CashierPOS() {
               {expiring.length > 0 && (
                 <Badge
                   variant="secondary"
-                  className="gap-1.5 bg-destructive/10 text-destructive border-destructive/20"
+                  className="gap-1.5 bg-destructive/10 text-destructive border-destructive/20 text-xs"
                 >
                   <Clock className="h-3 w-3" />
                   {expiring.length} {t("expiring_soon")}
@@ -494,10 +494,10 @@ export default function CashierPOS() {
               ]}
               toolbarContent={
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline">
+                  <Badge variant="outline" className="text-xs">
                     {filteredProducts.length} products
                   </Badge>
-                  <Badge variant="secondary">
+                  <Badge variant="secondary" className="text-xs">
                     {items.length} {t("items")} in cart
                   </Badge>
                 </div>
