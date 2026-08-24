@@ -1,4 +1,5 @@
-# 📁 Kiya POS System System – Project Folder Structure & Architecture
+
+ 📁 Kiya POS System System – Project Folder Structure & Architecture
 
 ### *(Based on SRS Document & Team Collaboration Requirements)*
 
