@@ -25,6 +25,7 @@ import ThreeDotActionMenuExample from "@/components/examples/ThreeDotActionMenuE
 // Pages
 import Login from "./pages/Login";
 import Index from "./pages/Index";
+import SubscriptionSelection from "./pages/SubscriptionSelection";
 import NotFound from "./pages/NotFound";
 import ReportPage from "./pages/ReportPage";
 import TodaysSales from "./pages/TodaysSales";
@@ -80,6 +81,8 @@ import AdminAnalytics from "./pages/admin/AdminAnalytics";
 import AdminSubscriptions from "./pages/admin/AdminSubscriptions";
 import AdminSettings from "./pages/admin/AdminSettings";
 import MartDetails from "./pages/admin/MartDetails";
+import CheckoutPage from "./pages/CheckoutPage";
+import AdminHardwareManagement from "./pages/admin/AdminHardwareManagement";
 import { NotificationService } from "./components/notifications/NotificationService";
 import { useSessionTimeout } from "./hooks/useSessionTimeout";
 
@@ -128,6 +131,7 @@ const App = () => {
           <Router future={routerFutureFlags}>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/subscription-selection" element={<SubscriptionSelection />} />
             <Route path="/login" element={<Login />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route
@@ -265,6 +269,9 @@ const App = () => {
             {/* Generic Inventory route (top-level) */}
             <Route path="/inventory" element={<Inventory />} />
 
+            {/* Checkout Route */}
+            <Route path="/checkout" element={<CheckoutPage />} />
+
             {/* Admin Routes */}
             <Route path="/admin" element={<MainAdmin />} />
             <Route path="/admin/analytics" element={<AdminAnalytics />} />
@@ -273,6 +280,8 @@ const App = () => {
               path="/admin/subscriptions"
               element={<AdminSubscriptions />}
             />
+            <Route path="/admin/hardware" element={<AdminHardwareManagement />} />
+            <Route path="/admin/sold-products" element={<AdminHardwareManagement />} />
             <Route path="/admin/mart/:martId" element={<MartDetails />} />
             <Route path="/admin/shops" element={<MartManagement />} />
             <Route

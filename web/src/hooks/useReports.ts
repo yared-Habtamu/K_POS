@@ -52,13 +52,13 @@ export function useReports(opts: UseReportsOptions = {}) {
     setLoading(true);
     setError(null);
     try {
+      // Always pass explicit start/end and use range=custom so the backend
+      // filters to the exact navigated window instead of defaulting to "now".
       const params: Record<string, string> = {
-        range: opts.period || "monthly",
+        range: "custom",
       };
-      if (opts.period === "custom") {
-        if (opts.start) params.start = opts.start;
-        if (opts.end) params.end = opts.end;
-      }
+      if (opts.start) params.start = opts.start;
+      if (opts.end) params.end = opts.end;
       if (auth?.martId) params.martId = auth.martId;
 
       // For owner/manager prefer mart scoped endpoint, fallback to summary

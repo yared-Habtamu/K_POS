@@ -293,6 +293,12 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
           icon: CreditCard,
           path: "/admin/subscriptions",
         },
+        {
+          label: "sold_products",
+          icon: Boxes,
+          path: "/admin/sold-products",
+          activePaths: ["/admin/hardware"],
+        },
         { label: "shop", icon: Building2, path: "/admin/shops" },
         {
           label: "register_mart",

@@ -63,7 +63,7 @@ export function EthiopianDatePicker({
   mode = "single",
   disableFuture = false,
   className,
-  placeholder = "ቀን ይምረጡ",
+  placeholder = "Select Date",
   disabled = false,
   id,
 }: EthiopianDatePickerProps) {

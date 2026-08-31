@@ -9,11 +9,13 @@ const { authenticate } = require("../middleware/auth");
 const {
   getOrCreateSettings,
   getPackageList,
+  getHardwareProductsList,
   runSubscriptionCheckForMart,
   runSubscriptionChecksForAllMarts,
   activateSubscriptionFromPayment,
   rejectSubscriptionPayment,
   notifySystemAdmins,
+  DEFAULT_PAYMENT_METHODS,
 } = require("../services/subscription.service");
 
 
@@ -96,17 +98,63 @@ router.get("/my-status", authenticate, async (req, res) => {
 });
 
 // GET /api/subscriptions/payment-methods
-router.get("/payment-methods", authenticate, async (_req, res) => {
+// Public — payment destination info is shown during public checkout (no auth required)
+router.get("/payment-methods", async (_req, res) => {
   try {
     const settings = await getOrCreateSettings();
-    const activeMethods = (Array.isArray(settings.paymentMethods) ? settings.paymentMethods : []).filter(
-      (m) => m.active !== false
-    );
+    const rawMethods = (Array.isArray(settings.paymentMethods) && settings.paymentMethods.length > 0)
+      ? settings.paymentMethods
+      : DEFAULT_PAYMENT_METHODS;
+    const activeMethods = rawMethods.filter((m) => m.active !== false);
     return res.json(activeMethods);
   } catch (err) {
     console.error("[subscriptions] GET /payment-methods error:", err);
     return res.status(500).json({ message: "Server error" });
   }
+});
+
+// GET /api/subscriptions/hardware-products
+router.get("/hardware-products", async (_req, res) => {
+  try {
+    const settings = await getOrCreateSettings();
+    const list = getHardwareProductsList(settings);
+    // Only return active hardware products to public clients
+    const active = list.filter((p) => p.active !== false);
+    return res.json(active);
+  } catch (err) {
+    console.error("[subscriptions] GET /hardware-products error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// PUT /api/subscriptions/hardware-products (System Admin only)
+router.put("/hardware-products", authenticate, requireSystemAdmin, async (req, res) => {
+  try {
+    const { products } = req.body;
+    if (!Array.isArray(products)) {
+      return res.status(400).json({ message: "products array is required" });
+    }
+
+    const settings = await getOrCreateSettings();
+    const updated = await prisma.subscriptionSettings.update({
+      where: { id: settings.id },
+      data: { hardwareProducts: products },
+    });
+
+    return res.json({ message: "Hardware products updated", hardwareProducts: updated.hardwareProducts });
+  } catch (err) {
+    console.error("[subscriptions] PUT /hardware-products error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// POST /api/subscriptions/upload-hardware-image (System Admin only)
+router.post("/upload-hardware-image", authenticate, requireSystemAdmin, upload.single("image"), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: "No image file provided" });
+  }
+  const imageUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+  return res.json({ imageUrl });
 });
 
 // GET /api/subscriptions/my-payments
@@ -134,59 +182,142 @@ router.get("/my-payments", authenticate, async (req, res) => {
   }
 });
 
-// POST /api/subscriptions/pay
-router.post("/pay", authenticate, upload.single("receipt"), async (req, res) => {
+const jwt = require("jsonwebtoken");
+const userRepository = require("../repositories/userRepository");
+const JWT_SECRET = process.env.JWT_SECRET || "changeme";
+
+const optionalAuthenticate = async (req, res, next) => {
+  let auth = req.headers.authorization;
+  if (!auth && req.query.token) {
+    auth = `Bearer ${req.query.token}`;
+  }
+  if (!auth) {
+    req.user = null;
+    return next();
+  }
+  const parts = auth.split(" ");
+  if (parts.length !== 2 || parts[0] !== "Bearer") {
+    req.user = null;
+    return next();
+  }
   try {
-    const { martId, id: userId } = req.user;
-    if (!martId) {
-      return res.status(400).json({ message: "No mart assigned to user" });
+    const payload = jwt.verify(parts[1], JWT_SECRET);
+    const dbUser = await userRepository.findById(payload.id, {
+      select: { id: true, username: true, role: true, martId: true, isDeleted: true },
+    });
+    if (dbUser && !dbUser.isDeleted) {
+      req.user = {
+        id: dbUser.id,
+        username: dbUser.username,
+        role: dbUser.role,
+        martId: dbUser.martId,
+      };
+    } else {
+      req.user = null;
+    }
+  } catch (err) {
+    req.user = null;
+  }
+  next();
+};
+
+// POST /api/subscriptions/pay
+router.post("/pay", optionalAuthenticate, upload.single("receipt"), async (req, res) => {
+  try {
+    let targetMartId = req.user?.martId || req.body.martId;
+    let targetUserId = req.user?.id;
+
+    if (!targetMartId) {
+      return res.status(400).json({ message: "martId or authenticated user is required" });
     }
 
-    const mart = await martRepository.findById(martId);
+    const mart = await martRepository.findById(targetMartId);
     if (!mart) {
       return res.status(404).json({ message: "Mart not found" });
     }
 
-    const { packageMonths, paymentMethod, paymentReference } = req.body;
+    if (!targetUserId) {
+      const ownerUser = await prisma.user.findFirst({
+        where: { martId: targetMartId, role: "owner", isDeleted: false },
+        select: { id: true },
+      });
+      targetUserId = ownerUser?.id || null;
+    }
+
+    if (!targetUserId) {
+      return res.status(400).json({ message: "Owner user not found for mart" });
+    }
+
+    const { packageMonths, paymentMethod, paymentReference, scannersCount, printersCount } = req.body;
     const months = parseInt(packageMonths, 10);
 
-    if (![1, 3, 6, 9, 12].includes(months)) {
-      return res.status(400).json({ message: "Valid package is required (1, 3, 6, 9, or 12 months)" });
+    // Free package is months=0; paid packages are 1, 3, 6, 9, 12
+    if (![0, 1, 3, 6, 9, 12].includes(months)) {
+      return res.status(400).json({ message: "Valid package is required (Free, 1, 3, 6, 9, or 12 months)" });
     }
 
-    if (!paymentMethod || !String(paymentMethod).trim()) {
-      return res.status(400).json({ message: "Payment method is required" });
-    }
-
-    // Receipt is required
-    let receiptUrl = req.body.receiptUrl || "";
-    if (req.file) {
-      receiptUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
-    }
-
-    if (!receiptUrl) {
-      return res.status(400).json({ message: "Payment receipt image is required" });
-    }
+    const isFree = months === 0;
 
     // Calculate price from settings
     const settings = await getOrCreateSettings();
     const packageList = getPackageList(settings);
     const selectedPkg = packageList.find((p) => p.months === months);
-    const amount = selectedPkg ? selectedPkg.price : months * 1000;
+    const subAmount = selectedPkg ? selectedPkg.price : months * 1000;
     const packageName = selectedPkg ? selectedPkg.name : `${months} Months`;
 
-    // Create SubscriptionPayment
+    const hardwareList = getHardwareProductsList(settings);
+    const scannerPrice = hardwareList.find((h) => h.id === "scanner")?.unitPrice || 20000;
+    const printerPrice = hardwareList.find((h) => h.id === "printer")?.unitPrice || 30000;
+
+    const numScanners = Math.max(0, parseInt(scannersCount, 10) || 0);
+    const numPrinters = Math.max(0, parseInt(printersCount, 10) || 0);
+
+    const totalHardwareAmount = numScanners * scannerPrice + numPrinters * printerPrice;
+    const totalAmount = subAmount + totalHardwareAmount;
+
+    // For the free package, a payment method is only required if hardware is purchased.
+    // For paid packages, a payment method is always required.
+    const hasHardware = numScanners > 0 || numPrinters > 0;
+    if (!isFree || hasHardware) {
+      if (!paymentMethod || !String(paymentMethod).trim()) {
+        return res.status(400).json({ message: "Payment method is required" });
+      }
+    }
+
+    // Receipt is required for paid packages, and for free packages that include hardware.
+    // A free package with no hardware does not require a receipt.
+    let receiptUrl = req.body.receiptUrl || "";
+    if (req.file) {
+      receiptUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+    }
+
+    const receiptRequired = !isFree || hasHardware;
+    if (receiptRequired && !receiptUrl) {
+      return res.status(400).json({ message: "Payment receipt image is required" });
+    }
+
+    let hardwareSummary = "";
+    if (hasHardware) {
+      const parts = [];
+      if (numScanners > 0) parts.push(`${numScanners}x Scanner`);
+      if (numPrinters > 0) parts.push(`${numPrinters}x Printer`);
+      hardwareSummary = ` | Add-ons: ${parts.join(", ")}`;
+    }
+
+    const fullRef = (paymentReference ? String(paymentReference).trim() : "") + hardwareSummary;
+
+    // Create SubscriptionPayment (status pending so it appears in the admin approvals queue)
     const payment = await prisma.subscriptionPayment.create({
       data: {
-        martId,
-        userId,
+        martId: targetMartId,
+        userId: targetUserId,
         packageName,
         packageMonths: months,
-        amount,
+        amount: totalAmount,
         currency: "ETB",
-        paymentMethod: String(paymentMethod).trim(),
-        paymentReference: paymentReference ? String(paymentReference).trim() : null,
-        receiptUrl,
+        paymentMethod: isFree && !hasHardware ? "Free Trial" : String(paymentMethod).trim(),
+        paymentReference: fullRef || null,
+        receiptUrl: receiptUrl || null,
         status: "pending",
       },
       include: {
@@ -199,14 +330,15 @@ router.post("/pay", authenticate, upload.single("receipt"), async (req, res) => 
     await notifySystemAdmins({
       mart,
       type: "subscription_payment_submitted",
-      title: "New Subscription Payment Submitted",
-      message: `${mart.martName} submitted a payment receipt of ${amount} ETB for ${packageName}.`,
+      title: isFree ? "New Free Plan Registration" : "New Subscription Payment Submitted",
+      message: `${mart.martName} registered for ${packageName} (${totalAmount} ETB).`,
       data: {
         paymentId: payment.id,
         martId: mart.id,
         martName: mart.martName,
         packageName,
-        amount,
+        amount: totalAmount,
+        isFree,
       },
     });
 
@@ -334,6 +466,10 @@ router.put("/settings", authenticate, requireSystemAdmin, async (req, res) => {
       if (Object.prototype.hasOwnProperty.call(req.body, key)) {
         updatedData[key] = req.body[key];
       }
+    }
+
+    if (Array.isArray(updatedData.paymentMethods) && updatedData.paymentMethods.length === 0) {
+      delete updatedData.paymentMethods;
     }
 
     const updatedSettings = await prisma.subscriptionSettings.update({

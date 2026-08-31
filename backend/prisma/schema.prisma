@@ -556,6 +556,7 @@ model SubscriptionSettings {
   trialPeriodDays         Int      @default(7)
   packagePrices           Json?
   paymentMethods          Json?
+  hardwareProducts        Json?
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
