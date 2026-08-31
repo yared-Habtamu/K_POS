@@ -69,3 +69,7 @@ test-results/
 /desktop/.env
 /web/.env
 
+# Private keys — never commit these
+*.pem
+**/certs/private-key.pem
+

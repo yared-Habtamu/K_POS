@@ -179,21 +179,7 @@ export default function AdminSettings() {
                     <Button
                       onClick={async () => {
                         try {
-                          const ok = await qzBridge.connect();
-                          if (!ok) {
-                            toast({
-                              title: "QZ Tray not connected",
-                              description:
-                                "Start QZ Tray on this device and trust the local host certificate.",
-                            });
-                            return;
-                          }
-
-                          // Lazy-load only when available in the browser.
-                          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                          // @ts-ignore
-                          const qz = await import("qz-tray");
-                          const printers = await qz.printers.find();
+                          const printers = await qzBridge.listPrinters();
 
                           toast({
                             title: "Printers detected",
@@ -202,12 +188,12 @@ export default function AdminSettings() {
                                 ? printers.join(", ")
                                 : "No printers found.",
                           });
-                        } catch (err) {
-                          console.error(err);
+                        } catch (err: any) {
+                          console.error("[AdminSettings]", err);
                           toast({
                             title: "Printer detection failed",
                             description:
-                              "Check that QZ Tray is installed and running.",
+                              String(err?.message || err || "Check that QZ Tray is installed and running."),
                           });
                         }
                       }}

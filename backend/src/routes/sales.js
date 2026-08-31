@@ -360,27 +360,32 @@ router.post("/", authenticate, async (req, res) => {
             }))
           : [];
 
-        return await tx.sale.create({
-          data: {
-            martId: targetMartId,
-            cashierId: req.user.id,
-            cashierName: req.user.username,
-            receiptId,
-            customerId: payload.customerId || null,
-            amountPaid: isCredit ? paidAmountNum : computedTotal,
-            creditAmount: isCredit ? creditAmountNum : 0,
-            items: {
-              create: saleItems,
-            },
-            subtotal: computedSubtotal,
-            discount: appliedDiscount,
-            extraCharges: extraCharges || [],
-            tax: taxAmount,
-            taxRate,
-            total: computedTotal,
-            paymentMethod,
-            date: new Date(),
+        const saleCreateData = {
+          martId: targetMartId,
+          cashierId: req.user.id,
+          cashierName: req.user.username,
+          receiptId,
+          amountPaid: isCredit ? paidAmountNum : computedTotal,
+          creditAmount: isCredit ? creditAmountNum : 0,
+          items: {
+            create: saleItems,
           },
+          subtotal: computedSubtotal,
+          discount: appliedDiscount,
+          extraCharges: extraCharges || [],
+          tax: taxAmount,
+          taxRate,
+          total: computedTotal,
+          paymentMethod,
+          date: new Date(),
+        };
+
+        if (payload.customerId) {
+          saleCreateData.customerId = payload.customerId;
+        }
+
+        return await tx.sale.create({
+          data: saleCreateData,
         });
       });
 
