@@ -9,6 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -75,6 +82,9 @@ export default function AdminHardwareManagement() {
   const [payments, setPayments] = useState<SubscriptionPaymentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Filter state for hardware orders table
+  const [hardwareFilter, setHardwareFilter] = useState<"all" | "scanner" | "printer" | "both">("all");
 
   // Dialog States for Full CRUD
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -353,6 +363,23 @@ export default function AdminHardwareManagement() {
     return <Package className="w-5 h-5" />;
   };
 
+  // Filter payments based on hardware selection
+  const filteredPayments = React.useMemo(() => {
+    if (hardwareFilter === "all") return payments;
+    
+    return payments.filter((payment) => {
+      const reference = payment.paymentReference || "";
+      const hasScanner = reference.toLowerCase().includes("scanner");
+      const hasPrinter = reference.toLowerCase().includes("printer");
+      
+      if (hardwareFilter === "scanner") return hasScanner && !hasPrinter;
+      if (hardwareFilter === "printer") return hasPrinter && !hasScanner;
+      if (hardwareFilter === "both") return hasScanner && hasPrinter;
+      
+      return true;
+    });
+  }, [payments, hardwareFilter]);
+
   return (
     <RoleLayout allowedRoles={["system_admin"]}>
       <div className="space-y-8 p-4 md:p-8 max-w-7xl mx-auto">
@@ -489,12 +516,30 @@ export default function AdminHardwareManagement() {
         {/* Sold Hardware Orders Overview */}
         <Card className="shadow-sm border-slate-200">
           <CardHeader>
-            <CardTitle className="text-xl flex items-center gap-2">
-              <ShoppingBag className="w-5 h-5 text-primary" /> Sold Hardware Orders &amp; Subscription Payments
-            </CardTitle>
-            <CardDescription>
-              Subscriptions containing hardware add-ons submitted by supermarkets.
-            </CardDescription>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <ShoppingBag className="w-5 h-5 text-primary" /> Sold Hardware Orders &amp; Subscription Payments
+                </CardTitle>
+                <CardDescription>
+                  Subscriptions containing hardware add-ons submitted by supermarkets.
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">Filter by:</Label>
+                <Select value={hardwareFilter} onValueChange={(val: any) => setHardwareFilter(val)}>
+                  <SelectTrigger className="w-[160px] h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Orders</SelectItem>
+                    <SelectItem value="scanner">Scanner Only</SelectItem>
+                    <SelectItem value="printer">Printer Only</SelectItem>
+                    <SelectItem value="both">Scanner & Printer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <Table>
@@ -510,14 +555,16 @@ export default function AdminHardwareManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {payments.length === 0 ? (
+                {filteredPayments.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      No subscription &amp; hardware orders recorded yet.
+                      {hardwareFilter === "all" 
+                        ? "No subscription & hardware orders recorded yet."
+                        : `No orders found with ${hardwareFilter === "both" ? "both scanner & printer" : hardwareFilter + " only"}.`}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  payments.map((p) => (
+                  filteredPayments.map((p) => (
                     <TableRow key={p.id}>
                       <TableCell className="font-semibold text-foreground">{p.martName || "N/A"}</TableCell>
                       <TableCell>

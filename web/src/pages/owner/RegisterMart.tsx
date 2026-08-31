@@ -23,8 +23,16 @@ type CountryOption = {
   name: string;
 };
 
+type HardwareDetail = {
+  id: string;
+  name: string;
+  count: number;
+  unitPrice: number;
+};
+
 export default function RegisterMart() {
   const navigate = useNavigate();
+  const location = useLocation();
   const login = useAuthStore((s) => s.login);
   const [countryOptions, setCountryOptions] = React.useState<CountryOption[]>(
     () => {
@@ -74,16 +82,15 @@ export default function RegisterMart() {
 
       setIsSubmitting(true);
       const locationState = location.state || {};
+      const hardwareDetails: HardwareDetail[] = locationState.hardwareDetails || [];
+      
       const payload = {
         ...form,
         phone: form.ownerPhone,
         packageMonths: locationState.packageMonths ?? 1,
         packageName: locationState.packageName || "1 Month",
         packagePrice: locationState.packagePrice ?? 1000,
-        scannersCount: locationState.scannersCount || 0,
-        printersCount: locationState.printersCount || 0,
-        scannerUnitPrice: locationState.scannerUnitPrice || 20000,
-        printerUnitPrice: locationState.printerUnitPrice || 30000,
+        hardwareDetails,
       };
       const res = await fetch(
         (import.meta.env.VITE_API_URL || "") + "/api/marts/register",
@@ -145,10 +152,7 @@ export default function RegisterMart() {
           packageName: locationState.packageName || "1 Month",
           packageMonths: locationState.packageMonths ?? 1,
           packagePrice: locationState.packagePrice ?? 1000,
-          scannersCount: locationState.scannersCount || 0,
-          printersCount: locationState.printersCount || 0,
-          scannerUnitPrice: locationState.scannerUnitPrice || 20000,
-          printerUnitPrice: locationState.printerUnitPrice || 30000,
+          hardwareDetails: locationState.hardwareDetails || [],
         },
       });
     } catch (err) {
@@ -187,13 +191,17 @@ export default function RegisterMart() {
             <div>
               <p className="font-bold text-emerald-900">Selected Plan: {locationState.packageName}</p>
               <p className="text-xs text-emerald-700">
-                {(locationState.scannersCount || 0) > 0 ? `${locationState.scannersCount} Scanner(s) ` : ""}
-                {(locationState.printersCount || 0) > 0 ? `${locationState.printersCount} Printer(s)` : ""}
+                {Array.isArray(locationState.hardwareDetails) && locationState.hardwareDetails.length > 0
+                  ? locationState.hardwareDetails.map((hw: HardwareDetail) => `${hw.count} ${hw.name}`).join(', ')
+                  : 'No hardware add-ons'}
               </p>
             </div>
             <p className="font-extrabold text-base text-emerald-700">
               {(() => {
-                const total = (locationState.packagePrice ?? 1000) + (locationState.scannersCount || 0) * 20000 + (locationState.printersCount || 0) * 30000;
+                const hardwareTotal = Array.isArray(locationState.hardwareDetails)
+                  ? locationState.hardwareDetails.reduce((sum: number, hw: HardwareDetail) => sum + (hw.count * hw.unitPrice), 0)
+                  : 0;
+                const total = (locationState.packagePrice ?? 1000) + hardwareTotal;
                 return total === 0 ? "Free" : `${total.toLocaleString()} ETB`;
               })()}
             </p>

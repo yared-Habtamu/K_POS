@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/stores/authStore";
 import { AutoComplete } from "@/components/ui/AutoComplete";
-import { ArrowLeft, Boxes, Check, Minus, Plus, Printer, QrCode, Sparkles } from "lucide-react";
+import { getImageUrl } from "@/utils/imageUrl";
+import { ArrowLeft, Boxes, Check, Minus, Plus, Printer, QrCode, Sparkles, Loader2, Package } from "lucide-react";
 
 type SubscriptionPackage = {
   months: number;
@@ -18,6 +19,15 @@ type SubscriptionPackage = {
   defaultPrice: number;
   discountLabel?: string;
   features: string[];
+};
+
+type HardwareProduct = {
+  id: string;
+  name: string;
+  description: string;
+  unitPrice: number;
+  active: boolean;
+  imageUrl?: string;
 };
 
 const DEFAULT_PACKAGES: SubscriptionPackage[] = [
@@ -131,10 +141,11 @@ export default function RegisterMart() {
   const token = useAuthStore((s) => s.user?.token);
   const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
   const [selectedPackage, setSelectedPackage] = React.useState<SubscriptionPackage>(DEFAULT_PACKAGES[0]);
-  const [scannersCount, setScannersCount] = React.useState(0);
-  const [printersCount, setPrintersCount] = React.useState(0);
-  const scannerUnitPrice = 20000;
-  const printerUnitPrice = 30000;
+  
+  // Hardware products state
+  const [hardwareProducts, setHardwareProducts] = React.useState<HardwareProduct[]>([]);
+  const [loadingHardware, setLoadingHardware] = React.useState(true);
+  const [hardwareCounts, setHardwareCounts] = React.useState<Record<string, number>>({});
   const [name, setName] = React.useState("");
   const [owner, setOwner] = React.useState("");
   const [ownerEmail, setOwnerEmail] = React.useState("");
@@ -197,6 +208,41 @@ export default function RegisterMart() {
     };
   }, [API_BASE, token]);
 
+  // Fetch hardware products
+  React.useEffect(() => {
+    const loadHardwareProducts = async () => {
+      try {
+        setLoadingHardware(true);
+        const res = await fetch(`${API_BASE}/api/subscriptions/hardware-products`);
+        if (res.ok) {
+          const data = await res.json();
+          const products = Array.isArray(data) ? data : [];
+          // Only show active products
+          const activeProducts = products.filter((p: HardwareProduct) => p.active);
+          setHardwareProducts(activeProducts);
+          
+          // Initialize counts to 0
+          const initialCounts: Record<string, number> = {};
+          activeProducts.forEach((p: HardwareProduct) => {
+            initialCounts[p.id] = 0;
+          });
+          setHardwareCounts(initialCounts);
+        }
+      } catch (error) {
+        console.error("Failed to load hardware products:", error);
+        toast({
+          title: "Warning",
+          description: "Could not load hardware products. Using defaults.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingHardware(false);
+      }
+    };
+
+    loadHardwareProducts();
+  }, [API_BASE]);
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (
@@ -258,6 +304,16 @@ export default function RegisterMart() {
           "The mart was created directly in the database and approved. Proceeding to checkout for subscription payment.",
       });
 
+      // Calculate hardware details for checkout
+      const hardwareDetails = hardwareProducts
+        .filter(product => hardwareCounts[product.id] > 0)
+        .map(product => ({
+          id: product.id,
+          name: product.name,
+          count: hardwareCounts[product.id],
+          unitPrice: product.unitPrice,
+        }));
+
       // Navigate to checkout with the selected subscription & hardware state
       navigate("/checkout", {
         state: {
@@ -267,10 +323,7 @@ export default function RegisterMart() {
           packageName: selectedPackage.name,
           packageMonths: selectedPackage.months,
           packagePrice: selectedPackage.price,
-          scannersCount,
-          printersCount,
-          scannerUnitPrice,
-          printerUnitPrice,
+          hardwareDetails,
         },
       });
     } catch (err) {
@@ -377,66 +430,91 @@ export default function RegisterMart() {
               <Label className="text-sm font-semibold flex items-center gap-2">
                 <Boxes className="w-4 h-4 text-primary" /> 2. Sold Hardware Add-ons (Optional)
               </Label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {/* Barcode Scanner */}
-                <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-card">
-                  <div className="flex items-center gap-2">
-                    <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                      <QrCode className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm">Barcode Scanner</p>
-                      <p className="text-[11px] text-muted-foreground">20,000 Birr / unit</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 bg-muted p-1 rounded-lg">
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setScannersCount(Math.max(0, scannersCount - 1))}>
-                      <Minus className="w-3 h-3" />
-                    </Button>
-                    <span className="text-xs font-bold w-4 text-center">{scannersCount}</span>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setScannersCount(scannersCount + 1)}>
-                      <Plus className="w-3 h-3" />
-                    </Button>
-                  </div>
+              {loadingHardware ? (
+                <div className="flex items-center justify-center py-8 text-muted-foreground gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Loading hardware products...
                 </div>
-
-                {/* Thermal Printer */}
-                <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-card">
-                  <div className="flex items-center gap-2">
-                    <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                      <Printer className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm">Thermal Printer</p>
-                      <p className="text-[11px] text-muted-foreground">30,000 Birr / unit</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 bg-muted p-1 rounded-lg">
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setPrintersCount(Math.max(0, printersCount - 1))}>
-                      <Minus className="w-3 h-3" />
-                    </Button>
-                    <span className="text-xs font-bold w-4 text-center">{printersCount}</span>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setPrintersCount(printersCount + 1)}>
-                      <Plus className="w-3 h-3" />
-                    </Button>
-                  </div>
+              ) : hardwareProducts.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No hardware products available at this time.
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {hardwareProducts.map((product) => (
+                    <div key={product.id} className="flex items-center justify-between p-3 rounded-xl border border-border bg-card">
+                      <div className="flex items-center gap-2">
+                        {product.imageUrl ? (
+                          <img 
+                            src={getImageUrl(product.imageUrl)} 
+                            alt={product.name} 
+                            className="w-9 h-9 rounded-lg object-cover border border-border"
+                          />
+                        ) : (
+                          <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                            {product.id.includes('scanner') ? <QrCode className="w-4 h-4" /> :
+                             product.id.includes('printer') ? <Printer className="w-4 h-4" /> :
+                             <Package className="w-4 h-4" />}
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-bold text-sm">{product.name}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {product.unitPrice.toLocaleString()} Birr / unit
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 bg-muted p-1 rounded-lg">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6" 
+                          onClick={() => setHardwareCounts(prev => ({
+                            ...prev,
+                            [product.id]: Math.max(0, (prev[product.id] || 0) - 1)
+                          }))}
+                        >
+                          <Minus className="w-3 h-3" />
+                        </Button>
+                        <span className="text-xs font-bold w-4 text-center">
+                          {hardwareCounts[product.id] || 0}
+                        </span>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6" 
+                          onClick={() => setHardwareCounts(prev => ({
+                            ...prev,
+                            [product.id]: (prev[product.id] || 0) + 1
+                          }))}
+                        >
+                          <Plus className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-between p-3 rounded-xl bg-primary/5 border border-primary/20">
               <div>
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Total Order Summary</p>
                 <p className="text-xl font-extrabold text-primary">
-                  {selectedPackage.price + scannersCount * scannerUnitPrice + printersCount * printerUnitPrice === 0
-                    ? "Free"
-                    : `${(selectedPackage.price + scannersCount * scannerUnitPrice + printersCount * printerUnitPrice).toLocaleString()} ETB`}
+                  {(() => {
+                    const hardwareTotal = hardwareProducts.reduce((sum, product) => 
+                      sum + (hardwareCounts[product.id] || 0) * product.unitPrice, 0
+                    );
+                    const total = selectedPackage.price + hardwareTotal;
+                    return total === 0 ? "Free" : `${total.toLocaleString()} ETB`;
+                  })()}
                 </p>
               </div>
               <Badge variant="outline" className="bg-card">
                 {selectedPackage.name}
-                {scannersCount > 0 ? ` + ${scannersCount} Scanner(s)` : ""}
-                {printersCount > 0 ? ` + ${printersCount} Printer(s)` : ""}
+                {hardwareProducts.map(product => {
+                  const count = hardwareCounts[product.id] || 0;
+                  return count > 0 ? ` + ${count} ${product.name}` : '';
+                }).join('')}
               </Badge>
             </div>
           </CardContent>

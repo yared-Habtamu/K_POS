@@ -302,7 +302,7 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
         { label: "shop", icon: Building2, path: "/admin/shops" },
         {
           label: "register_mart",
-          icon: Building2,
+          icon: Store,
           path: "/admin/register-mart",
         },
         { label: "settings", icon: Settings, path: "/admin/settings" },

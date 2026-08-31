@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
+import { getImageUrl } from "@/utils/imageUrl";
 import {
   CreditCard,
   Building2,
@@ -22,6 +23,7 @@ import {
   Printer,
   Plus,
   Minus,
+  Package,
 } from "lucide-react";
 
 type PaymentMethod = {
@@ -31,6 +33,22 @@ type PaymentMethod = {
   accountName: string;
   accountNumber: string;
   instructions: string;
+};
+
+type HardwareDetail = {
+  id: string;
+  name: string;
+  count: number;
+  unitPrice: number;
+};
+
+type HardwareProduct = {
+  id: string;
+  name: string;
+  description: string;
+  unitPrice: number;
+  active: boolean;
+  imageUrl?: string;
 };
 
 export default function CheckoutPage() {
@@ -44,14 +62,13 @@ export default function CheckoutPage() {
     packageName = "1 Month",
     packageMonths = 1,
     packagePrice = 1000,
-    scannersCount = 0,
-    printersCount = 0,
-    scannerUnitPrice = 20000,
-    printerUnitPrice = 30000,
+    hardwareDetails = [] as HardwareDetail[],
   } = state;
 
-  const [curScannersCount, setCurScannersCount] = useState<number>(scannersCount || 0);
-  const [curPrintersCount, setCurPrintersCount] = useState<number>(printersCount || 0);
+  // Load hardware products from API
+  const [hardwareProducts, setHardwareProducts] = useState<HardwareProduct[]>([]);
+  const [hardwareCounts, setHardwareCounts] = useState<Record<string, number>>({});
+  const [loadingHardware, setLoadingHardware] = useState(true);
 
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
@@ -83,11 +100,46 @@ export default function CheckoutPage() {
     fetchMethods();
   }, [API_BASE]);
 
+  // Fetch hardware products and initialize counts
+  useEffect(() => {
+    const loadHardwareProducts = async () => {
+      try {
+        setLoadingHardware(true);
+        const res = await fetch(`${API_BASE}/api/subscriptions/hardware-products`);
+        if (res.ok) {
+          const data = await res.json();
+          const products = Array.isArray(data) ? data : [];
+          const activeProducts = products.filter((p: HardwareProduct) => p.active);
+          setHardwareProducts(activeProducts);
+
+          // Initialize counts from hardwareDetails or default to 0
+          const initialCounts: Record<string, number> = {};
+          activeProducts.forEach((p: HardwareProduct) => {
+            const detail = hardwareDetails.find((hd) => hd.id === p.id);
+            initialCounts[p.id] = detail ? detail.count : 0;
+          });
+          setHardwareCounts(initialCounts);
+        }
+      } catch (error) {
+        console.error("Failed to load hardware products:", error);
+      } finally {
+        setLoadingHardware(false);
+      }
+    };
+
+    loadHardwareProducts();
+  }, [API_BASE, hardwareDetails]);
+
   const isFreePackage = Number(packageMonths) === 0;
-  const hasHardware = curScannersCount > 0 || curPrintersCount > 0;
-  const scannersTotal = curScannersCount * (scannerUnitPrice || 20000);
-  const printersTotal = curPrintersCount * (printerUnitPrice || 30000);
-  const grandTotal = packagePrice + scannersTotal + printersTotal;
+  
+  // Calculate hardware total
+  const hardwareTotal = hardwareProducts.reduce((sum, product) => {
+    const count = hardwareCounts[product.id] || 0;
+    return sum + count * product.unitPrice;
+  }, 0);
+  
+  const hasHardware = Object.values(hardwareCounts).some(count => count > 0);
+  const grandTotal = packagePrice + hardwareTotal;
   // Free package with no hardware requires no payment/screenshot
   const skipPayment = isFreePackage && !hasHardware;
 
@@ -114,8 +166,18 @@ export default function CheckoutPage() {
       formData.append("packageMonths", String(packageMonths));
       formData.append("paymentMethod", selectedMethod ? selectedMethod.method : "Bank Transfer");
       formData.append("paymentReference", paymentReference);
-      formData.append("scannersCount", String(curScannersCount));
-      formData.append("printersCount", String(curPrintersCount));
+      
+      // Send hardware details as JSON
+      const currentHardwareDetails = hardwareProducts
+        .filter(product => hardwareCounts[product.id] > 0)
+        .map(product => ({
+          id: product.id,
+          name: product.name,
+          count: hardwareCounts[product.id],
+          unitPrice: product.unitPrice,
+        }));
+      formData.append("hardwareDetails", JSON.stringify(currentHardwareDetails));
+      
       if (withReceipt && receiptFile) {
         formData.append("receipt", receiptFile);
       }
@@ -219,12 +281,14 @@ export default function CheckoutPage() {
                     {packageName} {packagePrice > 0 ? `(${packagePrice.toLocaleString()} ETB)` : "(Free)"}
                   </span>
                 </div>
-                {(curScannersCount > 0 || curPrintersCount > 0) && (
+                {hasHardware && (
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">Hardware Add-ons:</span>
                     <span className="font-medium">
-                      {curScannersCount > 0 ? `${curScannersCount} Scanner(s) ` : ""}
-                      {curPrintersCount > 0 ? `${curPrintersCount} Printer(s)` : ""}
+                      {hardwareProducts
+                        .filter(p => hardwareCounts[p.id] > 0)
+                        .map(p => `${hardwareCounts[p.id]} ${p.name}`)
+                        .join(', ')}
                     </span>
                   </div>
                 )}
@@ -289,69 +353,68 @@ export default function CheckoutPage() {
                 <div className="space-y-3 pt-2 border-b border-border/50 pb-3">
                   <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Hardware Add-ons</p>
                   
-                  {/* Barcode Scanner */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <QrCode className="w-4 h-4 text-primary" />
-                      <div>
-                        <p className="text-xs font-semibold">Barcode Scanner</p>
-                        <p className="text-[10px] text-muted-foreground">20,000 ETB / unit</p>
+                  {loadingHardware ? (
+                    <div className="flex items-center justify-center py-4 text-muted-foreground gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Loading hardware...
+                    </div>
+                  ) : hardwareProducts.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">No hardware products available</p>
+                  ) : (
+                    hardwareProducts.map((product) => (
+                      <div key={product.id} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {product.imageUrl ? (
+                            <img 
+                              src={getImageUrl(product.imageUrl)} 
+                              alt={product.name} 
+                              className="w-8 h-8 rounded-lg object-cover border border-border"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                              {product.id.includes('scanner') ? <QrCode className="w-4 h-4" /> :
+                               product.id.includes('printer') ? <Printer className="w-4 h-4" /> :
+                               <Package className="w-4 h-4" />}
+                            </div>
+                          )}
+                          <div>
+                            <p className="text-xs font-semibold">{product.name}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {product.unitPrice.toLocaleString()} ETB / unit
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-lg">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => setHardwareCounts(prev => ({
+                              ...prev,
+                              [product.id]: Math.max(0, (prev[product.id] || 0) - 1)
+                            }))}
+                          >
+                            <Minus className="w-3 h-3" />
+                          </Button>
+                          <span className="text-xs font-bold w-4 text-center">
+                            {hardwareCounts[product.id] || 0}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => setHardwareCounts(prev => ({
+                              ...prev,
+                              [product.id]: (prev[product.id] || 0) + 1
+                            }))}
+                          >
+                            <Plus className="w-3 h-3" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-lg">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => setCurScannersCount(Math.max(0, curScannersCount - 1))}
-                      >
-                        <Minus className="w-3 h-3" />
-                      </Button>
-                      <span className="text-xs font-bold w-4 text-center">{curScannersCount}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => setCurScannersCount(curScannersCount + 1)}
-                      >
-                        <Plus className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Thermal Printer */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Printer className="w-4 h-4 text-primary" />
-                      <div>
-                        <p className="text-xs font-semibold">Thermal Printer</p>
-                        <p className="text-[10px] text-muted-foreground">30,000 ETB / unit</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-lg">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => setCurPrintersCount(Math.max(0, curPrintersCount - 1))}
-                      >
-                        <Minus className="w-3 h-3" />
-                      </Button>
-                      <span className="text-xs font-bold w-4 text-center">{curPrintersCount}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => setCurPrintersCount(curPrintersCount + 1)}
-                      >
-                        <Plus className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  </div>
+                    ))
+                  )}
                 </div>
 
                 {/* Total Payable Amount */}
@@ -362,8 +425,10 @@ export default function CheckoutPage() {
                   </span>
                   <p className="text-[11px] text-muted-foreground">
                     Includes {packageName} Subscription {packagePrice > 0 ? `(${packagePrice.toLocaleString()} ETB)` : "(Free)"}
-                    {scannersTotal > 0 ? ` + Scanners (${scannersTotal.toLocaleString()} ETB)` : ""}
-                    {printersTotal > 0 ? ` + Printers (${printersTotal.toLocaleString()} ETB)` : ""}
+                    {hardwareProducts
+                      .filter(p => hardwareCounts[p.id] > 0)
+                      .map(p => ` + ${p.name} (${(hardwareCounts[p.id] * p.unitPrice).toLocaleString()} ETB)`)
+                      .join('')}
                   </p>
                 </div>
               </CardContent>
