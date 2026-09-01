@@ -27,6 +27,13 @@ router.post("/register", async (req, res) => {
       ownerUsername,
       ownerPassword,
       ownerConfirmPassword,
+      packageMonths,
+      packageName,
+      packagePrice,
+      scannersCount,
+      printersCount,
+      scannerUnitPrice,
+      printerUnitPrice,
     } = req.body;
 
     // ownerUsername is required now — owner should provide username on registration
@@ -183,6 +190,44 @@ router.post("/register", async (req, res) => {
     owner.martId = mart.id;
     delete owner.passwordHash;
 
+    // Create a pending SubscriptionPayment so the registration appears in the
+    // admin approvals queue. The admin approves it to activate the plan/trial.
+    try {
+      const months = parseInt(packageMonths, 10);
+      const isFree = months === 0;
+      const numScanners = Math.max(0, parseInt(scannersCount, 10) || 0);
+      const numPrinters = Math.max(0, parseInt(printersCount, 10) || 0);
+      const scannerPrice = Number(scannerUnitPrice) || 20000;
+      const printerPrice = Number(printerUnitPrice) || 30000;
+      const subAmount = Number(packagePrice) || 0;
+      const totalAmount = subAmount + numScanners * scannerPrice + numPrinters * printerPrice;
+
+      let hardwareSummary = "";
+      if (numScanners > 0 || numPrinters > 0) {
+        const parts = [];
+        if (numScanners > 0) parts.push(`${numScanners}x Scanner`);
+        if (numPrinters > 0) parts.push(`${numPrinters}x Printer`);
+        hardwareSummary = ` | Add-ons: ${parts.join(", ")}`;
+      }
+
+      await prisma.subscriptionPayment.create({
+        data: {
+          martId: mart.id,
+          userId: owner.id,
+          packageName: packageName || (isFree ? "Free" : "1 Month"),
+          packageMonths: isFree ? 0 : months || 1,
+          amount: totalAmount,
+          currency: "ETB",
+          paymentMethod: isFree && totalAmount === 0 ? "Free Trial" : "Bank Transfer",
+          paymentReference: hardwareSummary || null,
+          receiptUrl: null,
+          status: "pending",
+        },
+      });
+    } catch (paymentErr) {
+      console.error("[marts] Failed to create pending subscription payment:", paymentErr);
+    }
+
     // Return assigned username explicitly so clients can show it (useful if sanitized/altered)
     return res.status(201).json({ mart, owner, assignedUsername: username });
   } catch (err) {
@@ -305,16 +350,20 @@ router.post("/admin-register", authenticate, async (req, res) => {
     });
 
     const parsedTaxRate = Number(taxRate);
+    const reqPackageMonths = parseInt(req.body.packageMonths ?? 0, 10);
+    const isTrial = reqPackageMonths === 0;
+    const durationDays = isTrial ? 7 : (reqPackageMonths * 30);
     const now = new Date();
-    const trialEndDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const endDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+
     const initialSubscription = {
-      isTrial: true,
-      packageName: "7-Day Free Trial",
-      packageMonths: 0,
-      feeEtb: 0,
-      billingPeriodDays: 7,
+      isTrial,
+      packageName: req.body.packageName || (isTrial ? "7-Day Free Trial" : `${reqPackageMonths} Months Plan`),
+      packageMonths: reqPackageMonths,
+      feeEtb: Number(req.body.packagePrice || 0),
+      billingPeriodDays: durationDays,
       subscriptionStartDate: now.toISOString(),
-      subscriptionEndDate: trialEndDate.toISOString(),
+      subscriptionEndDate: endDate.toISOString(),
       subscriptionStatus: "active",
       lastEvaluatedAt: now.toISOString(),
     };

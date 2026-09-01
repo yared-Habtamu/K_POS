@@ -25,7 +25,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import useReports from "@/hooks/useReports";
 import EthiopianDatePicker from "@/components/ui/ethiopian-date-picker";
-import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
+import { formatLocalizedDate, formatEthiopianDateValue } from "@/utils/ethiopian-calendar";
 import {
   TrendingUp,
   ShoppingBag,
@@ -37,6 +37,8 @@ import {
   RefreshCw,
   FileDown,
   FileText,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,28 +69,93 @@ const ReportPage: React.FC = () => {
   const [period, setPeriod] = useState<
     "daily" | "weekly" | "monthly" | "custom"
   >("monthly");
-  const [customDates, setCustomDates] = useState({
-    start: "2025-11-01",
-    end: "2025-11-30",
+  const [referenceDate, setReferenceDate] = useState<Date>(() => new Date());
+
+  // Default custom range: current month (Gregorian), recalculated on mount
+  const [customDates, setCustomDates] = useState(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    return {
+      start: `${year}-${month}-01`,
+      end: `${year}-${month}-${String(lastDay).padStart(2, "0")}`,
+    };
   });
   const TOP_PRODUCTS_CHART_SIZE = 10;
 
-  const getDateRangeLabel = () => {
-    const today = new Date();
-    if (period === "daily")
-      return formatLocalizedDate(today);
+  const formatYMD = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const currentRange = React.useMemo(() => {
+    const d = new Date(referenceDate);
+    if (period === "daily") {
+      const ymd = formatYMD(d);
+      return { start: ymd, end: ymd, label: formatEthiopianDateValue(d) };
+    }
     if (period === "weekly") {
-      const s = new Date(today);
-      s.setDate(today.getDate() - 6);
-      return `${formatLocalizedDate(s)} – ${formatLocalizedDate(today)}`;
+      const end = new Date(d);
+      const start = new Date(d);
+      start.setDate(d.getDate() - 6);
+      return {
+        start: formatYMD(start),
+        end: formatYMD(end),
+        label: `${formatEthiopianDateValue(start)} – ${formatEthiopianDateValue(end)}`,
+      };
     }
     if (period === "monthly") {
-      const s = new Date(today.getFullYear(), today.getMonth(), 1);
-      const e = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-      return `${formatLocalizedDate(s)} – ${formatLocalizedDate(e)}`;
+      const start = new Date(d.getFullYear(), d.getMonth(), 1);
+      const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+      return {
+        start: formatYMD(start),
+        end: formatYMD(end),
+        label: `${formatEthiopianDateValue(start)} – ${formatEthiopianDateValue(end)}`,
+      };
     }
-    return `${formatLocalizedDate(customDates.start)} – ${formatLocalizedDate(customDates.end)}`;
+    // custom: use the Ethiopian date label for both endpoints
+    return {
+      start: customDates.start,
+      end: customDates.end,
+      label: `${formatEthiopianDateValue(customDates.start)} – ${formatEthiopianDateValue(customDates.end)}`,
+    };
+  }, [period, referenceDate, customDates]);
+
+  const handleStepDate = (direction: "prev" | "next") => {
+    const factor = direction === "prev" ? -1 : 1;
+    if (period === "daily") {
+      const nextDate = new Date(referenceDate);
+      nextDate.setDate(referenceDate.getDate() + factor * 1);
+      setReferenceDate(nextDate);
+    } else if (period === "weekly") {
+      const nextDate = new Date(referenceDate);
+      nextDate.setDate(referenceDate.getDate() + factor * 7);
+      setReferenceDate(nextDate);
+    } else if (period === "monthly") {
+      const nextDate = new Date(referenceDate);
+      nextDate.setMonth(referenceDate.getMonth() + factor * 1);
+      setReferenceDate(nextDate);
+    } else if (period === "custom") {
+      // Parse start/end as local dates (YYYY-MM-DD) to avoid UTC offset shifting
+      const [sy, sm, sd] = customDates.start.split("-").map(Number);
+      const [ey, em, ed] = customDates.end.split("-").map(Number);
+      const s = new Date(sy, sm - 1, sd);
+      const e = new Date(ey, em - 1, ed);
+      // Range length in whole days (inclusive), minimum 1 day
+      const diffDays = Math.max(
+        1,
+        Math.round((e.getTime() - s.getTime()) / (24 * 60 * 60 * 1000)) + 1,
+      );
+      const nextS = new Date(sy, sm - 1, sd + factor * diffDays);
+      const nextE = new Date(ey, em - 1, ed + factor * diffDays);
+      setCustomDates({ start: formatYMD(nextS), end: formatYMD(nextE) });
+    }
   };
+
+  const getDateRangeLabel = () => currentRange.label;
 
   const {
     data: reportsData,
@@ -96,8 +163,8 @@ const ReportPage: React.FC = () => {
     refetch,
   } = useReports({
     period,
-    start: customDates.start,
-    end: customDates.end,
+    start: currentRange.start,
+    end: currentRange.end,
   });
 
   const [localData, setLocalData] = useState(() => ({
@@ -819,40 +886,70 @@ const ReportPage: React.FC = () => {
         {/* ── Period Selector ── */}
         <Card>
           <CardContent className="pt-4 pb-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-semibold mr-1">
-                {t("report_period")}:
-              </span>
-              {(["daily", "weekly", "monthly", "custom"] as const).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPeriod(p)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${period === p ? "bg-primary text-primary-foreground shadow-sm" : "bg-secondary text-secondary-foreground hover:bg-accent"}`}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold mr-1">
+                  {t("report_period")}:
+                </span>
+                {(["daily", "weekly", "monthly", "custom"] as const).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPeriod(p)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${period === p ? "bg-primary text-primary-foreground shadow-sm" : "bg-secondary text-secondary-foreground hover:bg-accent"}`}
+                  >
+                    {t(p)}
+                  </button>
+                ))}
+                {period === "custom" && (
+                  <div className="flex items-center gap-2 ml-2">
+                    <EthiopianDatePicker
+                      value={customDates.start}
+                      onChange={(ymd) =>
+                        setCustomDates({ ...customDates, start: ymd })
+                      }
+                      placeholder="Start"
+                      className="w-[170px]"
+                    />
+                    <span className="text-muted-foreground">–</span>
+                    <EthiopianDatePicker
+                      value={customDates.end}
+                      onChange={(ymd) =>
+                        setCustomDates({ ...customDates, end: ymd })
+                      }
+                      placeholder="End"
+                      className="w-[170px]"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Stepping Navigation Arrows (Daily: -1/+1 day, Weekly: -7/+7 days, Monthly: -1/+1 month, Custom: -range/+range) */}
+              <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-lg border border-border">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => handleStepDate("prev")}
+                  title={`Previous ${period}`}
                 >
-                  {t(p)}
-                </button>
-              ))}
-              {period === "custom" && (
-                <div className="flex items-center gap-2 ml-2">
-                  <EthiopianDatePicker
-                    value={customDates.start}
-                    onChange={(ymd) =>
-                      setCustomDates({ ...customDates, start: ymd })
-                    }
-                    placeholder="Start"
-                    className="w-[170px]"
-                  />
-                  <span className="text-muted-foreground">–</span>
-                  <EthiopianDatePicker
-                    value={customDates.end}
-                    onChange={(ymd) =>
-                      setCustomDates({ ...customDates, end: ymd })
-                    }
-                    placeholder="End"
-                    className="w-[170px]"
-                  />
-                </div>
-              )}
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span
+                  className="text-xs sm:text-sm font-semibold px-2 min-w-[160px] max-w-[260px] text-center select-none truncate"
+                  title={currentRange.label}
+                >
+                  {currentRange.label}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => handleStepDate("next")}
+                  title={`Next ${period}`}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -55,16 +55,18 @@ export function RoleLayout({ children, allowedRoles }: RoleLayoutProps) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (!allowedRoles.includes(user.role)) {
+  const roles = Array.isArray(allowedRoles) ? allowedRoles : [];
+  if (!user?.role || !roles.includes(user.role)) {
     // Redirect to their own dashboard
-    const roleDashboards: Record<UserRole, string> = {
+    const roleDashboards: Record<string, string> = {
       system_admin: "/admin",
       owner: "/owner",
       manager: "/manager",
       cashier: "/cashier",
       store_keeper: "/store-keeper",
     };
-    return <Navigate to={roleDashboards[user.role]} replace />;
+    const target = user?.role && roleDashboards[user.role] ? roleDashboards[user.role] : "/login";
+    return <Navigate to={target} replace />;
   }
 
   const isOwner = user.role === "owner";

@@ -1,5 +1,5 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { AutoComplete } from "@/components/ui/AutoComplete";
@@ -16,15 +16,23 @@ import { SuccessModal } from "@/components/ui/SuccessModal";
 import { toast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/stores/authStore";
 import { defaultPhoneCountries } from "@/lib/input-formatting";
-import { Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 
 type CountryOption = {
   id: string;
   name: string;
 };
 
+type HardwareDetail = {
+  id: string;
+  name: string;
+  count: number;
+  unitPrice: number;
+};
+
 export default function RegisterMart() {
   const navigate = useNavigate();
+  const location = useLocation();
   const login = useAuthStore((s) => s.login);
   const [countryOptions, setCountryOptions] = React.useState<CountryOption[]>(
     () => {
@@ -73,7 +81,17 @@ export default function RegisterMart() {
       }
 
       setIsSubmitting(true);
-      const payload = { ...form, phone: form.ownerPhone };
+      const locationState = location.state || {};
+      const hardwareDetails: HardwareDetail[] = locationState.hardwareDetails || [];
+      
+      const payload = {
+        ...form,
+        phone: form.ownerPhone,
+        packageMonths: locationState.packageMonths ?? 1,
+        packageName: locationState.packageName || "1 Month",
+        packagePrice: locationState.packagePrice ?? 1000,
+        hardwareDetails,
+      };
       const res = await fetch(
         (import.meta.env.VITE_API_URL || "") + "/api/marts/register",
         {
@@ -113,16 +131,30 @@ export default function RegisterMart() {
       const martId = body?.mart?._id || body?.mart?.id;
       // auto-login the owner so their martId is in the auth store and they can manage employees
       try {
-        // try to log in automatically using username (from response) or the username owner typed
         const loginName = body?.owner?.username || form.ownerUsername;
         if (loginName) {
           await login(loginName, form.ownerPassword);
         }
       } catch (err) {
-        // ignore login error — owner can still login manually
         console.warn("Auto-login failed", err);
       }
-      setSuccessOpen(true);
+
+      toast({
+        title: "Registration Complete",
+        description: "Proceeding to checkout for payment & screenshot upload.",
+      });
+
+      navigate("/checkout", {
+        state: {
+          martId,
+          martName: form.martName,
+          ownerPhone: form.ownerPhone,
+          packageName: locationState.packageName || "1 Month",
+          packageMonths: locationState.packageMonths ?? 1,
+          packagePrice: locationState.packagePrice ?? 1000,
+          hardwareDetails: locationState.hardwareDetails || [],
+        },
+      });
     } catch (err) {
       console.error(err);
       const message = err?.message || "Failed to submit registration.";
@@ -137,8 +169,46 @@ export default function RegisterMart() {
     navigate("/");
   };
 
+  const locationState = location.state || {};
+  const hasSubSelection = Boolean(locationState.packageName);
+
   return (
-    <div className="max-w-2xl mx-auto p-4">
+    <div className="max-w-2xl mx-auto p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate(-1)}
+          className="gap-2 text-muted-foreground"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back
+        </Button>
+      </div>
+
+      {hasSubSelection && (
+        <Card className="border-emerald-200 bg-emerald-50/50">
+          <CardContent className="p-4 flex items-center justify-between text-sm">
+            <div>
+              <p className="font-bold text-emerald-900">Selected Plan: {locationState.packageName}</p>
+              <p className="text-xs text-emerald-700">
+                {Array.isArray(locationState.hardwareDetails) && locationState.hardwareDetails.length > 0
+                  ? locationState.hardwareDetails.map((hw: HardwareDetail) => `${hw.count} ${hw.name}`).join(', ')
+                  : 'No hardware add-ons'}
+              </p>
+            </div>
+            <p className="font-extrabold text-base text-emerald-700">
+              {(() => {
+                const hardwareTotal = Array.isArray(locationState.hardwareDetails)
+                  ? locationState.hardwareDetails.reduce((sum: number, hw: HardwareDetail) => sum + (hw.count * hw.unitPrice), 0)
+                  : 0;
+                const total = (locationState.packagePrice ?? 1000) + hardwareTotal;
+                return total === 0 ? "Free" : `${total.toLocaleString()} ETB`;
+              })()}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Register Your Supermarket</CardTitle>
@@ -345,20 +415,22 @@ export default function RegisterMart() {
               )}
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex justify-end pt-4">
               <Button
                 type="submit"
-                title="Send Registration"
-                aria-label="Send Registration"
+                size="lg"
+                title="Proceed to Checkout"
+                aria-label="Proceed to Checkout"
                 disabled={isSubmitting}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 font-semibold shadow-md"
               >
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Sending...
+                    Processing...
                   </>
                 ) : (
-                  "Send Registration"
+                  "Proceed to Checkout"
                 )}
               </Button>
             </div>

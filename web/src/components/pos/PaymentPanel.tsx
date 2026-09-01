@@ -865,6 +865,7 @@ export function PaymentPanel() {
 
   useEffect(() => {
     let mounted = true;
+    let refreshTimer: NodeJS.Timeout | null = null;
 
     const fetchConfiguredPaymentMethods = async () => {
       try {
@@ -882,12 +883,30 @@ export function PaymentPanel() {
         );
 
         if (!res.ok) {
-          if (mounted) setConfiguredPaymentMethods([]);
+          console.warn("Failed to fetch payment types, using fallback");
+          if (mounted) {
+            // Use fallback only if we don't have any methods yet
+            if (configuredPaymentMethods.length === 0) {
+              setConfiguredPaymentMethods([
+                { value: "cash" as PaymentMethod, label: "cash", icon: Banknote },
+                { value: "card" as PaymentMethod, label: "card", icon: CreditCard },
+                { value: "transfer" as PaymentMethod, label: "transfer", icon: Landmark },
+                { value: "credit" as PaymentMethod, label: "credit", icon: Wallet },
+              ]);
+            }
+          }
           return;
         }
 
         const list = (await res.json()) as PaymentTypeDto[];
         if (!mounted) return;
+
+        const defaultFallbackMethods = [
+          { value: "cash" as PaymentMethod, label: "cash", icon: Banknote },
+          { value: "card" as PaymentMethod, label: "card", icon: CreditCard },
+          { value: "transfer" as PaymentMethod, label: "transfer", icon: Landmark },
+          { value: "credit" as PaymentMethod, label: "credit", icon: Wallet },
+        ];
 
         const normalized = (Array.isArray(list) ? list : [])
           .filter((item) => item && item.name)
@@ -907,12 +926,29 @@ export function PaymentPanel() {
           })
           .filter((item) => item.value);
 
-        setConfiguredPaymentMethods(normalized);
+        // Always set methods even if empty, to trigger the correct UI state
+        setConfiguredPaymentMethods(normalized.length > 0 ? normalized : defaultFallbackMethods);
       } catch (err) {
         console.error("Failed to load configured payment methods", err);
-        if (mounted) setConfiguredPaymentMethods([]);
+        if (mounted) {
+          // Use fallback only if we don't have any methods yet
+          if (configuredPaymentMethods.length === 0) {
+            setConfiguredPaymentMethods([
+              { value: "cash" as PaymentMethod, label: "cash", icon: Banknote },
+              { value: "card" as PaymentMethod, label: "card", icon: CreditCard },
+              { value: "transfer" as PaymentMethod, label: "transfer", icon: Landmark },
+              { value: "credit" as PaymentMethod, label: "credit", icon: Wallet },
+            ]);
+          }
+        }
       } finally {
-        if (mounted) setIsLoadingPaymentMethods(false);
+        if (mounted) {
+          setIsLoadingPaymentMethods(false);
+          // Refresh payment methods periodically to keep them in sync
+          refreshTimer = setTimeout(() => {
+            if (mounted) fetchConfiguredPaymentMethods();
+          }, 30000); // Refresh every 30 seconds
+        }
       }
     };
 
@@ -936,6 +972,7 @@ export function PaymentPanel() {
 
     return () => {
       mounted = false;
+      if (refreshTimer) clearTimeout(refreshTimer);
       window.removeEventListener(
         "mart-settings-updated",
         handleMartSettingsUpdated as EventListener,

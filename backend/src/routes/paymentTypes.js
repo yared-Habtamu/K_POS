@@ -12,11 +12,11 @@ const DEFAULT_PAYMENT_TYPES = [
 
 async function seedDefaultPaymentTypes(martId) {
   if (!martId) return;
-  const count = await prisma.paymentType.count({
-    where: { martId, isDeleted: false },
+  const activeCount = await prisma.paymentType.count({
+    where: { martId, isDeleted: false, active: true },
   });
 
-  if (count === 0) {
+  if (activeCount === 0) {
     for (const item of DEFAULT_PAYMENT_TYPES) {
       const existing = await prisma.paymentType.findFirst({
         where: { name: item.name, martId },
@@ -67,15 +67,23 @@ router.get("/", authenticate, async (req, res) => {
       filter.active = true;
     }
 
-    // Auto-seed defaults if mart has no payment types yet
+    // Auto-seed defaults if mart has no active payment types yet
     if (targetMartId) {
       await seedDefaultPaymentTypes(targetMartId);
     }
 
-    const list = await prisma.paymentType.findMany({
+    let list = await prisma.paymentType.findMany({
       where: filter,
       orderBy: { createdAt: "asc" },
     });
+
+    if (list.length === 0 && targetMartId) {
+      await seedDefaultPaymentTypes(targetMartId);
+      list = await prisma.paymentType.findMany({
+        where: filter,
+        orderBy: { createdAt: "asc" },
+      });
+    }
 
     res.json(list);
   } catch (err) {

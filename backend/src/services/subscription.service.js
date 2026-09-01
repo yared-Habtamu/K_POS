@@ -5,11 +5,29 @@ const notificationRepository = require("../repositories/notificationRepository")
 const subscriptionSettingsRepository = require("../repositories/subscriptionSettingsRepository");
 
 const DEFAULT_PACKAGES = [
+  { months: 0, name: "Free", durationDays: 7, defaultPrice: 0, discountLabel: "7 Days Free" },
   { months: 1, name: "1 Month", durationDays: 30, defaultPrice: 1000, discountLabel: "" },
   { months: 3, name: "3 Months", durationDays: 90, defaultPrice: 2700, discountLabel: "Save 10%" },
   { months: 6, name: "6 Months", durationDays: 180, defaultPrice: 5000, discountLabel: "Save 16%" },
   { months: 9, name: "9 Months", durationDays: 270, defaultPrice: 7200, discountLabel: "Save 20%" },
   { months: 12, name: "12 Months", durationDays: 365, defaultPrice: 9000, discountLabel: "Save 25%" },
+];
+
+const DEFAULT_HARDWARE_PRODUCTS = [
+  {
+    id: "scanner",
+    name: "Barcode Scanner",
+    description: "High-speed USB & wireless 1D/2D barcode scanner for quick POS checkouts.",
+    unitPrice: 20000,
+    active: true,
+  },
+  {
+    id: "printer",
+    name: "Thermal Receipt Printer",
+    description: "Heavy-duty 80mm thermal receipt printer with fast auto-cutter.",
+    unitPrice: 30000,
+    active: true,
+  },
 ];
 
 const DEFAULT_PAYMENT_METHODS = [
@@ -43,17 +61,41 @@ const DEFAULT_PAYMENT_METHODS = [
 ];
 
 async function getOrCreateSettings() {
-  const settings = await subscriptionSettingsRepository.getOrCreate();
+  let settings = await subscriptionSettingsRepository.getOrCreate();
+  let needsUpdate = false;
+  const updateData = {};
+
   if (!settings.packagePrices) {
     const defaultPrices = {};
     DEFAULT_PACKAGES.forEach((p) => {
       defaultPrices[p.months] = p.defaultPrice;
     });
+    updateData.packagePrices = defaultPrices;
     settings.packagePrices = defaultPrices;
+    needsUpdate = true;
   }
   if (!settings.paymentMethods || !Array.isArray(settings.paymentMethods) || settings.paymentMethods.length === 0) {
+    updateData.paymentMethods = DEFAULT_PAYMENT_METHODS;
     settings.paymentMethods = DEFAULT_PAYMENT_METHODS;
+    needsUpdate = true;
   }
+  if (!settings.hardwareProducts || !Array.isArray(settings.hardwareProducts) || settings.hardwareProducts.length === 0) {
+    updateData.hardwareProducts = DEFAULT_HARDWARE_PRODUCTS;
+    settings.hardwareProducts = DEFAULT_HARDWARE_PRODUCTS;
+    needsUpdate = true;
+  }
+
+  if (needsUpdate && settings.id) {
+    try {
+      settings = await prisma.subscriptionSettings.update({
+        where: { id: settings.id },
+        data: updateData,
+      });
+    } catch (e) {
+      console.warn("Failed to persist default settings:", e);
+    }
+  }
+
   return settings;
 }
 
@@ -63,6 +105,14 @@ function getPackageList(settings) {
     ...pkg,
     price: Number(prices[pkg.months] ?? pkg.defaultPrice),
   }));
+}
+
+function getHardwareProductsList(settings) {
+  const list = settings?.hardwareProducts;
+  if (Array.isArray(list) && list.length > 0) {
+    return list;
+  }
+  return DEFAULT_HARDWARE_PRODUCTS;
 }
 
 function clampNumber(value, fallback, min = 0) {
@@ -399,7 +449,9 @@ async function activateSubscriptionFromPayment({ paymentId, approverId, approver
   const isCurrentEndValid = currentEnd && Number.isFinite(currentEnd.getTime()) && currentEnd.getTime() > now.getTime();
 
   const startDate = isCurrentEndValid ? currentEnd : now;
-  const durationDays = payment.packageMonths * 30; // standard month duration calculation
+  // Free plan (months=0) is a 7-day trial; paid plans are months * 30 days
+  const isFree = Number(payment.packageMonths) === 0;
+  const durationDays = isFree ? 7 : payment.packageMonths * 30;
   const endDate = new Date(startDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
   // Transaction to update payment and mart
@@ -418,7 +470,7 @@ async function activateSubscriptionFromPayment({ paymentId, approverId, approver
 
     const updatedSub = {
       ...currentSub,
-      isTrial: false,
+      isTrial: isFree,
       packageName: payment.packageName,
       packageMonths: payment.packageMonths,
       feeEtb: payment.amount,
@@ -444,8 +496,10 @@ async function activateSubscriptionFromPayment({ paymentId, approverId, approver
   await notifyMartOwners({
     mart,
     type: "subscription_payment_approved",
-    title: "Subscription Activated!",
-    message: `Your payment of ${payment.amount} ETB for ${payment.packageName} has been approved. Your subscription is active until ${endDate.toDateString()}.`,
+    title: isFree ? "Free Plan Activated!" : "Subscription Activated!",
+    message: isFree
+      ? `Your 7-day free plan for ${payment.packageName} has been approved. Your free trial is active until ${endDate.toDateString()}.`
+      : `Your payment of ${payment.amount} ETB for ${payment.packageName} has been approved. Your subscription is active until ${endDate.toDateString()}.`,
     data: {
       paymentId: payment.id,
       packageName: payment.packageName,
@@ -499,9 +553,11 @@ async function rejectSubscriptionPayment({ paymentId, approverId, approverName, 
 
 module.exports = {
   DEFAULT_PACKAGES,
+  DEFAULT_HARDWARE_PRODUCTS,
   DEFAULT_PAYMENT_METHODS,
   getOrCreateSettings,
   getPackageList,
+  getHardwareProductsList,
   evaluateMartSubscription,
   runSubscriptionCheckForMart,
   runSubscriptionChecksForAllMarts,

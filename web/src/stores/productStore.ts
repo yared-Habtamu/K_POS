@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { Product, Category } from "@/types";
 import { useAuthStore } from "./authStore";
 import { productAgeDays } from "@/utils/agingStock";
+import { getImageUrl } from "@/utils/imageUrl";
 
 interface ProductState {
   products: Product[];
@@ -41,7 +42,7 @@ const normalizeProducts = (items: any[]) => {
   return items.map((p: any) => ({
     ...p,
     id: p.id || p._id,
-    pictureUrl: p.pictureUrl || p.imageUrl || p.secure_url || p.url || "",
+    pictureUrl: getImageUrl(p.pictureUrl || p.imageUrl || p.secure_url || p.url || ""),
     quantity: Number(
       p.quantity ?? p.supermarketQuantity ?? p.storeQuantity ?? 0,
     ),
