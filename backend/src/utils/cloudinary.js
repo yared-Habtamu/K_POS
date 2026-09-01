@@ -9,7 +9,12 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-async function uploadBuffer(buffer, filename, requestBaseUrl = "") {
+async function uploadBuffer(
+  buffer,
+  filename,
+  requestBaseUrl = "",
+  folder = "pos_products",
+) {
   if (!buffer) throw new Error("No buffer provided");
 
   // Fail fast with a clear error when Cloudinary env vars are missing (ONLY in production)
@@ -28,9 +33,16 @@ async function uploadBuffer(buffer, filename, requestBaseUrl = "") {
 
   // Convert buffer to data URI so cloudinary can accept it directly
   const base64 = buffer.toString("base64");
-  // Attempt to detect mime type from filename extension, default to jpeg
-  const ext = (filename && filename.split(".").pop()) || "jpg";
-  const mime = ext === "png" ? "image/png" : "image/jpeg";
+  const ext = ((filename && filename.split(".").pop()) || "jpg").toLowerCase();
+  const mimeMap = {
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    webp: "image/webp",
+    gif: "image/gif",
+    svg: "image/svg+xml",
+  };
+  const mime = mimeMap[ext] || "image/jpeg";
   const dataUri = `data:${mime};base64,${base64}`;
 
   // Upload to Cloudinary
@@ -45,7 +57,7 @@ async function uploadBuffer(buffer, filename, requestBaseUrl = "") {
     }
 
     const res = await cloudinary.uploader.upload(dataUri, {
-      folder: "pos_products",
+      folder: folder || "pos_products",
       use_filename: true,
       unique_filename: true,
       resource_type: "image",
@@ -59,25 +71,22 @@ async function uploadBuffer(buffer, filename, requestBaseUrl = "") {
     );
     if (process.env.NODE_ENV !== "production") {
       try {
+        const subFolder = folder || "pos_products";
         const uploadsRoot = path.join(
           __dirname,
           "..",
           "..",
           "uploads",
-          "pos_products",
+          subFolder,
         );
         fs.mkdirSync(uploadsRoot, { recursive: true });
-        const ext =
-          filename && filename.split(".").pop()
-            ? filename.split(".").pop()
-            : "jpg";
         const localName = `${Date.now()}-${Math.floor(Math.random() * 10000)}.${ext}`;
         const localPath = path.join(uploadsRoot, localName);
         fs.writeFileSync(localPath, buffer);
         const host = process.env.LOCAL_UPLOADS_URL || requestBaseUrl || "";
         const secure_url = host
-          ? `${host}/uploads/pos_products/${localName}`
-          : `/uploads/pos_products/${localName}`;
+          ? `${host}/uploads/${subFolder}/${localName}`
+          : `/uploads/${subFolder}/${localName}`;
         console.warn("Saved image to local uploads as fallback:", secure_url);
         return { secure_url, url: secure_url };
       } catch (fsErr) {

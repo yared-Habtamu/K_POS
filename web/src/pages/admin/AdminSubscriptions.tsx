@@ -1,4 +1,5 @@
 import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
+import { getImageUrl, handleImageError } from "@/utils/imageUrl";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RoleLayout } from "@/components/layout/RoleLayout";
@@ -532,9 +533,9 @@ export default function AdminSubscriptionsPage() {
 
         {/* Tab Navigation */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid grid-cols-2 md:grid-cols-5 p-1 bg-muted/60">
-            <TabsTrigger value="approvals" className="gap-2 relative">
-              <Clock className="w-4 h-4" />
+          <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 h-auto w-full gap-1.5 p-1.5 bg-muted/80 dark:bg-muted/30 border border-border/50 rounded-xl">
+            <TabsTrigger value="approvals" className="gap-2 relative py-2.5 rounded-lg data-[state=active]:bg-background dark:data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm font-medium">
+              <Clock className="w-4 h-4 text-amber-500" />
               <span>{t("approvals")}</span>
               {pendingPayments.length > 0 && (
                 <Badge className="ml-1.5 bg-amber-500 hover:bg-amber-600 text-white px-1.5 py-0 text-[10px] font-bold">
@@ -543,30 +544,30 @@ export default function AdminSubscriptionsPage() {
               )}
             </TabsTrigger>
 
-            <TabsTrigger value="payments" className="gap-2">
-              <History className="w-4 h-4" />
+            <TabsTrigger value="payments" className="gap-2 py-2.5 rounded-lg data-[state=active]:bg-background dark:data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm font-medium">
+              <History className="w-4 h-4 text-primary" />
               <span>{t("all_payment_history")}</span>
             </TabsTrigger>
 
-            <TabsTrigger value="marts" className="gap-2">
-              <Store className="w-4 h-4" />
+            <TabsTrigger value="marts" className="gap-2 py-2.5 rounded-lg data-[state=active]:bg-background dark:data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm font-medium">
+              <Store className="w-4 h-4 text-primary" />
               <span>{t("mart_subscriptions")}</span>
             </TabsTrigger>
 
-            <TabsTrigger value="packages" className="gap-2">
-              <Layers className="w-4 h-4" />
+            <TabsTrigger value="packages" className="gap-2 py-2.5 rounded-lg data-[state=active]:bg-background dark:data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm font-medium">
+              <Layers className="w-4 h-4 text-primary" />
               <span>{t("package_pricing")}</span>
             </TabsTrigger>
 
-            <TabsTrigger value="accounts" className="gap-2">
-              <Building2 className="w-4 h-4" />
+            <TabsTrigger value="accounts" className="gap-2 py-2.5 rounded-lg data-[state=active]:bg-background dark:data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm font-medium col-span-2 sm:col-span-1">
+              <Building2 className="w-4 h-4 text-primary" />
               <span>{t("platform_accounts")}</span>
             </TabsTrigger>
           </TabsList>
 
           {/* TAB 1: PENDING APPROVALS QUEUE */}
           <TabsContent value="approvals" className="space-y-4">
-            <Card className="border shadow-sm">
+            <Card className="border border-border/60 shadow-sm bg-card text-card-foreground">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
@@ -597,29 +598,29 @@ export default function AdminSubscriptionsPage() {
                     </TableHeader>
                     <TableBody>
                       {pendingPayments.map((p) => (
-                        <TableRow key={p.id} className="hover:bg-muted/40">
+                        <TableRow key={p.id} className="hover:bg-muted/50 dark:hover:bg-muted/20">
                           <TableCell className="text-xs font-medium text-muted-foreground whitespace-nowrap">
                             {formatLocalizedDate(p.createdAt, { withTime: true })}
                           </TableCell>
-                          <TableCell className="font-bold text-sm">{p.martName || t("unknown_mart")}</TableCell>
+                          <TableCell className="font-bold text-sm text-foreground">{p.martName || t("unknown_mart")}</TableCell>
                           <TableCell className="text-xs">
                             <p className="font-medium text-foreground">{p.userName}</p>
                             {p.userPhone && <p className="text-muted-foreground">{p.userPhone}</p>}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="font-semibold text-xs">
+                            <Badge variant="outline" className="font-semibold text-xs border-border/70">
                               {p.packageName}
                             </Badge>
                           </TableCell>
                           <TableCell className="font-bold text-sm text-primary">
                             {p.amount.toLocaleString()} {p.currency}
                           </TableCell>
-                          <TableCell className="text-xs">{p.paymentMethod}</TableCell>
+                          <TableCell className="text-xs text-foreground font-medium">{p.paymentMethod}</TableCell>
                           <TableCell>
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => setViewReceiptUrl(p.receiptUrl)}
+                              onClick={() => setViewReceiptUrl(getImageUrl(p.receiptUrl))}
                               className="h-8 gap-1.5 text-xs"
                             >
                               <Eye className="w-3.5 h-3.5" />
@@ -641,7 +642,7 @@ export default function AdminSubscriptionsPage() {
                               </Button>
                               <Button
                                 size="sm"
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
                                 onClick={() => {
                                   setSelectedPayment(p);
                                   setIsApproveOpen(true);
@@ -657,7 +658,7 @@ export default function AdminSubscriptionsPage() {
                       {pendingPayments.length === 0 && (
                         <TableRow>
                           <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
-                            <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
+                            <CheckCircle2 className="w-8 h-8 text-emerald-500 dark:text-emerald-400 mx-auto mb-2 opacity-90" />
                             <p className="text-base font-semibold text-foreground">{t("no_pending_approvals")}</p>
                             <p className="text-xs text-muted-foreground mt-1">{t("all_payments_processed")}</p>
                           </TableCell>
@@ -672,7 +673,7 @@ export default function AdminSubscriptionsPage() {
 
           {/* TAB 2: COMPLETE PAYMENT AUDIT HISTORY */}
           <TabsContent value="payments" className="space-y-4">
-            <Card className="border shadow-sm">
+            <Card className="border border-border/60 shadow-sm bg-card text-card-foreground">
               <CardHeader>
                 <CardTitle className="text-xl flex items-center gap-2">
                   <History className="w-5 h-5 text-primary" />
@@ -699,28 +700,28 @@ export default function AdminSubscriptionsPage() {
                     </TableHeader>
                     <TableBody>
                       {payments.map((p) => (
-                        <TableRow key={p.id}>
+                        <TableRow key={p.id} className="hover:bg-muted/50 dark:hover:bg-muted/20">
                           <TableCell className="text-xs font-medium text-muted-foreground whitespace-nowrap">
                             {formatLocalizedDate(p.createdAt)}
                           </TableCell>
-                          <TableCell className="font-semibold text-sm">{p.martName || p.martId}</TableCell>
+                          <TableCell className="font-semibold text-sm text-foreground">{p.martName || p.martId}</TableCell>
                           <TableCell className="text-xs font-medium">{p.packageName}</TableCell>
-                          <TableCell className="font-bold text-sm">{p.amount.toLocaleString()} {p.currency}</TableCell>
-                          <TableCell className="text-xs">{p.paymentMethod}</TableCell>
+                          <TableCell className="font-bold text-sm text-primary">{p.amount.toLocaleString()} {p.currency}</TableCell>
+                          <TableCell className="text-xs text-foreground">{p.paymentMethod}</TableCell>
                           <TableCell>
                             {p.status === "approved" ? (
-                              <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1 text-[11px]">
-                                <CheckCircle2 className="w-3 h-3" />
+                              <Badge className="bg-emerald-500/15 dark:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 dark:border-emerald-500/40 gap-1 text-[11px] font-semibold">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                                 {t("approved")}
                               </Badge>
                             ) : p.status === "rejected" ? (
-                              <Badge variant="destructive" className="gap-1 text-[11px]">
+                              <Badge variant="destructive" className="gap-1 text-[11px] font-semibold">
                                 <XCircle className="w-3 h-3" />
                                 {t("rejected")}
                               </Badge>
                             ) : (
-                              <Badge variant="secondary" className="bg-amber-500/20 text-amber-600 border border-amber-500/30 gap-1 text-[11px]">
-                                <Clock className="w-3 h-3" />
+                              <Badge className="bg-amber-500/15 dark:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 dark:border-amber-500/40 gap-1 text-[11px] font-semibold">
+                                <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
                                 {t("pending_review")}
                               </Badge>
                             )}
@@ -729,8 +730,8 @@ export default function AdminSubscriptionsPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => setViewReceiptUrl(p.receiptUrl)}
-                              className="h-8 gap-1 text-xs text-primary"
+                              onClick={() => setViewReceiptUrl(getImageUrl(p.receiptUrl))}
+                              className="h-8 gap-1 text-xs text-primary hover:text-primary"
                             >
                               <Eye className="w-3.5 h-3.5" />
                               {t("view")}
@@ -741,9 +742,9 @@ export default function AdminSubscriptionsPage() {
                               <span>{t("approved_by")} {p.approverName} {t("on")} {p.decidedAt ? formatLocalizedDate(p.decidedAt) : ""}</span>
                             )}
                             {p.status === "rejected" && (
-                              <span className="text-destructive">{t("rejected")}: {p.reason || t("no_reason")}</span>
+                              <span className="text-destructive font-medium">{t("rejected")}: {p.reason || t("no_reason")}</span>
                             )}
-                            {p.status === "pending" && <span>{t("awaiting_admin_review")}</span>}
+                            {p.status === "pending" && <span className="italic">{t("awaiting_admin_review")}</span>}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -764,7 +765,7 @@ export default function AdminSubscriptionsPage() {
 
           {/* TAB 3: MART SUBSCRIPTION STATUS */}
           <TabsContent value="marts" className="space-y-4">
-            <Card className="border shadow-sm">
+            <Card className="border border-border/60 shadow-sm bg-card text-card-foreground">
               <CardHeader>
                 <CardTitle className="text-xl flex items-center gap-2">
                   <Store className="w-5 h-5 text-primary" />
@@ -791,29 +792,29 @@ export default function AdminSubscriptionsPage() {
                       {marts.map((row) => (
                         <TableRow
                           key={row.martId}
-                          className="cursor-pointer"
+                          className="cursor-pointer hover:bg-muted/50 dark:hover:bg-muted/20"
                           onClick={() => {
                             setSelectedMartId(row.martId);
                             setIsDetailsOpen(true);
                           }}
                         >
-                          <TableCell className="font-bold text-sm">{row.martName}</TableCell>
+                          <TableCell className="font-bold text-sm text-foreground">{row.martName}</TableCell>
                           <TableCell>
-                            <Badge variant={statusVariant(row.status)}>{row.status}</Badge>
+                            <Badge variant={statusVariant(row.status)} className="capitalize font-medium">{row.status}</Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={statusVariant(row.subscriptionStatus)}>{row.subscriptionStatus}</Badge>
+                            <Badge variant={statusVariant(row.subscriptionStatus)} className="capitalize font-medium">{row.subscriptionStatus}</Badge>
                           </TableCell>
                           <TableCell className="text-xs">
                             {row.isTrial ? (
-                              <Badge className="bg-blue-600 text-white text-[10px]">{t("seven_day_free_trial")}</Badge>
+                              <Badge className="bg-blue-600 dark:bg-blue-500 text-white text-[10px] font-semibold">{t("seven_day_free_trial")}</Badge>
                             ) : (
-                              row.packageName || t("paid_plan")
+                              <span className="font-medium text-foreground">{row.packageName || t("paid_plan")}</span>
                             )}
                           </TableCell>
                           <TableCell className="text-xs font-semibold">
                             {typeof row.daysLeft === "number" ? (
-                              <span className={row.daysLeft <= 0 ? "text-destructive" : row.daysLeft <= 5 ? "text-amber-500" : "text-emerald-500"}>
+                              <span className={row.daysLeft <= 0 ? "text-destructive font-bold" : row.daysLeft <= 5 ? "text-amber-600 dark:text-amber-400 font-bold" : "text-emerald-600 dark:text-emerald-400 font-bold"}>
                                 {row.daysLeft} {t("days")}
                               </span>
                             ) : "N/A"}
@@ -849,7 +850,7 @@ export default function AdminSubscriptionsPage() {
 
           {/* TAB 4: PACKAGE PRICING & TRIAL CONFIG */}
           <TabsContent value="packages" className="space-y-4">
-            <Card className="border shadow-sm">
+            <Card className="border border-border/60 shadow-sm bg-card text-card-foreground">
               <CardHeader>
                 <CardTitle className="text-xl flex items-center gap-2">
                   <Layers className="w-5 h-5 text-primary" />
@@ -861,8 +862,8 @@ export default function AdminSubscriptionsPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                  <div className="space-y-2 p-4 rounded-xl border bg-muted/20">
-                    <Label className="font-semibold text-sm">{t("trial_duration_label")}</Label>
+                  <div className="space-y-2 p-4 rounded-xl border border-border/60 bg-muted/40 dark:bg-muted/15">
+                    <Label className="font-semibold text-sm text-foreground">{t("trial_duration_label")}</Label>
                     <Input
                       type="number"
                       value={settings.trialPeriodDays}
@@ -872,12 +873,13 @@ export default function AdminSubscriptionsPage() {
                           trialPeriodDays: Number(e.target.value || 7),
                         }))
                       }
+                      className="bg-background"
                     />
                     <p className="text-xs text-muted-foreground">{t("trial_duration_desc")}</p>
                   </div>
 
-                  <div className="space-y-2 p-4 rounded-xl border bg-muted/20">
-                    <Label className="font-semibold text-sm">{t("one_month_price")}</Label>
+                  <div className="space-y-2 p-4 rounded-xl border border-border/60 bg-muted/40 dark:bg-muted/15">
+                    <Label className="font-semibold text-sm text-foreground">{t("one_month_price")}</Label>
                     <Input
                       type="number"
                       value={settings.packagePrices["1"] ?? 1000}
@@ -887,11 +889,12 @@ export default function AdminSubscriptionsPage() {
                           packagePrices: { ...prev.packagePrices, "1": Number(e.target.value || 0) },
                         }))
                       }
+                      className="bg-background"
                     />
                   </div>
 
-                  <div className="space-y-2 p-4 rounded-xl border bg-muted/20">
-                    <Label className="font-semibold text-sm">{t("three_months_price")}</Label>
+                  <div className="space-y-2 p-4 rounded-xl border border-border/60 bg-muted/40 dark:bg-muted/15">
+                    <Label className="font-semibold text-sm text-foreground">{t("three_months_price")}</Label>
                     <Input
                       type="number"
                       value={settings.packagePrices["3"] ?? 2700}
@@ -901,11 +904,12 @@ export default function AdminSubscriptionsPage() {
                           packagePrices: { ...prev.packagePrices, "3": Number(e.target.value || 0) },
                         }))
                       }
+                      className="bg-background"
                     />
                   </div>
 
-                  <div className="space-y-2 p-4 rounded-xl border bg-muted/20">
-                    <Label className="font-semibold text-sm">{t("six_months_price")}</Label>
+                  <div className="space-y-2 p-4 rounded-xl border border-border/60 bg-muted/40 dark:bg-muted/15">
+                    <Label className="font-semibold text-sm text-foreground">{t("six_months_price")}</Label>
                     <Input
                       type="number"
                       value={settings.packagePrices["6"] ?? 5000}
@@ -915,11 +919,12 @@ export default function AdminSubscriptionsPage() {
                           packagePrices: { ...prev.packagePrices, "6": Number(e.target.value || 0) },
                         }))
                       }
+                      className="bg-background"
                     />
                   </div>
 
-                  <div className="space-y-2 p-4 rounded-xl border bg-muted/20">
-                    <Label className="font-semibold text-sm">{t("nine_months_price")}</Label>
+                  <div className="space-y-2 p-4 rounded-xl border border-border/60 bg-muted/40 dark:bg-muted/15">
+                    <Label className="font-semibold text-sm text-foreground">{t("nine_months_price")}</Label>
                     <Input
                       type="number"
                       value={settings.packagePrices["9"] ?? 7200}
@@ -929,11 +934,12 @@ export default function AdminSubscriptionsPage() {
                           packagePrices: { ...prev.packagePrices, "9": Number(e.target.value || 0) },
                         }))
                       }
+                      className="bg-background"
                     />
                   </div>
 
-                  <div className="space-y-2 p-4 rounded-xl border bg-muted/20">
-                    <Label className="font-semibold text-sm">{t("twelve_months_price")}</Label>
+                  <div className="space-y-2 p-4 rounded-xl border border-border/60 bg-muted/40 dark:bg-muted/15">
+                    <Label className="font-semibold text-sm text-foreground">{t("twelve_months_price")}</Label>
                     <Input
                       type="number"
                       value={settings.packagePrices["12"] ?? 9000}
@@ -943,13 +949,14 @@ export default function AdminSubscriptionsPage() {
                           packagePrices: { ...prev.packagePrices, "12": Number(e.target.value || 0) },
                         }))
                       }
+                      className="bg-background"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 pt-2 border-t">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 pt-4 border-t border-border/60">
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold">{t("expiry_warning_days")}</Label>
+                    <Label className="text-sm font-semibold text-foreground">{t("expiry_warning_days")}</Label>
                     <Input
                       type="number"
                       value={settings.warningDaysBeforeExpiry}
@@ -959,11 +966,12 @@ export default function AdminSubscriptionsPage() {
                           warningDaysBeforeExpiry: Number(e.target.value || 5),
                         }))
                       }
+                      className="bg-background"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold">{t("auto_suspend_expired")}</Label>
+                    <Label className="text-sm font-semibold text-foreground">{t("auto_suspend_expired")}</Label>
                     <div className="flex items-center h-10 gap-3">
                       <Switch
                         checked={settings.autoSuspendEnabled}
@@ -993,7 +1001,7 @@ export default function AdminSubscriptionsPage() {
 
           {/* TAB 5: PLATFORM PAYMENT ACCOUNTS */}
           <TabsContent value="accounts" className="space-y-4">
-            <Card className="border shadow-sm">
+            <Card className="border border-border/60 shadow-sm bg-card text-card-foreground">
               <CardHeader>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
@@ -1014,7 +1022,7 @@ export default function AdminSubscriptionsPage() {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {(settings.paymentMethods || []).map((method) => (
-                    <div key={method.id} className="p-4 rounded-xl border bg-card flex flex-col justify-between space-y-3">
+                    <div key={method.id} className="p-4 rounded-xl border border-border/60 bg-card dark:bg-card/90 shadow-xs flex flex-col justify-between space-y-3">
                       <div>
                         <div className="flex items-center justify-between">
                           <h4 className="font-bold text-base text-foreground">{method.method}</h4>
@@ -1025,14 +1033,14 @@ export default function AdminSubscriptionsPage() {
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">{method.bankName}</p>
 
-                        <div className="mt-3 p-2.5 rounded-lg bg-muted/40 text-xs space-y-1">
+                        <div className="mt-3 p-2.5 rounded-lg bg-muted/60 dark:bg-muted/30 border border-border/40 text-xs space-y-1">
                           <p>
                             <span className="text-muted-foreground">{t("account_holder")}:</span>{" "}
-                            <span className="font-semibold">{method.accountName}</span>
+                            <span className="font-semibold text-foreground">{method.accountName}</span>
                           </p>
                           <p>
                             <span className="text-muted-foreground">{t("account_number")}:</span>{" "}
-                            <span className="font-mono font-bold text-primary">{method.accountNumber}</span>
+                            <span className="font-mono font-bold text-primary dark:text-primary-foreground">{method.accountNumber}</span>
                           </p>
                         </div>
 
@@ -1043,7 +1051,7 @@ export default function AdminSubscriptionsPage() {
                         )}
                       </div>
 
-                      <div className="flex justify-end pt-2 border-t">
+                      <div className="flex justify-end pt-2 border-t border-border/40">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -1072,7 +1080,7 @@ export default function AdminSubscriptionsPage() {
         <Dialog open={isApproveOpen} onOpenChange={setIsApproveOpen}>
           <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-emerald-600">
+              <DialogTitle className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                 <CheckCircle2 className="w-5 h-5" />
                 {t("confirm_approval")}
               </DialogTitle>
@@ -1083,13 +1091,13 @@ export default function AdminSubscriptionsPage() {
 
             {selectedPayment && (
               <div className="space-y-3 py-2 text-sm">
-                <div className="p-3 rounded-lg bg-muted/40 space-y-1.5">
-                  <p><strong>{t("mart")}:</strong> {selectedPayment.martName}</p>
-                  <p><strong>{t("package")}:</strong> {selectedPayment.packageName} ({selectedPayment.packageMonths} {t("days")})</p>
-                  <p><strong>{t("amount")}:</strong> {selectedPayment.amount.toLocaleString()} {selectedPayment.currency}</p>
-                  <p><strong>{t("method")}:</strong> {selectedPayment.paymentMethod}</p>
+                <div className="p-3 rounded-lg bg-muted/60 dark:bg-muted/30 border border-border/40 space-y-1.5">
+                  <p><strong className="text-foreground">{t("mart")}:</strong> <span className="text-foreground">{selectedPayment.martName}</span></p>
+                  <p><strong className="text-foreground">{t("package")}:</strong> <span className="text-foreground">{selectedPayment.packageName} ({selectedPayment.packageMonths} {t("days")})</span></p>
+                  <p><strong className="text-foreground">{t("amount")}:</strong> <span className="font-bold text-primary">{selectedPayment.amount.toLocaleString()} {selectedPayment.currency}</span></p>
+                  <p><strong className="text-foreground">{t("method")}:</strong> <span className="text-foreground">{selectedPayment.paymentMethod}</span></p>
                   {selectedPayment.paymentReference && (
-                    <p><strong>{t("transaction_reference")}:</strong> {selectedPayment.paymentReference}</p>
+                    <p><strong className="text-foreground">{t("transaction_reference")}:</strong> <span className="text-muted-foreground font-mono text-xs">{selectedPayment.paymentReference}</span></p>
                   )}
                 </div>
 
@@ -1098,7 +1106,7 @@ export default function AdminSubscriptionsPage() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setViewReceiptUrl(selectedPayment.receiptUrl)}
+                    onClick={() => setViewReceiptUrl(getImageUrl(selectedPayment.receiptUrl))}
                     className="gap-1.5"
                   >
                     <Eye className="w-4 h-4" />
@@ -1113,7 +1121,7 @@ export default function AdminSubscriptionsPage() {
                 {t("cancel")}
               </Button>
               <Button
-                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 font-medium"
                 onClick={handleApprovePayment}
                 disabled={processingDecision}
               >
@@ -1250,6 +1258,7 @@ export default function AdminSubscriptionsPage() {
                   src={viewReceiptUrl}
                   alt="Payment Receipt"
                   className="max-h-[70vh] rounded-lg object-contain border shadow-sm"
+                  onError={handleImageError}
                 />
               </div>
             )}

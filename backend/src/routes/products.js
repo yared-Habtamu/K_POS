@@ -71,6 +71,7 @@ async function createProductFromRequest(req, res, options = {}) {
         req.file.buffer,
         req.file.originalname,
         `${req.protocol}://${req.get("host")}`,
+        "pos_products",
       );
       finalImageUrl = uploaded.secure_url || uploaded.url || finalImageUrl;
     } catch (err) {
@@ -406,6 +407,7 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
           req.file.buffer,
           req.file.originalname,
           `${req.protocol}://${req.get("host")}`,
+          "pos_products",
         );
         update.imageUrl =
           uploaded.secure_url || uploaded.url || update.imageUrl;

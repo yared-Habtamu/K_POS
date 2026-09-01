@@ -3,6 +3,7 @@ const router = express.Router();
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
+const { uploadBuffer } = require("../utils/cloudinary");
 const prisma = require("../repositories/prismaClient");
 const martRepository = require("../repositories/martRepository");
 const { authenticate } = require("../middleware/auth");
@@ -18,28 +19,14 @@ const {
   DEFAULT_PAYMENT_METHODS,
 } = require("../services/subscription.service");
 
-
-// Upload directory setup
-const uploadDir = path.join(__dirname, "..", "..", "uploads");
-fs.mkdirSync(uploadDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: function (_req, _file, cb) {
-    cb(null, uploadDir);
-  },
-  filename: function (_req, file, cb) {
-    const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, "sub-receipt-" + unique + path.extname(file.originalname || ".jpg"));
-  },
-});
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
 });
 
 function requireSystemAdmin(req, res, next) {
-  if (req.user.role !== "systemAdmin") {
+  const role = req.user?.role;
+  if (role !== "systemAdmin" && role !== "system_admin") {
     return res.status(403).json({ message: "Insufficient permissions" });
   }
   return next();
@@ -149,12 +136,23 @@ router.put("/hardware-products", authenticate, requireSystemAdmin, async (req, r
 });
 
 // POST /api/subscriptions/upload-hardware-image (System Admin only)
-router.post("/upload-hardware-image", authenticate, requireSystemAdmin, upload.single("image"), (req, res) => {
-  if (!req.file) {
+router.post("/upload-hardware-image", authenticate, requireSystemAdmin, upload.single("image"), async (req, res) => {
+  if (!req.file || !req.file.buffer) {
     return res.status(400).json({ message: "No image file provided" });
   }
-  const imageUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
-  return res.json({ imageUrl });
+  try {
+    const uploaded = await uploadBuffer(
+      req.file.buffer,
+      req.file.originalname,
+      `${req.protocol}://${req.get("host")}`,
+      "pos_hardware",
+    );
+    const imageUrl = uploaded.secure_url || uploaded.url;
+    return res.json({ imageUrl });
+  } catch (err) {
+    console.error("[subscriptions] hardware image upload error:", err);
+    return res.status(500).json({ message: "Hardware image upload failed" });
+  }
 });
 
 // GET /api/subscriptions/my-payments
@@ -287,8 +285,19 @@ router.post("/pay", optionalAuthenticate, upload.single("receipt"), async (req, 
     // Receipt is required for paid packages, and for free packages that include hardware.
     // A free package with no hardware does not require a receipt.
     let receiptUrl = req.body.receiptUrl || "";
-    if (req.file) {
-      receiptUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+    if (req.file && req.file.buffer) {
+      try {
+        const uploaded = await uploadBuffer(
+          req.file.buffer,
+          req.file.originalname,
+          `${req.protocol}://${req.get("host")}`,
+          "pos_receipts",
+        );
+        receiptUrl = uploaded.secure_url || uploaded.url || receiptUrl;
+      } catch (err) {
+        console.error("[subscriptions] payment receipt upload error:", err);
+        return res.status(500).json({ message: "Receipt upload failed" });
+      }
     }
 
     const receiptRequired = !isFree || hasHardware;

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { getImageUrl, handleImageError } from "@/utils/imageUrl";
 import { useNavigate } from "react-router-dom";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -786,6 +787,11 @@ function ProductThumb({ url }: { url?: string }) {
     );
   }
   return (
-    <img src={url} alt="" className="h-10 w-10 rounded-lg object-cover" />
+    <img
+      src={getImageUrl(url)}
+      alt=""
+      className="h-10 w-10 rounded-lg object-cover"
+      onError={handleImageError}
+    />
   );
 }

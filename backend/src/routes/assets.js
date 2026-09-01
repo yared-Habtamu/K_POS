@@ -191,6 +191,7 @@ router.post("/", authenticate, upload.single("image"), async (req, res) => {
           req.file.buffer,
           req.file.originalname,
           `${req.protocol}://${req.get("host")}`,
+          "pos_assets",
         );
         finalImageUrl = uploaded.secure_url || uploaded.url || finalImageUrl;
       } catch (uploadErr) {
@@ -300,6 +301,7 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
           req.file.buffer,
           req.file.originalname,
           `${req.protocol}://${req.get("host")}`,
+          "pos_assets",
         );
         finalImageUrl = uploaded.secure_url || uploaded.url || finalImageUrl;
       } catch (uploadErr) {

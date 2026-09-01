@@ -1,4 +1,5 @@
 import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
+import { getImageUrl, handleImageError } from "@/utils/imageUrl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -128,7 +129,7 @@ function ProductThumb({ url, large }: { url?: string; large?: boolean }) {
         <ImageIcon className={`${placeholder} text-muted-foreground`} />
       </div>
     );
-  return <img src={url} alt="" className={cls} />;
+  return <img src={getImageUrl(url)} alt="" className={cls} onError={handleImageError} />;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -202,7 +203,12 @@ function ImageDiffLine({ label, prevUrl, nextUrl }: { label: string; prevUrl?: s
     <div className="space-y-1">
       <span className="text-xs text-muted-foreground block">{caption}</span>
       {url ? (
-        <img src={url} alt={caption} className="h-14 w-14 rounded-lg object-cover border border-border" />
+        <img
+          src={getImageUrl(url)}
+          alt={caption}
+          className="h-14 w-14 rounded-lg object-cover border border-border"
+          onError={handleImageError}
+        />
       ) : (
         <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-muted border border-border">
           <ImageIcon className="h-5 w-5 text-muted-foreground" />

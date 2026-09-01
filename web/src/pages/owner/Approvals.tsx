@@ -1,4 +1,5 @@
 import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
+import { getImageUrl, handleImageError } from "@/utils/imageUrl";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -80,6 +81,7 @@ function StatusBadge({ status }: { status: string }) {
 function ImageThumb({ src, alt }: { src?: string | null; alt: string }) {
   const [open, setOpen] = useState(false);
   if (!src) return <span className="text-xs text-muted-foreground">—</span>;
+  const resolvedUrl = getImageUrl(src);
   return (
     <>
       <button
@@ -89,9 +91,10 @@ function ImageThumb({ src, alt }: { src?: string | null; alt: string }) {
         title="Click to enlarge"
       >
         <img
-          src={src}
+          src={resolvedUrl}
           alt={alt}
           className="h-12 w-12 rounded-md object-cover border border-border hover:opacity-80 transition-opacity cursor-zoom-in"
+          onError={handleImageError}
         />
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -99,7 +102,12 @@ function ImageThumb({ src, alt }: { src?: string | null; alt: string }) {
           <DialogHeader>
             <DialogTitle>{alt}</DialogTitle>
           </DialogHeader>
-          <img src={src} alt={alt} className="w-full rounded-lg object-contain max-h-[70vh]" />
+          <img
+            src={resolvedUrl}
+            alt={alt}
+            className="w-full rounded-lg object-contain max-h-[70vh]"
+            onError={handleImageError}
+          />
         </DialogContent>
       </Dialog>
     </>

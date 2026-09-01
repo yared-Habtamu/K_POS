@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getImageUrl, handleImageError } from "@/utils/imageUrl";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { RoleLayout } from "@/components/layout/RoleLayout";
@@ -1580,9 +1581,10 @@ export default function ExpenseManagement() {
                               <TableCell className="w-24">
                                 {(expense as any).paymentScreenshot ? (
                                   <img
-                                    src={(expense as any).paymentScreenshot}
+                                    src={getImageUrl((expense as any).paymentScreenshot)}
                                     className="w-16 h-16 object-cover rounded"
                                     alt="payment"
+                                    onError={handleImageError}
                                   />
                                 ) : (
                                   <span className="text-muted-foreground">

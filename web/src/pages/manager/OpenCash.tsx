@@ -1,4 +1,5 @@
 import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
+import { getImageUrl } from "@/utils/imageUrl";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RoleLayout } from "@/components/layout/RoleLayout";
@@ -427,7 +428,7 @@ export default function ManagerOpenCashPage() {
                         </p>
                         {r.receiptUrl ? (
                           <a
-                            href={r.receiptUrl}
+                            href={getImageUrl(r.receiptUrl)}
                             target="_blank"
                             rel="noreferrer"
                             className="text-xs text-primary underline"
@@ -514,7 +515,7 @@ export default function ManagerOpenCashPage() {
                       </p>
                       {r.receiptUrl ? (
                         <a
-                          href={r.receiptUrl}
+                          href={getImageUrl(r.receiptUrl)}
                           target="_blank"
                           rel="noreferrer"
                           className="text-xs text-primary underline"

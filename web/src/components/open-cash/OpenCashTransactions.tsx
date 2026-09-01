@@ -1,4 +1,5 @@
 import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
+import { getImageUrl, handleImageError } from "@/utils/imageUrl";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
@@ -104,7 +105,7 @@ export function OpenCashTransactions({ requests }: OpenCashTransactionsProps) {
                         variant="ghost"
                         size="sm"
                         className="h-8 gap-1 px-2 text-xs"
-                        onClick={() => setReceiptUrl(r.receiptUrl)}
+                        onClick={() => setReceiptUrl(getImageUrl(r.receiptUrl))}
                       >
                         <ImageIcon className="h-3.5 w-3.5" />
                         {t("view_receipt", { defaultValue: "View" })}
@@ -159,6 +160,7 @@ export function OpenCashTransactions({ requests }: OpenCashTransactionsProps) {
                 src={receiptUrl}
                 alt={t("receipt_image", { defaultValue: "Receipt" })}
                 className="max-h-[60vh] w-auto rounded-md border"
+                onError={handleImageError}
               />
               <a
                 href={receiptUrl}

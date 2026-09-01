@@ -1,4 +1,5 @@
 import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
+import { getImageUrl, handleImageError } from "@/utils/imageUrl";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RoleLayout } from "@/components/layout/RoleLayout";
@@ -558,7 +559,7 @@ export default function OwnerSubscriptionPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setViewReceiptUrl(p.receiptUrl)}
+                          onClick={() => setViewReceiptUrl(getImageUrl(p.receiptUrl))}
                           className="h-8 gap-1.5 text-xs text-primary hover:text-primary"
                         >
                           <Eye className="w-3.5 h-3.5" />
@@ -776,6 +777,7 @@ export default function OwnerSubscriptionPage() {
                   src={viewReceiptUrl}
                   alt="Full receipt"
                   className="max-h-[70vh] rounded-lg object-contain border shadow-sm"
+                  onError={handleImageError}
                 />
               </div>
             )}

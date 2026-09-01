@@ -1,4 +1,5 @@
 import { formatLocalizedDate } from "@/utils/ethiopian-calendar";
+import { getImageUrl, handleImageError } from "@/utils/imageUrl";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -852,6 +853,11 @@ function ProductThumb({ url }: { url?: string }) {
     );
   }
   return (
-    <img src={url} alt="" className="h-10 w-10 rounded-lg object-cover" />
+    <img
+      src={getImageUrl(url)}
+      alt=""
+      className="h-10 w-10 rounded-lg object-cover"
+      onError={handleImageError}
+    />
   );
 }

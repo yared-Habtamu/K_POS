@@ -6,24 +6,12 @@ const userRepository = require("../repositories/userRepository");
 const { authenticate } = require("../middleware/auth");
 const { createNotification } = require("../services/notification.service");
 const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
+const { uploadBuffer } = require("../utils/cloudinary");
 
-// Upload directory: backend/uploads (served by index.js at /uploads)
-const uploadDir = path.join(__dirname, "..", "..", "uploads");
-fs.mkdirSync(uploadDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, unique + path.extname(file.originalname));
-  },
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
 });
-
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 async function getMartOwners(martId) {
   if (!martId) return [];
@@ -125,32 +113,58 @@ router.post(
         screenshots: [],
       };
 
-      // Attach uploaded files (if any) as accessible URLs.
+      // Attach uploaded files (if any) as accessible Cloudinary URLs.
       try {
         if (
           req.files &&
           req.files.paymentScreenshot &&
-          req.files.paymentScreenshot[0]
+          req.files.paymentScreenshot[0] &&
+          req.files.paymentScreenshot[0].buffer
         ) {
           const f = req.files.paymentScreenshot[0];
-          attachmentPayload.paymentScreenshot = `${req.protocol}://${req.get("host")}/uploads/${f.filename}`;
+          const uploaded = await uploadBuffer(
+            f.buffer,
+            f.originalname,
+            `${req.protocol}://${req.get("host")}`,
+            "pos_expenses",
+          );
+          attachmentPayload.paymentScreenshot =
+            uploaded.secure_url || uploaded.url;
         }
         if (
           req.files &&
           req.files.productPicture &&
-          req.files.productPicture[0]
+          req.files.productPicture[0] &&
+          req.files.productPicture[0].buffer
         ) {
           const f = req.files.productPicture[0];
-          attachmentPayload.productPicture = `${req.protocol}://${req.get("host")}/uploads/${f.filename}`;
+          const uploaded = await uploadBuffer(
+            f.buffer,
+            f.originalname,
+            `${req.protocol}://${req.get("host")}`,
+            "pos_expenses",
+          );
+          attachmentPayload.productPicture =
+            uploaded.secure_url || uploaded.url;
         }
         if (
           req.files &&
           req.files.screenshots &&
           req.files.screenshots.length
         ) {
-          attachmentPayload.screenshots = req.files.screenshots.map(
-            (f) => `${req.protocol}://${req.get("host")}/uploads/${f.filename}`,
-          );
+          const uploadedUrls = [];
+          for (const f of req.files.screenshots) {
+            if (f.buffer) {
+              const uploaded = await uploadBuffer(
+                f.buffer,
+                f.originalname,
+                `${req.protocol}://${req.get("host")}`,
+                "pos_expenses",
+              );
+              uploadedUrls.push(uploaded.secure_url || uploaded.url);
+            }
+          }
+          attachmentPayload.screenshots = uploadedUrls;
         }
       } catch (e) {
         console.warn("Failed to attach uploaded files", e);
@@ -292,42 +306,37 @@ router.put(
       let updatedProductPicture = expense.productPicture;
       let updatedScreenshots = expense.screenshots;
 
-      // handle uploaded files: replace existing and remove old file if present
+      // handle uploaded files: upload new files to Cloudinary
       try {
         if (
           req.files &&
           req.files.paymentScreenshot &&
-          req.files.paymentScreenshot[0]
+          req.files.paymentScreenshot[0] &&
+          req.files.paymentScreenshot[0].buffer
         ) {
           const f = req.files.paymentScreenshot[0];
-          // delete old file if stored locally
-          if (expense.paymentScreenshot) {
-            try {
-              const oldName = path.basename(expense.paymentScreenshot);
-              const oldPath = path.join(uploadDir, oldName);
-              if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-            } catch (e) {
-              console.warn("Failed to delete old paymentScreenshot", e);
-            }
-          }
-          updatedPaymentScreenshot = `${req.protocol}://${req.get("host")}/uploads/${f.filename}`;
+          const uploaded = await uploadBuffer(
+            f.buffer,
+            f.originalname,
+            `${req.protocol}://${req.get("host")}`,
+            "pos_expenses",
+          );
+          updatedPaymentScreenshot = uploaded.secure_url || uploaded.url;
         }
         if (
           req.files &&
           req.files.productPicture &&
-          req.files.productPicture[0]
+          req.files.productPicture[0] &&
+          req.files.productPicture[0].buffer
         ) {
           const f = req.files.productPicture[0];
-          if (expense.productPicture) {
-            try {
-              const oldName = path.basename(expense.productPicture);
-              const oldPath = path.join(uploadDir, oldName);
-              if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-            } catch (e) {
-              console.warn("Failed to delete old productPicture", e);
-            }
-          }
-          updatedProductPicture = `${req.protocol}://${req.get("host")}/uploads/${f.filename}`;
+          const uploaded = await uploadBuffer(
+            f.buffer,
+            f.originalname,
+            `${req.protocol}://${req.get("host")}`,
+            "pos_expenses",
+          );
+          updatedProductPicture = uploaded.secure_url || uploaded.url;
         }
         // handle screenshots array
         if (
@@ -335,24 +344,21 @@ router.put(
           req.files.screenshots &&
           req.files.screenshots.length
         ) {
-          // delete old local screenshot files if any
-          if (
-            Array.isArray(expense.screenshots) &&
-            expense.screenshots.length
-          ) {
-            for (const url of expense.screenshots) {
-              try {
-                const oldName = path.basename(url);
-                const oldPath = path.join(uploadDir, oldName);
-                if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-              } catch (e) {
-                console.warn("Failed to delete old screenshot file", e);
-              }
+          const uploadedUrls = [];
+          for (const f of req.files.screenshots) {
+            if (f.buffer) {
+              const uploaded = await uploadBuffer(
+                f.buffer,
+                f.originalname,
+                `${req.protocol}://${req.get("host")}`,
+                "pos_expenses",
+              );
+              uploadedUrls.push(uploaded.secure_url || uploaded.url);
             }
           }
-          updatedScreenshots = req.files.screenshots.map(
-            (f) => `${req.protocol}://${req.get("host")}/uploads/${f.filename}`,
-          );
+          if (uploadedUrls.length > 0) {
+            updatedScreenshots = uploadedUrls;
+          }
         }
       } catch (e) {
         console.warn("Error handling uploaded files", e);

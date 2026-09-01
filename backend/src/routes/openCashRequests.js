@@ -5,24 +5,12 @@ const userRepository = require("../repositories/userRepository");
 const { authenticate } = require("../middleware/auth");
 const { createNotification } = require("../services/notification.service");
 const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
+const { uploadBuffer } = require("../utils/cloudinary");
 
-// Upload directory: backend/uploads (served by index.js at /uploads)
-const uploadDir = path.join(__dirname, "..", "..", "uploads");
-fs.mkdirSync(uploadDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, "open-cash-" + unique + path.extname(file.originalname || ".jpg"));
-  },
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
 });
-
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -213,8 +201,19 @@ router.post(
 
       // Receipt image is required (uploaded file or an existing URL).
       let receiptUrl = req.body.receiptUrl || "";
-      if (req.file) {
-        receiptUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+      if (req.file && req.file.buffer) {
+        try {
+          const uploaded = await uploadBuffer(
+            req.file.buffer,
+            req.file.originalname,
+            `${req.protocol}://${req.get("host")}`,
+            "pos_receipts",
+          );
+          receiptUrl = uploaded.secure_url || uploaded.url || receiptUrl;
+        } catch (err) {
+          console.error("Open cash receipt upload error:", err);
+          return res.status(500).json({ message: "Receipt upload failed" });
+        }
       }
       if (!receiptUrl) {
         return res.status(400).json({ message: "Receipt image is required" });

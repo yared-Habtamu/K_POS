@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { RoleLayout } from "@/components/layout/RoleLayout";
-import { getImageUrl } from "@/utils/imageUrl";
+import { getImageUrl, handleImageError } from "@/utils/imageUrl";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -271,12 +271,13 @@ export default function AdminHardwareManagement() {
       description: newForm.description.trim(),
       unitPrice: newForm.unitPrice || "0",
       active: newForm.active,
+      imageUrl: newForm.imageUrl ? newForm.imageUrl.trim() : undefined,
     };
 
     const nextList = [...products, newProduct];
     setProducts(nextList);
     setIsAddOpen(false);
-    setNewForm({ name: "", description: "", unitPrice: "", active: true });
+    setNewForm({ name: "", description: "", unitPrice: "", active: true, imageUrl: "" });
 
     try {
       await persistProducts(nextList);
@@ -402,7 +403,7 @@ export default function AdminHardwareManagement() {
         </div>
 
         {/* Catalog CRUD Settings Card */}
-        <Card className="shadow-sm border-slate-200">
+        <Card className="shadow-sm border-border/60 bg-card text-card-foreground">
           <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <CardTitle className="text-xl flex items-center gap-2">
@@ -415,7 +416,7 @@ export default function AdminHardwareManagement() {
             <Button
               onClick={handleSaveCatalog}
               disabled={isSaving}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 self-start sm:self-auto"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium gap-2 self-start sm:self-auto"
             >
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save Catalog Pricing
             </Button>
@@ -435,20 +436,25 @@ export default function AdminHardwareManagement() {
             ) : (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {products.map((product) => (
-                  <Card key={product.id} className="border-slate-200 bg-slate-50/50 relative flex flex-col justify-between">
+                  <Card key={product.id} className="border-border/60 bg-card dark:bg-card/70 border shadow-sm relative flex flex-col justify-between rounded-xl hover:border-primary/40 transition-colors">
                     <CardContent className="p-5 space-y-4">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-3">
                           {product.imageUrl ? (
-                            <img src={getImageUrl(product.imageUrl)} alt={product.name} className="w-12 h-12 rounded-xl object-cover border border-border shrink-0" />
+                            <img
+                              src={getImageUrl(product.imageUrl)}
+                              alt={product.name}
+                              className="w-12 h-12 rounded-xl object-cover border border-border/70 shrink-0 bg-muted"
+                              onError={handleImageError}
+                            />
                           ) : (
-                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                            <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
                               {renderIcon(product.id)}
                             </div>
                           )}
                           <div>
                             <h3 className="font-bold text-base text-foreground leading-snug">{product.name}</h3>
-                            <Badge variant={product.active ? "default" : "secondary"} className="mt-0.5 text-[10px]">
+                            <Badge variant={product.active ? "default" : "secondary"} className="mt-0.5 text-[10px] font-semibold">
                               {product.active ? "Active" : "Disabled"}
                             </Badge>
                           </div>
@@ -459,7 +465,7 @@ export default function AdminHardwareManagement() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
                             onClick={() => openEditDialog(product)}
                             title="Edit details"
                           >
@@ -468,7 +474,7 @@ export default function AdminHardwareManagement() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                             onClick={() => openDeleteDialog(product)}
                             title="Delete product"
                           >
@@ -481,16 +487,16 @@ export default function AdminHardwareManagement() {
                         {product.description || "No description provided."}
                       </p>
 
-                      <div className="pt-3 border-t border-slate-200/80 flex items-center justify-between gap-2">
+                      <div className="pt-3 border-t border-border/60 flex items-center justify-between gap-2">
                         <div className="space-y-0.5">
-                          <Label className="text-[11px] font-semibold text-muted-foreground uppercase">Unit Price (ETB)</Label>
-                          <div className="flex items-center gap-1.5">
+                          <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Unit Price (ETB)</Label>
+                          <div className="flex items-center gap-1.5 mt-1">
                             <Input
                               type="number"
                               value={product.unitPrice}
                               onChange={(e) => handlePriceChange(product.id, e.target.value)}
                               placeholder="0"
-                              className="w-28 text-right font-bold text-primary h-8 text-xs"
+                              className="w-28 text-right font-bold text-primary dark:text-primary h-8 text-xs bg-background border-border/80"
                             />
                             <span className="text-xs font-semibold text-muted-foreground">ETB</span>
                           </div>
@@ -514,7 +520,7 @@ export default function AdminHardwareManagement() {
         </Card>
 
         {/* Sold Hardware Orders Overview */}
-        <Card className="shadow-sm border-slate-200">
+        <Card className="shadow-sm border-border/60 bg-card text-card-foreground">
           <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -528,7 +534,7 @@ export default function AdminHardwareManagement() {
               <div className="flex items-center gap-2">
                 <Label className="text-xs text-muted-foreground whitespace-nowrap">Filter by:</Label>
                 <Select value={hardwareFilter} onValueChange={(val: any) => setHardwareFilter(val)}>
-                  <SelectTrigger className="w-[160px] h-9">
+                  <SelectTrigger className="w-[160px] h-9 bg-background border-border/80">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -544,14 +550,14 @@ export default function AdminHardwareManagement() {
           <CardContent>
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Mart Name</TableHead>
-                  <TableHead>User / Phone</TableHead>
-                  <TableHead>Subscription Package</TableHead>
-                  <TableHead>Hardware Add-ons</TableHead>
-                  <TableHead>Total Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Receipt</TableHead>
+                <TableRow className="border-border/60 hover:bg-transparent">
+                  <TableHead className="text-muted-foreground font-semibold">Mart Name</TableHead>
+                  <TableHead className="text-muted-foreground font-semibold">User / Phone</TableHead>
+                  <TableHead className="text-muted-foreground font-semibold">Subscription Package</TableHead>
+                  <TableHead className="text-muted-foreground font-semibold">Hardware Add-ons</TableHead>
+                  <TableHead className="text-muted-foreground font-semibold">Total Amount</TableHead>
+                  <TableHead className="text-muted-foreground font-semibold">Status</TableHead>
+                  <TableHead className="text-muted-foreground font-semibold">Receipt</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -565,17 +571,17 @@ export default function AdminHardwareManagement() {
                   </TableRow>
                 ) : (
                   filteredPayments.map((p) => (
-                    <TableRow key={p.id}>
+                    <TableRow key={p.id} className="border-border/60 hover:bg-muted/50 dark:hover:bg-muted/20">
                       <TableCell className="font-semibold text-foreground">{p.martName || "N/A"}</TableCell>
                       <TableCell>
-                        <p className="text-xs font-medium">{p.userName || "N/A"}</p>
+                        <p className="text-xs font-medium text-foreground">{p.userName || "N/A"}</p>
                         <p className="text-[11px] text-muted-foreground">{p.userPhone || ""}</p>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="bg-slate-100">{p.packageName}</Badge>
+                        <Badge variant="outline" className="bg-muted/60 dark:bg-muted/30 border-border/60 text-foreground text-xs font-medium">{p.packageName}</Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="text-xs font-mono bg-primary/10 text-primary px-2 py-1 rounded border border-primary/20">
+                        <span className="text-xs font-mono bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary-foreground px-2 py-1 rounded border border-primary/25 font-semibold">
                           {p.paymentReference?.includes("Add-ons:")
                             ? p.paymentReference.split("Add-ons:")[1]
                             : "Standard License Only"}
@@ -585,26 +591,27 @@ export default function AdminHardwareManagement() {
                         {p.amount?.toLocaleString()} ETB
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant={
-                            p.status === "approved"
-                              ? "default"
-                              : p.status === "rejected"
-                              ? "destructive"
-                              : "secondary"
-                          }
-                          className="capitalize"
-                        >
-                          {p.status}
-                        </Badge>
+                        {p.status === "approved" ? (
+                          <Badge className="bg-emerald-500/15 dark:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 dark:border-emerald-500/40 text-[11px] font-semibold capitalize">
+                            {p.status}
+                          </Badge>
+                        ) : p.status === "rejected" ? (
+                          <Badge variant="destructive" className="text-[11px] font-semibold capitalize">
+                            {p.status}
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-amber-500/15 dark:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 dark:border-amber-500/40 text-[11px] font-semibold capitalize">
+                            {p.status}
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         {p.receiptUrl ? (
                           <a
-                            href={p.receiptUrl}
+                            href={getImageUrl(p.receiptUrl)}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-xs text-primary underline font-medium"
+                            className="text-xs text-primary underline font-medium hover:text-primary/80"
                           >
                             View Receipt
                           </a>
@@ -680,8 +687,13 @@ export default function AdminHardwareManagement() {
                 />
                 {newForm.imageUrl && (
                   <div className="mt-2 flex items-center gap-2">
-                    <img src={newForm.imageUrl} alt="Preview" className="w-12 h-12 rounded-lg object-cover border" />
-                    <span className="text-xs text-emerald-600 font-medium">Image attached</span>
+                    <img
+                      src={getImageUrl(newForm.imageUrl)}
+                      alt="Preview"
+                      className="w-12 h-12 rounded-lg object-cover border border-border bg-muted"
+                      onError={handleImageError}
+                    />
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Image attached</span>
                   </div>
                 )}
               </div>
@@ -761,8 +773,13 @@ export default function AdminHardwareManagement() {
                   />
                   {editingProduct.imageUrl && (
                     <div className="mt-2 flex items-center gap-2">
-                      <img src={editingProduct.imageUrl} alt="Preview" className="w-12 h-12 rounded-lg object-cover border" />
-                      <span className="text-xs text-emerald-600 font-medium">Image attached</span>
+                      <img
+                        src={getImageUrl(editingProduct.imageUrl)}
+                        alt="Preview"
+                        className="w-12 h-12 rounded-lg object-cover border border-border bg-muted"
+                        onError={handleImageError}
+                      />
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Image attached</span>
                     </div>
                   )}
                 </div>
