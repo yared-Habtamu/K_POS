@@ -324,6 +324,8 @@ export default function Approvals() {
                     <TableHead>Date</TableHead>
                     <TableHead className="w-12">Image</TableHead>
                     <TableHead>Product</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Price</TableHead>
                     <TableHead>Requested By</TableHead>
                     <TableHead>Store Qty</TableHead>
                     <TableHead>Front Qty</TableHead>
@@ -339,6 +341,10 @@ export default function Approvals() {
                         (payload as any)?.pictureUrl ||
                         "",
                     );
+                    const category = payload.category || "-";
+                    const price = payload.sellingPrice != null
+                      ? `${Number(payload.sellingPrice).toLocaleString()} ETB`
+                      : "-";
                     const statusBadge = (
                       <Badge
                         variant={
@@ -366,9 +372,14 @@ export default function Approvals() {
                           <div className="font-medium">
                             {payload.name || "Unnamed"}
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {payload.category || ""}
-                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize text-xs">
+                            {category}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-semibold text-xs whitespace-nowrap">
+                          {price}
                         </TableCell>
                         <TableCell>{r.requesterName || "Owner"}</TableCell>
                         <TableCell>
@@ -441,6 +452,8 @@ export default function Approvals() {
                     <TableHead>Date</TableHead>
                     <TableHead className="w-12">Image</TableHead>
                     <TableHead>Product</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Price</TableHead>
                     <TableHead>Owner</TableHead>
                     <TableHead>Quantity</TableHead>
                     <TableHead>Status</TableHead>
@@ -454,6 +467,14 @@ export default function Approvals() {
                       r.changes?.supermarketQuantity ??
                       r.changes?.storeQuantity ??
                       "-";
+                    const category =
+                      r.changes?.category || (r as any).product?.category || "-";
+                    const priceVal =
+                      r.changes?.sellingPrice ?? (r as any).product?.sellingPrice;
+                    const price =
+                      priceVal != null
+                        ? `${Number(priceVal).toLocaleString()} ETB`
+                        : "-";
                     const statusBadge = (
                       <Badge
                         variant={
@@ -479,6 +500,14 @@ export default function Approvals() {
                         </TableCell>
                         <TableCell>
                           {(r as any).product?.name || r.productId}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize text-xs">
+                            {category}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-semibold text-xs whitespace-nowrap">
+                          {price}
                         </TableCell>
                         <TableCell>{r.requesterName || "Owner"}</TableCell>
                         <TableCell>{qty}</TableCell>
@@ -554,6 +583,8 @@ export default function Approvals() {
                     <TableHead>Date</TableHead>
                     <TableHead className="w-12">Image</TableHead>
                     <TableHead>Product</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Price</TableHead>
                     <TableHead>Quantity</TableHead>
                     <TableHead>Requested By</TableHead>
                     <TableHead>Status</TableHead>
@@ -562,6 +593,12 @@ export default function Approvals() {
                 </TableHeader>
                 <TableBody>
                   {transferRequests.map((r) => {
+                    const category = (r as any).product?.category || "-";
+                    const priceVal = (r as any).product?.sellingPrice;
+                    const price =
+                      priceVal != null
+                        ? `${Number(priceVal).toLocaleString()} ETB`
+                        : "-";
                     const statusBadge = (
                       <Badge
                         variant={
@@ -587,6 +624,14 @@ export default function Approvals() {
                         </TableCell>
                         <TableCell>
                           {(r as any).product?.name || r.productId}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize text-xs">
+                            {category}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-semibold text-xs whitespace-nowrap">
+                          {price}
                         </TableCell>
                         <TableCell>{r.quantity}</TableCell>
                         <TableCell>

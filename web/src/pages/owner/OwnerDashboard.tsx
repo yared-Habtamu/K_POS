@@ -76,10 +76,25 @@ export default function OwnerDashboard() {
 
   const topProducts =
     metrics && Array.isArray(metrics.topProducts)
-      ? metrics.topProducts.map((p: any) => ({
-          name: p.name || p.productName || (p.product && p.product.name) || "—",
-          sold: p.sold || p.quantity || p.count || 0,
-        }))
+      ? metrics.topProducts.map((p: any) => {
+          const rawName =
+            p.name || p.productName || (p.product && p.product.name) || p.productId || "—";
+          const isId =
+            rawName === p.productId ||
+            /^[0-9a-fA-F]{24}$/.test(rawName) ||
+            /^c[a-z0-9]{24,}/i.test(rawName);
+          const matched =
+            isId || rawName === "—"
+              ? products.find(
+                  (prod: any) =>
+                    String(prod.id || prod._id) === String(p.productId || rawName),
+                )
+              : null;
+          return {
+            name: matched?.name || (isId ? matched?.name || "Product" : rawName),
+            sold: p.sold || p.quantity || p.count || 0,
+          };
+        })
       : [];
 
   const expiredItems: ExpiredItem[] =

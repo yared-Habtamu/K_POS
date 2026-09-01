@@ -278,21 +278,37 @@ const ReportPage: React.FC = () => {
 
   const topProductsRows = React.useMemo(
     () =>
-      topProducts.map((item: any, index: number) => ({
-        id: item.id || item.productId || item.name || `top-product-${index}`,
-        rank: index + 1,
-        name: item.name,
-        sold: Number(item.sold || 0),
-        revenue: Number(item.revenue || 0),
-        priceTiers: Array.isArray(item.priceTiers)
-          ? item.priceTiers.map((tier: any) => ({
-              price: Number(tier.price || 0),
-              qty: Number(tier.qty || 0),
-              subtotal: Number(tier.subtotal || 0),
-            }))
-          : [],
-      })),
-    [topProducts],
+      topProducts.map((item: any, index: number) => {
+        const rawName =
+          item.name || item.productName || item.title || item.productId || `Product ${index + 1}`;
+        const isId =
+          rawName === item.productId ||
+          /^[0-9a-fA-F]{24}$/.test(rawName) ||
+          /^c[a-z0-9]{24,}/i.test(rawName);
+        const productsList = localData.products || [];
+        const matched =
+          isId || rawName === "Unknown"
+            ? productsList.find(
+                (p: any) =>
+                  String(p.id || p._id) === String(item.productId || rawName),
+              )
+            : null;
+        return {
+          id: item.id || item.productId || item.name || `top-product-${index}`,
+          rank: index + 1,
+          name: matched?.name || (isId ? matched?.name || "Product" : rawName),
+          sold: Number(item.sold || 0),
+          revenue: Number(item.revenue || 0),
+          priceTiers: Array.isArray(item.priceTiers)
+            ? item.priceTiers.map((tier: any) => ({
+                price: Number(tier.price || 0),
+                qty: Number(tier.qty || 0),
+                subtotal: Number(tier.subtotal || 0),
+              }))
+            : [],
+        };
+      }),
+    [topProducts, localData.products],
   );
 
   const topProductsColumns = React.useMemo<

@@ -326,11 +326,13 @@ router.get("/mart", authenticate, async (req, res) => {
     const products = productIds.length
       ? await productRepository.findMany({
           id: { in: productIds },
-          martId: targetMartId,
         })
       : [];
     const productMap = {};
-    for (const p of products) productMap[String(p.id || p._id)] = p;
+    for (const p of products) {
+      if (p.id) productMap[String(p.id)] = p;
+      if (p._id) productMap[String(p._id)] = p;
+    }
 
     const taxByCategoryMap = {};
     const categorySalesMap = {};
@@ -482,8 +484,6 @@ router.get("/mart", authenticate, async (req, res) => {
           String(it.product.name).trim()
         )
           productName = String(it.product.name).trim();
-        // fall back
-        if (!productName) productName = "Unknown";
 
         if (rawPid) {
           productId = String(rawPid);
@@ -496,6 +496,21 @@ router.get("/mart", authenticate, async (req, res) => {
           key = `name:${nameNorm.toLowerCase()}`;
           productName = nameNorm || productName;
         }
+
+        // If productName looks like an ID string, Unknown, or matches rawPid, try productMap lookup
+        const isId =
+          !productName ||
+          productName === "Unknown" ||
+          (rawPid && productName === String(rawPid)) ||
+          /^[0-9a-fA-F]{24}$/.test(productName) ||
+          /^c[a-z0-9]{24,}/i.test(productName);
+
+        if (isId && rawPid && productMap[String(rawPid)] && productMap[String(rawPid)].name) {
+          productName = productMap[String(rawPid)].name;
+        }
+
+        // fall back
+        if (!productName || productName === "Unknown") productName = "Unknown";
 
         if (!prodAgg[key])
           prodAgg[key] = {
@@ -552,6 +567,41 @@ router.get("/mart", authenticate, async (req, res) => {
         }
       }
     }
+
+    // Ensure all top products have human-readable names instead of raw IDs
+    const missingProductIds = [];
+    for (const p of Object.values(prodAgg)) {
+      const isId =
+        !p.name ||
+        p.name === "Unknown" ||
+        (p.productId && p.name === String(p.productId)) ||
+        /^[0-9a-fA-F]{24}$/.test(p.name) ||
+        /^c[a-z0-9]{24,}/i.test(p.name);
+
+      if (isId && p.productId) {
+        if (productMap[p.productId] && productMap[p.productId].name) {
+          p.name = productMap[p.productId].name;
+        } else {
+          missingProductIds.push(p.productId);
+        }
+      }
+    }
+
+    if (missingProductIds.length > 0) {
+      const extraProducts = await productRepository.findMany({
+        id: { in: missingProductIds },
+      });
+      for (const ep of extraProducts) {
+        if (ep.id) productMap[String(ep.id)] = ep;
+        if (ep._id) productMap[String(ep._id)] = ep;
+      }
+      for (const p of Object.values(prodAgg)) {
+        if (p.productId && productMap[p.productId] && productMap[p.productId].name) {
+          p.name = productMap[p.productId].name;
+        }
+      }
+    }
+
     const topProducts = Object.values(prodAgg)
       .sort((a, b) => b.sold - a.sold)
       .map((p) => ({

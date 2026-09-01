@@ -65,7 +65,17 @@ router.get("/", authenticate, async (req, res) => {
     }
 
     const list = await stockTransferRequestRepository.findMany(where, {
-      include: { product: { select: { name: true, imageUrl: true } } },
+      include: {
+        product: {
+          select: {
+            name: true,
+            imageUrl: true,
+            category: true,
+            sellingPrice: true,
+            purchasePrice: true,
+          },
+        },
+      },
     });
     res.json(list);
   } catch (err) {
