@@ -69,6 +69,7 @@ export default function Approvals() {
   const [endDate, setEndDate] = useState<string>("");
   const [pendingDecision, setPendingDecision] =
     useState<ApprovalDecision | null>(null);
+  const [isDeciding, setIsDeciding] = useState(false);
 
   const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -195,10 +196,15 @@ export default function Approvals() {
   };
 
   const confirmDecision = async () => {
-    if (!pendingDecision) return;
+    if (!pendingDecision || isDeciding) return;
     const { type, id, action } = pendingDecision;
-    setPendingDecision(null);
-    await actOnRequest(type, id, action);
+    setIsDeciding(true);
+    try {
+      await actOnRequest(type, id, action);
+    } finally {
+      setIsDeciding(false);
+      setPendingDecision(null);
+    }
   };
 
   return (
@@ -766,15 +772,20 @@ export default function Approvals() {
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
+                disabled={isDeciding}
                 className={
                   pendingDecision?.action === "reject"
                     ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     : undefined
                 }
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault();
                   void confirmDecision();
                 }}
               >
+                {isDeciding ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
                 {pendingDecision?.action === "approve"
                   ? "Yes, approve"
                   : "Yes, reject"}

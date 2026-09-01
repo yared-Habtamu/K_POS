@@ -58,6 +58,7 @@ export default function StoreKeeperApprovals() {
   >("pending");
   const [pendingDecision, setPendingDecision] =
     useState<ApprovalDecision | null>(null);
+  const [isDeciding, setIsDeciding] = useState(false);
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -154,10 +155,15 @@ export default function StoreKeeperApprovals() {
   };
 
   const confirmDecision = async () => {
-    if (!pendingDecision) return;
+    if (!pendingDecision || isDeciding) return;
     const { type, id, action } = pendingDecision;
-    setPendingDecision(null);
-    await actOnRequest(type, id, action);
+    setIsDeciding(true);
+    try {
+      await actOnRequest(type, id, action);
+    } finally {
+      setIsDeciding(false);
+      setPendingDecision(null);
+    }
   };
 
   const pendingCount = useMemo(() => {
@@ -723,7 +729,16 @@ export default function StoreKeeperApprovals() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => void confirmDecision()}>
+              <AlertDialogAction
+                disabled={isDeciding}
+                onClick={(e) => {
+                  e.preventDefault();
+                  void confirmDecision();
+                }}
+              >
+                {isDeciding ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
                 Confirm
               </AlertDialogAction>
             </AlertDialogFooter>

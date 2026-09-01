@@ -163,6 +163,20 @@ router.post("/", authenticate, async (req, res) => {
     const toLocation = isMartToStore ? "store" : "mart";
     const requiredApprovalRole = isMartToStore ? "store_keeper" : "manager";
 
+    const existingPending = await stockTransferRequestRepository.findOne({
+      productId,
+      requesterId: user.id,
+      status: "pending",
+      fromLocation,
+      toLocation,
+    });
+    if (existingPending) {
+      return res.status(409).json({
+        message: "A pending stock transfer request already exists for this product.",
+        requestId: existingPending.id || existingPending._id,
+      });
+    }
+
     const approvers =
       requiredApprovalRole === "store_keeper"
         ? await userRepository.findMany({

@@ -388,7 +388,7 @@ export default function ProductManagement() {
         : getStoreQuantity(transferProduct);
 
   const handleTransferStock = async () => {
-    if (!transferProduct || !transferQty) return;
+    if (!transferProduct || !transferQty || isTransferSubmitting) return;
     const qty = parseInt(transferQty, 10);
     if (qty <= 0 || qty > transferMax) return;
     const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";

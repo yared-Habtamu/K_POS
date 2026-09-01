@@ -121,6 +121,7 @@ export default function StockManagement() {
   const [barcodeInput, setBarcodeInput] = useState("");
   const [barcodesArray, setBarcodesArray] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const categoryOptions = useMemo(() => {
     const categories = Array.from(
@@ -198,10 +199,11 @@ export default function StockManagement() {
   // `updateProduct` is pulled from the store above via useProductStore()
 
   const handleAddStock = async () => {
-    if (!selectedProduct || !addQuantity) return;
+    if (!selectedProduct || !addQuantity || isSubmitting) return;
 
     const qty = parseInt(addQuantity);
     if (qty <= 0) return;
+    setIsSubmitting(true);
     const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
     try {
       // Pre-submit: fetch latest product quantities to avoid submitting stale data
@@ -300,6 +302,8 @@ export default function StockManagement() {
         description: msg,
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -884,6 +888,7 @@ export default function StockManagement() {
                 <Button
                   onClick={handleAddStock}
                   disabled={
+                    isSubmitting ||
                     !addQuantity ||
                     parseInt(addQuantity) <= 0 ||
                     parseInt(addQuantity) >
@@ -898,8 +903,17 @@ export default function StockManagement() {
                       ))
                   }
                 >
-                  <Plus className="mr-2 h-4 w-4" />
-                  {t("transfer_stock")}
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {t("sending") || "Sending..."}
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="mr-2 h-4 w-4" />
+                      {t("transfer_stock")}
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
