@@ -128,3 +128,6 @@ storybook-static
 tmp/
 temp/
 
+
+# QZ Tray signing keys — NEVER commit the private key
+certs/private-key.pem

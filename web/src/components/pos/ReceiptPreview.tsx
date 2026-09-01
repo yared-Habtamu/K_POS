@@ -19,6 +19,8 @@ import { format } from "date-fns";
 import qzBridge from "@/services/printBridge/qzBridge";
 import { useSettingsStore } from "@/stores/settingsStore";
 
+import { buildReceiptEscPos } from "@/services/printBridge/escpos";
+
 interface ReceiptPreviewProps {
   receipt: Receipt;
   onDone: () => void;
@@ -33,89 +35,65 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
   const { t } = useTranslation();
   const currentRole = useAuthStore.getState().user?.role || null;
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     try {
-      const el = document.querySelector(
-        ".receipt-preview",
-      ) as HTMLElement | null;
-      if (!el) return window.print();
-
-      const html = el.outerHTML;
-      // Collect page styles but inject a focused print stylesheet for 80mm thermal paper
-      const pageStyles = Array.from(
-        document.querySelectorAll("style, link[rel='stylesheet']"),
-      )
-        .map((n) => n.outerHTML)
-        .join("\n");
-
-      const printStyles = `
-        <style>
-          @page { size: 80mm auto; margin: 2mm; }
-          html, body { background: #fff; color: #000; }
-          body { margin: 0; padding: 0; font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; }
-          .receipt-preview { width: 80mm; box-sizing: border-box; padding: 6px; margin: 0 auto; background: #fff; color: #000; font-size: 10px; line-height: 1.08; }
-          .receipt-preview * { box-sizing: border-box; }
-          .receipt-preview h2, .receipt-preview h1 { font-size: 14px; margin: 4px 0; }
-          .receipt-preview p, .receipt-preview td, .receipt-preview th, .receipt-preview div { font-size: 10px; }
-          .receipt-preview .text-xs { font-size: 9px; }
-          .receipt-preview .text-sm { font-size: 10px; }
-          .receipt-preview .text-lg { font-size: 12px; }
-          .receipt-preview .qr, .receipt-preview .barcode-label { display: none !important; }
-          .receipt-preview img { max-width: 100%; height: auto; }
-          .receipt-preview .separator, .receipt-preview .sep, hr { border: none; border-top: 1px dashed #ccc; margin: 6px 0; }
-          /* Ensure content is not clipped when printing */
-          html, body, .receipt-preview { height: auto !important; overflow: visible !important; }
-          /* Footer branding visibility */
-          .receipt-powered-by, .receipt-provider-phone { color: #111 !important; font-size: 10px !important; font-weight: 600 !important; margin: 4px 0; }
-          @media print {
-            body { -webkit-print-color-adjust: exact; }
-            .receipt-preview { box-shadow: none !important; }
-          }
-        </style>
-      `;
-
-      const docHtml = `<!doctype html><html><head><meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"/>${pageStyles}${printStyles}</head><body>${html}</body></html>`;
-
-      // Try QZ Tray silent print first if available
       const preferredPrinter = useSettingsStore
         .getState()
         .getPreferredPrinter(currentRole);
-      (async () => {
-        try {
-          const connected = await qzBridge.connect();
-          if (connected) {
-            await qzBridge.printHtml(docHtml, {
-              printer: preferredPrinter || undefined,
-            });
-            return;
-          }
-        } catch (e) {
-          console.warn(
-            "QZ bridge print failed, falling back to window.print()",
-            e,
-          );
-        }
 
-        // fallback to opening window and using browser print
-        const w = window.open("", "_blank", "toolbar=0,location=0,menubar=0");
-        if (!w) return window.print();
-        w.document.open();
-        w.document.write(docHtml);
-        w.document.close();
-        // Wait for content to render before printing
-        w.focus();
-        setTimeout(() => {
-          try {
-            w.print();
-          } catch (e) {
-            console.error("print failed", e);
-          }
-          // Optionally close window after print
-          try {
-            w.close();
-          } catch (e) {}
-        }, 300);
-      })();
+      // 1. Try QZ Tray ESC/POS Raw Printing (Industry Standard for POS-80)
+      try {
+        const connected = await qzBridge.connect();
+        if (connected) {
+          const escposCommands = buildReceiptEscPos(receipt, {
+            lineWidth: 48,
+            supportPhone: SYSTEM_PROVIDER_PHONE,
+          });
+
+          await qzBridge.printRaw(escposCommands, {
+            printer: preferredPrinter || undefined,
+          });
+
+          toast({
+            title: "Receipt printed",
+            description: preferredPrinter
+              ? `Sent to ${preferredPrinter}`
+              : "Sent to default printer",
+          });
+          return;
+        }
+      } catch (e) {
+        console.warn("QZ raw print failed, falling back to browser print", e);
+      }
+
+      // 2. Fallback to browser print if QZ Tray is offline
+      const el = document.querySelector(".receipt-preview") as HTMLElement | null;
+      const printableHtml = el ? el.outerHTML : "";
+      const w = window.open("", "_blank", "toolbar=0,location=0,menubar=0");
+      if (!w) return window.print();
+      w.document.open();
+      w.document.write(`
+        <!doctype html>
+        <html>
+          <head>
+            <meta charset="utf-8"/>
+            <style>
+              @page { size: 80mm auto; margin: 0; }
+              body { margin: 0; padding: 6px; font-family: -apple-system, sans-serif; background: #fff; color: #000; }
+              .receipt-preview { width: 72mm; margin: 0 auto; box-shadow: none !important; }
+            </style>
+          </head>
+          <body>${printableHtml}</body>
+        </html>
+      `);
+      w.document.close();
+      w.focus();
+      setTimeout(() => {
+        try {
+          w.print();
+          w.close();
+        } catch (e) {}
+      }, 300);
     } catch (err) {
       console.error("Print receipt failed", err);
       window.print();
