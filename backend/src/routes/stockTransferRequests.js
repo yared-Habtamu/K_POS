@@ -173,17 +173,18 @@ router.post("/", authenticate, async (req, res) => {
     const toLocation = isMartToStore ? "store" : "mart";
     const requiredApprovalRole = isMartToStore ? "store_keeper" : "manager";
 
-    const existingPending = await stockTransferRequestRepository.findOne({
+    const fiveSecondsAgo = new Date(Date.now() - 5 * 1000);
+    const recentRequest = await stockTransferRequestRepository.findOne({
       productId,
       requesterId: user.id,
-      status: "pending",
       fromLocation,
       toLocation,
+      createdAt: { gte: fiveSecondsAgo },
     });
-    if (existingPending) {
-      return res.status(409).json({
-        message: "A pending stock transfer request already exists for this product.",
-        requestId: existingPending.id || existingPending._id,
+    if (recentRequest) {
+      return res.status(429).json({
+        message:
+          "Please wait at least 5 seconds before submitting another transfer request for this product.",
       });
     }
 
