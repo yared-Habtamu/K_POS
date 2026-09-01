@@ -65,7 +65,17 @@ router.get("/", authenticate, async (req, res) => {
     }
 
     const list = await stockTransferRequestRepository.findMany(where, {
-      include: { product: { select: { name: true, imageUrl: true } } },
+      include: {
+        product: {
+          select: {
+            name: true,
+            imageUrl: true,
+            category: true,
+            sellingPrice: true,
+            purchasePrice: true,
+          },
+        },
+      },
     });
     res.json(list);
   } catch (err) {
@@ -162,6 +172,21 @@ router.post("/", authenticate, async (req, res) => {
     const fromLocation = isMartToStore ? "mart" : "store";
     const toLocation = isMartToStore ? "store" : "mart";
     const requiredApprovalRole = isMartToStore ? "store_keeper" : "manager";
+
+    const fiveSecondsAgo = new Date(Date.now() - 5 * 1000);
+    const recentRequest = await stockTransferRequestRepository.findOne({
+      productId,
+      requesterId: user.id,
+      fromLocation,
+      toLocation,
+      createdAt: { gte: fiveSecondsAgo },
+    });
+    if (recentRequest) {
+      return res.status(429).json({
+        message:
+          "Please wait at least 5 seconds before submitting another transfer request for this product.",
+      });
+    }
 
     const approvers =
       requiredApprovalRole === "store_keeper"

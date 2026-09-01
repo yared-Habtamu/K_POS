@@ -69,6 +69,7 @@ export default function Approvals() {
   const [endDate, setEndDate] = useState<string>("");
   const [pendingDecision, setPendingDecision] =
     useState<ApprovalDecision | null>(null);
+  const [isDeciding, setIsDeciding] = useState(false);
 
   const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -195,10 +196,15 @@ export default function Approvals() {
   };
 
   const confirmDecision = async () => {
-    if (!pendingDecision) return;
+    if (!pendingDecision || isDeciding) return;
     const { type, id, action } = pendingDecision;
-    setPendingDecision(null);
-    await actOnRequest(type, id, action);
+    setIsDeciding(true);
+    try {
+      await actOnRequest(type, id, action);
+    } finally {
+      setIsDeciding(false);
+      setPendingDecision(null);
+    }
   };
 
   return (
@@ -318,6 +324,8 @@ export default function Approvals() {
                     <TableHead>Date</TableHead>
                     <TableHead className="w-12">Image</TableHead>
                     <TableHead>Product</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Price</TableHead>
                     <TableHead>Requested By</TableHead>
                     <TableHead>Store Qty</TableHead>
                     <TableHead>Front Qty</TableHead>
@@ -333,6 +341,10 @@ export default function Approvals() {
                         (payload as any)?.pictureUrl ||
                         "",
                     );
+                    const category = payload.category || "-";
+                    const price = payload.sellingPrice != null
+                      ? `${Number(payload.sellingPrice).toLocaleString()} ETB`
+                      : "-";
                     const statusBadge = (
                       <Badge
                         variant={
@@ -360,9 +372,14 @@ export default function Approvals() {
                           <div className="font-medium">
                             {payload.name || "Unnamed"}
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {payload.category || ""}
-                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize text-xs">
+                            {category}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-semibold text-xs whitespace-nowrap">
+                          {price}
                         </TableCell>
                         <TableCell>{r.requesterName || "Owner"}</TableCell>
                         <TableCell>
@@ -435,6 +452,8 @@ export default function Approvals() {
                     <TableHead>Date</TableHead>
                     <TableHead className="w-12">Image</TableHead>
                     <TableHead>Product</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Price</TableHead>
                     <TableHead>Owner</TableHead>
                     <TableHead>Quantity</TableHead>
                     <TableHead>Status</TableHead>
@@ -448,6 +467,14 @@ export default function Approvals() {
                       r.changes?.supermarketQuantity ??
                       r.changes?.storeQuantity ??
                       "-";
+                    const category =
+                      r.changes?.category || (r as any).product?.category || "-";
+                    const priceVal =
+                      r.changes?.sellingPrice ?? (r as any).product?.sellingPrice;
+                    const price =
+                      priceVal != null
+                        ? `${Number(priceVal).toLocaleString()} ETB`
+                        : "-";
                     const statusBadge = (
                       <Badge
                         variant={
@@ -473,6 +500,14 @@ export default function Approvals() {
                         </TableCell>
                         <TableCell>
                           {(r as any).product?.name || r.productId}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize text-xs">
+                            {category}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-semibold text-xs whitespace-nowrap">
+                          {price}
                         </TableCell>
                         <TableCell>{r.requesterName || "Owner"}</TableCell>
                         <TableCell>{qty}</TableCell>
@@ -548,6 +583,8 @@ export default function Approvals() {
                     <TableHead>Date</TableHead>
                     <TableHead className="w-12">Image</TableHead>
                     <TableHead>Product</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Price</TableHead>
                     <TableHead>Quantity</TableHead>
                     <TableHead>Requested By</TableHead>
                     <TableHead>Status</TableHead>
@@ -556,6 +593,12 @@ export default function Approvals() {
                 </TableHeader>
                 <TableBody>
                   {transferRequests.map((r) => {
+                    const category = (r as any).product?.category || "-";
+                    const priceVal = (r as any).product?.sellingPrice;
+                    const price =
+                      priceVal != null
+                        ? `${Number(priceVal).toLocaleString()} ETB`
+                        : "-";
                     const statusBadge = (
                       <Badge
                         variant={
@@ -581,6 +624,14 @@ export default function Approvals() {
                         </TableCell>
                         <TableCell>
                           {(r as any).product?.name || r.productId}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize text-xs">
+                            {category}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-semibold text-xs whitespace-nowrap">
+                          {price}
                         </TableCell>
                         <TableCell>{r.quantity}</TableCell>
                         <TableCell>
@@ -766,15 +817,20 @@ export default function Approvals() {
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
+                disabled={isDeciding}
                 className={
                   pendingDecision?.action === "reject"
                     ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     : undefined
                 }
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault();
                   void confirmDecision();
                 }}
               >
+                {isDeciding ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
                 {pendingDecision?.action === "approve"
                   ? "Yes, approve"
                   : "Yes, reject"}

@@ -58,6 +58,7 @@ export default function StoreKeeperApprovals() {
   >("pending");
   const [pendingDecision, setPendingDecision] =
     useState<ApprovalDecision | null>(null);
+  const [isDeciding, setIsDeciding] = useState(false);
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -154,10 +155,15 @@ export default function StoreKeeperApprovals() {
   };
 
   const confirmDecision = async () => {
-    if (!pendingDecision) return;
+    if (!pendingDecision || isDeciding) return;
     const { type, id, action } = pendingDecision;
-    setPendingDecision(null);
-    await actOnRequest(type, id, action);
+    setIsDeciding(true);
+    try {
+      await actOnRequest(type, id, action);
+    } finally {
+      setIsDeciding(false);
+      setPendingDecision(null);
+    }
   };
 
   const pendingCount = useMemo(() => {
@@ -257,6 +263,8 @@ export default function StoreKeeperApprovals() {
                   <TableRow>
                     <TableHead className="w-12">Image</TableHead>
                     <TableHead>Product</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Price</TableHead>
                     <TableHead>Direction</TableHead>
                     <TableHead className="text-right">Quantity</TableHead>
                     <TableHead>Requester</TableHead>
@@ -270,22 +278,18 @@ export default function StoreKeeperApprovals() {
                       const id = String(request._id || request.id || "");
                       const isPending = request.status === "pending";
                       let productLabel = "-";
-                      // if (
-                      //   typeof request.productId === "object" &&
-                      //   request.productId !== null &&
-                      //   "name" in request.productId
-                      // ) {
-                      //   productLabel = String(request.productId.name || "-");
-                      // } else {
-                      //   const pid = String(
-                      //     request.productId || request.product || "",
-                      //   );
-                      //   const found = products.find(
-                      //     (p) => p.id === pid || (p as any)._id === pid,
-                      //   );
-                      //   productLabel = found?.name || pid || "-";
-                      // }
-                      // ...existing code...
+                      const pid =
+                        typeof request.productId === "object" &&
+                        request.productId !== null
+                          ? String(
+                              (request.productId as any).id ??
+                                (request.productId as any)._id ??
+                                "",
+                            )
+                          : String(request.productId ?? "");
+                      const found = products.find(
+                        (p) => p.id === pid || (p as any)._id === pid,
+                      );
                       if (
                         typeof request.productId === "object" &&
                         request.productId !== null &&
@@ -293,39 +297,26 @@ export default function StoreKeeperApprovals() {
                       ) {
                         productLabel = String(request.productId.name || "-");
                       } else {
-                        // normalize pid without referencing non-existent `request.product`
-                        const pid =
-                          typeof request.productId === "object" &&
-                          request.productId !== null
-                            ? String(
-                                (request.productId as any).id ??
-                                  (request.productId as any)._id ??
-                                  "",
-                              )
-                            : String(request.productId ?? "");
-                        const found = products.find(
-                          (p) => p.id === pid || (p as any)._id === pid,
-                        );
                         productLabel = found?.name || pid || "-";
                       }
                       let imageUrl = String(
                         (request as any).product?.imageUrl || "",
                       );
                       if (!imageUrl) {
-                        const pid =
-                          typeof request.productId === "object" &&
-                          request.productId !== null
-                            ? String(
-                                (request.productId as any).id ??
-                                  (request.productId as any)._id ??
-                                  "",
-                              )
-                            : String(request.productId ?? "");
-                        const found = products.find(
-                          (p) => p.id === pid || (p as any)._id === pid,
-                        );
                         imageUrl = found?.pictureUrl || "";
                       }
+                      const category =
+                        (request as any).product?.category ||
+                        found?.category ||
+                        "-";
+                      const priceVal =
+                        (request as any).product?.sellingPrice ??
+                        found?.sellingPrice;
+                      const price =
+                        priceVal != null
+                          ? `${Number(priceVal).toLocaleString()} ETB`
+                          : "-";
+
                       const fromLabel =
                         request.fromLocation === "mart" ? "Mart" : "Store";
                       const toLabel =
@@ -338,6 +329,14 @@ export default function StoreKeeperApprovals() {
                           </TableCell>
                           <TableCell className="font-medium">
                             {productLabel}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize text-xs">
+                              {category}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-semibold text-xs whitespace-nowrap">
+                            {price}
                           </TableCell>
                           <TableCell>{`${fromLabel} -> ${toLabel}`}</TableCell>
                           <TableCell className="text-right">
@@ -406,7 +405,7 @@ export default function StoreKeeperApprovals() {
                   ) : (
                     <TableRow>
                       <TableCell
-                        colSpan={7}
+                        colSpan={9}
                         className="py-6 text-center text-muted-foreground"
                       >
                         No stock transfer requests found.
@@ -434,6 +433,8 @@ export default function StoreKeeperApprovals() {
                   <TableRow>
                     <TableHead className="w-12">Image</TableHead>
                     <TableHead>Product</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Price</TableHead>
                     <TableHead>Requester</TableHead>
                     <TableHead className="text-right">Stock Qty</TableHead>
                     <TableHead className="text-right">Mart Qty</TableHead>
@@ -451,6 +452,12 @@ export default function StoreKeeperApprovals() {
                           (payload as any)?.pictureUrl ||
                           "",
                       );
+                      const category = payload.category || "-";
+                      const priceVal = payload.sellingPrice;
+                      const price =
+                        priceVal != null
+                          ? `${Number(priceVal).toLocaleString()} ETB`
+                          : "-";
                       const stockQty = Number(payload.storeQuantity || 0);
                       const martQty = Number(
                         payload.supermarketQuantity || payload.quantity || 0,
@@ -464,6 +471,14 @@ export default function StoreKeeperApprovals() {
                           </TableCell>
                           <TableCell className="font-medium">
                             {payload.name || "-"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize text-xs">
+                              {category}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-semibold text-xs whitespace-nowrap">
+                            {price}
                           </TableCell>
                           <TableCell>
                             {request.requesterName || "Owner"}
@@ -538,7 +553,7 @@ export default function StoreKeeperApprovals() {
                   ) : (
                     <TableRow>
                       <TableCell
-                        colSpan={7}
+                        colSpan={9}
                         className="py-6 text-center text-muted-foreground"
                       >
                         No product add requests found.
@@ -566,6 +581,8 @@ export default function StoreKeeperApprovals() {
                   <TableRow>
                     <TableHead className="w-12">Image</TableHead>
                     <TableHead>Product</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Price</TableHead>
                     <TableHead>Requester</TableHead>
                     <TableHead>Changed Fields</TableHead>
                     <TableHead>Status</TableHead>
@@ -580,6 +597,18 @@ export default function StoreKeeperApprovals() {
                       const changes = request.changes || {};
                       const changedKeys = Object.keys(changes);
                       const rawProductId = request.productId;
+                      const pid =
+                        typeof rawProductId === "object" &&
+                        rawProductId !== null
+                          ? String(
+                              (rawProductId as any).id ??
+                                (rawProductId as any)._id ??
+                                "",
+                            )
+                          : String(rawProductId || "");
+                      const found = products.find(
+                        (p) => p.id === pid || (p as any)._id === pid,
+                      );
                       let productName = "-";
                       if (
                         typeof rawProductId === "object" &&
@@ -590,30 +619,27 @@ export default function StoreKeeperApprovals() {
                           (rawProductId as { name?: string }).name || "-",
                         );
                       } else {
-                        const pid = String(rawProductId || "");
-                        const found = products.find(
-                          (p) => p.id === pid || (p as any)._id === pid,
-                        );
                         productName = found?.name || pid || "-";
                       }
                       let imageUrl = String(
                         (request as any).product?.imageUrl || "",
                       );
                       if (!imageUrl) {
-                        const pid =
-                          typeof rawProductId === "object" &&
-                          rawProductId !== null
-                            ? String(
-                                (rawProductId as any).id ??
-                                  (rawProductId as any)._id ??
-                                  "",
-                              )
-                            : String(rawProductId || "");
-                        const found = products.find(
-                          (p) => p.id === pid || (p as any)._id === pid,
-                        );
                         imageUrl = found?.pictureUrl || "";
                       }
+                      const category =
+                        request.changes?.category ||
+                        (request as any).product?.category ||
+                        found?.category ||
+                        "-";
+                      const priceVal =
+                        request.changes?.sellingPrice ??
+                        (request as any).product?.sellingPrice ??
+                        found?.sellingPrice;
+                      const price =
+                        priceVal != null
+                          ? `${Number(priceVal).toLocaleString()} ETB`
+                          : "-";
 
                       return (
                         <TableRow key={id}>
@@ -622,6 +648,14 @@ export default function StoreKeeperApprovals() {
                           </TableCell>
                           <TableCell className="font-medium">
                             {productName}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize text-xs">
+                              {category}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-semibold text-xs whitespace-nowrap">
+                            {price}
                           </TableCell>
                           <TableCell>
                             {request.requesterName || "Owner"}
@@ -691,7 +725,7 @@ export default function StoreKeeperApprovals() {
                   ) : (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={8}
                         className="py-6 text-center text-muted-foreground"
                       >
                         No product edit requests found.
@@ -723,7 +757,16 @@ export default function StoreKeeperApprovals() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => void confirmDecision()}>
+              <AlertDialogAction
+                disabled={isDeciding}
+                onClick={(e) => {
+                  e.preventDefault();
+                  void confirmDecision();
+                }}
+              >
+                {isDeciding ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
                 Confirm
               </AlertDialogAction>
             </AlertDialogFooter>

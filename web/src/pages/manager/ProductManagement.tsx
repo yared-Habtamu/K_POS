@@ -378,7 +378,7 @@ export default function ManagerProductManagement() {
   };
 
   const handleReturnStock = async () => {
-    if (!returnProduct || !returnQty) return;
+    if (!returnProduct || !returnQty || isReturnSubmitting) return;
     const qty = parseInt(returnQty, 10);
     if (qty <= 0) return;
     const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";

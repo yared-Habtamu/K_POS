@@ -28,6 +28,7 @@ import {
   ArrowRight,
   Tag,
   Boxes,
+  DollarSign,
 } from "lucide-react";
 
 type StatusFilter = "all" | "approved" | "pending" | "rejected";
@@ -42,6 +43,8 @@ interface BaseRow {
   decidedAt?: Date | string;
   productName: string;
   imageUrl?: string;
+  category?: string;
+  price?: string;
   requesterName?: string;
   approverId?: string;
   approverName?: string;
@@ -252,10 +255,24 @@ function DetailPanel({ row }: { row: HistoryRow }) {
               </p>
               <p className="font-medium">{formatDate(row.decidedAt)}</p>
             </div>
+            <div>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Tag className="h-3 w-3" /> Category
+              </p>
+              <Badge variant="outline" className="capitalize text-xs">
+                {row.category || "-"}
+              </Badge>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <DollarSign className="h-3 w-3" /> Price
+              </p>
+              <p className="font-semibold text-xs">{row.price || "-"}</p>
+            </div>
             {row.approvalRole && (
               <div>
                 <p className="text-xs text-muted-foreground">Approval role</p>
-                <Badge variant="secondary" className="capitalize">
+                <Badge variant="secondary" className="capitalize text-xs">
                   {row.approvalRole === "store_keeper" ? "Storekeeper" : "Manager"}
                 </Badge>
               </div>
@@ -399,6 +416,16 @@ function HistoryTableRow({
         <td className="px-4 py-3 font-medium max-w-[160px]">
           <span className="truncate block">{row.productName}</span>
         </td>
+        {/* Category */}
+        <td className="px-4 py-3">
+          <Badge variant="outline" className="capitalize text-xs">
+            {row.category || "-"}
+          </Badge>
+        </td>
+        {/* Price */}
+        <td className="px-4 py-3 font-semibold text-xs whitespace-nowrap">
+          {row.price || "-"}
+        </td>
         {/* Summary */}
         <td className="px-4 py-3 text-sm text-muted-foreground max-w-[200px]">
           {row.kind === "transfer" && (
@@ -411,7 +438,6 @@ function HistoryTableRow({
           )}
           {row.kind === "add" && (
             <span>
-              {formatCurrency(Number(row.payload?.sellingPrice ?? 0))} ·{" "}
               Store: {row.payload?.storeQuantity ?? 0} / Front: {row.payload?.supermarketQuantity ?? 0}
             </span>
           )}
@@ -441,7 +467,7 @@ function HistoryTableRow({
 
       {expanded && (
         <tr>
-          <td colSpan={9} className="p-0">
+          <td colSpan={11} className="p-0">
             <DetailPanel row={row} />
           </td>
         </tr>
@@ -527,6 +553,11 @@ export default function ApprovalHistoryPage() {
           (typeof r.productId === "object" && r.productId !== null
             ? String((r.productId as { name?: string }).name || "-")
             : "-");
+        const category = product?.category || "-";
+        const price =
+          product?.sellingPrice != null
+            ? `${formatCurrency(product.sellingPrice)} ETB`
+            : "-";
         out.push({
           key: `transfer-${id}`,
           kind: "transfer",
@@ -534,6 +565,8 @@ export default function ApprovalHistoryPage() {
           decidedAt: r.decidedAt,
           productName: name,
           imageUrl: String(product?.imageUrl || ""),
+          category,
+          price,
           quantity: Number(r.quantity || 0),
           fromLocation: r.fromLocation,
           toLocation: r.toLocation,
@@ -552,6 +585,11 @@ export default function ApprovalHistoryPage() {
       for (const r of adds) {
         const id = String(r._id || r.id || "");
         const payload = (r.payload || {}) as Record<string, any>;
+        const category = payload.category || "-";
+        const price =
+          payload.sellingPrice != null
+            ? `${formatCurrency(payload.sellingPrice)} ETB`
+            : "-";
         out.push({
           key: `add-${id}`,
           kind: "add",
@@ -559,6 +597,8 @@ export default function ApprovalHistoryPage() {
           decidedAt: r.decidedAt,
           productName: String(payload.name || "-"),
           imageUrl: String(payload?.imageUrl || payload?.pictureUrl || ""),
+          category,
+          price,
           payload,
           requesterName: r.requesterName,
           approverName: r.approverName,
@@ -581,6 +621,10 @@ export default function ApprovalHistoryPage() {
           (typeof rawProductId === "object" && rawProductId !== null
             ? String((rawProductId as { name?: string }).name || "-")
             : String(rawProductId || "-"));
+        const category = r.changes?.category || productObj?.category || "-";
+        const priceVal = r.changes?.sellingPrice ?? productObj?.sellingPrice;
+        const price =
+          priceVal != null ? `${formatCurrency(priceVal)} ETB` : "-";
         out.push({
           key: `edit-${id}`,
           kind: "edit",
@@ -588,6 +632,8 @@ export default function ApprovalHistoryPage() {
           decidedAt: r.decidedAt,
           productName: name,
           imageUrl: String(productObj?.imageUrl || ""),
+          category,
+          price,
           changes: (r.changes || {}) as Record<string, any>,
           // The backend returns the joined product — use it as the "original" snapshot
           originalProduct: productObj,
@@ -738,6 +784,8 @@ export default function ApprovalHistoryPage() {
                       <th className="px-4 py-3 text-left font-medium">Type</th>
                       <th className="px-4 py-3 w-14" />
                       <th className="px-4 py-3 text-left font-medium">Product</th>
+                      <th className="px-4 py-3 text-left font-medium">Category</th>
+                      <th className="px-4 py-3 text-left font-medium">Price</th>
                       <th className="px-4 py-3 text-left font-medium">Summary</th>
                       <th className="px-4 py-3 text-left font-medium">Requested by</th>
                       <th className="px-4 py-3 text-left font-medium">Approved by</th>
