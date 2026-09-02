@@ -246,7 +246,7 @@ router.post("/pay", optionalAuthenticate, upload.single("receipt"), async (req, 
       return res.status(400).json({ message: "Owner user not found for mart" });
     }
 
-    const { packageMonths, paymentMethod, paymentReference, scannersCount, printersCount } = req.body;
+    const { packageMonths, paymentMethod, paymentReference } = req.body;
     const months = parseInt(packageMonths, 10);
 
     // Free package is months=0; paid packages are 1, 3, 6, 9, 12
@@ -263,19 +263,29 @@ router.post("/pay", optionalAuthenticate, upload.single("receipt"), async (req, 
     const subAmount = selectedPkg ? selectedPkg.price : months * 1000;
     const packageName = selectedPkg ? selectedPkg.name : `${months} Months`;
 
-    const hardwareList = getHardwareProductsList(settings);
-    const scannerPrice = hardwareList.find((h) => h.id === "scanner")?.unitPrice || 20000;
-    const printerPrice = hardwareList.find((h) => h.id === "printer")?.unitPrice || 30000;
+    // Parse hardware details from request
+    let hardwareDetails = [];
+    try {
+      if (req.body.hardwareDetails) {
+        const parsed = typeof req.body.hardwareDetails === 'string' 
+          ? JSON.parse(req.body.hardwareDetails) 
+          : req.body.hardwareDetails;
+        hardwareDetails = Array.isArray(parsed) ? parsed : [];
+      }
+    } catch (err) {
+      console.error("[subscriptions] Failed to parse hardwareDetails:", err);
+      hardwareDetails = [];
+    }
 
-    const numScanners = Math.max(0, parseInt(scannersCount, 10) || 0);
-    const numPrinters = Math.max(0, parseInt(printersCount, 10) || 0);
+    // Calculate hardware total from hardwareDetails
+    const totalHardwareAmount = hardwareDetails.reduce((sum, hw) => {
+      const count = parseInt(hw.count, 10) || 0;
+      const unitPrice = parseFloat(hw.unitPrice) || 0;
+      return sum + (count * unitPrice);
+    }, 0);
 
-    const totalHardwareAmount = numScanners * scannerPrice + numPrinters * printerPrice;
     const totalAmount = subAmount + totalHardwareAmount;
-
-    // For the free package, a payment method is only required if hardware is purchased.
-    // For paid packages, a payment method is always required.
-    const hasHardware = numScanners > 0 || numPrinters > 0;
+    const hasHardware = hardwareDetails.length > 0 && hardwareDetails.some(hw => (parseInt(hw.count, 10) || 0) > 0);
     if (!isFree || hasHardware) {
       if (!paymentMethod || !String(paymentMethod).trim()) {
         return res.status(400).json({ message: "Payment method is required" });
@@ -305,11 +315,12 @@ router.post("/pay", optionalAuthenticate, upload.single("receipt"), async (req, 
       return res.status(400).json({ message: "Payment receipt image is required" });
     }
 
+    // Build hardware summary string for payment reference
     let hardwareSummary = "";
     if (hasHardware) {
-      const parts = [];
-      if (numScanners > 0) parts.push(`${numScanners}x Scanner`);
-      if (numPrinters > 0) parts.push(`${numPrinters}x Printer`);
+      const parts = hardwareDetails
+        .filter(hw => (parseInt(hw.count, 10) || 0) > 0)
+        .map(hw => `${hw.count}x ${hw.name || hw.id}`);
       hardwareSummary = ` | Add-ons: ${parts.join(", ")}`;
     }
 

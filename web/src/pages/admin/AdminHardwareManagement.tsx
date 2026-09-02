@@ -582,8 +582,8 @@ export default function AdminHardwareManagement() {
                       </TableCell>
                       <TableCell>
                         <span className="text-xs font-mono bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary-foreground px-2 py-1 rounded border border-primary/25 font-semibold">
-                          {p.paymentReference?.includes("Add-ons:")
-                            ? p.paymentReference.split("Add-ons:")[1]
+                          {p.paymentReference?.includes(" | Add-ons:")
+                            ? p.paymentReference.split(" | Add-ons:")[1].trim()
                             : "Standard License Only"}
                         </span>
                       </TableCell>
