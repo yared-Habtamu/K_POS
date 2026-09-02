@@ -326,7 +326,7 @@ router.post("/pay", optionalAuthenticate, upload.single("receipt"), async (req, 
         currency: "ETB",
         paymentMethod: isFree && !hasHardware ? "Free Trial" : String(paymentMethod).trim(),
         paymentReference: fullRef || null,
-        receiptUrl: receiptUrl || null,
+        receiptUrl: receiptUrl || "",
         status: "pending",
       },
       include: {
