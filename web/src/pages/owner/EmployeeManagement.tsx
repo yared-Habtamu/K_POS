@@ -1263,14 +1263,14 @@ export default function OwnerEmployeeManagement(): JSX.Element {
             onClick={() => setActiveTab("employees")}
             className="rounded-none"
           >
-            Employees
+            {t("employees")}
           </Button>
           <Button
             variant={activeTab === "attendance" ? "default" : "ghost"}
             onClick={() => setActiveTab("attendance")}
             className="rounded-none"
           >
-            Attendance
+            {t("attendance")}
           </Button>
         </div>
 
@@ -1280,7 +1280,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
               <div>
                 <h1 className="text-2xl font-bold">{t("employees")}</h1>
                 <p className="text-muted-foreground">
-                  Manage your team members
+                  {t("manage_team_members", { defaultValue: "Manage your team members" })}
                 </p>
               </div>
 
@@ -1300,12 +1300,12 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                 <DialogContent className="max-h-[85vh] overflow-y-auto max-w-2xl max-h-[80vh] overflow-auto">
                   <DialogHeader>
                     <DialogTitle>
-                      {editingEmployee ? "Edit Employee" : t("add_employee")}
+                      {editingEmployee ? t("edit_employee", { defaultValue: "Edit Employee" }) : t("add_employee")}
                     </DialogTitle>
                   </DialogHeader>
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="username">Username (Optional)</Label>
+                      <Label htmlFor="username">{t("username")} ({t("optional", { defaultValue: "Optional" })})</Label>
                       <Input
                         id="username"
                         value={form.username}
@@ -1829,19 +1829,19 @@ export default function OwnerEmployeeManagement(): JSX.Element {
           <>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold">Attendance</h1>
+                <h1 className="text-2xl font-bold">{t("attendance")}</h1>
                 <p className="text-muted-foreground">
-                  Track and manage employee attendance
+                  {t("track_manage_employee_attendance", { defaultValue: "Track and manage employee attendance" })}
                 </p>
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={exportAttendanceToCSV}>
                   <Download className="mr-2 h-4 w-4" />
-                  Export CSV
+                  {t("export_csv", { defaultValue: "Export CSV" })}
                 </Button>
                 <Button variant="outline" onClick={exportAttendanceToPDF}>
                   <FileText className="mr-2 h-4 w-4" />
-                  Export PDF
+                  {t("export_pdf", { defaultValue: "Export PDF" })}
                 </Button>
               </div>
             </div>
@@ -1971,12 +1971,12 @@ export default function OwnerEmployeeManagement(): JSX.Element {
             {!editSubpageOpen && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Add Attendance Manually</CardTitle>
+                  <CardTitle>{t("add_attendance_manually", { defaultValue: "Add Attendance Manually" })}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-6 gap-4">
                     <div>
-                      <Label>Employee</Label>
+                      <Label>{t("employee", { defaultValue: "Employee" })}</Label>
                       <Select
                         value={manualEntry.employeeId}
                         onValueChange={(v) =>
@@ -1984,7 +1984,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                         }
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select Employee" />
+                          <SelectValue placeholder={t("select_employee", { defaultValue: "Select Employee" })} />
                         </SelectTrigger>
                         <SelectContent>
                           {filteredEmployees.map((emp) => (
@@ -1996,7 +1996,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                       </Select>
                     </div>
                     <div>
-                      <Label>Date</Label>
+                      <Label>{t("date")}</Label>
                       <EthiopianDatePicker
                         value={manualEntry.date}
                         onChange={(ymd) => {
@@ -2009,7 +2009,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                       />
                     </div>
                     <div>
-                      <Label>Clock In</Label>
+                      <Label>{t("clock_in")}</Label>
                       <Input
                         type="time"
                         value={manualEntry.clockIn}
@@ -2022,7 +2022,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                       />
                     </div>
                     <div>
-                      <Label>Lunch Out</Label>
+                      <Label>{t("lunch_out", { defaultValue: "Lunch Out" })}</Label>
                       <Input
                         type="time"
                         value={manualEntry.lunchOut}
@@ -2035,7 +2035,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                       />
                     </div>
                     <div>
-                      <Label>Lunch Back</Label>
+                      <Label>{t("lunch_back", { defaultValue: "Lunch Back" })}</Label>
                       <Input
                         type="time"
                         value={manualEntry.lunchBack}
@@ -2048,7 +2048,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                       />
                     </div>
                     <div>
-                      <Label>Clock Out</Label>
+                      <Label>{t("clock_out")}</Label>
                       <Input
                         type="time"
                         value={manualEntry.clockOut}
@@ -2063,7 +2063,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                   </div>
                   <div className="flex justify-end mt-4">
                     <Button onClick={handleSaveManualAttendance}>
-                      Save Attendance
+                      {t("save_attendance", { defaultValue: "Save Attendance" })}
                     </Button>
                   </div>
                 </CardContent>
@@ -2073,17 +2073,17 @@ export default function OwnerEmployeeManagement(): JSX.Element {
             {/* Attendance Records Table */}
             <Card>
               <CardHeader>
-                <CardTitle>Attendance Records</CardTitle>
+                <CardTitle>{t("attendance_records", { defaultValue: "Attendance Records" })}</CardTitle>
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <p className="text-sm text-muted-foreground">
-                    Showing {filteredAttendance.length} records
+                    {t("showing")} {filteredAttendance.length} {t("records", { defaultValue: "records" })}
                   </p>
                   <div className="flex items-center gap-2">
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => shiftAttendanceDay(-1)}
-                      aria-label="Previous day"
+                      aria-label={t("prev")}
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
@@ -2098,7 +2098,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                       variant="ghost"
                       size="icon"
                       onClick={() => shiftAttendanceDay(1)}
-                      aria-label="Next day"
+                      aria-label={t("next")}
                     >
                       <ChevronRight className="h-4 w-4" />
                     </Button>
@@ -2110,14 +2110,14 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Employee</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Clock In</TableHead>
-                        <TableHead>Lunch Out</TableHead>
-                        <TableHead>Lunch Back</TableHead>
-                        <TableHead>Clock Out</TableHead>
-                        <TableHead>Duration</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        <TableHead>{t("employee", { defaultValue: "Employee" })}</TableHead>
+                        <TableHead>{t("date")}</TableHead>
+                        <TableHead>{t("clock_in")}</TableHead>
+                        <TableHead>{t("lunch_out", { defaultValue: "Lunch Out" })}</TableHead>
+                        <TableHead>{t("lunch_back", { defaultValue: "Lunch Back" })}</TableHead>
+                        <TableHead>{t("clock_out")}</TableHead>
+                        <TableHead>{t("duration", { defaultValue: "Duration" })}</TableHead>
+                        <TableHead className="text-right">{t("actions")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2137,7 +2137,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                                       {getInitials(emp?.name || "")}
                                     </AvatarFallback>
                                   </Avatar>
-                                  <span>{emp?.name || "Unknown"}</span>
+                                  <span>{emp?.name || t("unknown", { defaultValue: "Unknown" })}</span>
                                 </div>
                               </TableCell>
                               <TableCell>{formatLocalizedDate(rec.date)}</TableCell>
@@ -2188,13 +2188,13 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                                           const nowHHmm = new Date().toTimeString().slice(0, 5);
                                           await updateAttendance(rec.id, { lunchOut: nowHHmm }, token);
                                           await refreshAttendance();
-                                          toast({ title: "Lunch Out recorded" });
+                                          toast({ title: t("lunch_out_recorded", { defaultValue: "Lunch Out recorded" }) });
                                         } catch (e: any) {
-                                          toast({ title: "Failed to record lunch out", variant: "destructive" });
+                                          toast({ title: t("failed_lunch_out", { defaultValue: "Failed to record lunch out" }), variant: "destructive" });
                                         }
                                       }}
                                     >
-                                      Lunch Out
+                                      {t("lunch_out", { defaultValue: "Lunch Out" })}
                                     </Button>
                                   )}
                                   {rec.lunchOut && !rec.lunchBack && !rec.clockOut && (
@@ -2207,13 +2207,13 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                                           const nowHHmm = new Date().toTimeString().slice(0, 5);
                                           await updateAttendance(rec.id, { lunchBack: nowHHmm }, token);
                                           await refreshAttendance();
-                                          toast({ title: "Lunch Back recorded" });
+                                          toast({ title: t("lunch_back_recorded", { defaultValue: "Lunch Back recorded" }) });
                                         } catch (e: any) {
-                                          toast({ title: "Failed to record lunch back", variant: "destructive" });
+                                          toast({ title: t("failed_lunch_back", { defaultValue: "Failed to record lunch back" }), variant: "destructive" });
                                         }
                                       }}
                                     >
-                                      Lunch Back
+                                      {t("lunch_back", { defaultValue: "Lunch Back" })}
                                     </Button>
                                   )}
                                   {(!rec.clockOut || rec.clockOut === null) && (
@@ -2257,7 +2257,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                                         }
                                       }}
                                     >
-                                      Clock Out Now
+                                      {t("clock_out_now", { defaultValue: "Clock Out Now" })}
                                     </Button>
                                   )}
                                 {!isPast && (

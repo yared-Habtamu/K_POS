@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -139,6 +140,7 @@ const fmt = (n: number) =>
 const fmtCurrency = (n: number) => `${fmt(n)} ETB`;
 
 export default function AdminAnalytics() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const auth = useAuthStore((s) => s.user);
   const API_BASE =
@@ -230,7 +232,7 @@ export default function AdminAnalytics() {
           <div className="flex flex-col items-center gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="text-muted-foreground text-sm">
-              Loading analytics...
+              {t("loading_analytics", { defaultValue: "Loading analytics..." })}
             </p>
           </div>
         </div>
@@ -245,7 +247,7 @@ export default function AdminAnalytics() {
           <div className="text-center space-y-2">
             <XCircle className="h-10 w-10 text-destructive mx-auto" />
             <p className="text-destructive font-medium">
-              {error || "No data available"}
+              {error || t("no_data_available", { defaultValue: "No data available" })}
             </p>
           </div>
         </div>
@@ -257,56 +259,56 @@ export default function AdminAnalytics() {
 
   const statCards = [
     {
-      label: "Total Products",
+      label: t("total_products", { defaultValue: "Total Products" }),
       value: p.totalProducts.toLocaleString(),
       icon: Package,
       color: "text-indigo-500",
       bg: "bg-indigo-500/10",
     },
     {
-      label: "Inventory Value",
+      label: t("inventory_value"),
       value: fmtCurrency(p.totalInventoryValue),
       icon: DollarSign,
       color: "text-emerald-500",
       bg: "bg-emerald-500/10",
     },
     {
-      label: "Selling Value",
+      label: t("selling_value", { defaultValue: "Selling Value" }),
       value: fmtCurrency(p.totalSellingValue),
       icon: TrendingUp,
       color: "text-cyan-500",
       bg: "bg-cyan-500/10",
     },
     {
-      label: "Avg Margin",
+      label: t("avg_margin", { defaultValue: "Avg Margin" }),
       value: `${p.overallAvgMargin.toFixed(1)}%`,
       icon: BarChart3,
       color: "text-amber-500",
       bg: "bg-amber-500/10",
     },
     {
-      label: "Monthly Sales",
+      label: t("monthly_sales", { defaultValue: "Monthly Sales" }),
       value: fmtCurrency(p.totalMonthlySales),
       icon: ShoppingCart,
       color: "text-blue-500",
       bg: "bg-blue-500/10",
     },
     {
-      label: "Monthly Profit",
+      label: t("monthly_profit", { defaultValue: "Monthly Profit" }),
       value: fmtCurrency(p.totalMonthlyProfit),
       icon: p.totalMonthlyProfit >= 0 ? ArrowUpRight : ArrowDownRight,
       color: p.totalMonthlyProfit >= 0 ? "text-success" : "text-destructive",
       bg: p.totalMonthlyProfit >= 0 ? "bg-success/10" : "bg-destructive/10",
     },
     {
-      label: "Active Marts",
+      label: t("active_marts", { defaultValue: "Active Marts" }),
       value: p.totalMarts.toString(),
       icon: Building2,
       color: "text-violet-500",
       bg: "bg-violet-500/10",
     },
     {
-      label: "Low Stock Alerts",
+      label: t("low_stock_alerts", { defaultValue: "Low Stock Alerts" }),
       value: (p.lowStockCount + p.outOfStockCount).toString(),
       icon: AlertTriangle,
       color: "text-orange-500",
@@ -325,10 +327,9 @@ export default function AdminAnalytics() {
     <RoleLayout allowedRoles={["system_admin"]}>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">Platform Analytics</h1>
+          <h1 className="text-2xl font-bold">{t("platform_analytics", { defaultValue: "Platform Analytics" })}</h1>
           <p className="text-muted-foreground">
-            Deep insights across all marts — products, pricing, margins &
-            performance
+            {t("platform_analytics_desc", { defaultValue: "Deep insights across all marts — products, pricing, margins & performance" })}
           </p>
         </div>
 

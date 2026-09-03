@@ -1398,21 +1398,21 @@ export default function ExpenseManagement() {
                         }
                       >
                         <SelectTrigger className="w-36">
-                          <SelectValue placeholder="Created by" />
+                          <SelectValue placeholder={t("created_by", { defaultValue: "Created by" })} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All creators</SelectItem>
-                          <SelectItem value="owner">Owner</SelectItem>
-                          <SelectItem value="manager">Manager</SelectItem>
+                          <SelectItem value="all">{t("all_creators", { defaultValue: "All creators" })}</SelectItem>
+                          <SelectItem value="owner">{t("owner")}</SelectItem>
+                          <SelectItem value="manager">{t("manager")}</SelectItem>
                         </SelectContent>
                       </Select>
                       {creatorFilter === "manager" && (
                         <Select value={managerFilter} onValueChange={setManagerFilter}>
                           <SelectTrigger className="w-40">
-                            <SelectValue placeholder="Manager" />
+                            <SelectValue placeholder={t("manager")} />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="all">All managers</SelectItem>
+                            <SelectItem value="all">{t("all_managers", { defaultValue: "All managers" })}</SelectItem>
                             {managers.map((m) => (
                               <SelectItem key={m.id} value={m.id}>
                                 {m.name}
@@ -1456,10 +1456,10 @@ export default function ExpenseManagement() {
                         }}
                       >
                         <SelectTrigger className="w-36">
-                          <SelectValue placeholder="Payment method" />
+                          <SelectValue placeholder={t("payment_method")} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All methods</SelectItem>
+                          <SelectItem value="all">{t("all_methods", { defaultValue: "All methods" })}</SelectItem>
                           {paymentOptions.map((p) => (
                             <SelectItem key={p.id} value={p.id}>
                               {p.label}
@@ -1479,7 +1479,7 @@ export default function ExpenseManagement() {
                   size="icon"
                   onClick={handlePrevDay}
                   className="h-8 w-8 rounded-lg border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
-                  aria-label="Previous day"
+                  aria-label={t("prev")}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -1491,7 +1491,7 @@ export default function ExpenseManagement() {
                       setExactDate(ymd || "");
                       setCurrentPage(1);
                     }}
-                    placeholder="All Days (Select Date)"
+                    placeholder={t("all_days_select_date", { defaultValue: "All Days (Select Date)" })}
                     className="w-[230px]"
                   />
                   {exactDate && (
@@ -1503,7 +1503,7 @@ export default function ExpenseManagement() {
                         setCurrentPage(1);
                       }}
                       className="h-8 w-8 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
-                      title="Clear date filter"
+                      title={t("clear_date_filter", { defaultValue: "Clear date filter" })}
                     >
                       <X className="h-4 w-4" />
                     </Button>
@@ -1515,7 +1515,7 @@ export default function ExpenseManagement() {
                   size="icon"
                   onClick={handleNextDay}
                   className="h-8 w-8 rounded-lg border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
-                  aria-label="Next day"
+                  aria-label={t("next")}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>

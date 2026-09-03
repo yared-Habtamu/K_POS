@@ -1359,14 +1359,14 @@ export default function MEmployeeManagement(): JSX.Element {
             onClick={() => setActiveTab("employees")}
             className="rounded-none"
           >
-            Employees
+            {t("employees")}
           </Button>
           <Button
             variant={activeTab === "attendance" ? "default" : "ghost"}
             onClick={() => setActiveTab("attendance")}
             className="rounded-none"
           >
-            Attendance
+            {t("attendance")}
           </Button>
         </div>
 
@@ -1375,10 +1375,10 @@ export default function MEmployeeManagement(): JSX.Element {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-bold">
-                  {t("employees") || "Employees"}
+                  {t("employees")}
                 </h1>
                 <p className="text-muted-foreground">
-                  Manage your team members
+                  {t("manage_team_members", { defaultValue: "Manage your team members" })}
                 </p>
               </div>
 

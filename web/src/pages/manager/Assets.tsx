@@ -56,7 +56,10 @@ function normalizeAssetStatus(asset: any): "broken" | "unbroken" {
   return "unbroken";
 }
 
-function assetStatusLabel(status: "broken" | "unbroken") {
+function assetStatusLabel(status: "broken" | "unbroken", tFunc?: any) {
+  if (tFunc) {
+    return status === "broken" ? tFunc("broken") : tFunc("not_broken", { defaultValue: "Not broken" });
+  }
   return status === "broken" ? "Broken" : "Not broken";
 }
 
@@ -550,7 +553,7 @@ export default function ManagerAssets() {
     },
     {
       key: "asset_status",
-      header: "Current status",
+      header: t("current_status", { defaultValue: "Current status" }),
       cell: (row) => {
         const normalized = normalizeAssetStatus(row);
         return (
@@ -561,7 +564,7 @@ export default function ManagerAssets() {
                 : "bg-green-100 text-green-800"
             }`}
           >
-            {assetStatusLabel(normalized)}
+            {assetStatusLabel(normalized, t)}
           </span>
         );
       },
@@ -583,7 +586,7 @@ export default function ManagerAssets() {
               {t("asset_registration")}
             </h1>
             <p className="text-muted-foreground">
-              Manage and track your company assets in one place.
+              {t("manage_track_company_assets", { defaultValue: "Manage and track your company assets in one place." })}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -604,25 +607,25 @@ export default function ManagerAssets() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             {
-              label: "Total Assets",
+              label: t("total_assets", { defaultValue: "Total Assets" }),
               value: assets.length,
               Icon: Boxes,
               color: "text-blue-500",
             },
             {
-              label: "Total Value",
+              label: t("total_value", { defaultValue: "Total Value" }),
               value: `${assets.reduce((s, a) => s + Number(a.purchasePrice || 0), 0).toLocaleString()} ETB`,
               Icon: DollarSign,
               color: "text-emerald-500",
             },
             {
-              label: "Assigned",
+              label: t("assigned", { defaultValue: "Assigned" }),
               value: assets.filter((a) => a.assignedTo).length,
               Icon: UserCheck,
               color: "text-purple-500",
             },
             {
-              label: "New Condition",
+              label: t("new_condition", { defaultValue: "New Condition" }),
               value: assets.filter((a) => a.status === "new").length,
               Icon: Sparkles,
               color: "text-amber-500",
@@ -649,7 +652,7 @@ export default function ManagerAssets() {
           rowKey="id"
           isLoading={isLoading}
           searchable
-          searchPlaceholder="Search assets..."
+          searchPlaceholder={t("search_assets", { defaultValue: "Search assets..." })}
           pagination
           initialPageSize={10}
           onEdit={openEditModal}
@@ -801,7 +804,7 @@ export default function ManagerAssets() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Current status</label>
+                <label className="text-sm font-medium">{t("current_status", { defaultValue: "Current status" })}</label>
                 <select
                   value={assetStatus}
                   onChange={(e) =>
@@ -811,8 +814,8 @@ export default function ManagerAssets() {
                   }
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <option value="unbroken">Not broken</option>
-                  <option value="broken">Broken</option>
+                  <option value="unbroken">{t("not_broken", { defaultValue: "Not broken" })}</option>
+                  <option value="broken">{t("broken", { defaultValue: "Broken" })}</option>
                 </select>
               </div>
 
@@ -1017,15 +1020,15 @@ export default function ManagerAssets() {
         >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete this asset?</AlertDialogTitle>
+              <AlertDialogTitle>{t("delete_asset_confirm", { defaultValue: "Delete this asset?" })}</AlertDialogTitle>
               <AlertDialogDescription>
                 {pendingDeleteAsset
-                  ? `This will remove ${pendingDeleteAsset.name || "the selected asset"}.`
-                  : "This action will remove the selected asset."}
+                  ? `${t("delete_asset_desc_prefix", { defaultValue: "This will remove" })} ${pendingDeleteAsset.name || t("selected_asset", { defaultValue: "the selected asset" })}.`
+                  : t("delete_asset_desc", { defaultValue: "This action will remove the selected asset." })}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
               <AlertDialogAction
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 onClick={() => {
@@ -1034,7 +1037,7 @@ export default function ManagerAssets() {
                   setPendingDeleteAsset(null);
                 }}
               >
-                Delete
+                {t("delete")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
