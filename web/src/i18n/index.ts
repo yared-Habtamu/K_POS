@@ -113,7 +113,7 @@ const resources = {
       age: "Age",
       aging_summary: "Products not sold within the selected period, with store quantity remaining.",
       swipe_to_see_more: "← Swipe to see more columns →",
-      add_stock: "Add to Store",
+      add_stock: "Add to Mart",
 
       // Employees
       employees: "Employees",
@@ -1187,7 +1187,7 @@ const resources = {
       age: "ዕድሜ",
       aging_summary: "በተመረጠው ጊዜ ውስጥ ያልተሸጡ እና ክምችት ያላቸው ምርቶች።",
       swipe_to_see_more: "ተጨማሪ አምዶችን ለማየት ወደ ጎን ያንሸራትቱ →",
-      add_stock: "ክምችት ጨምር",
+      add_stock: "ወደ ማርት ጨምር",
 
       // Employees
       employees: "ሰራተኞች",

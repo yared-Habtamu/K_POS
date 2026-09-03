@@ -586,6 +586,7 @@ export default function Approvals() {
                     <TableHead>Product</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>Price</TableHead>
+                    <TableHead>Direction</TableHead>
                     <TableHead>Quantity</TableHead>
                     <TableHead>Requested By</TableHead>
                     <TableHead>Status</TableHead>
@@ -633,6 +634,13 @@ export default function Approvals() {
                         </TableCell>
                         <TableCell className="font-semibold text-xs whitespace-nowrap">
                           {price}
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-xs font-medium">
+                            {r.fromLocation === "mart" ? "Mart" : "Store"}
+                            {" → "}
+                            {r.toLocation === "store" ? "Store" : "Mart"}
+                          </span>
                         </TableCell>
                         <TableCell>{r.quantity}</TableCell>
                         <TableCell>
