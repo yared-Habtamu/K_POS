@@ -46,6 +46,8 @@ export interface EthiopianDatePickerProps {
   disabled?: boolean;
   /** Optional id for label association */
   id?: string;
+  /** Optional custom trigger element */
+  children?: React.ReactNode;
 }
 
 /** Format a Gregorian YMD string as an Ethiopian display label (always Amharic). */
@@ -66,6 +68,7 @@ export function EthiopianDatePicker({
   placeholder = "Select Date",
   disabled = false,
   id,
+  children,
 }: EthiopianDatePickerProps) {
   // The Ethiopian calendar UI is always shown in Amharic regardless of app language
   const monthNames = ETHIOPIAN_MONTHS_AM;
@@ -184,38 +187,44 @@ export function EthiopianDatePicker({
     : null;
 
   return (
-    <div ref={rootRef} className={cn("relative", className)}>
+    <div ref={rootRef} className={cn("relative inline-block", className)}>
       {/* Trigger */}
-      <button
-        type="button"
-        id={id}
-        disabled={disabled}
-        onClick={openPicker}
-        className={cn(
-          "flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-left text-sm ring-offset-background",
-          "placeholder:text-muted-foreground",
-          "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-          "disabled:cursor-not-allowed disabled:opacity-50",
-        )}
-      >
-        <span className="flex min-w-0 flex-col leading-tight">
-          <span
-            className={cn("truncate", !displayValue && "text-muted-foreground")}
-          >
-            {displayValue || placeholder}
-          </span>
-          {gregHint && (
-            <span className="truncate text-[0.7rem] text-muted-foreground">
-              {gregHint}
-            </span>
+      {children ? (
+        <div onClick={openPicker} className="cursor-pointer inline-flex items-center justify-center">
+          {children}
+        </div>
+      ) : (
+        <button
+          type="button"
+          id={id}
+          disabled={disabled}
+          onClick={openPicker}
+          className={cn(
+            "flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-left text-sm ring-offset-background",
+            "placeholder:text-muted-foreground",
+            "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+            "disabled:cursor-not-allowed disabled:opacity-50",
           )}
-        </span>
-        <CalendarDays className="h-4 w-4 shrink-0 opacity-50" />
-      </button>
+        >
+          <span className="flex min-w-0 flex-col leading-tight">
+            <span
+              className={cn("truncate", !displayValue && "text-muted-foreground")}
+            >
+              {displayValue || placeholder}
+            </span>
+            {gregHint && (
+              <span className="truncate text-[0.7rem] text-muted-foreground">
+                {gregHint}
+              </span>
+            )}
+          </span>
+          <CalendarDays className="h-4 w-4 shrink-0 opacity-50" />
+        </button>
+      )}
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-72 rounded-md border bg-popover p-3 shadow-md">
+        <div className="absolute z-50 mt-1 right-0 w-72 rounded-md border bg-popover p-3 shadow-md">
           {/* Year and Month navigation */}
           <div className="mb-3 flex items-center justify-between">
             <div className="flex gap-1">
