@@ -5,9 +5,11 @@ import type { UserRole } from "@/types";
 type SettingsState = {
   preferredPrinter?: string | null;
   printerByRole: Partial<Record<UserRole, string | null>>;
+  printNodeId: number | null;
   getPreferredPrinter: (role?: UserRole | null) => string | null;
   setPreferredPrinter: (name: string | null) => void;
   setPrinterForRole: (role: UserRole, name: string | null) => void;
+  setPrintNodeId: (id: number | null) => void;
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -15,6 +17,7 @@ export const useSettingsStore = create<SettingsState>()(
     (set, get) => ({
       preferredPrinter: null,
       printerByRole: {},
+      printNodeId: null,
       getPreferredPrinter: (role) => {
         if (role && get().printerByRole[role])
           return get().printerByRole[role] || null;
@@ -26,6 +29,7 @@ export const useSettingsStore = create<SettingsState>()(
           printerByRole: { ...state.printerByRole, [role]: name },
           preferredPrinter: state.preferredPrinter || name,
         })),
+      setPrintNodeId: (id) => set({ printNodeId: id }),
     }),
     {
       name: "kiya-pos-settings",
@@ -33,6 +37,7 @@ export const useSettingsStore = create<SettingsState>()(
       partialize: (s) => ({
         preferredPrinter: s.preferredPrinter,
         printerByRole: s.printerByRole,
+        printNodeId: s.printNodeId,
       }),
     },
   ),

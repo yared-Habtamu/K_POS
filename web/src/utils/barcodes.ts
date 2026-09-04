@@ -1,5 +1,5 @@
 import JsBarcode from "jsbarcode";
-import qzBridge from "@/services/printBridge/qzBridge";
+import printNodeBridge from "@/services/printBridge/printNodeBridge";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -160,24 +160,26 @@ export function printBarcodeLabel(params: {
   const doPrint = () => {
     (async () => {
       try {
-        // Try using QZ bridge raw printing for direct printer output
-        const preferredPrinter = useSettingsStore
-          .getState()
-          .getPreferredPrinter(useAuthStore.getState().user?.role || null);
-        const connected = await qzBridge.connect();
-        if (connected) {
-          // print the iframe's HTML as simple HTML payload
-          const html =
-            iframeDoc.documentElement?.outerHTML ||
-            iframeDoc.body?.outerHTML ||
-            "";
-          await qzBridge.printHtml(html, {
-            printer: preferredPrinter || undefined,
+        const settings = useSettingsStore.getState();
+        const printNodeId = settings.printNodeId;
+
+        const html =
+          iframeDoc.documentElement?.outerHTML ||
+          iframeDoc.body?.outerHTML ||
+          "";
+
+        try {
+          await printNodeBridge.printHtml(html, {
+            printerId: printNodeId || undefined,
           });
-        } else {
-          iframe.contentWindow?.focus();
-          iframe.contentWindow?.print();
+          return;
+        } catch (e) {
+          console.warn("PrintNode unavailable for barcode", e);
         }
+
+        // Last resort: browser print
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
       } catch (e) {
         console.error("iframe print failed:", e);
         try {

@@ -12,70 +12,6 @@ const userRepository = require("./repositories/userRepository");
 const bcrypt = require("bcrypt");
 const fs = require("fs");
 const path = require("path");
-const crypto = require("crypto");
-
-function writeQzAllowedEntry() {
-  if (process.platform !== "win32") {
-    return;
-  }
-
-  const certPath = path.join(__dirname, "..", "certs", "digital-certificate.txt");
-  const allowedDat = "C:\\ProgramData\\qz\\allowed.dat";
-
-  try {
-    const pem = fs.readFileSync(certPath, "utf8");
-    const x509 = new crypto.X509Certificate(pem);
-    const der = Buffer.from(
-      pem
-        .replace(/-----BEGIN CERTIFICATE-----/g, "")
-        .replace(/-----END CERTIFICATE-----/g, "")
-        .replace(/\s+/g, ""),
-      "base64",
-    );
-    const fingerprint = crypto.createHash("sha1").update(der).digest("hex");
-
-    const extractField = (subject, key) => {
-      const match = subject.match(new RegExp(`(?:^|\\n)${key}=([^\\n]+)`));
-      return match ? match[1].trim() : "";
-    };
-
-    const commonName = extractField(x509.subject, "CN");
-    const organization = extractField(x509.subject, "O");
-
-    const pad = (n) => String(n).padStart(2, "0");
-    const toQzDate = (dateStr) => {
-      const d = new Date(dateStr);
-      return (
-        `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ` +
-        `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`
-      );
-    };
-
-    const validFrom = toQzDate(x509.validFrom);
-    const validTo = toQzDate(x509.validTo);
-    const line = [fingerprint, commonName, organization, validFrom, validTo, "true"].join("\t");
-
-    let existing = "";
-    try {
-      existing = fs.readFileSync(allowedDat, "utf8");
-    } catch {
-      // ignore absent file
-    }
-
-    const otherLines = existing
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0 && !l.startsWith(fingerprint));
-
-    const dir = path.dirname(allowedDat);
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(allowedDat, [...otherLines, line].join("\n") + "\n", "utf8");
-
-    console.log("[qz] Trusted certificate entry written to", allowedDat);
-  } catch (err) {
-    console.warn("[qz] Could not write QZ trusted certificate entry:", err.message || err);
-  }
-}
 
 let server = null;
 
@@ -142,16 +78,6 @@ app.get("/health/db", async (req, res) => {
 // Serve local uploaded images (development fallback)
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
-// Serve QZ Tray public certificate (the private key stays on the server)
-app.use("/certs", express.static(path.join(__dirname, "..", "certs"), {
-  // Only expose the cert — never the private key
-  setHeaders: (res, filePath) => {
-    if (path.basename(filePath) === "private-key.pem") {
-      res.status(403).end();
-    }
-  },
-}));
-
 // Models and routes
 const martsRouter = require("./routes/marts");
 const authRouter = require("./routes/auth");
@@ -177,7 +103,7 @@ const subscriptionsRouter = require("./routes/subscriptions");
 const openCashRequestsRouter = require("./routes/openCashRequests");
 const saleCancellationRequestsRouter = require("./routes/saleCancellationRequests");
 const chatRouter = require("./routes/chat");
-const qzSignRouter = require("./routes/qzSign");
+const printNodeRouter = require("./routes/printNode");
 const siteSettingsRouter = require("./routes/siteSettings");
 
 app.use("/api/expenses", expensesRouter);
@@ -213,7 +139,7 @@ app.use("/api/notifications", notificationsRouter);
 app.use("/api/open-cash-requests", openCashRequestsRouter);
 app.use("/api/sale-cancellation-requests", saleCancellationRequestsRouter);
 app.use("/api/chat", chatRouter);
-app.use("/api/qz-sign", qzSignRouter);
+app.use("/api/printnode", printNodeRouter);
 app.use("/api/site-settings", siteSettingsRouter);
 
 app.use((err, req, res, next) => {
@@ -318,7 +244,6 @@ async function start() {
 
   server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-    writeQzAllowedEntry();
   });
 
   await initializeDatabase();

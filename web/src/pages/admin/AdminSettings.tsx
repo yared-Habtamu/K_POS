@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import useSettingsStore from "@/stores/settingsStore";
-import qzBridge from "@/services/printBridge/qzBridge";
 import { useAuthStore } from "@/stores/authStore";
 import { Plus, Trash2, Loader2 } from "lucide-react";
 import {
@@ -414,57 +413,8 @@ export default function AdminSettings() {
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 max-w-xl">
-                  <div>
-                    <Label>Preferred Printer (QZ Tray)</Label>
-                    <Input
-                      value={preferredPrinter || ""}
-                      onChange={(e) =>
-                        setPrinterForRole(
-                          "system_admin",
-                          e.target.value.trim() || null,
-                        )
-                      }
-                      placeholder="Exact printer name as shown in QZ Tray"
-                    />
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Use the exact printer name from the connected machine.
-                      Leave empty to use the system default printer.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      onClick={async () => {
-                        try {
-                          const printers = await qzBridge.listPrinters();
-
-                          toast({
-                            title: "Printers detected",
-                            description:
-                              printers?.length > 0
-                                ? printers.join(", ")
-                                : "No printers found.",
-                          });
-                        } catch (err: any) {
-                          console.error("[AdminSettings]", err);
-                          toast({
-                            title: "Printer detection failed",
-                            description: String(
-                              err?.message ||
-                              err ||
-                              "Check that QZ Tray is installed and running.",
-                            ),
-                          });
-                        }
-                      }}
-                    >
-                      Detect Printers
-                    </Button>
-                  </div>
-
                   <p className="text-sm text-muted-foreground">
-                    Silent printing only works on machines where QZ Tray is
-                    installed and trusted.
+                    Printing is configured via PrintNode. Go to Settings → Printer to set up the printer.
                   </p>
                 </div>
               </CardContent>
