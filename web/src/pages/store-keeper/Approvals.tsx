@@ -339,7 +339,11 @@ export default function StoreKeeperApprovals() {
                           <TableCell className="font-semibold text-xs whitespace-nowrap">
                             {price}
                           </TableCell>
-                          <TableCell>{`${fromLabel} -> ${toLabel}`}</TableCell>
+                          <TableCell>
+                            <span className="text-xs font-medium">
+                              {`${fromLabel} → ${toLabel}`}
+                            </span>
+                          </TableCell>
                           <TableCell className="text-right">
                             {Number(request.quantity || 0)}
                           </TableCell>

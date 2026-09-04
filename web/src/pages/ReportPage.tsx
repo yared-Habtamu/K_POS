@@ -25,7 +25,16 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import useReports from "@/hooks/useReports";
 import EthiopianDatePicker from "@/components/ui/ethiopian-date-picker";
-import { formatLocalizedDate, formatEthiopianDateValue } from "@/utils/ethiopian-calendar";
+import {
+  formatLocalizedDate,
+  formatEthiopianDateValue,
+  currentEthiopianDate,
+  gregorianToEthiopian,
+  ethiopianToGregorian,
+  ethiopianToGregorianYmd,
+  getDaysInEthiopianMonth,
+  ETHIOPIAN_MONTHS_AM,
+} from "@/utils/ethiopian-calendar";
 import {
   TrendingUp,
   ShoppingBag,
@@ -39,6 +48,7 @@ import {
   FileText,
   ChevronLeft,
   ChevronRight,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -93,51 +103,147 @@ const ReportPage: React.FC = () => {
 
   const currentRange = React.useMemo(() => {
     const d = new Date(referenceDate);
+    const now = new Date();
+
     if (period === "daily") {
       const ymd = formatYMD(d);
-      return { start: ymd, end: ymd, label: formatEthiopianDateValue(d) };
+      return { start: ymd, end: ymd, label: formatLocalizedDate(d) };
     }
+
     if (period === "weekly") {
-      const end = new Date(d);
+      const endCandidate = new Date(d);
       const start = new Date(d);
       start.setDate(d.getDate() - 6);
+
+      // Capped end: if endCandidate is after today, cap end at today
+      const end = formatYMD(endCandidate) > formatYMD(now) ? now : endCandidate;
+
       return {
         start: formatYMD(start),
         end: formatYMD(end),
-        label: `${formatEthiopianDateValue(start)} – ${formatEthiopianDateValue(end)}`,
+        label: `${formatLocalizedDate(start)} – ${formatLocalizedDate(end)}`,
       };
     }
+
     if (period === "monthly") {
-      const start = new Date(d.getFullYear(), d.getMonth(), 1);
-      const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+      const ethNow = currentEthiopianDate();
+      const ethRef = gregorianToEthiopian(
+        d.getFullYear(),
+        d.getMonth() + 1,
+        d.getDate(),
+      );
+
+      const ethYear = ethRef.year;
+      const ethMonth = ethRef.month;
+
+      const isCurrentEthMonth =
+        ethYear === ethNow.year && ethMonth === ethNow.month;
+
+      const isFutureEthMonth =
+        ethYear > ethNow.year ||
+        (ethYear === ethNow.year && ethMonth > ethNow.month);
+
+      const daysInMonth = getDaysInEthiopianMonth(ethYear, ethMonth);
+
+      // Start of Ethiopian month: Day 1
+      const startYmd = ethiopianToGregorianYmd(ethYear, ethMonth, 1);
+
+      // End of Ethiopian month:
+      // If current or future Ethiopian month: end is today's Ethiopian day (ethNow.day) / today's Gregorian date!
+      // If past completed Ethiopian month: end is day `daysInMonth`!
+      const endEthDay = (isCurrentEthMonth || isFutureEthMonth)
+        ? ethNow.day
+        : daysInMonth;
+
+      const endYmd = (isCurrentEthMonth || isFutureEthMonth)
+        ? formatYMD(now)
+        : ethiopianToGregorianYmd(ethYear, ethMonth, daysInMonth);
+
+      const monthName = ETHIOPIAN_MONTHS_AM[ethMonth - 1] || "";
+      const label = `${monthName} 1, ${ethYear} – ${monthName} ${endEthDay}, ${ethYear}`;
+
       return {
-        start: formatYMD(start),
-        end: formatYMD(end),
-        label: `${formatEthiopianDateValue(start)} – ${formatEthiopianDateValue(end)}`,
+        start: startYmd,
+        end: endYmd,
+        label,
       };
     }
-    // custom: use the Ethiopian date label for both endpoints
+
+    // custom: use the localized date label for both endpoints
     return {
       start: customDates.start,
       end: customDates.end,
-      label: `${formatEthiopianDateValue(customDates.start)} – ${formatEthiopianDateValue(customDates.end)}`,
+      label: `${formatLocalizedDate(customDates.start)} – ${formatLocalizedDate(customDates.end)}`,
     };
-  }, [period, referenceDate, customDates]);
+  }, [period, referenceDate, customDates, i18n.language]);
+
+  const isNextDisabled = React.useMemo(() => {
+    const now = new Date();
+    const d = new Date(referenceDate);
+
+    if (period === "daily") {
+      return formatYMD(d) >= formatYMD(now);
+    }
+    if (period === "weekly") {
+      return formatYMD(d) >= formatYMD(now);
+    }
+    if (period === "monthly") {
+      const ethNow = currentEthiopianDate();
+      const ethRef = gregorianToEthiopian(
+        d.getFullYear(),
+        d.getMonth() + 1,
+        d.getDate(),
+      );
+      return (
+        ethRef.year > ethNow.year ||
+        (ethRef.year === ethNow.year && ethRef.month >= ethNow.month)
+      );
+    }
+    return false;
+  }, [period, referenceDate]);
 
   const handleStepDate = (direction: "prev" | "next") => {
     const factor = direction === "prev" ? -1 : 1;
+    const now = new Date();
+
     if (period === "daily") {
       const nextDate = new Date(referenceDate);
       nextDate.setDate(referenceDate.getDate() + factor * 1);
+      if (direction === "next" && formatYMD(nextDate) > formatYMD(now)) return;
       setReferenceDate(nextDate);
     } else if (period === "weekly") {
       const nextDate = new Date(referenceDate);
       nextDate.setDate(referenceDate.getDate() + factor * 7);
+      if (direction === "next" && formatYMD(nextDate) > formatYMD(now)) {
+        setReferenceDate(now);
+        return;
+      }
       setReferenceDate(nextDate);
     } else if (period === "monthly") {
-      const nextDate = new Date(referenceDate);
-      nextDate.setMonth(referenceDate.getMonth() + factor * 1);
-      setReferenceDate(nextDate);
+      const ethNow = currentEthiopianDate();
+      const ethRef = gregorianToEthiopian(
+        referenceDate.getFullYear(),
+        referenceDate.getMonth() + 1,
+        referenceDate.getDate(),
+      );
+      let m = ethRef.month + factor;
+      let y = ethRef.year;
+      if (m < 1) {
+        m = 13;
+        y = y - 1;
+      } else if (m > 13) {
+        m = 1;
+        y = y + 1;
+      }
+      if (
+        direction === "next" &&
+        (y > ethNow.year || (y === ethNow.year && m > ethNow.month))
+      ) {
+        setReferenceDate(now);
+        return;
+      }
+      const greg = ethiopianToGregorian(y, m, 1);
+      setReferenceDate(new Date(greg.year, greg.month - 1, greg.day));
     } else if (period === "custom") {
       // Parse start/end as local dates (YYYY-MM-DD) to avoid UTC offset shifting
       const [sy, sm, sd] = customDates.start.split("-").map(Number);
@@ -862,7 +968,7 @@ const ReportPage: React.FC = () => {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight">
-              {t("sales_reports")}
+              {t("reports")}
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
               {getDateRangeLabel()}
@@ -910,12 +1016,16 @@ const ReportPage: React.FC = () => {
                 {(["daily", "weekly", "monthly", "custom"] as const).map((p) => (
                   <button
                     key={p}
-                    onClick={() => setPeriod(p)}
+                    onClick={() => {
+                      setPeriod(p);
+                      if (p !== "custom") setReferenceDate(new Date());
+                    }}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${period === p ? "bg-primary text-primary-foreground shadow-sm" : "bg-secondary text-secondary-foreground hover:bg-accent"}`}
                   >
                     {t(p)}
                   </button>
                 ))}
+
                 {period === "custom" && (
                   <div className="flex items-center gap-2 ml-2">
                     <EthiopianDatePicker
@@ -939,7 +1049,7 @@ const ReportPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Stepping Navigation Arrows (Daily: -1/+1 day, Weekly: -7/+7 days, Monthly: -1/+1 month, Custom: -range/+range) */}
+              {/* Stepping Navigation Arrows */}
               <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-lg border border-border">
                 <Button
                   variant="ghost"
@@ -950,21 +1060,44 @@ const ReportPage: React.FC = () => {
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span
-                  className="text-xs sm:text-sm font-semibold px-2 min-w-[160px] max-w-[260px] text-center select-none truncate"
+                <div
+                  className="flex items-center justify-center px-2 min-w-[160px] max-w-[280px] select-none truncate"
                   title={currentRange.label}
                 >
-                  {currentRange.label}
-                </span>
+                  <span className="text-xs sm:text-sm font-semibold truncate">
+                    {currentRange.label}
+                  </span>
+                </div>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8"
                   onClick={() => handleStepDate("next")}
+                  disabled={isNextDisabled}
                   title={`Next ${period}`}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
+
+                {/* Clickable Calendar Picker Icon on the Right */}
+                <EthiopianDatePicker
+                  value={formatYMD(referenceDate)}
+                  onChange={(ymd) => {
+                    if (ymd) {
+                      setReferenceDate(new Date(ymd + "T00:00:00"));
+                    }
+                  }}
+                  disableFuture
+                >
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0 border-l border-border/40 pl-1"
+                    title="Select Date"
+                  >
+                    <Calendar className="h-4 w-4" />
+                  </Button>
+                </EthiopianDatePicker>
               </div>
             </div>
           </CardContent>

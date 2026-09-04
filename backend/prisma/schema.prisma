@@ -842,3 +842,13 @@ model SubscriptionPayment {
   @@map("subscription_payments")
 }
 
+
+// ─── Site Settings (singleton) ────────────────────────────────────────────────
+// Stores system-wide landing page settings. Only one row ever exists (id = "global").
+model SiteSetting {
+  id        String   @id @default("global")
+  contacts  Json     @default("[]")
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
+}

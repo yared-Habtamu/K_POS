@@ -178,6 +178,7 @@ const openCashRequestsRouter = require("./routes/openCashRequests");
 const saleCancellationRequestsRouter = require("./routes/saleCancellationRequests");
 const chatRouter = require("./routes/chat");
 const qzSignRouter = require("./routes/qzSign");
+const siteSettingsRouter = require("./routes/siteSettings");
 
 app.use("/api/expenses", expensesRouter);
 app.use("/api/assets", assetsRouter);
@@ -213,6 +214,7 @@ app.use("/api/open-cash-requests", openCashRequestsRouter);
 app.use("/api/sale-cancellation-requests", saleCancellationRequestsRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/qz-sign", qzSignRouter);
+app.use("/api/site-settings", siteSettingsRouter);
 
 app.use((err, req, res, next) => {
   console.error("Request handling error:", err);
