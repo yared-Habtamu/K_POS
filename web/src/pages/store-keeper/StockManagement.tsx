@@ -470,19 +470,19 @@ export default function StockManagement() {
             getWarehouseQuantity(product) > 0 ? "secondary" : "destructive"
           }
         >
-          {getWarehouseQuantity(product)} pcs
+          {getWarehouseQuantity(product)} {t("pcs") || "pcs"}
         </Badge>
       ),
     },
     {
       key: "martQty",
-      header: "Mart Qty",
+      header: t("mart_qty") || "Mart Qty",
       accessor: (product) => getMartQuantity(product),
       cell: (product) => (
         <Badge
           variant={getMartQuantity(product) > 0 ? "secondary" : "destructive"}
         >
-          {getMartQuantity(product)} pcs
+          {getMartQuantity(product)} {t("pcs") || "pcs"}
         </Badge>
       ),
     },
@@ -491,7 +491,7 @@ export default function StockManagement() {
   const ownerInventoryColumns: DataTableColumn<Product>[] = [
     {
       key: "image",
-      header: "Img",
+      header: t("col_img") || "Img",
       cell: (product) =>
         product.pictureUrl ? (
           <img
@@ -507,24 +507,24 @@ export default function StockManagement() {
     },
     {
       key: "name",
-      header: "Name",
+      header: t("col_name") || t("name") || "Name",
       accessor: (product) => product.name,
       searchable: true,
     },
     {
       key: "category",
-      header: "Category",
+      header: t("col_category") || t("category") || "Category",
       accessor: (product) => product.category,
       searchable: true,
     },
     {
       key: "sold",
-      header: "Sold",
+      header: t("col_sold") || t("sold") || "Sold",
       accessor: (product) => getSoldQuantity(product),
     },
     {
       key: "remain",
-      header: "Remain",
+      header: t("col_remain") || t("remain") || "Remain",
       accessor: (product) => getRemainingQuantity(product),
     },
   ];

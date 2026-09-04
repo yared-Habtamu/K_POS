@@ -453,21 +453,21 @@ export default function OwnerDashboard() {
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">{t("expired_items", { defaultValue: "Expired Items" })}</h2>
-            <Badge variant="secondary">{expiredItems.length} items</Badge>
+            <Badge variant="secondary">{expiredItems.length} {t("items") || "items"}</Badge>
           </div>
           <Card className="border-amber-200/70">
             <CardContent className="pt-6">
               {isLoadingMetrics ? (
                 <div className="text-sm text-muted-foreground">
-                  Loading expired items...
+                  {t("loading") || "Loading expired items..."}
                 </div>
               ) : metricsError ? (
                 <div className="text-sm text-destructive">
-                  Failed to load expired items: {metricsError}
+                  {metricsError}
                 </div>
               ) : expiredItems.length === 0 ? (
                 <div className="text-sm text-muted-foreground">
-                  No expired items found.
+                  {t("no_expired_items") || "No expired items found."}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -495,21 +495,21 @@ export default function OwnerDashboard() {
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">{t("broken_assets", { defaultValue: "Broken Assets" })}</h2>
-            <Badge variant="secondary">{brokenAssets.length} assets</Badge>
+            <Badge variant="secondary">{brokenAssets.length} {t("assets") || "assets"}</Badge>
           </div>
           <Card className="border-rose-200/70">
             <CardContent className="pt-6">
               {isLoadingMetrics ? (
                 <div className="text-sm text-muted-foreground">
-                  Loading broken assets...
+                  {t("loading") || "Loading broken assets..."}
                 </div>
               ) : metricsError ? (
                 <div className="text-sm text-destructive">
-                  Failed to load broken assets: {metricsError}
+                  {metricsError}
                 </div>
               ) : brokenAssets.length === 0 ? (
                 <div className="text-sm text-muted-foreground">
-                  No broken assets found.
+                  {t("no_broken_assets") || "No broken assets found."}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -523,8 +523,8 @@ export default function OwnerDashboard() {
                       <span className="font-medium">{asset.name || "-"}</span>
                       <span className="text-muted-foreground">
                         {(asset.asset_status || "unbroken") === "broken"
-                          ? "Broken"
-                          : "Not broken"}
+                          ? (t("broken") || "Broken")
+                          : (t("not_broken") || "Not broken")}
                       </span>
                     </div>
                   ))}

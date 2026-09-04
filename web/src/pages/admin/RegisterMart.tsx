@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -136,6 +137,7 @@ function dedupeCountryOptions(options: CountryOption[]) {
 }
 
 export default function RegisterMart() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const navigate = useNavigate();
   const token = useAuthStore((s) => s.user?.token);
@@ -348,24 +350,24 @@ export default function RegisterMart() {
             onClick={() => navigate(-1)}
             className="gap-2 text-muted-foreground"
           >
-            <ArrowLeft className="w-4 h-4" /> Back
+            <ArrowLeft className="w-4 h-4" /> {t("back") || "Back"}
           </Button>
         </div>
         <div>
-          <h1 className="text-2xl font-bold">Register Your Supermarket</h1>
-          <p className="text-muted-foreground">Create a new mart and select its subscription license &amp; hardware.</p>
+          <h1 className="text-2xl font-bold">{t("register_new_mart")}</h1>
+          <p className="text-muted-foreground">{t("register_mart_subtitle")}</p>
         </div>
 
         {/* Subscription & Hardware Selection */}
         <Card className="border-primary/30">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-primary" /> Select License Package &amp; Hardware
+              <Sparkles className="w-5 h-5 text-primary" /> {t("select_package")} &amp; {t("hardware_addons_optional")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-3">
-              <Label className="text-sm font-semibold">1. License Package</Label>
+              <Label className="text-sm font-semibold">1. {t("license_package")}</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 {DEFAULT_PACKAGES.map((pkg) => {
                   const isSelected = selectedPackage.months === pkg.months;
@@ -385,24 +387,24 @@ export default function RegisterMart() {
                     >
                       {isBestValue && (
                         <span className="absolute -top-2.5 right-2 bg-primary text-primary-foreground text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
-                          Best Value
+                          {t("best_value")}
                         </span>
                       )}
                       {isPopular && !isBestValue && (
                         <span className="absolute -top-2.5 right-2 bg-blue-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
-                          Most Popular
+                          {t("most_popular")}
                         </span>
                       )}
                       {isFree && (
                         <span className="absolute -top-2.5 right-2 bg-emerald-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
-                          7 Days Free
+                          {t("seven_days_free")}
                         </span>
                       )}
 
                       <div>
                         <p className="font-bold text-sm text-foreground pt-1">{pkg.name}</p>
                         <p className="text-xl font-extrabold text-primary my-1">
-                          {pkg.price === 0 ? "Free" : `${pkg.price.toLocaleString()} `}
+                          {pkg.price === 0 ? (t("free") || "Free") : `${pkg.price.toLocaleString()} `}
                           {pkg.price > 0 && <span className="text-[10px] font-normal text-muted-foreground">ETB</span>}
                         </p>
                         <ul className="space-y-1 text-[11px] text-muted-foreground mt-2">
@@ -417,7 +419,7 @@ export default function RegisterMart() {
 
                       {isSelected && (
                         <p className="mt-3 flex items-center text-xs font-bold text-primary gap-1 pt-2 border-t border-primary/20">
-                          <Check className="w-3.5 h-3.5" /> Selected
+                          <Check className="w-3.5 h-3.5" /> {t("selected")}
                         </p>
                       )}
                     </div>
@@ -428,7 +430,7 @@ export default function RegisterMart() {
 
             <div className="space-y-3 pt-2 border-t border-border/60">
               <Label className="text-sm font-semibold flex items-center gap-2">
-                <Boxes className="w-4 h-4 text-primary" /> 2. Sold Hardware Add-ons (Optional)
+                <Boxes className="w-4 h-4 text-primary" /> 2. {t("hardware_addons_optional")}
               </Label>
               {loadingHardware ? (
                 <div className="flex items-center justify-center py-8 text-muted-foreground gap-2">
@@ -498,14 +500,14 @@ export default function RegisterMart() {
 
             <div className="flex items-center justify-between p-3 rounded-xl bg-primary/5 border border-primary/20">
               <div>
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Total Order Summary</p>
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{t("total_order_summary")}</p>
                 <p className="text-xl font-extrabold text-primary">
                   {(() => {
                     const hardwareTotal = hardwareProducts.reduce((sum, product) => 
                       sum + (hardwareCounts[product.id] || 0) * product.unitPrice, 0
                     );
                     const total = selectedPackage.price + hardwareTotal;
-                    return total === 0 ? "Free" : `${total.toLocaleString()} ETB`;
+                    return total === 0 ? (t("free") || "Free") : `${total.toLocaleString()} ETB`;
                   })()}
                 </p>
               </div>
@@ -522,7 +524,7 @@ export default function RegisterMart() {
 
         <Card>
           <CardHeader>
-            <CardTitle>New Mart</CardTitle>
+            <CardTitle>{t("register_new_mart")}</CardTitle>
           </CardHeader>
           <CardContent>
             <form
@@ -530,7 +532,7 @@ export default function RegisterMart() {
               className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-xl"
             >
               <div>
-                <Label>Mart Name</Label>
+                <Label>{t("mart_name")}</Label>
                 <Input
                   placeholder="e.g. Kebele Supermarket"
                   value={name}
@@ -539,7 +541,7 @@ export default function RegisterMart() {
                 />
               </div>
               <div>
-                <Label>Owner Name</Label>
+                <Label>{t("owner_name")}</Label>
                 <Input
                   placeholder="Full name"
                   value={owner}
@@ -548,7 +550,7 @@ export default function RegisterMart() {
                 />
               </div>
               <div>
-                <Label>Email</Label>
+                <Label>{t("email")}</Label>
                 <Input
                   placeholder="owner@company.com"
                   type="email"
@@ -559,7 +561,7 @@ export default function RegisterMart() {
               <div>
                 <AutoComplete<CountryOption>
                   id="mart-country-autocomplete"
-                  label="Country"
+                  label={t("country")}
                   placeholder="Select or add country"
                   items={countryOptions}
                   value={country}
@@ -590,7 +592,7 @@ export default function RegisterMart() {
                 />
               </div>
               <div>
-                <Label>Region</Label>
+                <Label>{t("region")}</Label>
                 <Input
                   placeholder="Select region"
                   value={region}
@@ -598,7 +600,7 @@ export default function RegisterMart() {
                 />
               </div>
               <div>
-                <Label>City</Label>
+                <Label>{t("city")}</Label>
                 <Input
                   placeholder="Addis Ababa"
                   value={city}
@@ -607,7 +609,7 @@ export default function RegisterMart() {
               </div>
 
               <div className="md:col-span-2">
-                <Label>Address</Label>
+                <Label>{t("address")}</Label>
                 <Input
                   placeholder="Street, area"
                   value={address}
@@ -616,7 +618,7 @@ export default function RegisterMart() {
               </div>
 
               <div>
-                <Label>Phone</Label>
+                <Label>{t("phone")}</Label>
                 <Input
                   placeholder="+251 9xx xxx xxx"
                   value={phone}
@@ -624,7 +626,7 @@ export default function RegisterMart() {
                 />
               </div>
               <div>
-                <Label>Owner Username</Label>
+                <Label>{t("admin_username")}</Label>
                 <Input
                   placeholder="choose-a-username"
                   value={username}
@@ -633,7 +635,7 @@ export default function RegisterMart() {
               </div>
 
               <div>
-                <Label>Password</Label>
+                <Label>{t("password")}</Label>
                 <Input
                   placeholder="Choose a secure password"
                   type="password"
@@ -642,7 +644,7 @@ export default function RegisterMart() {
                 />
               </div>
               <div>
-                <Label>Confirm Password</Label>
+                <Label>{t("confirm_password")}</Label>
                 <Input
                   placeholder="Confirm password"
                   type="password"
@@ -653,7 +655,7 @@ export default function RegisterMart() {
 
               <div className="md:col-span-2 flex gap-2">
                 <Button type="submit" disabled={submitting}>
-                  {submitting ? "Registering..." : "Register Mart & Proceed to Checkout"}
+                  {submitting ? t("registering") : t("register_mart_checkout")}
                 </Button>
                 <Button
                   variant="ghost"
@@ -671,7 +673,7 @@ export default function RegisterMart() {
                     setConfirmPassword("");
                   }}
                 >
-                  Reset
+                  {t("reset")}
                 </Button>
               </div>
             </form>

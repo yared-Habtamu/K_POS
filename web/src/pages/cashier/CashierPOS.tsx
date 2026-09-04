@@ -273,21 +273,21 @@ export default function CashierPOS() {
               getWarehouseQuantity(product) > 0 ? "secondary" : "destructive"
             }
           >
-            {getWarehouseQuantity(product)} pcs
+            {getWarehouseQuantity(product)} {t("pcs")}
           </Badge>
         );
       },
     },
     {
       key: "martQty",
-      header: "Mart Qty",
+      header: t("mart_qty"),
       accessor: (product) => getMartQuantity(product),
       cell: (product) => {
         const martQty = getMartQuantity(product);
 
         return (
           <Badge variant={martQty > 0 ? "secondary" : "destructive"}>
-            {martQty} pcs
+            {martQty} {t("pcs")}
           </Badge>
         );
       },
@@ -476,18 +476,18 @@ export default function CashierPOS() {
               title={t("detailed_product_list")}
               description={t("detailed_product_list_description")}
               isLoading={isLoading}
-              loadingMessage="Loading products..."
+              loadingMessage={t("loading_products") || "Loading products..."}
               emptyMessage={
                 fetchError
                   ? fetchError
-                  : "No products match the selected filters."
+                  : t("no_products_found") || "No products match the selected filters."
               }
               pagination
               initialPageSize={8}
               pageSizeOptions={[8, 12, 20]}
               customRowActions={[
                 {
-                  label: "Add",
+                  label: t("add"),
                   icon: Plus,
                   onClick: handleAddToCart,
                 },
@@ -495,10 +495,10 @@ export default function CashierPOS() {
               toolbarContent={
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="text-xs">
-                    {filteredProducts.length} products
+                    {filteredProducts.length} {t("products")}
                   </Badge>
                   <Badge variant="secondary" className="text-xs">
-                    {items.length} {t("items")} in cart
+                    {items.length} {t("items_in_cart")}
                   </Badge>
                 </div>
               }

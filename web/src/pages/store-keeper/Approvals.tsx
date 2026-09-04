@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { getImageUrl, handleImageError } from "@/utils/imageUrl";
 import { useNavigate } from "react-router-dom";
 import { RoleLayout } from "@/components/layout/RoleLayout";
@@ -42,6 +43,7 @@ type ApprovalDecision = {
 };
 
 export default function StoreKeeperApprovals() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const token = useAuthStore.getState().user?.token;
   const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
@@ -185,9 +187,9 @@ export default function StoreKeeperApprovals() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Approvals</h1>
+            <h1 className="text-2xl font-bold">{t("pending_requests") || "Approvals"}</h1>
             <p className="text-muted-foreground">
-              Review owner product add requests for stock additions.
+              {t("staff_workflow_history") || "Review owner product add requests for stock additions."}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -199,8 +201,8 @@ export default function StoreKeeperApprovals() {
               size="icon"
               onClick={() => void fetchRequests()}
               disabled={loading}
-              aria-label="Refresh approvals"
-              title="Refresh approvals"
+              aria-label={t("refresh") || "Refresh"}
+              title={t("refresh") || "Refresh"}
             >
               <RotateCw
                 className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
@@ -209,11 +211,11 @@ export default function StoreKeeperApprovals() {
             <Button
               variant="outline"
               onClick={() => navigate("/store-keeper/approval-history")}
-              aria-label="Approval history"
-              title="Approval history"
+              aria-label={t("request_history") || "Approval History"}
+              title={t("request_history") || "Approval History"}
             >
               <History className="mr-2 h-4 w-4" />
-              Approval History
+              {t("request_history") || "Approval History"}
             </Button>
           </div>
         </div>
@@ -221,7 +223,7 @@ export default function StoreKeeperApprovals() {
         <Card>
           <CardContent className="grid gap-4 md:grid-cols-3 md:items-end">
             <div className="space-y-2">
-              <Label>Status</Label>
+              <Label>{t("status")}</Label>
               <select
                 className="w-full border rounded-md h-10 px-3 text-sm bg-background"
                 value={statusFilter}
@@ -235,16 +237,15 @@ export default function StoreKeeperApprovals() {
                   )
                 }
               >
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-                <option value="all">All</option>
+                <option value="pending">{t("pending") || "Pending"}</option>
+                <option value="approved">{t("approved") || "Approved"}</option>
+                <option value="rejected">{t("rejected") || "Rejected"}</option>
+                <option value="all">{t("all") || "All"}</option>
               </select>
             </div>
 
             <div className="md:col-span-2 flex items-center gap-2 text-sm text-muted-foreground">
-              <Badge variant="secondary">Pending: {pendingCount}</Badge>
-              <span>These requests are assigned to Store Keeper approval.</span>
+              <Badge variant="secondary">{t("pending") || "Pending"}: {pendingCount}</Badge>
             </div>
           </CardContent>
         </Card>

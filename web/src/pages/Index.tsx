@@ -155,20 +155,19 @@ export function getIconConfig(iconName: string): {
   }
 }
 
-// ── Nav tabs ──────────────────────────────────────────────────────────────────
-const NAV_TABS = [
-  { id: "home", label: "Home" },
-  { id: "shop", label: "Shop" },
-  { id: "about", label: "About" },
-  { id: "contact", label: "Contact" },
-];
-
 export default function Index() {
   const { isAuthenticated, user } = useAuthStore();
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const isAmharic =
     i18n.resolvedLanguage?.startsWith("am") ?? i18n.language.startsWith("am");
+
+  const navTabs = [
+    { id: "home", label: t("nav_home", "Home") },
+    { id: "shop", label: t("nav_shop", "Shop") },
+    { id: "about", label: t("nav_about", "About") },
+    { id: "contact", label: t("nav_contact", "Contact") },
+  ];
 
   const [comingSoonSector, setComingSoonSector] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -282,7 +281,7 @@ export default function Index() {
 
           {/* Desktop tabs */}
           <nav className="hidden md:flex items-center gap-1">
-            {NAV_TABS.map((tab) => (
+            {navTabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => scrollTo(tab.id)}
@@ -334,7 +333,7 @@ export default function Index() {
             animate={{ opacity: 1, y: 0 }}
             className="md:hidden border-t border-border/40 bg-background/95 backdrop-blur-xl px-4 py-3 flex flex-col gap-1"
           >
-            {NAV_TABS.map((tab) => (
+            {navTabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => scrollTo(tab.id)}
@@ -378,20 +377,21 @@ export default function Index() {
             </motion.div>
 
             <h1 className="text-4xl md:text-6xl font-bold mb-4 tracking-tight leading-tight">
-              {t("hero_title_part1")}{" "}
-              <span className="text-gradient">{t("hero_title_part2")}</span>{" "}
-              {t("hero_title_part3")}
+              <span className="text-gradient">
+                {isAmharic ? "ኪያ POS ሲስተም" : "Kiya POS System"}
+              </span>
             </h1>
-            <p className="text-base md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed">
-              Complete point-of-sale and inventory management solution for
-              Ethiopian supermarkets and retail stores.
+            <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed">
+              {isAmharic
+                ? "ፈጣን፣ አስተማማኝ እና ሙሉ ለሙሉ የተሟላ የሽያጭ እና የክምችት ማኔጅመንት ሲስተም"
+                : "Fast, reliable, and complete point-of-sale and inventory management system designed for modern retail."}
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Button
                 size="lg"
                 onClick={handleGetStarted}
-                className="text-base h-13 px-8 shadow-lg"
+                className="text-base h-13 px-8 shadow-glow"
               >
                 {isAuthenticated ? t("dashboard_go") : t("get_started")}
                 <ArrowRight className="ml-2 h-5 w-5" />
@@ -427,7 +427,7 @@ export default function Index() {
               onClick={() => scrollTo("shop")}
             >
               <span className="text-[11px] font-bold text-muted-foreground group-hover:text-primary transition-colors mb-2 tracking-widest uppercase">
-                Scroll Down
+                {t("scroll_down") || "Scroll Down"}
               </span>
               <motion.div
                 animate={{ y: [0, 8, 0] }}
@@ -453,10 +453,10 @@ export default function Index() {
           >
             <div className="space-y-2">
               <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-                Choose your business sector
+                {t("explore_tailored_solutions") || "Choose your business sector"}
               </h2>
               <p className="text-muted-foreground text-sm md:text-base">
-                Get the right ERP solution for your business
+                {t("sectors_subtitle") || "Get the right ERP solution for your business"}
               </p>
             </div>
 
@@ -470,7 +470,7 @@ export default function Index() {
                   <Scissors className="w-7 h-7" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-foreground">Beauty</h3>
+                  <h3 className="font-bold text-base text-foreground">{t("sector_beauty")}</h3>
                   <p className="text-[11px] text-muted-foreground">Salon & Spa ERP</p>
                 </div>
               </Card>
@@ -484,7 +484,7 @@ export default function Index() {
                   <Building2 className="w-7 h-7" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-foreground">Hotel</h3>
+                  <h3 className="font-bold text-base text-foreground">{t("sector_hotel")}</h3>
                   <p className="text-[11px] text-muted-foreground">Hospitality ERP</p>
                 </div>
               </Card>
@@ -498,7 +498,7 @@ export default function Index() {
                   <Sparkles className="w-7 h-7" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-foreground">Beutics</h3>
+                  <h3 className="font-bold text-base text-foreground">{t("sector_fashion") || "Beutics"}</h3>
                   <p className="text-[11px] text-muted-foreground">Beauty Store ERP</p>
                 </div>
               </Card>
@@ -509,20 +509,20 @@ export default function Index() {
                 className="p-6 border-2 border-primary/40 hover:border-primary hover:shadow-glow ring-2 ring-primary/10 cursor-pointer transition-all duration-300 rounded-2xl flex flex-col items-center justify-center text-center space-y-3 group bg-card relative"
               >
                 <Badge className="absolute -top-2.5 bg-primary text-primary-foreground text-[10px]">
-                  Active
+                  {t("active_status")}
                 </Badge>
                 <div className="w-14 h-14 rounded-2xl bg-primary/15 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
                   <ShoppingCart className="w-7 h-7" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-foreground">Smart Cart</h3>
+                  <h3 className="font-bold text-base text-foreground">{t("sector_supermarket") || "Smart Cart"}</h3>
                   <p className="text-[11px] text-primary font-medium">Smart POS Ready</p>
                 </div>
               </Card>
             </div>
 
             <p className="text-xs text-muted-foreground italic">
-              Please select an industry from the above list.
+              {t("sectors_subtitle") || "Please select an industry from the above list."}
             </p>
           </motion.div>
         </div>
@@ -540,20 +540,20 @@ export default function Index() {
           >
             <div className="text-center space-y-2 mb-12">
               <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-                About Kiya POS
+                {t("about_kiya_pos")}
               </h2>
               <p className="text-muted-foreground text-sm md:text-base max-w-xl mx-auto">
-                Built from the ground up for Ethiopian retail — fast, bilingual, and reliable.
+                {t("about_kiya_p1") || "Built from the ground up for Ethiopian retail — fast, bilingual, and reliable."}
               </p>
             </div>
 
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {[
-                { icon: BarChart3, title: "Analytics", desc: "Real-time sales, profit, and inventory insights at a glance." },
-                { icon: Users, title: "Multi-Role", desc: "Owner, Manager, Cashier, Store Keeper — each with tailored permissions." },
-                { icon: Globe, title: "Bilingual", desc: "Full English & Amharic support across the entire system." },
-                { icon: Package, title: "Inventory", desc: "Track warehouse stock and mart shelves in real time." },
-                { icon: Shield, title: "Secure", desc: "Role-based access and encrypted data keep your business safe." },
+                { icon: BarChart3, title: t("feature_analytics"), desc: t("feature_analytics_desc") },
+                { icon: Users, title: t("feature_role_access"), desc: t("feature_role_access_desc") },
+                { icon: Globe, title: t("feature_multi_language"), desc: t("feature_multi_language_desc") },
+                { icon: Package, title: t("feature_realtime_inventory"), desc: t("feature_realtime_inventory_desc") },
+                { icon: Shield, title: t("feature_offline_first"), desc: t("feature_offline_first_desc") },
               ].map((f) => (
                 <motion.div
                   key={f.title}
@@ -625,10 +625,10 @@ export default function Index() {
               {/* Quick links */}
               <div className="space-y-3">
                 <h4 className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground">
-                  Quick Navigation
+                  {t("quick_navigation") || "Quick Navigation"}
                 </h4>
                 <ul className="space-y-1.5">
-                  {NAV_TABS.map((tab) => (
+                  {navTabs.map((tab) => (
                     <li key={tab.id}>
                       <button
                         onClick={() => scrollTo(tab.id)}
@@ -644,7 +644,7 @@ export default function Index() {
               {/* Direct Contact List */}
               <div className="space-y-3">
                 <h4 className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground">
-                  Direct Contact
+                  {t("direct_contact") || "Direct Contact"}
                 </h4>
                 <ul className="space-y-2">
                   {contacts
@@ -692,7 +692,7 @@ export default function Index() {
                         c.icon === "email"),
                   ).length === 0 && (
                     <li className="text-xs text-muted-foreground/60 italic">
-                      No direct contacts configured.
+                      {t("no_direct_contacts") || "No direct contacts configured."}
                     </li>
                   )}
                 </ul>
@@ -701,12 +701,12 @@ export default function Index() {
 
             {/* Bottom copyright bar (Smaller Word Size) */}
             <div className="mt-8 pt-4 border-t border-border/50 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-muted-foreground/80">
-              <span>© {new Date().getFullYear()} Kiya POS System v2.1 • Built for Ethiopian Retail</span>
+              <span>© {new Date().getFullYear()} Kiya POS System • {t("empowering_retailers")}</span>
               <button
                 onClick={() => scrollTo("home")}
                 className="hover:text-primary transition-colors text-[11px]"
               >
-                Back to top ↑
+                {t("back_to_top") || "Back to top ↑"}
               </button>
             </div>
           </div>

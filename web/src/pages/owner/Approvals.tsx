@@ -62,6 +62,13 @@ function formatDate(value?: Date | string | null) {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useTranslation();
+  const label =
+    status === "approved"
+      ? t("approved")
+      : status === "rejected"
+        ? t("rejected")
+        : t("pending_status", "Pending");
   return (
     <Badge
       variant={
@@ -73,7 +80,7 @@ function StatusBadge({ status }: { status: string }) {
       }
       className="capitalize"
     >
-      {status}
+      {label}
     </Badge>
   );
 }
@@ -117,6 +124,7 @@ function ImageThumb({ src, alt }: { src?: string | null; alt: string }) {
 // ── Expense Detail Panel (shown when row is expanded) ────────────────────────
 
 function ExpenseDetailPanel({ r }: { r: ExpenseActionRequest }) {
+  const { t } = useTranslation();
   const p = r.payload || {};
   const screenshots: string[] = Array.isArray(p.screenshots) ? p.screenshots : [];
 
@@ -126,7 +134,7 @@ function ExpenseDetailPanel({ r }: { r: ExpenseActionRequest }) {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 text-sm">
         <div>
           <p className="text-xs text-muted-foreground flex items-center gap-1 mb-0.5">
-            <User className="h-3 w-3" /> Requested By
+            <User className="h-3 w-3" /> {t("requested_by")}
           </p>
           <p className="font-medium">{r.requesterName || "—"}</p>
           {r.requesterRole && (
@@ -138,43 +146,43 @@ function ExpenseDetailPanel({ r }: { r: ExpenseActionRequest }) {
 
         <div>
           <p className="text-xs text-muted-foreground flex items-center gap-1 mb-0.5">
-            <Calendar className="h-3 w-3" /> Requested At
+            <Calendar className="h-3 w-3" /> {t("requested_at")}
           </p>
           <p className="font-medium">{formatDate(r.createdAt)}</p>
         </div>
 
         <div>
           <p className="text-xs text-muted-foreground flex items-center gap-1 mb-0.5">
-            <Tag className="h-3 w-3" /> Category
+            <Tag className="h-3 w-3" /> {t("category")}
           </p>
           <p className="font-medium capitalize">{p.category || "—"}</p>
         </div>
 
         <div>
           <p className="text-xs text-muted-foreground flex items-center gap-1 mb-0.5">
-            <DollarSign className="h-3 w-3" /> Amount
+            <DollarSign className="h-3 w-3" /> {t("amount")}
           </p>
           <p className="font-bold text-base">{Number(p.amount || 0).toLocaleString()} ETB</p>
         </div>
 
         <div>
           <p className="text-xs text-muted-foreground flex items-center gap-1 mb-0.5">
-            <Calendar className="h-3 w-3" /> Expense Date
+            <Calendar className="h-3 w-3" /> {t("expense_date")}
           </p>
           <p className="font-medium">{p.date ? formatDate(p.date) : "—"}</p>
         </div>
 
         <div>
           <p className="text-xs text-muted-foreground flex items-center gap-1 mb-0.5">
-            <CreditCard className="h-3 w-3" /> Payment Type
+            <CreditCard className="h-3 w-3" /> {t("payment_type")}
           </p>
-          <p className="font-medium capitalize">{p.paymentType || "open_cash"}</p>
+          <p className="font-medium capitalize">{p.paymentType ? t(p.paymentType, p.paymentType) : t("open_cash")}</p>
         </div>
 
         {p.name && (
           <div>
             <p className="text-xs text-muted-foreground flex items-center gap-1 mb-0.5">
-              <Tag className="h-3 w-3" /> Item Name
+              <Tag className="h-3 w-3" /> {t("item_name")}
             </p>
             <p className="font-medium">{p.name}</p>
           </div>
@@ -183,7 +191,7 @@ function ExpenseDetailPanel({ r }: { r: ExpenseActionRequest }) {
         {r.status !== "pending" && (
           <div>
             <p className="text-xs text-muted-foreground flex items-center gap-1 mb-0.5">
-              <User className="h-3 w-3" /> Decided By
+              <User className="h-3 w-3" /> {t("decided_by")}
             </p>
             <p className="font-medium">{r.approverName || "—"}</p>
           </div>
@@ -192,7 +200,7 @@ function ExpenseDetailPanel({ r }: { r: ExpenseActionRequest }) {
         {r.decidedAt && (
           <div>
             <p className="text-xs text-muted-foreground flex items-center gap-1 mb-0.5">
-              <Calendar className="h-3 w-3" /> Decided At
+              <Calendar className="h-3 w-3" /> {t("decided_at")}
             </p>
             <p className="font-medium">{formatDate(r.decidedAt)}</p>
           </div>
@@ -204,7 +212,7 @@ function ExpenseDetailPanel({ r }: { r: ExpenseActionRequest }) {
         {p.description && (
           <div>
             <p className="text-xs text-muted-foreground flex items-center gap-1 mb-0.5">
-              <FileText className="h-3 w-3" /> Description
+              <FileText className="h-3 w-3" /> {t("description")}
             </p>
             <p className="text-sm bg-background rounded-md border border-border px-3 py-2">
               {p.description}
@@ -214,7 +222,7 @@ function ExpenseDetailPanel({ r }: { r: ExpenseActionRequest }) {
         {p.reason && (
           <div>
             <p className="text-xs text-muted-foreground flex items-center gap-1 mb-0.5">
-              <FileText className="h-3 w-3" /> Reason / Note
+              <FileText className="h-3 w-3" /> {t("reason_note")}
             </p>
             <p className="text-sm bg-background rounded-md border border-border px-3 py-2">
               {p.reason}
@@ -223,7 +231,7 @@ function ExpenseDetailPanel({ r }: { r: ExpenseActionRequest }) {
         )}
         {r.reason && r.status === "rejected" && (
           <div>
-            <p className="text-xs text-muted-foreground mb-0.5">Rejection Reason</p>
+            <p className="text-xs text-muted-foreground mb-0.5">{t("rejection_reason")}</p>
             <p className="text-sm bg-destructive/10 rounded-md border border-destructive/20 px-3 py-2 text-destructive">
               {r.reason}
             </p>
@@ -235,25 +243,25 @@ function ExpenseDetailPanel({ r }: { r: ExpenseActionRequest }) {
       {(p.productPicture || p.paymentScreenshot || screenshots.length > 0) && (
         <div>
           <p className="text-xs text-muted-foreground flex items-center gap-1 mb-2">
-            <ImageIcon className="h-3 w-3" /> Attachments
+            <ImageIcon className="h-3 w-3" /> {t("attachments")}
           </p>
           <div className="flex flex-wrap gap-3">
             {p.productPicture && (
               <div className="space-y-1">
-                <p className="text-[10px] text-muted-foreground">Product Picture</p>
-                <ImageThumb src={p.productPicture} alt="Product picture" />
+                <p className="text-[10px] text-muted-foreground">{t("product_picture")}</p>
+                <ImageThumb src={p.productPicture} alt={t("product_picture")} />
               </div>
             )}
             {p.paymentScreenshot && (
               <div className="space-y-1">
-                <p className="text-[10px] text-muted-foreground">Payment Receipt</p>
-                <ImageThumb src={p.paymentScreenshot} alt="Payment receipt" />
+                <p className="text-[10px] text-muted-foreground">{t("payment_receipt")}</p>
+                <ImageThumb src={p.paymentScreenshot} alt={t("payment_receipt")} />
               </div>
             )}
             {screenshots.map((s: string, i: number) => (
               <div key={i} className="space-y-1">
-                <p className="text-[10px] text-muted-foreground">Screenshot {i + 1}</p>
-                <ImageThumb src={s} alt={`Screenshot ${i + 1}`} />
+                <p className="text-[10px] text-muted-foreground">{t("screenshot")} {i + 1}</p>
+                <ImageThumb src={s} alt={`${t("screenshot")} ${i + 1}`} />
               </div>
             ))}
           </div>
@@ -266,7 +274,7 @@ function ExpenseDetailPanel({ r }: { r: ExpenseActionRequest }) {
 // ── Main page ────────────────────────────────────────────────────────────────
 
 export default function OwnerApprovals() {
-  useTranslation();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const token = useAuthStore.getState().user?.token;
   const [assetRequests, setAssetRequests] = useState<AssetActionRequest[]>([]);
@@ -320,32 +328,34 @@ export default function OwnerApprovals() {
       setAssetRequests(Array.isArray(assetJson) ? assetJson : []);
       setExpenseRequests(Array.isArray(expenseJson) ? expenseJson : []);
     } catch (err) {
-      console.error("Failed to load approvals", err);
-      toast({ title: "Failed to load approvals", variant: "destructive" });
+      console.error(err);
+      toast({ title: "Failed to load requests", variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
 
-  const actOn = async (
+  const handleAction = async (
     target: "asset" | "expense",
     id: string,
     action: "approve" | "reject",
-    reason?: string,
+    reason?: string
   ) => {
-    const endpoint =
-      target === "asset"
-        ? `${API_BASE}/api/asset-action-requests/${id}/${action}`
-        : `${API_BASE}/api/expense-action-requests/${id}/${action}`;
     try {
+      const endpoint =
+        target === "asset"
+          ? `${API_BASE}/api/asset-action-requests/${id}/${action}`
+          : `${API_BASE}/api/expense-action-requests/${id}/${action}`;
+
       const res = await fetch(endpoint, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: token ? `Bearer ${token}` : "",
         },
-        body: JSON.stringify(reason ? { reason } : {}),
+        body: JSON.stringify(action === "reject" ? { reason } : {}),
       });
+
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
         throw new Error(e.message || `Failed with ${res.status}`);
@@ -376,9 +386,9 @@ export default function OwnerApprovals() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Approvals</h1>
+            <h1 className="text-2xl font-bold">{t("pending_requests") || "Approvals"}</h1>
             <p className="text-muted-foreground">
-              Review and act on pending asset and expense requests.
+              {t("approvals_subtitle") || "Review and act on pending asset and expense requests."}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -388,7 +398,7 @@ export default function OwnerApprovals() {
               size="icon"
               onClick={() => void fetchRequests()}
               disabled={loading}
-              aria-label="Refresh approvals"
+              aria-label={t("refresh") || "Refresh approvals"}
             >
               <RotateCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
@@ -400,7 +410,7 @@ export default function OwnerApprovals() {
           className="cursor-pointer border-primary/30 hover:border-primary/60 hover:bg-accent/40 transition-all group"
           onClick={() => navigate("/owner/approval-history")}
           role="button"
-          aria-label="View store workflow history"
+          aria-label={t("staff_workflow_history") || "View store workflow history"}
           tabIndex={0}
           onKeyDown={(e) => e.key === "Enter" && navigate("/owner/approval-history")}
         >
@@ -410,9 +420,9 @@ export default function OwnerApprovals() {
                 <GitMerge className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="font-semibold text-base">Staff Workflow History</p>
+                <p className="font-semibold text-base">{t("staff_workflow_history") || "Staff Workflow History"}</p>
                 <p className="text-sm text-muted-foreground">
-                  View all stock transfer, product add &amp; edit approval flows between Storekeepers and Managers
+                  {t("staff_workflow_history_desc") || "View all stock transfer, product add & edit approval flows between Storekeepers and Managers"}
                 </p>
               </div>
             </div>
@@ -422,7 +432,7 @@ export default function OwnerApprovals() {
 
         {/* Status filter */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-muted-foreground">Filter:</span>
+          <span className="text-sm font-medium text-muted-foreground">{t("filter_label", "Filter")}:</span>
           {(["pending", "all", "approved", "rejected"] as const).map((s) => (
             <Button
               key={s}
@@ -431,7 +441,13 @@ export default function OwnerApprovals() {
               onClick={() => setStatusFilter(s)}
               className="capitalize"
             >
-              {s}
+              {s === "pending"
+                ? t("pending_status", "Pending")
+                : s === "all"
+                  ? t("all_filter", "All")
+                  : s === "approved"
+                    ? t("approved", "Approved")
+                    : t("rejected", "Rejected")}
               {s === "pending" && pendingExpense + pendingAsset > 0 && statusFilter !== "pending" && (
                 <span className="ml-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5">
                   {pendingExpense + pendingAsset}
@@ -445,26 +461,26 @@ export default function OwnerApprovals() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              Asset Requests
+              {t("asset_requests", "Asset Requests")}
               <Badge variant="secondary">{assetRequests.length}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             {assetRequests.length === 0 ? (
-              <p className="text-sm text-muted-foreground px-6 pb-6">No asset requests found.</p>
+              <p className="text-sm text-muted-foreground px-6 pb-6">{t("no_asset_requests_found", "No asset requests found.")}</p>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Requested At</TableHead>
-                      <TableHead>Action</TableHead>
-                      <TableHead>Asset</TableHead>
-                      <TableHead>Requested By</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Decided At</TableHead>
-                      <TableHead>Reason</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead>{t("requested_at", "Requested At")}</TableHead>
+                      <TableHead>{t("action", "Action")}</TableHead>
+                      <TableHead>{t("asset", "Asset")}</TableHead>
+                      <TableHead>{t("requested_by", "Requested By")}</TableHead>
+                      <TableHead>{t("status", "Status")}</TableHead>
+                      <TableHead>{t("decided_at", "Decided At")}</TableHead>
+                      <TableHead>{t("reason", "Reason")}</TableHead>
+                      <TableHead className="text-right">{t("actions", "Actions")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -498,13 +514,13 @@ export default function OwnerApprovals() {
                                     setPendingReject({ target: "asset", id, itemLabel });
                                   }}
                                 >
-                                  Reject
+                                  {t("reject", "Reject")}
                                 </Button>
                                 <Button
                                   size="sm"
                                   onClick={() => setPendingApprove({ target: "asset", id, itemLabel })}
                                 >
-                                  Approve
+                                  {t("approve", "Approve")}
                                 </Button>
                               </div>
                             )}
@@ -523,34 +539,34 @@ export default function OwnerApprovals() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              Expense Requests
+              {t("expense_requests", "Expense Requests")}
               <Badge variant="secondary">{expenseRequests.length}</Badge>
               {statusFilter === "pending" && expenseRequests.length > 0 && (
                 <span className="text-xs text-muted-foreground font-normal ml-1">
-                  — click a row to see full details
+                  — {t("click_row_details", "click a row to see full details")}
                 </span>
               )}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             {expenseRequests.length === 0 ? (
-              <p className="text-sm text-muted-foreground px-6 pb-6">No expense requests found.</p>
+              <p className="text-sm text-muted-foreground px-6 pb-6">{t("no_expense_requests_found", "No expense requests found.")}</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border/60 text-xs text-muted-foreground uppercase tracking-wide">
-                      <th className="px-4 py-3 text-left font-medium whitespace-nowrap">Requested At</th>
-                      <th className="px-4 py-3 text-left font-medium">Category</th>
-                      <th className="px-4 py-3 text-left font-medium">Item / Description</th>
-                      <th className="px-4 py-3 text-left font-medium">Amount</th>
-                      <th className="px-4 py-3 text-left font-medium">Payment Type</th>
-                      <th className="px-4 py-3 text-left font-medium">Product Pic</th>
-                      <th className="px-4 py-3 text-left font-medium">Receipt</th>
-                      <th className="px-4 py-3 text-left font-medium whitespace-nowrap">Requested By</th>
-                      <th className="px-4 py-3 text-left font-medium">Status</th>
-                      <th className="px-4 py-3 text-left font-medium whitespace-nowrap">Decided At</th>
-                      <th className="px-4 py-3 text-right font-medium">Actions</th>
+                      <th className="px-4 py-3 text-left font-medium whitespace-nowrap">{t("requested_at", "Requested At")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("category", "Category")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("item_description", "Item / Description")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("amount", "Amount")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("payment_type", "Payment Type")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("product_pic", "Product Pic")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("receipt", "Receipt")}</th>
+                      <th className="px-4 py-3 text-left font-medium whitespace-nowrap">{t("requested_by", "Requested By")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("status", "Status")}</th>
+                      <th className="px-4 py-3 text-left font-medium whitespace-nowrap">{t("decided_at", "Decided At")}</th>
+                      <th className="px-4 py-3 text-right font-medium">{t("actions", "Actions")}</th>
                       <th className="px-4 py-3 w-8" />
                     </tr>
                   </thead>
@@ -586,10 +602,10 @@ export default function OwnerApprovals() {
                               {Number(p.amount || 0).toLocaleString()} ETB
                             </td>
                             <td className="px-4 py-3 text-xs capitalize text-muted-foreground">
-                              {p.paymentType || "open_cash"}
+                              {p.paymentType ? t(p.paymentType, p.paymentType) : t("open_cash")}
                             </td>
                             <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                              <ImageThumb src={p.productPicture} alt="Product picture" />
+                              <ImageThumb src={p.productPicture} alt={t("product_picture", "Product picture")} />
                             </td>
                             <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                               <ImageThumb
@@ -598,7 +614,7 @@ export default function OwnerApprovals() {
                                   (Array.isArray(p.screenshots) && p.screenshots[0]) ||
                                   null
                                 }
-                                alt="Payment receipt"
+                                alt={t("payment_receipt", "Payment receipt")}
                               />
                             </td>
                             <td className="px-4 py-3">
@@ -625,13 +641,13 @@ export default function OwnerApprovals() {
                                       setPendingReject({ target: "expense", id, itemLabel });
                                     }}
                                   >
-                                    Reject
+                                    {t("reject", "Reject")}
                                   </Button>
                                   <Button
                                     size="sm"
                                     onClick={() => setPendingApprove({ target: "expense", id, itemLabel })}
                                   >
-                                    Approve
+                                    {t("approve", "Approve")}
                                   </Button>
                                 </div>
                               )}
@@ -667,7 +683,7 @@ export default function OwnerApprovals() {
         >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Approve this request?</AlertDialogTitle>
+              <AlertDialogTitle>{t("approve_request_question", "Approve this request?")}</AlertDialogTitle>
               <AlertDialogDescription>
                 {pendingApprove
                   ? `Approving "${pendingApprove.itemLabel}" will create the expense and deduct from the manager's open cash balance.`
@@ -675,7 +691,7 @@ export default function OwnerApprovals() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel>{t("cancel", "Cancel")}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={async () => {
                   if (!pendingApprove) return;
@@ -684,7 +700,7 @@ export default function OwnerApprovals() {
                   await actOn(target, id, "approve");
                 }}
               >
-                Yes, approve
+                {t("yes_approve", "Yes, approve")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -697,7 +713,7 @@ export default function OwnerApprovals() {
         >
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Reject this request?</DialogTitle>
+              <DialogTitle>{t("reject_request_question", "Reject this request?")}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
               <p className="text-sm text-muted-foreground">
@@ -705,10 +721,10 @@ export default function OwnerApprovals() {
                 Provide an optional reason for the manager.
               </p>
               <div className="space-y-2">
-                <Label htmlFor="reject-reason">Reason (optional)</Label>
+                <Label htmlFor="reject-reason">{t("reject_reason_optional", "Reason (optional)")}</Label>
                 <Textarea
                   id="reject-reason"
-                  placeholder="e.g. Insufficient documentation, exceeds budget..."
+                  placeholder={t("reject_reason_placeholder", "e.g. Insufficient documentation, exceeds budget...")}
                   value={rejectReason}
                   onChange={(e) => setRejectReason(e.target.value)}
                   rows={3}
@@ -717,7 +733,7 @@ export default function OwnerApprovals() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setPendingReject(null)}>
-                Cancel
+                {t("cancel", "Cancel")}
               </Button>
               <Button
                 variant="destructive"
@@ -728,7 +744,7 @@ export default function OwnerApprovals() {
                   await actOn(target, id, "reject", rejectReason || undefined);
                 }}
               >
-                Yes, reject
+                {t("yes_reject", "Yes, reject")}
               </Button>
             </DialogFooter>
           </DialogContent>

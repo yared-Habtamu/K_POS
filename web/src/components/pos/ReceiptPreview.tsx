@@ -49,16 +49,16 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
           printerId: printNodeId || undefined,
         });
         toast({
-          title: "Receipt printed",
-          description: "Sent to PrintNode printer",
+          title: t("receipt_printed"),
+          description: t("sent_to_printnode"),
         });
         return;
       } catch (e: any) {
         console.warn("PrintNode failed:", e);
         toast({
           variant: "destructive",
-          title: "Print failed",
-          description: e.message || "PrintNode unavailable",
+          title: t("print_failed"),
+          description: e.message || t("printnode_unavailable"),
         });
         return;
       }
@@ -73,8 +73,8 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
     if (!customerPhone) {
       toast({
         variant: "destructive",
-        title: "No phone number",
-        description: "Customer has no phone number on file.",
+        title: t("no_phone_number"),
+        description: t("customer_no_phone"),
       });
       return;
     }
@@ -87,16 +87,16 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
   return (
     <Dialog open onOpenChange={(open) => !open && onDone()}>
       <DialogContent className="max-w-lg p-0 overflow-hidden">
-        <DialogTitle className="sr-only">Receipt</DialogTitle>
+        <DialogTitle className="sr-only">{t("receipt")}</DialogTitle>
         <DialogDescription className="sr-only">
-          Receipt preview for {receipt.id}
+          {t("receipt_preview_for")} {receipt.id}
         </DialogDescription>
         <div className="max-h-[70vh] overflow-y-auto p-4">
           <div className="receipt-preview">
             <div className="bg-card p-4 sm:p-6 rounded-lg shadow-md border border-border max-w-[350px] mx-auto font-sans text-sm">
               <div className="text-center mb-4">
                 <h2 className="text-xl font-bold text-foreground">
-                  {receipt.shopName || "POS RECEIPT"}
+                  {receipt.shopName || t("pos_receipt")}
                 </h2>
                 {receipt.shopAddress && (
                   <p className="text-xs text-muted-foreground mt-1">
@@ -105,7 +105,7 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
                 )}
                 {receipt.shopPhone && (
                   <p className="text-xs text-muted-foreground">
-                    Tel: {receipt.shopPhone}
+                    {t("tel")}: {receipt.shopPhone}
                   </p>
                 )}
                 {(receipt.receiptSlogan || receipt.receiptHeader) && (
@@ -117,22 +117,22 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
               <Separator className="my-3" />
               <div className="flex justify-between text-xs text-muted-foreground mb-1">
                 <span>
-                  Receipt: <span className="font-mono">{receipt.id}</span>
+                  {t("receipt_label")}: <span className="font-mono">{receipt.id}</span>
                 </span>
                 <span>{format(new Date(receipt.date), "MMM dd, yyyy")}</span>
               </div>
               <div className="flex justify-between text-xs text-muted-foreground mb-3">
                 <span>
-                  Cashier:{" "}
+                  {t("cashier")}:{" "}
                   <span className="font-medium text-foreground">
-                    {receipt.cashierName || "Cashier"}
+                    {receipt.cashierName || t("cashier")}
                   </span>
                 </span>
                 <span>{format(new Date(receipt.date), "HH:mm:ss")}</span>
               </div>
               {receipt.customerName && (
                 <div className="text-xs text-muted-foreground mb-3">
-                  Customer:{" "}
+                  {t("customer")}:{" "}
                   <span className="font-medium text-foreground">
                     {receipt.customerName}
                   </span>
@@ -141,27 +141,27 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
               <Separator className="my-3" />
               <div className="space-y-3">
                 <div className="flex justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  <span>Item / Details</span>
-                  <span>Total</span>
+                  <span>{t("item_details")}</span>
+                  <span>{t("total")}</span>
                 </div>
                 {(receipt.items || []).map((item, index) => (
                   <div key={item.product?.id || index} className="text-sm">
                     <div className="flex justify-between">
                       <span className="font-medium text-foreground">
-                        {item.product?.name || item.name || "Item"}
+                        {item.product?.name || item.name || t("item_fallback")}
                       </span>
                       <span className="font-semibold text-foreground">
                         {Number(
                           item.subtotal ||
                             (item.product?.sellingPrice || 0) * (item.quantity || 1)
                         ).toFixed(2)}{" "}
-                        ETB
+                        {t("etb")}
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {item.quantity || 1} x{" "}
                       {Number(item.product?.sellingPrice ?? item.price ?? 0).toFixed(2)}{" "}
-                      ETB
+                      {t("etb")}
                     </div>
                   </div>
                 ))}
@@ -169,16 +169,16 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
               <Separator className="my-3" />
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Subtotal:</span>
+                  <span className="text-muted-foreground">{t("subtotal")}</span>
                   <span className="font-medium text-foreground">
-                    {Number(receipt.subtotal).toFixed(2)} ETB
+                    {Number(receipt.subtotal).toFixed(2)} {t("etb")}
                   </span>
                 </div>
                 {receipt.discount && (
                   <div className="flex justify-between text-green-600">
-                    <span>Discount:</span>
+                    <span>{t("discount")}</span>
                     <span className="font-medium">
-                      -{Number(receipt.discount.amount).toFixed(2)} ETB
+                      -{Number(receipt.discount.amount).toFixed(2)} {t("etb")}
                     </span>
                   </div>
                 )}
@@ -186,32 +186,32 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
                   <div key={charge.name} className="flex justify-between">
                     <span className="text-muted-foreground">{charge.name}:</span>
                     <span className="font-medium">
-                      +{Number(charge.amount).toFixed(2)} ETB
+                      +{Number(charge.amount).toFixed(2)} {t("etb")}
                     </span>
                   </div>
                 ))}
                 {receipt.tax && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">
-                      VAT ({Number(receipt.taxRate || 0).toFixed(1)}%):
+                      {t("vat")} ({Number(receipt.taxRate || 0).toFixed(1)}%):
                     </span>
                     <span className="font-medium text-foreground">
-                      {Number(receipt.tax).toFixed(2)} ETB
+                      {Number(receipt.tax).toFixed(2)} {t("etb")}
                     </span>
                   </div>
                 )}
               </div>
               <Separator className="my-3" />
               <div className="flex justify-between text-lg font-bold text-foreground">
-                <span>TOTAL:</span>
-                <span>{Number(receipt.total).toFixed(2)} ETB</span>
+                <span>{t("total_label")}</span>
+                <span>{Number(receipt.total).toFixed(2)} {t("etb")}</span>
               </div>
               <Separator className="my-3" />
               <div className="text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Payment Method:</span>
+                  <span className="text-muted-foreground">{t("payment_method")}</span>
                   <span className="font-medium text-foreground">
-                    {(receipt.paymentMethod || "CASH")
+                    {(receipt.paymentMethod || t("cash"))
                       .toUpperCase()
                       .replace("_", " ")}
                   </span>
@@ -220,9 +220,9 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
                   (receipt.paymentMethod === "credit" ||
                     receipt.paymentMethod === "wallet") && (
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Paid Upfront:</span>
+                      <span className="text-muted-foreground">{t("paid_upfront")}</span>
                       <span className="font-medium text-foreground">
-                        {Number(receipt.amountPaid).toFixed(2)} ETB
+                        {Number(receipt.amountPaid).toFixed(2)} {t("etb")}
                       </span>
                     </div>
                   )}
@@ -231,18 +231,18 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
                   (receipt.paymentMethod === "credit" ||
                     receipt.paymentMethod === "wallet") && (
                     <div className="flex justify-between font-bold">
-                      <span>Remaining Credit:</span>
+                      <span>{t("remaining_credit")}</span>
                       <span className="text-foreground">
-                        {Number(receipt.creditAmount).toFixed(2)} ETB
+                        {Number(receipt.creditAmount).toFixed(2)} {t("etb")}
                       </span>
                     </div>
                   )}
               </div>
               <Separator className="my-4" />
               <div className="text-center text-xs text-muted-foreground">
-                <p>Powered by Kiya POS</p>
-                <p>Support: {SYSTEM_PROVIDER_PHONE}</p>
-                <p className="mt-1 font-medium">Thank you for your business!</p>
+                <p>{t("powered_by")}</p>
+                <p>{t("support")}: {SYSTEM_PROVIDER_PHONE}</p>
+                <p className="mt-1 font-medium">{t("thank_you")}</p>
               </div>
             </div>
           </div>
@@ -256,7 +256,7 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
               onClick={handleWhatsApp}
             >
               <MessageSquare className="h-4 w-4 mr-2" />
-              WhatsApp
+              {t("whatsapp")}
             </Button>
             <Button
               variant="outline"
@@ -277,7 +277,7 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
               }}
             >
               <Download className="h-4 w-4 mr-2" />
-              View
+              {t("view")}
             </Button>
             <Button
               size="sm"
@@ -285,7 +285,7 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
               onClick={handlePrint}
             >
               <Printer className="h-4 w-4 mr-2" />
-              Print
+              {t("print_btn")}
             </Button>
           </DialogFooter>
         </div>

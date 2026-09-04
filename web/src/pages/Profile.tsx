@@ -403,13 +403,13 @@ export default function ProfilePage() {
           <CardContent>
             <div className="grid gap-4 md:max-w-xs">
               <div className="space-y-2">
-                <Label htmlFor="theme-select">Theme</Label>
+                <Label htmlFor="theme-select">{t("theme_mode") || "Theme"}</Label>
                 <Select
                   value={theme === "dark" ? "dark" : "light"}
                   onValueChange={setTheme}
                 >
                   <SelectTrigger id="theme-select">
-                    <SelectValue placeholder="Select theme" />
+                    <SelectValue placeholder={t("theme_mode") || "Select theme"} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="light">{t("light_mode")}</SelectItem>

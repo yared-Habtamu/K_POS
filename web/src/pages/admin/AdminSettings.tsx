@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -53,6 +54,7 @@ function saveSettings(s: Settings) {
 }
 
 export default function AdminSettings() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const { user } = useAuthStore();
   const token = user?.token ?? "";
@@ -88,8 +90,8 @@ export default function AdminSettings() {
   const onSave = () => {
     saveSettings(settings);
     toast({
-      title: "Settings saved",
-      description: "Admin settings saved locally.",
+      title: t("settings_saved"),
+      description: t("admin_settings_saved"),
     });
   };
 
@@ -119,13 +121,13 @@ export default function AdminSettings() {
       // Notify landing page footer in the same browser tab
       window.dispatchEvent(new Event("contact-settings-updated"));
       toast({
-        title: "Contact Info Saved",
-        description: "Landing page footer contacts saved to database.",
+        title: t("contact_info_saved"),
+        description: t("landing_contacts_saved"),
       });
     } catch (err: any) {
       toast({
-        title: "Save Failed",
-        description: err?.message || "Could not save contact info.",
+        title: t("save_failed"),
+        description: err?.message || t("could_not_save_contact"),
         variant: "destructive",
       });
     } finally {
@@ -137,8 +139,8 @@ export default function AdminSettings() {
     e.preventDefault();
     if (!newLabel.trim() || !newValue.trim()) {
       toast({
-        title: "Validation Error",
-        description: "Please fill in both label and contact value/URL.",
+        title: t("validation_error"),
+        description: t("fill_label_and_value"),
         variant: "destructive",
       });
       return;
@@ -158,8 +160,8 @@ export default function AdminSettings() {
     setIsAddModalOpen(false);
 
     toast({
-      title: "Channel Added",
-      description: `Added "${newItem.label}". Remember to click "Save Contact Info" to persist.`,
+      title: t("channel_added"),
+      description: `${t("channel_added")}: "${newItem.label}". ${t("remember_to_save")}`,
     });
   };
 
@@ -181,9 +183,9 @@ export default function AdminSettings() {
     <RoleLayout allowedRoles={["system_admin"]}>
       <div className="space-y-6">
         <div className="space-y-2">
-          <h1 className="text-2xl font-bold">Admin Settings</h1>
+          <h1 className="text-2xl font-bold">{t("admin_settings")}</h1>
           <p className="text-muted-foreground">
-            Configure system behavior, printer, and landing page contact info.
+            {t("configure_system")}
           </p>
         </div>
 
@@ -191,13 +193,13 @@ export default function AdminSettings() {
           <div className="w-full overflow-x-auto pb-1">
             <TabsList className="inline-flex min-w-max justify-start gap-2">
               <TabsTrigger value="general" className="shrink-0">
-                General
+                {t("general")}
               </TabsTrigger>
               <TabsTrigger value="contact" className="shrink-0">
-                Landing Contact Info
+                {t("landing_contact_info")}
               </TabsTrigger>
               <TabsTrigger value="printer" className="shrink-0">
-                Printer
+                {t("printer_tab")}
               </TabsTrigger>
             </TabsList>
           </div>
@@ -206,18 +208,17 @@ export default function AdminSettings() {
           <TabsContent value="general" className="mt-4 space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>General</CardTitle>
+                <CardTitle>{t("general")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 max-w-xl">
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <Label>
-                        Require approval for new supermarket registrations
+                        {t("require_approval")}
                       </Label>
                       <p className="text-xs text-muted-foreground">
-                        When enabled, new shops will be set to pending and
-                        require admin approval.
+                        {t("require_approval_desc")}
                       </p>
                     </div>
                     <input
@@ -233,7 +234,7 @@ export default function AdminSettings() {
                   </div>
 
                   <div>
-                    <Label>Default Commission Rate (%)</Label>
+                    <Label>{t("default_commission")}</Label>
                     <Input
                       type="number"
                       value={String(settings.defaultCommission)}
@@ -246,7 +247,7 @@ export default function AdminSettings() {
                   </div>
 
                   <div>
-                    <Label>Notification Email</Label>
+                    <Label>{t("notification_email")}</Label>
                     <Input
                       type="email"
                       value={settings.notificationEmail}
@@ -257,7 +258,7 @@ export default function AdminSettings() {
                   </div>
 
                   <div className="flex flex-wrap gap-2 pt-2">
-                    <Button onClick={onSave}>Save Settings</Button>
+                    <Button onClick={onSave}>{t("save_settings")}</Button>
                   </div>
                 </div>
               </CardContent>
@@ -269,9 +270,9 @@ export default function AdminSettings() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                  <CardTitle>Landing Page Contacts & Social Icons</CardTitle>
+                  <CardTitle>{t("landing_contacts_title")}</CardTitle>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Manage landing page contact channels from scratch. Choose an icon for each channel.
+                    {t("landing_contacts_desc")}
                   </p>
                 </div>
                 <Button
@@ -279,7 +280,7 @@ export default function AdminSettings() {
                   onClick={() => setIsAddModalOpen(true)}
                   className="gap-1 shadow-sm"
                 >
-                  <Plus className="w-4 h-4" /> Add Channel
+                  <Plus className="w-4 h-4" /> {t("add_channel")}
                 </Button>
               </CardHeader>
               <CardContent>
@@ -319,19 +320,19 @@ export default function AdminSettings() {
 
                         {/* Label input */}
                         <div className="flex-1 w-full md:w-auto">
-                          <Label className="text-xs text-muted-foreground">Label</Label>
+                          <Label className="text-xs text-muted-foreground">{t("label")}</Label>
                           <Input
                             value={item.label}
                             onChange={(e) =>
                               updateContactItem(item.id, "label", e.target.value)
                             }
-                            placeholder="e.g. Facebook, Customer Support"
+                            placeholder={t("label_placeholder")}
                           />
                         </div>
 
                         {/* Icon Dropdown */}
                         <div className="w-full md:w-48">
-                          <Label className="text-xs text-muted-foreground">Choose Icon</Label>
+                          <Label className="text-xs text-muted-foreground">{t("choose_icon")}</Label>
                           <select
                             className="w-full border rounded-md h-10 px-3 text-sm bg-background border-input"
                             value={item.icon}
@@ -349,13 +350,13 @@ export default function AdminSettings() {
 
                         {/* Value / Link input */}
                         <div className="flex-[2] w-full md:w-auto">
-                          <Label className="text-xs text-muted-foreground">URL / Contact Value</Label>
+                          <Label className="text-xs text-muted-foreground">{t("url_contact")}</Label>
                           <Input
                             value={item.value}
                             onChange={(e) =>
                               updateContactItem(item.id, "value", e.target.value)
                             }
-                            placeholder="e.g. https://facebook.com or +251..."
+                            placeholder={t("url_placeholder")}
                           />
                         </div>
 
@@ -365,7 +366,7 @@ export default function AdminSettings() {
                           size="icon"
                           className="self-end md:self-center shrink-0 text-destructive hover:bg-destructive/10"
                           onClick={() => removeContactItem(item.id)}
-                          title="Remove contact channel"
+                          title={t("remove_channel")}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -375,15 +376,15 @@ export default function AdminSettings() {
 
                   {!isLoadingContacts && contactItems.length === 0 && (
                     <div className="text-center py-10 text-muted-foreground text-sm border border-dashed rounded-xl space-y-2">
-                      <p className="font-medium text-foreground">No contact channels added yet</p>
-                      <p className="text-xs text-muted-foreground">Click &quot;Add Channel&quot; above to create contact information for the landing page.</p>
+                      <p className="font-medium text-foreground">{t("no_channels")}</p>
+                      <p className="text-xs text-muted-foreground">{t("no_channels_desc")}</p>
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => setIsAddModalOpen(true)}
                         className="mt-2 gap-1"
                       >
-                        <Plus className="w-3.5 h-3.5" /> Add First Channel
+                        <Plus className="w-3.5 h-3.5" /> {t("add_first_channel")}
                       </Button>
                     </div>
                   )}
@@ -393,10 +394,10 @@ export default function AdminSettings() {
                       {isSavingContacts ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Saving...
+                          {t("saving")}
                         </>
                       ) : (
-                        "Save Contact Info"
+                        t("save_contact_info")
                       )}
                     </Button>
                   </div>
@@ -409,12 +410,12 @@ export default function AdminSettings() {
           <TabsContent value="printer" className="mt-4 space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Device / Printer</CardTitle>
+                <CardTitle>{t("device_printer")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 max-w-xl">
                   <p className="text-sm text-muted-foreground">
-                    Printing is configured via PrintNode. Go to Settings → Printer to set up the printer.
+                    {t("printnode_configured")}
                   </p>
                 </div>
               </CardContent>
@@ -427,18 +428,18 @@ export default function AdminSettings() {
           <DialogContent className="sm:max-w-md">
             <form onSubmit={handleAddChannelSubmit}>
               <DialogHeader>
-                <DialogTitle>Add New Contact Channel</DialogTitle>
+                <DialogTitle>{t("add_new_channel")}</DialogTitle>
                 <DialogDescription>
-                  Enter the details for the new contact info channel to display in the landing footer.
+                  {t("add_channel_desc")}
                 </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="channelLabel">Channel Label</Label>
+                  <Label htmlFor="channelLabel">{t("channel_label")}</Label>
                   <Input
                     id="channelLabel"
-                    placeholder="e.g. Official Telegram, Customer Support Phone"
+                    placeholder={t("channel_label_placeholder")}
                     value={newLabel}
                     onChange={(e) => setNewLabel(e.target.value)}
                     autoFocus
@@ -446,7 +447,7 @@ export default function AdminSettings() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="channelIcon">Choose Icon</Label>
+                  <Label htmlFor="channelIcon">{t("choose_icon")}</Label>
                   <select
                     id="channelIcon"
                     className="w-full border rounded-md h-10 px-3 text-sm bg-background border-input"
@@ -462,10 +463,10 @@ export default function AdminSettings() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="channelValue">URL / Contact Value</Label>
+                  <Label htmlFor="channelValue">{t("url_contact")}</Label>
                   <Input
                     id="channelValue"
-                    placeholder="e.g. https://facebook.com/mybrand or +251 900 000 000"
+                    placeholder={t("url_placeholder")}
                     value={newValue}
                     onChange={(e) => setNewValue(e.target.value)}
                   />
@@ -474,9 +475,9 @@ export default function AdminSettings() {
 
               <DialogFooter className="gap-2 sm:gap-0">
                 <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>
-                  Cancel
+                  {t("cancel")}
                 </Button>
-                <Button type="submit">Add Contact Channel</Button>
+                <Button type="submit">{t("add_contact_channel")}</Button>
               </DialogFooter>
             </form>
           </DialogContent>

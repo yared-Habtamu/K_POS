@@ -133,6 +133,13 @@ function ProductThumb({ url, large }: { url?: string; large?: boolean }) {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useTranslation();
+  const label =
+    status === "approved"
+      ? t("approved")
+      : status === "rejected"
+        ? t("rejected")
+        : t("pending_status", "Pending");
   return (
     <Badge
       variant={
@@ -143,16 +150,17 @@ function StatusBadge({ status }: { status: string }) {
             : "secondary"
       }
     >
-      {status}
+      {label}
     </Badge>
   );
 }
 
 function KindBadge({ kind }: { kind: HistoryRow["kind"] }) {
+  const { t } = useTranslation();
   const labels: Record<HistoryRow["kind"], string> = {
-    transfer: "Stock Transfer",
-    add: "Product Add",
-    edit: "Product Edit",
+    transfer: t("stock_transfer", "Stock Transfer"),
+    add: t("product_add", "Product Add"),
+    edit: t("product_edit", "Product Edit"),
   };
   const colors: Record<HistoryRow["kind"], string> = {
     transfer: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
@@ -400,6 +408,7 @@ function HistoryTableRow({
   expanded: boolean;
   onToggle: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <>
       <tr
@@ -436,15 +445,15 @@ function HistoryTableRow({
         <td className="px-4 py-3 text-sm text-muted-foreground max-w-[200px]">
           {row.kind === "transfer" && (
             <span className="flex items-center gap-1">
-              <span>{row.fromLocation === "mart" ? "Mart" : "Store"}</span>
+              <span>{row.fromLocation === "mart" ? (t("shop_col") || "Mart") : (t("store_qty_label") || "Store")}</span>
               <ArrowRight className="h-3 w-3" />
-              <span>{row.toLocation === "store" ? "Store" : "Mart"}</span>
+              <span>{row.toLocation === "store" ? (t("store_qty_label") || "Store") : (t("shop_col") || "Mart")}</span>
               <span className="font-semibold text-foreground ml-1">× {row.quantity}</span>
             </span>
           )}
           {row.kind === "add" && (
             <span>
-              Store: {row.payload?.storeQuantity ?? 0} / Front: {row.payload?.supermarketQuantity ?? 0}
+              {t("store_qty_label") || "Store"}: {row.payload?.storeQuantity ?? 0} / {t("front_qty_label") || "Front"}: {row.payload?.supermarketQuantity ?? 0}
             </span>
           )}
           {row.kind === "edit" && (
@@ -542,8 +551,9 @@ export default function ApprovalHistoryPage() {
   const rows = useMemo<HistoryRow[]>(() => {
     const meId = user?.id;
     if (!meId) return [];
+    const role = user?.role as string | undefined;
     const isOwnerOrAdmin =
-      user?.role === "owner" || user?.role === "systemAdmin";
+      role === "owner" || role === "system_admin" || role === "systemAdmin";
     const involved = (requesterId?: string, approverId?: string) =>
       String(requesterId) === String(meId) ||
       String(approverId) === String(meId);
@@ -692,7 +702,7 @@ export default function ApprovalHistoryPage() {
             <div>
               <h1 className="text-2xl font-bold">{t("approval_history")}</h1>
               <p className="text-muted-foreground">
-                Full audit trail of stock transfers and product requests. Click any row to see complete details.
+                {t("approval_history_subtitle")}
               </p>
             </div>
           </div>
@@ -786,16 +796,16 @@ export default function ApprovalHistoryPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border/60 text-xs text-muted-foreground uppercase tracking-wide">
-                      <th className="px-4 py-3 text-left font-medium">Date</th>
-                      <th className="px-4 py-3 text-left font-medium">Type</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("date", "Date")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("type", "Type")}</th>
                       <th className="px-4 py-3 w-14" />
-                      <th className="px-4 py-3 text-left font-medium">Product</th>
-                      <th className="px-4 py-3 text-left font-medium">Category</th>
-                      <th className="px-4 py-3 text-left font-medium">Price</th>
-                      <th className="px-4 py-3 text-left font-medium">Summary</th>
-                      <th className="px-4 py-3 text-left font-medium">Requested by</th>
-                      <th className="px-4 py-3 text-left font-medium">Approved by</th>
-                      <th className="px-4 py-3 text-left font-medium">Status</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("product", "Product")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("category", "Category")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("price", "Price")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("summary", "Summary")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("requested_by", "Requested by")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("approved_by", "Approved by")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("status", "Status")}</th>
                       <th className="px-4 py-3 w-8" />
                     </tr>
                   </thead>

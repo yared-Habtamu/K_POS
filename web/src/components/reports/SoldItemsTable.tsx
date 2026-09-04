@@ -584,11 +584,11 @@ export default function SoldItemsTable({ items, totals, loading }: Props) {
 
           <div className="mt-3 ml-auto max-w-sm space-y-1 text-sm">
             <div className="flex items-center justify-between text-muted-foreground">
-              <span>Subtotal</span>
+              <span>{t("subtotal") || "Subtotal"}</span>
               <span>{currency(subtotal)}</span>
             </div>
             <div className="flex items-center justify-between text-muted-foreground">
-              <span>VAT</span>
+              <span>{t("vat") || "VAT"}</span>
               <span>{currency(totalVat)}</span>
             </div>
             <div className="flex items-center justify-between font-semibold text-foreground border-t pt-2 mt-2">

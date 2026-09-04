@@ -1,5 +1,5 @@
-// src/pages/admin/MartManagement.tsx
 import React, { useState } from "react"; // ✅ Added useState
+import { useTranslation } from "react-i18next";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -291,6 +291,7 @@ function saveShops(shops: Shop[]) {
 }
 
 export default function MartManagement() {
+  const { t } = useTranslation();
   const API_BASE = import.meta.env.VITE_API_URL || "";
   const authUser = useAuthStore((s) => s.user);
   const hiddenDeletedShopIdsRef = React.useRef<Set<string>>(new Set());
@@ -835,10 +836,9 @@ export default function MartManagement() {
       <div className="space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Mart Management</h1>
+            <h1 className="text-2xl font-bold">{t("mart_management")}</h1>
             <p className="text-muted-foreground">
-              Approve or reject new supermarket registrations; update or delete
-              existing shops.
+              {t("mart_management_desc")}
             </p>
           </div>
           <Button
@@ -846,8 +846,8 @@ export default function MartManagement() {
             size="icon"
             onClick={() => void refreshMarts()}
             disabled={isRefreshing}
-            aria-label="Refresh marts"
-            title="Refresh marts"
+            aria-label={t("refresh") || "Refresh"}
+            title={t("refresh") || "Refresh"}
           >
             <RotateCw
               className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
@@ -862,7 +862,7 @@ export default function MartManagement() {
             variant={filter === "all" ? undefined : "ghost"}
             onClick={() => setFilter("all")}
           >
-            All{" "}
+            {t("all_filter")}{" "}
             <span className="ml-2 text-xs text-muted-foreground">
               {shops.length}
             </span>
@@ -872,7 +872,7 @@ export default function MartManagement() {
             variant={filter === "active" ? undefined : "ghost"}
             onClick={() => setFilter("active")}
           >
-            Active{" "}
+            {t("active_status")}{" "}
             <span className="ml-2 text-xs text-muted-foreground">
               {shops.filter((s) => s.status === "active").length}
             </span>
@@ -882,7 +882,7 @@ export default function MartManagement() {
             variant={filter === "pending" ? undefined : "ghost"}
             onClick={() => setFilter("pending")}
           >
-            Pending{" "}
+            {t("pending")}{" "}
             <span className="ml-2 text-xs text-muted-foreground">
               {shops.filter((s) => s.status === "pending").length}
             </span>
@@ -892,7 +892,7 @@ export default function MartManagement() {
             variant={filter === "suspended" ? undefined : "ghost"}
             onClick={() => setFilter("suspended")}
           >
-            Suspended{" "}
+            {t("suspended")}{" "}
             <span className="ml-2 text-xs text-muted-foreground">
               {shops.filter((s) => s.status === "suspended").length}
             </span>
@@ -902,7 +902,7 @@ export default function MartManagement() {
             variant={filter === "rejected" ? undefined : "ghost"}
             onClick={() => setFilter("rejected")}
           >
-            Rejected{" "}
+            {t("rejected")}{" "}
             <span className="ml-2 text-xs text-muted-foreground">
               {shops.filter((s) => s.status === "rejected").length}
             </span>
@@ -912,7 +912,7 @@ export default function MartManagement() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              Registered Supermarkets{" "}
+              {t("registered_supermarkets")}{" "}
               <Badge variant="secondary">{shops.length}</Badge>
             </CardTitle>
           </CardHeader>
@@ -921,12 +921,12 @@ export default function MartManagement() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Shop</TableHead>
-                    <TableHead>Owner</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Address</TableHead>
-                    <TableHead className="text-center">Users</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>{t("shop_col")}</TableHead>
+                    <TableHead>{t("owner_col")}</TableHead>
+                    <TableHead>{t("status")}</TableHead>
+                    <TableHead>{t("address")}</TableHead>
+                    <TableHead className="text-center">{t("users_col")}</TableHead>
+                    <TableHead className="text-right">{t("actions_col")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -957,22 +957,22 @@ export default function MartManagement() {
                         <TableCell>
                           {shop.status === "active" && (
                             <Badge className="bg-success/10 text-success border-success/20">
-                              <CheckCircle className="w-3 h-3 mr-1" /> Active
+                              <CheckCircle className="w-3 h-3 mr-1" /> {t("active_status")}
                             </Badge>
                           )}
                           {shop.status === "pending" && (
                             <Badge className="bg-warning/10 text-warning border-warning/20">
-                              <span className="mr-1">⏳</span> Pending
+                              <span className="mr-1">⏳</span> {t("pending")}
                             </Badge>
                           )}
                           {shop.status === "suspended" && (
                             <Badge className="bg-destructive/10 text-destructive border-destructive/20">
-                              <XCircle className="w-3 h-3 mr-1" /> Suspended
+                              <XCircle className="w-3 h-3 mr-1" /> {t("suspended")}
                             </Badge>
                           )}
                           {shop.status === "rejected" && (
                             <Badge className="bg-destructive/10 text-destructive border-destructive/20">
-                              <XCircle className="w-3 h-3 mr-1" /> Rejected
+                              <XCircle className="w-3 h-3 mr-1" /> {t("rejected")}
                             </Badge>
                           )}
                         </TableCell>
@@ -1008,7 +1008,7 @@ export default function MartManagement() {
                                 onClick={() => setViewShop(shop)}
                               >
                                 <Eye className="mr-2 h-4 w-4 text-muted-foreground" />
-                                View Details
+                                {t("view_details")}
                               </DropdownMenuItem>
                               {shop.status === "pending" && (
                                 <>
@@ -1021,7 +1021,7 @@ export default function MartManagement() {
                                     }
                                   >
                                     <CheckCircle className="mr-2 h-4 w-4 text-success" />
-                                    Approve
+                                    {t("approve_mart")}
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     onClick={() =>
@@ -1033,7 +1033,7 @@ export default function MartManagement() {
                                     className="text-destructive focus:bg-destructive/10"
                                   >
                                     <XCircle className="mr-2 h-4 w-4" />
-                                    Reject
+                                    {t("reject_mart")}
                                   </DropdownMenuItem>
                                 </>
                               )}
@@ -1046,7 +1046,7 @@ export default function MartManagement() {
                                       }
                                     >
                                       <Key className="mr-2 h-4 w-4 text-muted-foreground" />
-                                      Reset Password
+                                      {t("reset_password")}
                                     </DropdownMenuItem>
                                   )}
                                   <DropdownMenuItem
@@ -1059,7 +1059,7 @@ export default function MartManagement() {
                                     className="text-destructive focus:bg-destructive/10"
                                   >
                                     <XCircle className="mr-2 h-4 w-4" />
-                                    Suspend
+                                    {t("suspend_mart")}
                                   </DropdownMenuItem>
                                 </>
                               )}
@@ -1073,21 +1073,21 @@ export default function MartManagement() {
                                   }
                                 >
                                   <CheckCircle className="mr-2 h-4 w-4 text-success" />
-                                  Unsuspend
+                                  {t("unsuspend")}
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuItem
                                 onClick={() => editShop(shop.id)}
                               >
                                 <Edit2 className="mr-2 h-4 w-4 text-muted-foreground" />
-                                Edit
+                                {t("edit")}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => setShopToDelete(shop)}
                                 className="text-destructive focus:bg-destructive/10"
                               >
                                 <Trash className="mr-2 h-4 w-4" />
-                                Delete
+                                {t("delete")}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -1100,7 +1100,7 @@ export default function MartManagement() {
                         colSpan={6}
                         className="text-center py-4 text-muted-foreground"
                       >
-                        No shops found
+                        {t("no_shops_found")}
                       </TableCell>
                     </TableRow>
                   )}
@@ -1112,19 +1112,8 @@ export default function MartManagement() {
             {totalPages > 1 && (
               <div className="flex flex-col sm:flex-row items-center justify-between px-2 py-3 border-t border-border mt-4">
                 <div className="text-xs text-muted-foreground mb-2 sm:mb-0">
-                  Showing <span className="font-medium">{startIndex + 1}</span>–
-                  <span className="font-medium">
-                    {Math.min(
-                      startIndex + ITEMS_PER_PAGE,
-                      filteredShops.length,
-                    )}
-                  </span>{" "}
-                  of
-                  <span className="font-medium">
-                    {" "}
-                    {filteredShops.length}
-                  </span>{" "}
-                  shops
+                  {t("page_of")} <span className="font-medium">{currentPage}</span> {t("of_word")}{" "}
+                  <span className="font-medium">{totalPages}</span> ({filteredShops.length} {t("shop_col")})
                 </div>
 
                 <div className="flex items-center gap-1">
@@ -1134,7 +1123,7 @@ export default function MartManagement() {
                     onClick={prevPage}
                     disabled={currentPage === 1}
                   >
-                    Prev
+                    {t("page_prev")}
                   </Button>
 
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map(
@@ -1157,7 +1146,7 @@ export default function MartManagement() {
                     onClick={nextPage}
                     disabled={currentPage === totalPages}
                   >
-                    Next
+                    {t("page_next")}
                   </Button>
                 </div>
               </div>

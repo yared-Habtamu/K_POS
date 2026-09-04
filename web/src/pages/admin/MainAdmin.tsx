@@ -215,20 +215,26 @@ export default function MainAdmin() {
   const PLATFORM_FEE = 10000;
   const platformRevenue = approvedCount * PLATFORM_FEE;
 
+  const getPeriodLabel = () => {
+    if (period === "week") return t("last_6_weeks") || "Last 6 weeks";
+    if (period === "year") return t("last_12_months") || "Last 12 months";
+    return t("last_6_months") || "Last 6 months";
+  };
+
   return (
     <RoleLayout allowedRoles={["system_admin"]}>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">System Administration</h1>
+          <h1 className="text-2xl font-bold">{t("system_administration")}</h1>
           <p className="text-muted-foreground">
-            Overview of all registered supermarkets and system activity
+            {t("system_admin_overview")}
           </p>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>Platform Revenue</CardTitle>
+              <CardTitle>{t("platform_revenue")}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-[280px]">
@@ -251,7 +257,7 @@ export default function MainAdmin() {
                       }}
                       formatter={(value: number) => [
                         `${value.toLocaleString()} ETB`,
-                        "Revenue",
+                        t("revenue") || "Revenue",
                       ]}
                     />
                     <Area
@@ -267,7 +273,7 @@ export default function MainAdmin() {
               <div className="mt-4 grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground">
-                    This month (sales)
+                    {t("this_month_sales")}
                   </p>
                   <p className="text-2xl font-semibold">
                     {summary
@@ -277,7 +283,7 @@ export default function MainAdmin() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">
-                    Platform fee revenue
+                    {t("platform_fee_revenue")}
                   </p>
                   <p className="text-2xl font-semibold">
                     {platformRevenue.toLocaleString()} ETB
@@ -289,38 +295,38 @@ export default function MainAdmin() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Quick Stats</CardTitle>
+              <CardTitle>{t("quick_stats")}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Total Shops</p>
+                    <p className="text-sm text-muted-foreground">{t("total_shops")}</p>
                     <p className="text-lg font-semibold">{marts.length}</p>
                   </div>
                   <Badge variant="secondary">
-                    {approvedCount > 0 ? "Active" : "None"}
+                    {approvedCount > 0 ? t("active_status") : t("inactive_status")}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">
-                      Total Transactions
+                      {t("total_transactions")}
                     </p>
                     <p className="text-lg font-semibold">
                       {summary ? summary.count : "—"}
                     </p>
                   </div>
-                  <Badge variant="secondary">Records</Badge>
+                  <Badge variant="secondary">{t("records")}</Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">
-                      Pending Approvals
+                      {t("pending_approvals")}
                     </p>
                     <p className="text-lg font-semibold">{pendingCount}</p>
                   </div>
-                  <Badge variant="secondary">Review</Badge>
+                  <Badge variant="secondary">{t("review") || "Review"}</Badge>
                 </div>
               </div>
             </CardContent>
@@ -330,10 +336,10 @@ export default function MainAdmin() {
         <div>
           <Card>
             <CardHeader className="flex items-center justify-between">
-              <CardTitle>Marts Registered</CardTitle>
+              <CardTitle>{t("marts_registered")}</CardTitle>
               <div className="flex items-center gap-2">
                 <p className="text-sm text-muted-foreground mr-2 hidden md:block">
-                  {periodLabel}
+                  {getPeriodLabel()}
                 </p>
                 <select
                   value={period}
@@ -342,9 +348,9 @@ export default function MainAdmin() {
                   }
                   className="text-sm rounded-md border px-2 py-1 bg-card"
                 >
-                  <option value="week">Week</option>
-                  <option value="month">Month</option>
-                  <option value="year">Year</option>
+                  <option value="week">{t("week") || "Week"}</option>
+                  <option value="month">{t("month") || "Month"}</option>
+                  <option value="year">{t("year") || "Year"}</option>
                 </select>
               </div>
             </CardHeader>
@@ -374,17 +380,17 @@ export default function MainAdmin() {
                 </ResponsiveContainer>
               </div>
               <div className="mt-4">
-                <p className="text-sm text-muted-foreground">Active users</p>
+                <p className="text-sm text-muted-foreground">{t("active_users")}</p>
                 <p className="text-lg font-semibold">{activeUsersCount}</p>
                 <div className="mt-2">
                   <p className="text-xs text-muted-foreground">
-                    New approved marts ({periodLabel})
+                    {t("new_approved_marts")} ({getPeriodLabel()})
                   </p>
                   <p className="text-sm font-medium">{newApprovedInPeriod}</p>
                 </div>
                 <div className="mt-2">
                   <p className="text-xs text-muted-foreground">
-                    Platform fee revenue ({periodLabel})
+                    {t("platform_fee_revenue")} ({getPeriodLabel()})
                   </p>
                   <p className="text-sm font-medium">
                     {(newApprovedInPeriod * PLATFORM_FEE).toLocaleString()} ETB

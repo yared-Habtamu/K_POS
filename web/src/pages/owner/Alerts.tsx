@@ -220,38 +220,38 @@ export default function OwnerAlerts() {
         </div>
 
         <AdvancedFilters
-          title="Search and filter alerts"
-          description="Filter alerts by product, category, alert type, or urgency."
+          title={`${t("search")} & ${t("filter")}`}
+          description={t("alerts_summary")}
           fields={[
             {
               key: "query",
-              label: "Search",
+              label: t("search"),
               type: "search",
-              placeholder: "Search by name, category, or barcode",
+              placeholder: `${t("search")}...`,
             },
             {
               key: "category",
-              label: "Category",
+              label: t("category"),
               type: "select",
-              placeholder: "All categories",
+              placeholder: t("all_categories") || "All categories",
               options: categoryOptions,
             },
             {
               key: "alertType",
-              label: "Alert type",
+              label: t("alert_type") || "Alert type",
               type: "select",
-              placeholder: "All alert types",
+              placeholder: t("all_alert_types") || "All alert types",
               options: [
-                { label: "Low Stock", value: "low_stock" },
-                { label: "Expiring Soon", value: "expiring" },
+                { label: t("low_stock"), value: "low_stock" },
+                { label: t("expiring_soon") || "Expiring Soon", value: "expiring" },
                 { label: t("aging_stock"), value: "aging" },
               ],
             },
             {
               key: "sortBy",
-              label: "Sort by",
+              label: t("sort_by") || "Sort by",
               type: "select",
-              placeholder: "Name A -> Z",
+              placeholder: t("name") || "Name",
               options: [
                 { label: "Name A -> Z", value: "name_asc" },
                 { label: "Name Z -> A", value: "name_desc" },

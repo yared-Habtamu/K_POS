@@ -447,7 +447,7 @@ export function Sidebar({ role, mobileOpen, onClose }: SidebarPropsExtended) {
         {/* Footer */}
         <div className="p-4 border-t border-border/50">
           <div className="text-xs text-muted-foreground text-center">
-            Kiya POS System v2.1
+            {t("app_name")} v2.1
           </div>
         </div>
       </aside>

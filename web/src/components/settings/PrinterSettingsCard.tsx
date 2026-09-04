@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -17,9 +18,10 @@ type PrinterSettingsCardProps = {
 
 export function PrinterSettingsCard({
   role,
-  title = "Device / Printer",
+  title,
   description,
 }: PrinterSettingsCardProps) {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const printNodeId = useSettingsStore((s) => s.printNodeId);
   const setPrintNodeId = useSettingsStore((s) => s.setPrintNodeId);
@@ -28,7 +30,6 @@ export function PrinterSettingsCard({
   const [printNodePrinters, setPrintNodePrinters] = useState<{ id: number; name: string }[]>([]);
   const [autoDetecting, setAutoDetecting] = useState(false);
 
-  // Check PrintNode status and auto-detect printer if needed
   useEffect(() => {
     const check = async () => {
       try {
@@ -39,12 +40,11 @@ export function PrinterSettingsCard({
           const printers = await printNodeBridge.listPrinters();
           setPrintNodePrinters(printers.map((p) => ({ id: p.id, name: p.name })));
           
-          // Auto-detect printer if none is set
           if (!printNodeId && printers.length > 0) {
             setPrintNodeId(printers[0].id);
             toast({
-              title: "Printer auto-detected",
-              description: `Using: ${printers[0].name}`,
+              title: t("printer_auto_detected"),
+              description: `${t("using_printer")}: ${printers[0].name}`,
             });
           }
         }
@@ -55,7 +55,6 @@ export function PrinterSettingsCard({
     check();
   }, []);
 
-  // Manual auto-detect
   const handleAutoDetect = async () => {
     setAutoDetecting(true);
     try {
@@ -65,21 +64,21 @@ export function PrinterSettingsCard({
       if (printers.length > 0) {
         setPrintNodeId(printers[0].id);
         toast({
-          title: "Printer found",
-          description: `Using: ${printers[0].name}`,
+          title: t("printer_found"),
+          description: `${t("using_printer")}: ${printers[0].name}`,
         });
       } else {
         toast({
           variant: "destructive",
-          title: "No printers found",
-          description: "Ensure PrintNode Client is running with a connected printer",
+          title: t("no_printers_found"),
+          description: t("ensure_printnode_running"),
         });
       }
     } catch {
       toast({
         variant: "destructive",
-        title: "Detection failed",
-        description: "Cannot connect to PrintNode",
+        title: t("detection_failed"),
+        description: t("cannot_connect_printnode"),
       });
     } finally {
       setAutoDetecting(false);
@@ -89,47 +88,43 @@ export function PrinterSettingsCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
+        <CardTitle>{title || t("device_printer")}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="grid gap-4 max-w-xl">
 
-          {/* Status Bar */}
           <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
             {printNodeStatus === "checking" && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
             {printNodeStatus === "online" && <CheckCircle className="h-4 w-4 text-green-500" />}
             {printNodeStatus === "offline" && <XCircle className="h-4 w-4 text-orange-500" />}
             <span className="text-sm font-medium">
-              {printNodeStatus === "online" ? "PrintNode Connected" : printNodeStatus === "offline" ? "PrintNode Offline" : "Checking..."}
+              {printNodeStatus === "online" ? t("printnode_connected") : printNodeStatus === "offline" ? t("printnode_offline") : t("checking")}
             </span>
-            {printNodeStatus === "online" && <Badge variant="secondary" className="ml-auto bg-green-100 text-green-700">Active</Badge>}
+            {printNodeStatus === "online" && <Badge variant="secondary" className="ml-auto bg-green-100 text-green-700">{t("active")}</Badge>}
           </div>
 
-          {/* Printer Selection */}
           <div>
-            <Label>Printer</Label>
+            <Label>{t("printer_label")}</Label>
             
-            {/* Current printer display */}
             {printNodeId ? (
               <div className="mt-1 p-3 rounded-lg bg-muted/30 border">
                 <p className="text-sm">
-                  Using printer ID: <span className="font-mono font-bold">{printNodeId}</span>
+                  {t("using_printer_id")} <span className="font-mono font-bold">{printNodeId}</span>
                 </p>
                 {printNodePrinters.length > 0 && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    {printNodePrinters.find(p => p.id === printNodeId)?.name || "Unknown printer"}
+                    {printNodePrinters.find(p => p.id === printNodeId)?.name || t("unknown_printer")}
                   </p>
                 )}
               </div>
             ) : (
               <div className="mt-1 p-3 rounded-lg bg-muted/30 border">
                 <p className="text-sm text-muted-foreground">
-                  {autoDetecting ? "Detecting printer..." : "No printer detected"}
+                  {autoDetecting ? t("detecting_printer") : t("no_printer_detected")}
                 </p>
               </div>
             )}
             
-            {/* Auto-detect button */}
             <Button
               variant="outline"
               size="sm"
@@ -142,13 +137,12 @@ export function PrinterSettingsCard({
               ) : (
                 <Search className="h-4 w-4 mr-2" />
               )}
-              {printNodeId ? "Detect Different Printer" : "Auto-Detect Printer"}
+              {printNodeId ? t("detect_different_printer") : t("auto_detect_printer")}
             </Button>
             
-            {/* Available printers list */}
             {printNodePrinters.length > 0 && (
               <div className="mt-3 space-y-1">
-                <p className="text-xs font-medium">Available printers:</p>
+                <p className="text-xs font-medium">{t("available_printers")}</p>
                 {printNodePrinters.map((p) => (
                   <button
                     key={p.id}
@@ -164,12 +158,12 @@ export function PrinterSettingsCard({
             )}
             
             <p className="text-xs text-muted-foreground mt-2">
-              Ensure PrintNode Client is running on this computer with a connected printer.
+              {t("ensure_printnode_client")}
             </p>
           </div>
 
           <p className="text-sm text-muted-foreground">
-            PrintNode sends print jobs from the cloud to the PrintNode Client on this computer.
+            {t("printnode_description")}
           </p>
         </div>
       </CardContent>

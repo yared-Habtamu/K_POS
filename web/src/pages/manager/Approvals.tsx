@@ -47,7 +47,7 @@ type ApprovalDecision = {
 export default function Approvals() {
   // Subscribe to language changes so date formatting (Ethiopian vs Gregorian)
   // re-renders immediately when the user switches language.
-  useTranslation();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const token = useAuthStore.getState().user?.token;
   const [addRequests, setAddRequests] = useState<ProductAddRequest[]>([]);
@@ -213,9 +213,9 @@ export default function Approvals() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Approvals</h1>
+            <h1 className="text-2xl font-bold">{t("pending_requests", "Approvals")}</h1>
             <p className="text-muted-foreground">
-              Review product, stock transfer, and asset action requests
+              {t("approvals_subtitle", "Review product, stock transfer, and asset action requests")}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -227,8 +227,8 @@ export default function Approvals() {
               size="icon"
               onClick={() => void fetchAll()}
               disabled={loading}
-              aria-label="Refresh approvals"
-              title="Refresh approvals"
+              aria-label={t("refresh", "Refresh approvals")}
+              title={t("refresh", "Refresh approvals")}
             >
               <RotateCw
                 className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
@@ -241,7 +241,7 @@ export default function Approvals() {
               title="Approval history"
             >
               <History className="mr-2 h-4 w-4" />
-              Approval History
+              {t("approval_history_title", "Approval History")}
             </Button>
           </div>
         </div>
@@ -249,36 +249,36 @@ export default function Approvals() {
         <Card>
           <CardContent className="grid gap-4 md:grid-cols-4 md:items-end">
             <div className="space-y-2">
-              <Label>Status</Label>
+              <Label>{t("status", "Status")}</Label>
               <select
                 className="w-full border rounded-md h-10 px-3 text-sm bg-background"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as any)}
               >
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-                <option value="all">All</option>
+                <option value="pending">{t("pending_status", "Pending")}</option>
+                <option value="approved">{t("approved", "Approved")}</option>
+                <option value="rejected">{t("rejected", "Rejected")}</option>
+                <option value="all">{t("all_filter", "All")}</option>
               </select>
             </div>
             <div className="space-y-2">
-              <Label>From</Label>
+              <Label>{t("from_date", "From")}</Label>
               <EthiopianDatePicker
                 value={startDate}
                 onChange={(ymd) => setStartDate(ymd)}
-                placeholder="From"
+                placeholder={t("from_date", "From")}
               />
             </div>
             <div className="space-y-2">
-              <Label>To</Label>
+              <Label>{t("to_date", "To")}</Label>
               <EthiopianDatePicker
                 value={endDate}
                 onChange={(ymd) => setEndDate(ymd)}
-                placeholder="To"
+                placeholder={t("to_date", "To")}
               />
             </div>
             <div className="space-y-2">
-              <Label>Types</Label>
+              <Label>{t("types_filter", "Types")}</Label>
               <div className="flex flex-wrap gap-3 text-sm">
                 {(["add", "edit", "transfer", "asset"] as const).map((k) => (
                   <label key={k} className="flex items-center gap-2">
@@ -293,12 +293,12 @@ export default function Approvals() {
                       }
                     />
                     {k === "add"
-                      ? "Product Add"
+                      ? t("product_add", "Product Add")
                       : k === "edit"
-                        ? "Product Edit"
+                        ? t("product_edit", "Product Edit")
                         : k === "transfer"
-                          ? "Stock Transfer"
-                          : "Asset Action"}
+                          ? t("stock_transfer", "Stock Transfer")
+                          : t("asset_action", "Asset Action")}
                   </label>
                 ))}
               </div>
@@ -309,29 +309,29 @@ export default function Approvals() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              Product Add Requests
+              {t("product_add_requests", "Product Add Requests")}
               <Badge variant="secondary">{addRequests.length}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
             {addRequests.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No requests found for this filter.
+                {t("no_requests_found_filter", "No requests found for this filter.")}
               </p>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="w-12">Image</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Price</TableHead>
-                    <TableHead>Requested By</TableHead>
-                    <TableHead>Store Qty</TableHead>
-                    <TableHead>Front Qty</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>{t("date", "Date")}</TableHead>
+                    <TableHead className="w-12">{t("image", "Image")}</TableHead>
+                    <TableHead>{t("product", "Product")}</TableHead>
+                    <TableHead>{t("category", "Category")}</TableHead>
+                    <TableHead>{t("price", "Price")}</TableHead>
+                    <TableHead>{t("requested_by", "Requested By")}</TableHead>
+                    <TableHead>{t("store_qty", "Store Qty")}</TableHead>
+                    <TableHead>{t("front_qty", "Front Qty")}</TableHead>
+                    <TableHead>{t("status", "Status")}</TableHead>
+                    <TableHead className="text-right">{t("actions", "Actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -347,17 +347,13 @@ export default function Approvals() {
                       ? `${Number(payload.sellingPrice).toLocaleString()} ETB`
                       : "-";
                     const statusBadge = (
-                      <Badge
-                        variant={
+                      <Badge variant={
                           r.status === "approved"
                             ? "default"
                             : r.status === "rejected"
                               ? "destructive"
                               : "secondary"
-                        }
-                      >
-                        {r.status}
-                      </Badge>
+                        } className="capitalize">{r.status === "approved" ? t("approved", "Approved") : r.status === "rejected" ? t("rejected", "Rejected") : t("pending_status", "Pending")}</Badge>
                     );
                     return (
                       <TableRow key={r._id || r.id}>
@@ -439,26 +435,26 @@ export default function Approvals() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              Product Edit Requests
+              {t("product_edit_requests", "Product Edit Requests")}
               <Badge variant="secondary">{editRequests.length}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
             {editRequests.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No pending edits.</p>
+              <p className="text-sm text-muted-foreground">{t("no_requests_found_filter", "No pending edits.")}</p>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="w-12">Image</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Price</TableHead>
-                    <TableHead>Owner</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>{t("date", "Date")}</TableHead>
+                    <TableHead className="w-12">{t("image", "Image")}</TableHead>
+                    <TableHead>{t("product", "Product")}</TableHead>
+                    <TableHead>{t("category", "Category")}</TableHead>
+                    <TableHead>{t("price", "Price")}</TableHead>
+                    <TableHead>{t("requester", "Owner")}</TableHead>
+                    <TableHead>{t("quantity", "Quantity")}</TableHead>
+                    <TableHead>{t("status", "Status")}</TableHead>
+                    <TableHead className="text-right">{t("actions", "Actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -477,17 +473,13 @@ export default function Approvals() {
                         ? `${Number(priceVal).toLocaleString()} ETB`
                         : "-";
                     const statusBadge = (
-                      <Badge
-                        variant={
+                      <Badge variant={
                           r.status === "approved"
                             ? "default"
                             : r.status === "rejected"
                               ? "destructive"
                               : "secondary"
-                        }
-                      >
-                        {r.status}
-                      </Badge>
+                        } className="capitalize">{r.status === "approved" ? t("approved", "Approved") : r.status === "rejected" ? t("rejected", "Rejected") : t("pending_status", "Pending")}</Badge>
                     );
                     return (
                       <TableRow key={r._id || r.id}>
@@ -568,7 +560,7 @@ export default function Approvals() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              Stock Transfer Requests
+              {t("stock_transfer_requests", "Stock Transfer Requests")}
               <Badge variant="secondary">{transferRequests.length}</Badge>
             </CardTitle>
           </CardHeader>
@@ -581,16 +573,16 @@ export default function Approvals() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="w-12">Image</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Price</TableHead>
-                    <TableHead>Direction</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Requested By</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>{t("date", "Date")}</TableHead>
+                    <TableHead className="w-12">{t("image", "Image")}</TableHead>
+                    <TableHead>{t("product", "Product")}</TableHead>
+                    <TableHead>{t("category", "Category")}</TableHead>
+                    <TableHead>{t("price", "Price")}</TableHead>
+                    <TableHead>{t("direction", "Direction")}</TableHead>
+                    <TableHead>{t("quantity", "Quantity")}</TableHead>
+                    <TableHead>{t("requested_by", "Requested By")}</TableHead>
+                    <TableHead>{t("status", "Status")}</TableHead>
+                    <TableHead className="text-right">{t("actions", "Actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -602,17 +594,13 @@ export default function Approvals() {
                         ? `${Number(priceVal).toLocaleString()} ETB`
                         : "-";
                     const statusBadge = (
-                      <Badge
-                        variant={
+                      <Badge variant={
                           r.status === "approved"
                             ? "default"
                             : r.status === "rejected"
                               ? "destructive"
                               : "secondary"
-                        }
-                      >
-                        {r.status}
-                      </Badge>
+                        } className="capitalize">{r.status === "approved" ? t("approved", "Approved") : r.status === "rejected" ? t("rejected", "Rejected") : t("pending_status", "Pending")}</Badge>
                     );
                     return (
                       <TableRow key={r._id || r.id}>
@@ -637,9 +625,9 @@ export default function Approvals() {
                         </TableCell>
                         <TableCell>
                           <span className="text-xs font-medium">
-                            {r.fromLocation === "mart" ? "Mart" : "Store"}
+                            {r.fromLocation === "mart" ? t("mart", "Mart") : t("store", "Store")}
                             {" → "}
-                            {r.toLocation === "store" ? "Store" : "Mart"}
+                            {r.toLocation === "store" ? t("store", "Store") : t("mart", "Mart")}
                           </span>
                         </TableCell>
                         <TableCell>{r.quantity}</TableCell>
@@ -702,7 +690,7 @@ export default function Approvals() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              Asset Action Requests
+              {t("asset_requests", "Asset Action Requests")}
               <Badge variant="secondary">{assetRequests.length}</Badge>
             </CardTitle>
           </CardHeader>
@@ -715,12 +703,12 @@ export default function Approvals() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Asset</TableHead>
-                    <TableHead>Requested By</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>{t("date", "Date")}</TableHead>
+                    <TableHead>{t("action", "Action")}</TableHead>
+                    <TableHead>{t("asset", "Asset")}</TableHead>
+                    <TableHead>{t("requested_by", "Requested By")}</TableHead>
+                    <TableHead>{t("status", "Status")}</TableHead>
+                    <TableHead className="text-right">{t("actions", "Actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -737,17 +725,13 @@ export default function Approvals() {
                           ? "Asset update request"
                           : "Asset delete request");
                     const statusBadge = (
-                      <Badge
-                        variant={
+                      <Badge variant={
                           r.status === "approved"
                             ? "default"
                             : r.status === "rejected"
                               ? "destructive"
                               : "secondary"
-                        }
-                      >
-                        {r.status}
-                      </Badge>
+                        } className="capitalize">{r.status === "approved" ? t("approved", "Approved") : r.status === "rejected" ? t("rejected", "Rejected") : t("pending_status", "Pending")}</Badge>
                     );
                     return (
                       <TableRow key={r._id || r.id}>
@@ -814,8 +798,8 @@ export default function Approvals() {
             <AlertDialogHeader>
               <AlertDialogTitle>
                 {pendingDecision?.action === "approve"
-                  ? "Are you sure you want to approve this request?"
-                  : "Are you sure you want to reject this request?"}
+                  ? t("approve_request_question", "Are you sure you want to approve this request?")
+                  : t("reject_request_question", "Are you sure you want to reject this request?")}
               </AlertDialogTitle>
               <AlertDialogDescription>
                 {pendingDecision
@@ -824,7 +808,7 @@ export default function Approvals() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel>{t("cancel", "Cancel")}</AlertDialogCancel>
               <AlertDialogAction
                 disabled={isDeciding}
                 className={
@@ -841,8 +825,8 @@ export default function Approvals() {
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
                 {pendingDecision?.action === "approve"
-                  ? "Yes, approve"
-                  : "Yes, reject"}
+                  ? t("yes_approve", "Yes, approve")
+                  : t("yes_reject", "Yes, reject")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

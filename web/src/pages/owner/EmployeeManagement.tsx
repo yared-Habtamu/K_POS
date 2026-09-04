@@ -1312,7 +1312,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                         onChange={(e) =>
                           setForm({ ...form, username: e.target.value })
                         }
-                        placeholder="e.g. jsmith (optional)"
+                        placeholder={t("enter_username") || "e.g. jsmith (optional)"}
                       />
                     </div>
                     <div className="space-y-2">
@@ -1393,7 +1393,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                             })
                           }
                           required
-                          placeholder="Confirm password"
+                          placeholder={t("confirm_password") || "Confirm password"}
                           className={
                             form.confirmPassword.length === 0
                               ? ""
@@ -1407,8 +1407,8 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                             className={`text-xs mt-1 ${form.password === form.confirmPassword ? "text-green-600" : "text-red-600"}`}
                           >
                             {form.password === form.confirmPassword
-                              ? "Passwords match"
-                              : "Passwords do not match"}
+                              ? (t("passwords_match") || "Passwords match")
+                              : (t("passwords_do_not_match") || "Passwords do not match")}
                           </p>
                         )}
                       </div>

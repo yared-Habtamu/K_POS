@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import React, { useState, useEffect } from "react";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { getImageUrl, handleImageError } from "@/utils/imageUrl";
@@ -70,11 +71,12 @@ type SubscriptionPaymentRecord = {
   paymentMethod: string;
   paymentReference?: string;
   receiptUrl: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "suspended";
   createdAt: string;
 };
 
 export default function AdminHardwareManagement() {
+  const { t } = useTranslation();
   const auth = useAuthStore((s) => s.user);
   const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -364,6 +366,26 @@ export default function AdminHardwareManagement() {
     return <Package className="w-5 h-5" />;
   };
 
+  const getProductDisplayName = (p: EditableProduct) => {
+    const key = p.name.toLowerCase().trim();
+    if (key.includes("scanner")) return t("barcode_scanner_name", p.name);
+    if (key.includes("printer")) return t("thermal_printer_name", p.name);
+    if (key.includes("drawer")) return t("cash_drawer_name", p.name);
+    if (key.includes("terminal") || key.includes("pos")) return t("pos_terminal_name", p.name);
+    return t(p.id, p.name);
+  };
+
+  const formatPackageName = (name?: string) => {
+    if (!name) return "";
+    const lower = name.toLowerCase().trim();
+    if (lower.includes("free")) return t("seven_days_free", name);
+    if (lower.includes("12 month") || lower.includes("12 months") || lower.includes("1 year")) return t("twelve_months", name);
+    if (lower.includes("6 month") || lower.includes("6 months")) return t("six_months", name);
+    if (lower.includes("3 month") || lower.includes("3 months")) return t("three_months", name);
+    if (lower.includes("1 month")) return t("one_month", name);
+    return t(name, name);
+  };
+
   // Filter payments based on hardware selection
   const filteredPayments = React.useMemo(() => {
     if (hardwareFilter === "all") return payments;
@@ -387,16 +409,16 @@ export default function AdminHardwareManagement() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Sold Hardware Products Management</h1>
+            <h1 className="text-3xl font-bold tracking-tight">{t("sold_hardware_title")}</h1>
             <p className="text-muted-foreground">
-              Manage hardware add-ons (Scanners, Printers, POS Equipment), set unit prices, and view customer orders.
+              {t("sold_hardware_subtitle")}
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Button onClick={() => setIsAddOpen(true)} className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
-              <Plus className="w-4 h-4" /> Add Hardware Product
+              <Plus className="w-4 h-4" /> {t("add_hardware_product")}
             </Button>
-            <Button onClick={fetchData} variant="outline" size="icon" title="Refresh">
+            <Button onClick={fetchData} variant="outline" size="icon" title={t("refresh") || "Refresh"}>
               <RefreshCw className="w-4 h-4" />
             </Button>
           </div>
@@ -407,10 +429,10 @@ export default function AdminHardwareManagement() {
           <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <CardTitle className="text-xl flex items-center gap-2">
-                <Boxes className="w-5 h-5 text-primary" /> Sold Hardware Catalog ({products.length})
+                <Boxes className="w-5 h-5 text-primary" /> {t("sold_hardware_catalog")} ({products.length})
               </CardTitle>
               <CardDescription>
-                Hardware add-ons and unit prices defined here will automatically appear during supermarket subscription checkout.
+                {t("hardware_catalog_description")}
               </CardDescription>
             </div>
             <Button
@@ -418,19 +440,19 @@ export default function AdminHardwareManagement() {
               disabled={isSaving}
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium gap-2 self-start sm:self-auto"
             >
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save Catalog Pricing
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} {isSaving ? t("saving") : t("save_catalog_pricing")}
             </Button>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="py-12 text-center text-muted-foreground flex items-center justify-center gap-2">
-                <Loader2 className="w-5 h-5 animate-spin text-primary" /> Loading hardware products...
+                <Loader2 className="w-5 h-5 animate-spin text-primary" /> {t("loading") || "Loading hardware products..."}
               </div>
             ) : products.length === 0 ? (
               <div className="py-12 text-center text-muted-foreground space-y-3">
-                <p>No hardware products found in catalog.</p>
+                <p>{t("no_hardware_orders") || "No hardware products found in catalog."}</p>
                 <Button variant="outline" onClick={() => setIsAddOpen(true)} className="gap-2">
-                  <Plus className="w-4 h-4" /> Add Your First Product
+                  <Plus className="w-4 h-4" /> {t("add_hardware_product")}
                 </Button>
               </div>
             ) : (
@@ -453,9 +475,9 @@ export default function AdminHardwareManagement() {
                             </div>
                           )}
                           <div>
-                            <h3 className="font-bold text-base text-foreground leading-snug">{product.name}</h3>
+                            <h3 className="font-bold text-base text-foreground leading-snug">{getProductDisplayName(product)}</h3>
                             <Badge variant={product.active ? "default" : "secondary"} className="mt-0.5 text-[10px] font-semibold">
-                              {product.active ? "Active" : "Disabled"}
+                              {product.active ? t("active_status") : t("inactive_status")}
                             </Badge>
                           </div>
                         </div>
@@ -467,7 +489,7 @@ export default function AdminHardwareManagement() {
                             size="icon"
                             className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
                             onClick={() => openEditDialog(product)}
-                            title="Edit details"
+                            title={t("edit") || "Edit details"}
                           >
                             <Edit2 className="w-4 h-4" />
                           </Button>
@@ -476,7 +498,7 @@ export default function AdminHardwareManagement() {
                             size="icon"
                             className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                             onClick={() => openDeleteDialog(product)}
-                            title="Delete product"
+                            title={t("delete") || "Delete product"}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -484,12 +506,14 @@ export default function AdminHardwareManagement() {
                       </div>
 
                       <p className="text-xs text-muted-foreground min-h-[32px] line-clamp-2">
-                        {product.description || "No description provided."}
+                        {(!product.description || product.description.trim() === "" || product.description.trim().toLowerCase() === "no description provided.")
+                          ? t("no_description_provided")
+                          : product.description}
                       </p>
 
                       <div className="pt-3 border-t border-border/60 flex items-center justify-between gap-2">
                         <div className="space-y-0.5">
-                          <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Unit Price (ETB)</Label>
+                          <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{t("unit_price_etb")}</Label>
                           <div className="flex items-center gap-1.5 mt-1">
                             <Input
                               type="number"
@@ -503,7 +527,7 @@ export default function AdminHardwareManagement() {
                         </div>
 
                         <div className="flex flex-col items-end gap-1">
-                          <Label htmlFor={`active-${product.id}`} className="text-[11px] text-muted-foreground font-medium">Status</Label>
+                          <Label htmlFor={`active-${product.id}`} className="text-[11px] text-muted-foreground font-medium">{t("status")}</Label>
                           <Switch
                             id={`active-${product.id}`}
                             checked={product.active}
@@ -525,23 +549,23 @@ export default function AdminHardwareManagement() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <CardTitle className="text-xl flex items-center gap-2">
-                  <ShoppingBag className="w-5 h-5 text-primary" /> Sold Hardware Orders &amp; Subscription Payments
+                  <ShoppingBag className="w-5 h-5 text-primary" /> {t("hardware_orders_title")}
                 </CardTitle>
                 <CardDescription>
-                  Subscriptions containing hardware add-ons submitted by supermarkets.
+                  {t("hardware_orders_subtitle")}
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
-                <Label className="text-xs text-muted-foreground whitespace-nowrap">Filter by:</Label>
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">{t("filter_by_status") || "Filter by:"}</Label>
                 <Select value={hardwareFilter} onValueChange={(val: any) => setHardwareFilter(val)}>
                   <SelectTrigger className="w-[160px] h-9 bg-background border-border/80">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Orders</SelectItem>
-                    <SelectItem value="scanner">Scanner Only</SelectItem>
-                    <SelectItem value="printer">Printer Only</SelectItem>
-                    <SelectItem value="both">Scanner & Printer</SelectItem>
+                    <SelectItem value="all">{t("all") || "All Orders"}</SelectItem>
+                    <SelectItem value="scanner">{t("scanner_only") || "Scanner Only"}</SelectItem>
+                    <SelectItem value="printer">{t("printer_only") || "Printer Only"}</SelectItem>
+                    <SelectItem value="both">{t("scanner_and_printer") || "Scanner & Printer"}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -551,13 +575,13 @@ export default function AdminHardwareManagement() {
             <Table>
               <TableHeader>
                 <TableRow className="border-border/60 hover:bg-transparent">
-                  <TableHead className="text-muted-foreground font-semibold">Mart Name</TableHead>
-                  <TableHead className="text-muted-foreground font-semibold">User / Phone</TableHead>
-                  <TableHead className="text-muted-foreground font-semibold">Subscription Package</TableHead>
-                  <TableHead className="text-muted-foreground font-semibold">Hardware Add-ons</TableHead>
-                  <TableHead className="text-muted-foreground font-semibold">Total Amount</TableHead>
-                  <TableHead className="text-muted-foreground font-semibold">Status</TableHead>
-                  <TableHead className="text-muted-foreground font-semibold">Receipt</TableHead>
+                  <TableHead className="text-muted-foreground font-semibold">{t("mart_name") || "Mart Name"}</TableHead>
+                  <TableHead className="text-muted-foreground font-semibold">{t("user_or_phone") || "User / Phone"}</TableHead>
+                  <TableHead className="text-muted-foreground font-semibold">{t("subscription_package") || "Subscription Package"}</TableHead>
+                  <TableHead className="text-muted-foreground font-semibold">{t("hardware_addons_title") || "Hardware Add-ons"}</TableHead>
+                  <TableHead className="text-muted-foreground font-semibold">{t("total_amount")}</TableHead>
+                  <TableHead className="text-muted-foreground font-semibold">{t("status")}</TableHead>
+                  <TableHead className="text-muted-foreground font-semibold">{t("receipt") || "Receipt"}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -565,7 +589,7 @@ export default function AdminHardwareManagement() {
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       {hardwareFilter === "all" 
-                        ? "No subscription & hardware orders recorded yet."
+                        ? t("no_hardware_orders")
                         : `No orders found with ${hardwareFilter === "both" ? "both scanner & printer" : hardwareFilter + " only"}.`}
                     </TableCell>
                   </TableRow>
@@ -578,13 +602,15 @@ export default function AdminHardwareManagement() {
                         <p className="text-[11px] text-muted-foreground">{p.userPhone || ""}</p>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="bg-muted/60 dark:bg-muted/30 border-border/60 text-foreground text-xs font-medium">{p.packageName}</Badge>
+                        <Badge variant="outline" className="bg-muted/60 dark:bg-muted/30 border-border/60 text-foreground text-xs font-medium">
+                          {formatPackageName(p.packageName)}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <span className="text-xs font-mono bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary-foreground px-2 py-1 rounded border border-primary/25 font-semibold">
                           {p.paymentReference?.includes(" | Add-ons:")
                             ? p.paymentReference.split(" | Add-ons:")[1].trim()
-                            : "Standard License Only"}
+                            : (t("standard_license_only") || "Standard License Only")}
                         </span>
                       </TableCell>
                       <TableCell className="font-bold text-primary">
@@ -593,15 +619,19 @@ export default function AdminHardwareManagement() {
                       <TableCell>
                         {p.status === "approved" ? (
                           <Badge className="bg-emerald-500/15 dark:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 dark:border-emerald-500/40 text-[11px] font-semibold capitalize">
-                            {p.status}
+                            {t("approved")}
                           </Badge>
                         ) : p.status === "rejected" ? (
                           <Badge variant="destructive" className="text-[11px] font-semibold capitalize">
-                            {p.status}
+                            {t("rejected")}
+                          </Badge>
+                        ) : p.status === "suspended" ? (
+                          <Badge className="bg-destructive/10 text-destructive border-destructive/20 text-[11px] font-semibold capitalize">
+                            {t("suspended")}
                           </Badge>
                         ) : (
                           <Badge className="bg-amber-500/15 dark:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 dark:border-amber-500/40 text-[11px] font-semibold capitalize">
-                            {p.status}
+                            {t("pending_status")}
                           </Badge>
                         )}
                       </TableCell>
@@ -613,10 +643,10 @@ export default function AdminHardwareManagement() {
                             rel="noreferrer"
                             className="text-xs text-primary underline font-medium hover:text-primary/80"
                           >
-                            View Receipt
+                            {t("view_receipt") || "View Receipt"}
                           </a>
                         ) : (
-                          <span className="text-xs text-muted-foreground">None</span>
+                          <span className="text-xs text-muted-foreground">{t("none") || "None"}</span>
                         )}
                       </TableCell>
                     </TableRow>
@@ -631,12 +661,12 @@ export default function AdminHardwareManagement() {
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Add New Hardware Product</DialogTitle>
-              <DialogDescription>Create a new sold hardware item to offer during supermarket registration.</DialogDescription>
+              <DialogTitle>{t("add_hardware_product")}</DialogTitle>
+              <DialogDescription>{t("hardware_catalog_description")}</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleAddProduct} className="space-y-4 py-2">
               <div className="space-y-1.5">
-                <Label>Product Name</Label>
+                <Label>{t("hardware_product_name")}</Label>
                 <Input
                   value={newForm.name}
                   onChange={(e) => setNewForm({ ...newForm, name: e.target.value })}
@@ -646,7 +676,7 @@ export default function AdminHardwareManagement() {
               </div>
 
               <div className="space-y-1.5">
-                <Label>Description</Label>
+                <Label>{t("hardware_description")}</Label>
                 <Input
                   value={newForm.description}
                   onChange={(e) => setNewForm({ ...newForm, description: e.target.value })}
@@ -655,7 +685,7 @@ export default function AdminHardwareManagement() {
               </div>
 
               <div className="space-y-1.5">
-                <Label>Unit Price (ETB)</Label>
+                <Label>{t("unit_price_etb")}</Label>
                 <Input
                   type="number"
                   value={newForm.unitPrice}
@@ -666,7 +696,7 @@ export default function AdminHardwareManagement() {
               </div>
 
               <div className="space-y-1.5">
-                <Label>Product Photo / Picture (Optional)</Label>
+                <Label>{t("product_photo") || "Product Photo"} ({t("optional") || "Optional"})</Label>
                 <Input
                   type="file"
                   accept="image/*"
@@ -693,13 +723,13 @@ export default function AdminHardwareManagement() {
                       className="w-12 h-12 rounded-lg object-cover border border-border bg-muted"
                       onError={handleImageError}
                     />
-                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Image attached</span>
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">{t("image_attached") || "Image attached"}</span>
                   </div>
                 )}
               </div>
 
               <div className="flex items-center justify-between pt-2">
-                <Label htmlFor="add-active">Available for Sale</Label>
+                <Label htmlFor="add-active">{t("available_for_sale") || "Available for Sale"}</Label>
                 <Switch
                   id="add-active"
                   checked={newForm.active}
@@ -708,8 +738,8 @@ export default function AdminHardwareManagement() {
               </div>
 
               <DialogFooter className="pt-4">
-                <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
-                <Button type="submit" className="bg-primary text-primary-foreground">Add Product</Button>
+                <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>{t("cancel")}</Button>
+                <Button type="submit" className="bg-primary text-primary-foreground">{t("add_hardware_product")}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -719,13 +749,13 @@ export default function AdminHardwareManagement() {
         <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Edit Hardware Product</DialogTitle>
-              <DialogDescription>Update hardware details, name, or unit price.</DialogDescription>
+              <DialogTitle>{t("edit_hardware_product")}</DialogTitle>
+              <DialogDescription>{t("save_changes")}</DialogDescription>
             </DialogHeader>
             {editingProduct && (
               <form onSubmit={handleUpdateProduct} className="space-y-4 py-2">
                 <div className="space-y-1.5">
-                  <Label>Product Name</Label>
+                  <Label>{t("hardware_product_name")}</Label>
                   <Input
                     value={editingProduct.name}
                     onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
@@ -734,7 +764,7 @@ export default function AdminHardwareManagement() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>Description</Label>
+                  <Label>{t("hardware_description")}</Label>
                   <Input
                     value={editingProduct.description}
                     onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
@@ -742,7 +772,7 @@ export default function AdminHardwareManagement() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>Unit Price (ETB)</Label>
+                  <Label>{t("unit_price_etb")}</Label>
                   <Input
                     type="number"
                     value={editingProduct.unitPrice}
@@ -752,7 +782,7 @@ export default function AdminHardwareManagement() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>Product Photo / Picture (Optional)</Label>
+                  <Label>{t("product_photo") || "Product Photo"} ({t("optional") || "Optional"})</Label>
                   <Input
                     type="file"
                     accept="image/*"
@@ -779,13 +809,13 @@ export default function AdminHardwareManagement() {
                         className="w-12 h-12 rounded-lg object-cover border border-border bg-muted"
                         onError={handleImageError}
                       />
-                      <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Image attached</span>
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">{t("image_attached") || "Image attached"}</span>
                     </div>
                   )}
                 </div>
 
                 <div className="flex items-center justify-between pt-2">
-                  <Label htmlFor="edit-active">Available for Sale</Label>
+                  <Label htmlFor="edit-active">{t("available_for_sale") || "Available for Sale"}</Label>
                   <Switch
                     id="edit-active"
                     checked={editingProduct.active}
@@ -794,8 +824,8 @@ export default function AdminHardwareManagement() {
                 </div>
 
                 <DialogFooter className="pt-4">
-                  <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
-                  <Button type="submit" className="bg-primary text-primary-foreground">Update Product</Button>
+                  <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>{t("cancel")}</Button>
+                  <Button type="submit" className="bg-primary text-primary-foreground">{t("save_changes")}</Button>
                 </DialogFooter>
               </form>
             )}
@@ -806,14 +836,14 @@ export default function AdminHardwareManagement() {
         <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-destructive">Delete Hardware Product</DialogTitle>
+              <DialogTitle className="text-destructive">{t("delete")}</DialogTitle>
               <DialogDescription>
                 Are you sure you want to delete <strong className="text-foreground">{deletingProduct?.name}</strong> from the catalog? This action cannot be undone.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="pt-4">
-              <Button type="button" variant="outline" onClick={() => setIsDeleteOpen(false)}>Cancel</Button>
-              <Button type="button" variant="destructive" onClick={handleDeleteProduct}>Delete Product</Button>
+              <Button type="button" variant="outline" onClick={() => setIsDeleteOpen(false)}>{t("cancel")}</Button>
+              <Button type="button" variant="destructive" onClick={handleDeleteProduct}>{t("delete")}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
