@@ -69,6 +69,7 @@ import { toast } from "sonner";
 import type { Expense, ExpenseCategory } from "@/types";
 import { useProductStore } from "@/stores/productStore";
 import { AutoComplete } from "@/components/ui/AutoComplete";
+import { FileInput } from "@/components/ui/FileInput";
 import { useAuthStore } from "@/stores/authStore";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -1139,105 +1140,31 @@ export default function ExpenseManagement() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="productPicture">{t("product_picture")}</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      id="productPicture"
-                      type="file"
-                      accept="image/*"
-                      onChange={(e: any) => {
-                        const f = e.target.files?.[0] || null;
-                        setForm({ ...form, productPicture: f });
-                        setProductPicturePreview(
-                          f ? URL.createObjectURL(f) : null,
-                        );
-                      }}
-                    />
-                    <input
-                      id="productPictureCamera"
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(e: any) => {
-                        const f = e.target.files?.[0] || null;
-                        setForm({ ...form, productPicture: f });
-                        setProductPicturePreview(
-                          f ? URL.createObjectURL(f) : null,
-                        );
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() =>
-                        document.getElementById("productPictureCamera")?.click()
-                      }
-                      aria-label={t("take_photo", "Take photo")}
-                    >
-                      <Camera className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {productPicturePreview && (
-                    <img
-                      src={productPicturePreview}
-                      className="w-20 h-20 object-cover rounded"
-                      alt="product"
-                    />
-                  )}
+                  <FileInput
+                    id="productPicture"
+                    accept="image/*"
+                    file={form.productPicture}
+                    preview={productPicturePreview}
+                    onChange={(f) => {
+                      setForm({ ...form, productPicture: f });
+                      setProductPicturePreview(f ? URL.createObjectURL(f) : null);
+                    }}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="paymentScreenshot">
                     {t("payment_screenshot")}
                   </Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      id="paymentScreenshot"
-                      type="file"
-                      accept="image/*"
-                      onChange={(e: any) => {
-                        const f = e.target.files?.[0] || null;
-                        setForm({ ...form, paymentScreenshot: f });
-                        setPaymentScreenshotPreview(
-                          f ? URL.createObjectURL(f) : null,
-                        );
-                      }}
-                    />
-                    <input
-                      id="paymentScreenshotCamera"
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(e: any) => {
-                        const f = e.target.files?.[0] || null;
-                        setForm({ ...form, paymentScreenshot: f });
-                        setPaymentScreenshotPreview(
-                          f ? URL.createObjectURL(f) : null,
-                        );
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() =>
-                        document
-                          .getElementById("paymentScreenshotCamera")
-                          ?.click()
-                      }
-                      aria-label={t("take_photo", "Take photo")}
-                    >
-                      <Camera className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {paymentScreenshotPreview && (
-                    <img
-                      src={paymentScreenshotPreview}
-                      className="w-32 h-20 object-contain rounded"
-                      alt="payment"
-                    />
-                  )}
+                  <FileInput
+                    id="paymentScreenshot"
+                    accept="image/*"
+                    file={form.paymentScreenshot}
+                    preview={paymentScreenshotPreview}
+                    onChange={(f) => {
+                      setForm({ ...form, paymentScreenshot: f });
+                      setPaymentScreenshotPreview(f ? URL.createObjectURL(f) : null);
+                    }}
+                  />
                 </div>
                 <div className="md:col-span-2 flex justify-end gap-2 pt-2">
                   <Button
@@ -1303,7 +1230,7 @@ export default function ExpenseManagement() {
                   onClick={downloadExpensePdf}
                 >
                   <FileDown className="mr-2 h-4 w-4" />
-                  Download PDF
+                  {t("download_pdf")}
                 </Button>
               </div>
             </motion.div>

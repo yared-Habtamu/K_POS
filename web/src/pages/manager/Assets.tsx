@@ -128,7 +128,7 @@ export default function ManagerAssets() {
       }
     } catch (err) {
       console.error("Fetch error", err);
-      toast.error("Failed to load data");
+      toast.error(t("failed_load_data", { defaultValue: "Failed to load data" }));
     } finally {
       setIsLoading(false);
     }
@@ -191,7 +191,7 @@ export default function ManagerAssets() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || qty === "" || Number(qty) <= 0) {
-      toast.error("Please fill required fields");
+      toast.error(t("please_fill_required_fields", { defaultValue: "Please fill required fields" }));
       return;
     }
 
@@ -249,16 +249,16 @@ export default function ManagerAssets() {
 
       if (editingId) {
         setAssets(assets.map((a) => (a.id === editingId ? normalized : a)));
-        toast.success("Asset updated successfully");
+        toast.success(t("asset_updated_successfully", { defaultValue: "Asset updated successfully" }));
       } else {
         setAssets([normalized, ...assets]);
-        toast.success("Asset registered successfully");
+        toast.success(t("asset_registered_successfully", { defaultValue: "Asset registered successfully" }));
       }
       setIsModalOpen(false);
       resetForm();
     } catch (err) {
       console.error("Submit error", err);
-      toast.error("Error saving asset");
+      toast.error(t("failed_save_asset", { defaultValue: "Error saving asset" }));
     } finally {
       setIsSubmitting(false);
     }
@@ -284,10 +284,10 @@ export default function ManagerAssets() {
 
       if (!res.ok) throw new Error("Delete failed");
       setAssets(assets.filter((a) => a.id !== asset.id));
-      toast.success("Asset removed");
+      toast.success(t("asset_removed", { defaultValue: "Asset removed" }));
     } catch (err) {
       console.error("Delete error", err);
-      toast.error("Failed to remove asset");
+      toast.error(t("failed_remove_asset", { defaultValue: "Failed to remove asset" }));
     }
   };
 
@@ -929,7 +929,7 @@ export default function ManagerAssets() {
                   </span>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-muted-foreground">Current status</p>
+                  <p className="text-muted-foreground">{t("current_status", { defaultValue: "Current status" })}</p>
                   <span
                     className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
                       normalizeAssetStatus(viewingAsset) === "broken"
@@ -937,7 +937,7 @@ export default function ManagerAssets() {
                         : "bg-green-100 text-green-800"
                     }`}
                   >
-                    {assetStatusLabel(normalizeAssetStatus(viewingAsset))}
+                    {assetStatusLabel(normalizeAssetStatus(viewingAsset), t)}
                   </span>
                 </div>
                 <div className="space-y-1">

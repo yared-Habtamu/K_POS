@@ -346,10 +346,10 @@ export default function OwnerEmployeeManagement(): JSX.Element {
         delete c[id];
         return c;
       });
-      toast({ title: "Employee deleted successfully" });
+      toast({ title: t("employee_deleted_successfully", { defaultValue: "Employee deleted successfully" }) });
     } catch (err) {
       console.error(err);
-      toast({ title: "Failed to delete employee" });
+      toast({ title: t("failed_delete_employee", { defaultValue: "Failed to delete employee" }) });
     }
   };
 
@@ -357,7 +357,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
     e.preventDefault();
 
     if (!form.name || !form.phone || !form.salary) {
-      toast({ title: "Please fill required fields" });
+      toast({ title: t("please_fill_required_fields", { defaultValue: "Please fill required fields" }) });
       return;
     }
 
@@ -503,13 +503,13 @@ export default function OwnerEmployeeManagement(): JSX.Element {
         },
       );
       if (!res.ok) throw new Error("Failed to update password");
-      toast({ title: "Password updated successfully" });
+      toast({ title: t("password_updated_successfully", { defaultValue: "Password updated successfully" }) });
       setChangePasswordOpen(false);
       setNewPassword("");
       setPasswordTarget(null);
     } catch (err) {
       console.error(err);
-      toast({ title: "Failed to update password", variant: "destructive" });
+      toast({ title: t("failed_update_password", { defaultValue: "Failed to update password" }), variant: "destructive" });
     }
   };
 
@@ -929,27 +929,27 @@ export default function OwnerEmployeeManagement(): JSX.Element {
     const { employeeId, date, clockIn, lunchOut, lunchBack, clockOut } = manualEntry;
 
     if (!employeeId || !date || !clockIn) {
-      toast({ title: "Please fill employee, date and clock-in" });
+      toast({ title: t("fill_employee_date_clockin", { defaultValue: "Please fill employee, date and clock-in" }) });
       return;
     }
 
     if (lunchOut && lunchBack && lunchBack <= lunchOut) {
       toast({
-        title: "Invalid Time",
-        description: "Lunch-back must be after lunch-out.",
+        title: t("invalid_time", { defaultValue: "Invalid Time" }),
+        description: t("lunch_back_after_lunch_out", { defaultValue: "Lunch-back must be after lunch-out." }),
       });
       return;
     }
 
     if (clockOut && clockOut <= clockIn) {
       toast({
-        title: "Invalid Time",
-        description: "Clock-out must be after clock-in.",
+        title: t("invalid_time", { defaultValue: "Invalid Time" }),
+        description: t("clock_out_after_clock_in", { defaultValue: "Clock-out must be after clock-in." }),
       });
       return;
     }
     if (!token) {
-      toast({ title: "Not authenticated", variant: "destructive" });
+      toast({ title: t("not_authenticated", { defaultValue: "Not authenticated" }), variant: "destructive" });
       return;
     }
 
@@ -968,7 +968,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
         token,
       );
       await refreshAttendance();
-      toast({ title: "Attendance Saved", description: "Saved to database." });
+      toast({ title: t("attendance_saved", { defaultValue: "Attendance Saved" }), description: t("saved_to_database", { defaultValue: "Saved to database." }) });
       setManualEditingId(null);
       setManualEntry({
         employeeId: "",
@@ -1431,22 +1431,22 @@ export default function OwnerEmployeeManagement(): JSX.Element {
             <Card>
               <CardContent className="p-4">
                 <AdvancedFilters
-                  title="Search and filter employees"
-                  description="Find employees by name, username, phone, role, or sort order."
+                  title={t("search_filter_employees")}
+                  description={t("find_employees_desc")}
                   fields={[
                     {
                       key: "query",
-                      label: "Search",
+                      label: t("search"),
                       type: "search",
-                      placeholder: "Search by name, username, or phone",
+                      placeholder: t("search_by_name_username_phone", { defaultValue: "Search by name, username, or phone" }),
                     },
                     {
                       key: "role",
-                      label: "Role",
+                      label: t("role"),
                       type: "select",
-                      placeholder: "All roles",
+                      placeholder: t("all_roles", { defaultValue: "All roles" }),
                       options: [
-                        { label: "All Roles", value: "all" },
+                        { label: t("all_roles", { defaultValue: "All Roles" }), value: "all" },
                         ...ALL_ROLES.map((role) => ({
                           label: t(role),
                           value: role,
@@ -1455,15 +1455,15 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                     },
                     {
                       key: "sortBy",
-                      label: "Sort by",
+                      label: t("sort_by", { defaultValue: "Sort by" }),
                       type: "select",
-                      placeholder: "Name A -> Z",
+                      placeholder: t("name_a_z", { defaultValue: "Name A -> Z" }),
                       options: [
-                        { label: "Name A -> Z", value: "name_asc" },
-                        { label: "Name Z -> A", value: "name_desc" },
-                        { label: "Salary Low -> High", value: "salary_asc" },
-                        { label: "Salary High -> Low", value: "salary_desc" },
-                        { label: "Role A -> Z", value: "role_asc" },
+                        { label: t("name_a_z", { defaultValue: "Name A -> Z" }), value: "name_asc" },
+                        { label: t("name_z_a", { defaultValue: "Name Z -> A" }), value: "name_desc" },
+                        { label: t("salary_low_high", { defaultValue: "Salary Low -> High" }), value: "salary_asc" },
+                        { label: t("salary_high_low", { defaultValue: "Salary High -> Low" }), value: "salary_desc" },
+                        { label: t("role_a_z", { defaultValue: "Role A -> Z" }), value: "role_asc" },
                       ],
                     },
                   ]}
@@ -1687,11 +1687,10 @@ export default function OwnerEmployeeManagement(): JSX.Element {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <UserCog className="h-5 w-5" />
-                  Manage Permissions
+                  {t("manage_permissions")}
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Control which actions each employee is allowed to perform in
-                  the POS system.
+                  {t("control_employee_actions_desc")}
                 </p>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -1699,10 +1698,10 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                 {managers.length > 0 && (
                   <div>
                     <p className="text-sm font-semibold mb-2">
-                      Manager Permissions
+                      {t("manager_permissions")}
                     </p>
                     <p className="text-xs text-muted-foreground mb-3">
-                      Assign manager-level permissions
+                      {t("assign_manager_permissions")}
                     </p>
                     <div className="space-y-3">
                       {managers.map((emp) => (
@@ -1716,7 +1715,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                           <div className="flex items-center space-x-6">
                             <div className="flex items-center space-x-2">
                               <span className="text-xs text-muted-foreground">
-                                Apply Discounts
+                                {t("apply_discounts")}
                               </span>
                               <Switch
                                 checked={!!permissions[emp.id]?.discount}
@@ -1727,7 +1726,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                             </div>
                             <div className="flex items-center space-x-2">
                               <span className="text-xs text-muted-foreground">
-                                Add Items (w/ Price)
+                                {t("add_items_with_price")}
                               </span>
                               <Switch
                                 checked={!!permissions[emp.id]?.addItem}
@@ -1747,10 +1746,10 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                 {storeKeepers.length > 0 && (
                   <div>
                     <p className="text-sm font-semibold mb-2">
-                      Store Keeper Permissions
+                      {t("store_keeper_permissions")}
                     </p>
                     <p className="text-xs text-muted-foreground mb-3">
-                      Assign warehouse permissions
+                      {t("assign_warehouse_permissions")}
                     </p>
                     <div className="space-y-3">
                       {storeKeepers.map((emp) => (
@@ -1763,7 +1762,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                           </div>
                           <div className="flex items-center space-x-2">
                             <span className="text-xs text-muted-foreground">
-                              Transfer Stock
+                              {t("transfer_stock")}
                             </span>
                             <Switch
                               checked={!!permissions[emp.id]?.transferStock}
@@ -1782,10 +1781,10 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                 {cashiers.length > 0 && (
                   <div>
                     <p className="text-sm font-semibold mb-2">
-                      Cashier Permissions
+                      {t("cashier_permissions")}
                     </p>
                     <p className="text-xs text-muted-foreground mb-3">
-                      Assign front-desk permissions
+                      {t("assign_frontdesk_permissions")}
                     </p>
                     <div className="space-y-3">
                       {cashiers.map((emp) => (
@@ -1798,7 +1797,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                           </div>
                           <div className="flex items-center space-x-2">
                             <span className="text-xs text-muted-foreground">
-                              Apply Discounts
+                              {t("apply_discounts")}
                             </span>
                             <Switch
                               checked={!!permissions[emp.id]?.discount}
@@ -1817,7 +1816,7 @@ export default function OwnerEmployeeManagement(): JSX.Element {
                   storeKeepers.length === 0 &&
                   cashiers.length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-4">
-                      No employees to manage permissions for.
+                      {t("no_employees_manage_permissions")}
                     </p>
                   )}
               </CardContent>

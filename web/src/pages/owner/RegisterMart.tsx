@@ -1,5 +1,6 @@
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { AutoComplete } from "@/components/ui/AutoComplete";
@@ -31,6 +32,7 @@ type HardwareDetail = {
 };
 
 export default function RegisterMart() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const login = useAuthStore((s) => s.login);
@@ -181,7 +183,7 @@ export default function RegisterMart() {
           onClick={() => navigate(-1)}
           className="gap-2 text-muted-foreground"
         >
-          <ArrowLeft className="w-4 h-4" /> Back
+          <ArrowLeft className="w-4 h-4" /> {t("back", { defaultValue: "Back" })}
         </Button>
       </div>
 
@@ -211,12 +213,12 @@ export default function RegisterMart() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Register Your Supermarket</CardTitle>
+          <CardTitle>{t("register_your_supermarket", { defaultValue: "Register Your Supermarket" })}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={submit} className="grid gap-3">
             <div>
-              <Label>Mart Name</Label>
+              <Label>{t("mart_name", { defaultValue: "Mart Name" })}</Label>
               <Input
                 name="martName"
                 value={form.martName}
@@ -228,7 +230,7 @@ export default function RegisterMart() {
             </div>
             {/* Keep a single phone input (owner provides the contact number) */}
             <div>
-              <Label>Email</Label>
+              <Label>{t("email", { defaultValue: "Email" })}</Label>
               <Input
                 name="email"
                 value={form.email}
@@ -239,7 +241,7 @@ export default function RegisterMart() {
               />
             </div>
             <div>
-              <Label>Country</Label>
+              <Label>{t("country", { defaultValue: "Country" })}</Label>
               <AutoComplete<CountryOption>
                 id="country-autocomplete"
                 items={countryOptions}
@@ -285,7 +287,7 @@ export default function RegisterMart() {
               />
             </div>
             <div>
-              <Label>Region</Label>
+              <Label>{t("region", { defaultValue: "Region" })}</Label>
               <Select
                 value={form.region}
                 onValueChange={(v) => setForm({ ...form, region: v })}
@@ -315,7 +317,7 @@ export default function RegisterMart() {
               </Select>
             </div>
             <div>
-              <Label>City</Label>
+              <Label>{t("city", { defaultValue: "City" })}</Label>
               <Input
                 name="city"
                 value={form.city}
@@ -325,7 +327,7 @@ export default function RegisterMart() {
               />
             </div>
             <div>
-              <Label>Address</Label>
+              <Label>{t("address", { defaultValue: "Address" })}</Label>
               <Input
                 name="address"
                 value={form.address}
@@ -337,7 +339,7 @@ export default function RegisterMart() {
 
             <hr />
             <div>
-              <Label>Owner Name</Label>
+              <Label>{t("owner_name", { defaultValue: "Owner Name" })}</Label>
               <Input
                 name="ownerName"
                 value={form.ownerName}
@@ -348,7 +350,7 @@ export default function RegisterMart() {
               />
             </div>
             <div>
-              <Label>Phone</Label>
+              <Label>{t("phone", { defaultValue: "Phone" })}</Label>
               <Input
                 name="ownerPhone"
                 value={form.ownerPhone}
@@ -359,7 +361,7 @@ export default function RegisterMart() {
               />
             </div>
             <div>
-              <Label>Owner Username</Label>
+              <Label>{t("owner_username", { defaultValue: "Owner Username" })}</Label>
               <Input
                 name="ownerUsername"
                 value={form.ownerUsername}
@@ -370,7 +372,7 @@ export default function RegisterMart() {
               />
             </div>
             <div>
-              <Label>Password</Label>
+              <Label>{t("password", { defaultValue: "Password" })}</Label>
               <Input
                 name="ownerPassword"
                 value={form.ownerPassword}
@@ -382,7 +384,7 @@ export default function RegisterMart() {
               />
             </div>
             <div>
-              <Label>Confirm Password</Label>
+              <Label>{t("confirm_password", { defaultValue: "Confirm Password" })}</Label>
               {/* add live matching feedback: green if matches, red if mismatched */}
               <Input
                 name="ownerConfirmPassword"
@@ -409,8 +411,8 @@ export default function RegisterMart() {
                   }`}
                 >
                   {form.ownerPassword === form.ownerConfirmPassword
-                    ? "Passwords match"
-                    : "Passwords do not match"}
+                    ? t("passwords_match", { defaultValue: "Passwords match" })
+                    : t("passwords_do_not_match", { defaultValue: "Passwords do not match" })}
                 </p>
               )}
             </div>
@@ -427,10 +429,10 @@ export default function RegisterMart() {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Processing...
+                    {t("loading", { defaultValue: "Processing..." })}
                   </>
                 ) : (
-                  "Proceed to Checkout"
+                  t("proceed_to_checkout", { defaultValue: "Proceed to Checkout" })
                 )}
               </Button>
             </div>

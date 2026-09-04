@@ -1,16 +1,21 @@
+import { useTranslation } from "react-i18next";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PrinterSettingsCard } from "@/components/settings/PrinterSettingsCard";
 
 export default function ManagerSettings() {
+  const { t } = useTranslation();
   return (
     <RoleLayout allowedRoles={["manager"]}>
       <div className="space-y-6">
         <div className="space-y-2">
-          <h1 className="text-2xl font-bold">Manager Settings</h1>
+          <h1 className="text-2xl font-bold">{t("settings")}</h1>
           <p className="text-muted-foreground">
-            Configure manager device preferences and printer mapping.
+            {t("configure_manager_settings", {
+              defaultValue:
+                "Configure manager device preferences and printer mapping.",
+            })}
           </p>
         </div>
 

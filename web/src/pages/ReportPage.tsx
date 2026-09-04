@@ -948,13 +948,13 @@ const ReportPage: React.FC = () => {
         ]
       : []),
     {
-      title: "Expired Products",
+      title: t("expired_products", { defaultValue: "Expired Products" }),
       value: fmtN(localData.expiredProductsCount),
       Icon: AlertTriangle,
       color: "text-amber-500",
     },
     {
-      title: "Broken Assets",
+      title: t("broken_assets", { defaultValue: "Broken Assets" }),
       value: fmtN(localData.brokenAssetsCount),
       Icon: AlertTriangle,
       color: "text-rose-500",
@@ -1033,7 +1033,7 @@ const ReportPage: React.FC = () => {
                       onChange={(ymd) =>
                         setCustomDates({ ...customDates, start: ymd })
                       }
-                      placeholder="Start"
+                      placeholder={t("start", { defaultValue: "Start" })}
                       className="w-[170px]"
                     />
                     <span className="text-muted-foreground">–</span>
@@ -1042,7 +1042,7 @@ const ReportPage: React.FC = () => {
                       onChange={(ymd) =>
                         setCustomDates({ ...customDates, end: ymd })
                       }
-                      placeholder="End"
+                      placeholder={t("end", { defaultValue: "End" })}
                       className="w-[170px]"
                     />
                   </div>
@@ -1352,7 +1352,7 @@ const ReportPage: React.FC = () => {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">
-              Expired and Broken Items
+              {t("expired_and_broken_items", { defaultValue: "Expired and Broken Items" })}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -1361,16 +1361,16 @@ const ReportPage: React.FC = () => {
                 <thead className="bg-muted/30 border-b">
                   <tr>
                     <th className="text-left py-2 px-4 font-semibold text-muted-foreground">
-                      Type
+                      {t("type", { defaultValue: "Type" })}
                     </th>
                     <th className="text-left py-2 px-4 font-semibold text-muted-foreground">
-                      Name
+                      {t("name", { defaultValue: "Name" })}
                     </th>
                     <th className="text-left py-2 px-4 font-semibold text-muted-foreground">
-                      Status / Date
+                      {t("status_date", { defaultValue: "Status / Date" })}
                     </th>
                     <th className="text-right py-2 px-4 font-semibold text-muted-foreground">
-                      Quantity
+                      {t("quantity", { defaultValue: "Quantity" })}
                     </th>
                   </tr>
                 </thead>
@@ -1378,7 +1378,7 @@ const ReportPage: React.FC = () => {
                   {(localData.expiredProducts || []).map(
                     (p: any, i: number) => (
                       <tr key={`exp-${i}`} className="hover:bg-muted/20">
-                        <td className="py-2 px-4">Expired Product</td>
+                        <td className="py-2 px-4">{t("expired_product", { defaultValue: "Expired Product" })}</td>
                         <td className="py-2 px-4">{p.name}</td>
                         <td className="py-2 px-4">
                           {p.expiryDate
@@ -1393,7 +1393,7 @@ const ReportPage: React.FC = () => {
                   )}
                   {(localData.brokenAssets || []).map((a: any, i: number) => (
                     <tr key={`broken-${i}`} className="hover:bg-muted/20">
-                      <td className="py-2 px-4">Broken Asset</td>
+                      <td className="py-2 px-4">{t("broken_asset", { defaultValue: "Broken Asset" })}</td>
                       <td className="py-2 px-4">{a.name}</td>
                       <td className="py-2 px-4">
                         {a.conditions || a.asset_status || "broken"}
@@ -1410,7 +1410,7 @@ const ReportPage: React.FC = () => {
                         colSpan={4}
                         className="py-3 px-4 text-center text-muted-foreground"
                       >
-                        No expired or broken items found.
+                        {t("no_expired_or_broken_items", { defaultValue: "No expired or broken items found." })}
                       </td>
                     </tr>
                   ) : null}

@@ -1070,7 +1070,7 @@ export default function OwnerSettings() {
         <div className="space-y-2">
           <h1 className="text-2xl font-bold">{t("settings")}</h1>
           <p className="text-muted-foreground">
-            Configure owner settings by section using tabs.
+            {t("configure_owner_settings", { defaultValue: "Configure owner settings by section using tabs." })}
           </p>
         </div>
 
@@ -1087,10 +1087,10 @@ export default function OwnerSettings() {
                 {t("tax")}
               </TabsTrigger>
               <TabsTrigger value="discount" className="shrink-0">
-                Discount
+                {t("discount", { defaultValue: "Discount" })}
               </TabsTrigger>
               <TabsTrigger value="printer" className="shrink-0">
-                Printer
+                {t("printer", { defaultValue: "Printer" })}
               </TabsTrigger>
             </TabsList>
           </div>
@@ -1136,11 +1136,11 @@ export default function OwnerSettings() {
                   </div>
 
                   <div>
-                    <p className="text-sm font-medium">Address</p>
+                    <p className="text-sm font-medium">{t("address", { defaultValue: "Address" })}</p>
                     <Input
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
-                      placeholder="Enter receipt address"
+                      placeholder={t("enter_receipt_address", { defaultValue: "Enter receipt address" })}
                       className="mt-2"
                     />
                   </div>
@@ -1634,12 +1634,12 @@ export default function OwnerSettings() {
           <TabsContent value="discount" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>Global Discount</CardTitle>
+                <CardTitle>{t("global_discount", { defaultValue: "Global Discount" })}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 gap-4">
                   <div>
-                    <p className="text-sm font-medium">Discount Type</p>
+                    <p className="text-sm font-medium">{t("discount_type", { defaultValue: "Discount Type" })}</p>
                     <Select
                       value={globalDiscountType}
                       onValueChange={(v) =>
@@ -1651,9 +1651,9 @@ export default function OwnerSettings() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="percentage">
-                          Percentage (%)
+                          {t("percentage", { defaultValue: "Percentage (%)" })}
                         </SelectItem>
-                        <SelectItem value="fixed">Fixed Amount</SelectItem>
+                        <SelectItem value="fixed">{t("fixed_amount", { defaultValue: "Fixed Amount" })}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1661,8 +1661,8 @@ export default function OwnerSettings() {
                   <div>
                     <p className="text-sm font-medium">
                       {globalDiscountType === "percentage"
-                        ? "Discount Rate (%)"
-                        : "Discount Value (ETB)"}
+                        ? t("discount_rate", { defaultValue: "Discount Rate (%)" })
+                        : t("discount_value", { defaultValue: "Discount Value (ETB)" })}
                     </p>
                     <Input
                       type="number"
@@ -1670,8 +1670,8 @@ export default function OwnerSettings() {
                       onChange={(e) => setGlobalDiscountRate(e.target.value)}
                       placeholder={
                         globalDiscountType === "percentage"
-                          ? "Enter discount percentage"
-                          : "Enter fixed discount value"
+                          ? t("enter_discount_percentage", { defaultValue: "Enter discount percentage" })
+                          : t("enter_fixed_discount_value", { defaultValue: "Enter fixed discount value" })
                       }
                       className="mt-2 w-44"
                     />
@@ -1680,7 +1680,7 @@ export default function OwnerSettings() {
                   <div className="space-y-3 rounded-lg border p-3">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-medium">
-                        Apply when total items exceed X
+                        {t("apply_when_items_exceed", { defaultValue: "Apply when total items exceed X" })}
                       </p>
                       <Switch
                         checked={enableDiscountByItems}
@@ -1694,7 +1694,7 @@ export default function OwnerSettings() {
                         type="number"
                         value={discountMinItems}
                         onChange={(e) => setDiscountMinItems(e.target.value)}
-                        placeholder="Enter item threshold"
+                        placeholder={t("enter_item_threshold", { defaultValue: "Enter item threshold" })}
                         className="w-44"
                       />
                     )}
@@ -1703,7 +1703,7 @@ export default function OwnerSettings() {
                   <div className="space-y-3 rounded-lg border p-3">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-medium">
-                        Apply when subtotal exceeds X amount
+                        {t("apply_when_subtotal_exceeds", { defaultValue: "Apply when subtotal exceeds X amount" })}
                       </p>
                       <Switch
                         checked={enableDiscountByAmount}
@@ -1717,19 +1717,18 @@ export default function OwnerSettings() {
                         type="number"
                         value={discountMinAmount}
                         onChange={(e) => setDiscountMinAmount(e.target.value)}
-                        placeholder="Enter amount threshold"
+                        placeholder={t("enter_amount_threshold", { defaultValue: "Enter amount threshold" })}
                         className="w-44"
                       />
                     )}
                   </div>
 
                   <p className="text-xs text-muted-foreground">
-                    Discount is auto-applied when at least one enabled condition
-                    is met.
+                    {t("discount_auto_applied_desc", { defaultValue: "Discount is auto-applied when at least one enabled condition is met." })}
                   </p>
 
                   <div className="flex justify-end pt-2">
-                    <Button onClick={saveDiscountPolicy}>Save Discount</Button>
+                    <Button onClick={saveDiscountPolicy}>{t("save_discount", { defaultValue: "Save Discount" })}</Button>
                   </div>
                 </div>
               </CardContent>
@@ -1739,8 +1738,8 @@ export default function OwnerSettings() {
           <TabsContent value="printer" className="mt-4">
             <PrinterSettingsCard
               role="owner"
-              title="Owner Printer"
-              description="Set the printer used for owner actions on this device."
+              title={t("owner_printer", { defaultValue: "Owner Printer" })}
+              description={t("owner_printer_desc", { defaultValue: "Set the printer used for owner actions on this device." })}
             />
           </TabsContent>
         </Tabs>
