@@ -70,6 +70,7 @@ import type { Expense, ExpenseCategory } from "@/types";
 import { useAuthStore } from "@/stores/authStore";
 import { useProductStore } from "@/stores/productStore";
 import { AutoComplete } from "@/components/ui/AutoComplete";
+import { FileInput } from "@/components/ui/FileInput";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
@@ -1040,7 +1041,7 @@ export default function ExpenseManagement() {
                 onClick={downloadExpensePdf}
               >
                 <FileDown className="mr-2 h-4 w-4" />
-                Download PDF
+                {t("download_pdf")}
               </Button>
               <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
@@ -1162,105 +1163,31 @@ export default function ExpenseManagement() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="productPicture">{t("product_picture")}</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      id="productPicture"
-                      type="file"
-                      accept="image/*"
-                      onChange={(e: any) => {
-                        const f = e.target.files?.[0] || null;
-                        setForm({ ...form, productPicture: f });
-                        setProductPicturePreview(
-                          f ? URL.createObjectURL(f) : null,
-                        );
-                      }}
-                    />
-                    <input
-                      id="productPictureCamera"
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(e: any) => {
-                        const f = e.target.files?.[0] || null;
-                        setForm({ ...form, productPicture: f });
-                        setProductPicturePreview(
-                          f ? URL.createObjectURL(f) : null,
-                        );
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() =>
-                        document.getElementById("productPictureCamera")?.click()
-                      }
-                      aria-label={t("take_photo", "Take photo")}
-                    >
-                      <Camera className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {productPicturePreview && (
-                    <img
-                      src={productPicturePreview}
-                      className="w-20 h-20 object-cover rounded"
-                      alt="product"
-                    />
-                  )}
+                  <FileInput
+                    id="productPicture"
+                    accept="image/*"
+                    file={form.productPicture}
+                    preview={productPicturePreview}
+                    onChange={(f) => {
+                      setForm({ ...form, productPicture: f });
+                      setProductPicturePreview(f ? URL.createObjectURL(f) : null);
+                    }}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="paymentScreenshot">
                     {t("payment_screenshot")}
                   </Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      id="paymentScreenshot"
-                      type="file"
-                      accept="image/*"
-                      onChange={(e: any) => {
-                        const f = e.target.files?.[0] || null;
-                        setForm({ ...form, paymentScreenshot: f });
-                        setPaymentScreenshotPreview(
-                          f ? URL.createObjectURL(f) : null,
-                        );
-                      }}
-                    />
-                    <input
-                      id="paymentScreenshotCamera"
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(e: any) => {
-                        const f = e.target.files?.[0] || null;
-                        setForm({ ...form, paymentScreenshot: f });
-                        setPaymentScreenshotPreview(
-                          f ? URL.createObjectURL(f) : null,
-                        );
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() =>
-                        document
-                          .getElementById("paymentScreenshotCamera")
-                          ?.click()
-                      }
-                      aria-label={t("take_photo", "Take photo")}
-                    >
-                      <Camera className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {paymentScreenshotPreview && (
-                    <img
-                      src={paymentScreenshotPreview}
-                      className="w-32 h-20 object-contain rounded"
-                      alt="payment"
-                    />
-                  )}
+                  <FileInput
+                    id="paymentScreenshot"
+                    accept="image/*"
+                    file={form.paymentScreenshot}
+                    preview={paymentScreenshotPreview}
+                    onChange={(f) => {
+                      setForm({ ...form, paymentScreenshot: f });
+                      setPaymentScreenshotPreview(f ? URL.createObjectURL(f) : null);
+                    }}
+                  />
                 </div>
                 <div className="md:col-span-2 flex justify-end gap-2 pt-2">
                   <Button
@@ -1422,10 +1349,10 @@ export default function ExpenseManagement() {
                         }}
                       >
                         <SelectTrigger className="w-36">
-                          <SelectValue placeholder="Payment method" />
+                          <SelectValue placeholder={t("payment_method")} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All methods</SelectItem>
+                          <SelectItem value="all">{t("all_methods", { defaultValue: "All methods" })}</SelectItem>
                           {paymentOptions.map((p) => (
                             <SelectItem key={p.id} value={p.id}>
                               {p.label}
@@ -1445,7 +1372,7 @@ export default function ExpenseManagement() {
                   size="icon"
                   onClick={handlePrevDay}
                   className="h-8 w-8 rounded-lg border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
-                  aria-label="Previous day"
+                  aria-label={t("prev")}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -1457,7 +1384,7 @@ export default function ExpenseManagement() {
                       setExactDate(ymd || "");
                       setCurrentPage(1);
                     }}
-                    placeholder="All Days (Select Date)"
+                    placeholder={t("all_days_select_date", { defaultValue: "All Days (Select Date)" })}
                     className="w-[230px]"
                   />
                   {exactDate && (
@@ -1469,7 +1396,7 @@ export default function ExpenseManagement() {
                         setCurrentPage(1);
                       }}
                       className="h-8 w-8 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
-                      title="Clear date filter"
+                      title={t("clear_date_filter", { defaultValue: "Clear date filter" })}
                     >
                       <X className="h-4 w-4" />
                     </Button>
@@ -1481,7 +1408,7 @@ export default function ExpenseManagement() {
                   size="icon"
                   onClick={handleNextDay}
                   className="h-8 w-8 rounded-lg border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
-                  aria-label="Next day"
+                  aria-label={t("next")}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>

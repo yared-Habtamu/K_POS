@@ -499,10 +499,10 @@ export default function MEmployeeManagement(): JSX.Element {
       });
       if (!res.ok) throw new Error("Delete failed");
       setEmployees((prev) => prev.filter((e) => e.id !== id));
-      toast({ title: "Employee deleted successfully" });
+      toast({ title: t("employee_deleted_successfully", { defaultValue: "Employee deleted successfully" }) });
     } catch (err) {
       console.error(err);
-      toast({ title: "Failed to delete employee" });
+      toast({ title: t("failed_delete_employee", { defaultValue: "Failed to delete employee" }) });
     }
   };
 
@@ -510,7 +510,7 @@ export default function MEmployeeManagement(): JSX.Element {
     e.preventDefault();
 
     if (!form.name || !form.phone || !form.salary) {
-      toast({ title: "Please fill required fields" });
+      toast({ title: t("please_fill_required_fields", { defaultValue: "Please fill required fields" }) });
       return;
     }
 
@@ -1359,14 +1359,14 @@ export default function MEmployeeManagement(): JSX.Element {
             onClick={() => setActiveTab("employees")}
             className="rounded-none"
           >
-            Employees
+            {t("employees")}
           </Button>
           <Button
             variant={activeTab === "attendance" ? "default" : "ghost"}
             onClick={() => setActiveTab("attendance")}
             className="rounded-none"
           >
-            Attendance
+            {t("attendance")}
           </Button>
         </div>
 
@@ -1375,10 +1375,10 @@ export default function MEmployeeManagement(): JSX.Element {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-bold">
-                  {t("employees") || "Employees"}
+                  {t("employees")}
                 </h1>
                 <p className="text-muted-foreground">
-                  Manage your team members
+                  {t("manage_team_members", { defaultValue: "Manage your team members" })}
                 </p>
               </div>
 
@@ -1388,22 +1388,22 @@ export default function MEmployeeManagement(): JSX.Element {
             <Card>
               <CardContent className="p-4">
                 <AdvancedFilters
-                  title="Search and filter employees"
-                  description="Find team members by name, username, phone, role, or sort order."
+                  title={t("search_filter_employees")}
+                  description={t("find_employees_desc")}
                   fields={[
                     {
                       key: "query",
-                      label: "Search",
+                      label: t("search"),
                       type: "search",
-                      placeholder: "Search by name, username, or phone",
+                      placeholder: t("search_by_name_username_phone", { defaultValue: "Search by name, username, or phone" }),
                     },
                     {
                       key: "role",
-                      label: "Role",
+                      label: t("role"),
                       type: "select",
-                      placeholder: "All roles",
+                      placeholder: t("all_roles", { defaultValue: "All roles" }),
                       options: [
-                        { label: "All Roles", value: "all" },
+                        { label: t("all_roles", { defaultValue: "All Roles" }), value: "all" },
                         ...roleOptions.map((role) => ({
                           label: t(role) || role,
                           value: role,
@@ -1412,15 +1412,15 @@ export default function MEmployeeManagement(): JSX.Element {
                     },
                     {
                       key: "sortBy",
-                      label: "Sort by",
+                      label: t("sort_by", { defaultValue: "Sort by" }),
                       type: "select",
-                      placeholder: "Name A -> Z",
+                      placeholder: t("name_a_z", { defaultValue: "Name A -> Z" }),
                       options: [
-                        { label: "Name A -> Z", value: "name_asc" },
-                        { label: "Name Z -> A", value: "name_desc" },
-                        { label: "Salary Low -> High", value: "salary_asc" },
-                        { label: "Salary High -> Low", value: "salary_desc" },
-                        { label: "Role A -> Z", value: "role_asc" },
+                        { label: t("name_a_z", { defaultValue: "Name A -> Z" }), value: "name_asc" },
+                        { label: t("name_z_a", { defaultValue: "Name Z -> A" }), value: "name_desc" },
+                        { label: t("salary_low_high", { defaultValue: "Salary Low -> High" }), value: "salary_asc" },
+                        { label: t("salary_high_low", { defaultValue: "Salary High -> Low" }), value: "salary_desc" },
+                        { label: t("role_a_z", { defaultValue: "Role A -> Z" }), value: "role_asc" },
                       ],
                     },
                   ]}
@@ -1662,21 +1662,20 @@ export default function MEmployeeManagement(): JSX.Element {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <UserCog className="h-5 w-5" />
-                  Manage Team Permissions
+                  {t("manage_permissions")}
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Control which actions your team members are allowed to perform
-                  in the POS system.
+                  {t("control_employee_actions_desc")}
                 </p>
               </CardHeader>
               <CardContent className="space-y-6">
                 {cashiers.length > 0 && (
                   <div>
                     <p className="text-sm font-semibold mb-2">
-                      Cashier Permissions
+                      {t("cashier_permissions")}
                     </p>
                     <p className="text-xs text-muted-foreground mb-3">
-                      Assign front-desk permissions
+                      {t("assign_frontdesk_permissions")}
                     </p>
                     <div className="space-y-3">
                       {cashiers.map((emp) => (
@@ -1689,7 +1688,7 @@ export default function MEmployeeManagement(): JSX.Element {
                           </div>
                           <div className="flex items-center space-x-2">
                             <span className="text-xs text-muted-foreground">
-                              Apply Discounts
+                              {t("apply_discounts")}
                             </span>
                             <Switch
                               checked={!!permissions[emp.id]?.discount}
@@ -1706,7 +1705,7 @@ export default function MEmployeeManagement(): JSX.Element {
 
                 {cashiers.length === 0 && (
                   <p className="text-sm text-muted-foreground text-center py-4">
-                    No team members to manage permissions for.
+                    {t("no_employees_manage_permissions")}
                   </p>
                 )}
               </CardContent>
@@ -1718,19 +1717,19 @@ export default function MEmployeeManagement(): JSX.Element {
           <>
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex-1">
-                <h1 className="text-2xl font-bold">Attendance</h1>
+                <h1 className="text-2xl font-bold">{t("attendance")}</h1>
                 <p className="text-muted-foreground">
-                  Track and manage employee attendance
+                  {t("track_manage_employee_attendance")}
                 </p>
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={exportAttendanceToCSV}>
                   <Download className="mr-2 h-4 w-4" />
-                  Export CSV
+                  {t("export_csv")}
                 </Button>
                 <Button variant="outline" onClick={exportAttendanceToPDF}>
                   <FileText className="mr-2 h-4 w-4" />
-                  Export PDF
+                  {t("export_pdf")}
                 </Button>
               </div>
             </div>

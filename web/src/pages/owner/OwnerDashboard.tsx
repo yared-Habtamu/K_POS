@@ -452,7 +452,7 @@ export default function OwnerDashboard() {
 
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Expired Items</h2>
+            <h2 className="text-lg font-semibold">{t("expired_items", { defaultValue: "Expired Items" })}</h2>
             <Badge variant="secondary">{expiredItems.length} items</Badge>
           </div>
           <Card className="border-amber-200/70">
@@ -494,7 +494,7 @@ export default function OwnerDashboard() {
 
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Broken Assets</h2>
+            <h2 className="text-lg font-semibold">{t("broken_assets", { defaultValue: "Broken Assets" })}</h2>
             <Badge variant="secondary">{brokenAssets.length} assets</Badge>
           </div>
           <Card className="border-rose-200/70">

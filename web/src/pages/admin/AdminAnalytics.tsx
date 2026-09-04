@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { RoleLayout } from "@/components/layout/RoleLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -139,6 +140,7 @@ const fmt = (n: number) =>
 const fmtCurrency = (n: number) => `${fmt(n)} ETB`;
 
 export default function AdminAnalytics() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const auth = useAuthStore((s) => s.user);
   const API_BASE =
@@ -230,7 +232,7 @@ export default function AdminAnalytics() {
           <div className="flex flex-col items-center gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="text-muted-foreground text-sm">
-              Loading analytics...
+              {t("loading_analytics", { defaultValue: "Loading analytics..." })}
             </p>
           </div>
         </div>
@@ -245,7 +247,7 @@ export default function AdminAnalytics() {
           <div className="text-center space-y-2">
             <XCircle className="h-10 w-10 text-destructive mx-auto" />
             <p className="text-destructive font-medium">
-              {error || "No data available"}
+              {error || t("no_data_available", { defaultValue: "No data available" })}
             </p>
           </div>
         </div>
@@ -257,56 +259,56 @@ export default function AdminAnalytics() {
 
   const statCards = [
     {
-      label: "Total Products",
+      label: t("total_products", { defaultValue: "Total Products" }),
       value: p.totalProducts.toLocaleString(),
       icon: Package,
       color: "text-indigo-500",
       bg: "bg-indigo-500/10",
     },
     {
-      label: "Inventory Value",
+      label: t("inventory_value"),
       value: fmtCurrency(p.totalInventoryValue),
       icon: DollarSign,
       color: "text-emerald-500",
       bg: "bg-emerald-500/10",
     },
     {
-      label: "Selling Value",
+      label: t("selling_value", { defaultValue: "Selling Value" }),
       value: fmtCurrency(p.totalSellingValue),
       icon: TrendingUp,
       color: "text-cyan-500",
       bg: "bg-cyan-500/10",
     },
     {
-      label: "Avg Margin",
+      label: t("avg_margin", { defaultValue: "Avg Margin" }),
       value: `${p.overallAvgMargin.toFixed(1)}%`,
       icon: BarChart3,
       color: "text-amber-500",
       bg: "bg-amber-500/10",
     },
     {
-      label: "Monthly Sales",
+      label: t("monthly_sales", { defaultValue: "Monthly Sales" }),
       value: fmtCurrency(p.totalMonthlySales),
       icon: ShoppingCart,
       color: "text-blue-500",
       bg: "bg-blue-500/10",
     },
     {
-      label: "Monthly Profit",
+      label: t("monthly_profit", { defaultValue: "Monthly Profit" }),
       value: fmtCurrency(p.totalMonthlyProfit),
       icon: p.totalMonthlyProfit >= 0 ? ArrowUpRight : ArrowDownRight,
       color: p.totalMonthlyProfit >= 0 ? "text-success" : "text-destructive",
       bg: p.totalMonthlyProfit >= 0 ? "bg-success/10" : "bg-destructive/10",
     },
     {
-      label: "Active Marts",
+      label: t("active_marts", { defaultValue: "Active Marts" }),
       value: p.totalMarts.toString(),
       icon: Building2,
       color: "text-violet-500",
       bg: "bg-violet-500/10",
     },
     {
-      label: "Low Stock Alerts",
+      label: t("low_stock_alerts", { defaultValue: "Low Stock Alerts" }),
       value: (p.lowStockCount + p.outOfStockCount).toString(),
       icon: AlertTriangle,
       color: "text-orange-500",
@@ -325,10 +327,9 @@ export default function AdminAnalytics() {
     <RoleLayout allowedRoles={["system_admin"]}>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">Platform Analytics</h1>
+          <h1 className="text-2xl font-bold">{t("platform_analytics", { defaultValue: "Platform Analytics" })}</h1>
           <p className="text-muted-foreground">
-            Deep insights across all marts — products, pricing, margins &
-            performance
+            {t("platform_analytics_desc", { defaultValue: "Deep insights across all marts — products, pricing, margins & performance" })}
           </p>
         </div>
 
@@ -359,7 +360,7 @@ export default function AdminAnalytics() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <Building2 className="h-4 w-4 text-primary" />
-                Mart Revenue Comparison
+                {t("mart_revenue_comparison")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -399,14 +400,14 @@ export default function AdminAnalytics() {
                       dataKey="monthlySales"
                       fill="hsl(var(--primary))"
                       radius={[0, 4, 4, 0]}
-                      name="Sales"
+                      name={t("sales")}
                       barSize={12}
                     />
                     <Bar
                       dataKey="monthlyExpenses"
                       fill="hsl(var(--destructive))"
                       radius={[0, 4, 4, 0]}
-                      name="Expenses"
+                      name={t("expenses")}
                       barSize={12}
                     />
                   </BarChart>
@@ -419,7 +420,7 @@ export default function AdminAnalytics() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <Package className="h-4 w-4 text-primary" />
-                Category Distribution
+                {t("category_distribution")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -471,7 +472,7 @@ export default function AdminAnalytics() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <Package className="h-4 w-4 text-primary" />
-              All Products
+              {t("all_products")}
               <Badge
                 variant="secondary"
                 className="ml-1 bg-primary/10 text-primary border-none"
@@ -485,7 +486,7 @@ export default function AdminAnalytics() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search products, categories, marts..."
+                  placeholder={t("search_products_categories_marts")}
                   className="pl-9 bg-muted/30 border-none focus-visible:ring-primary/20"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -494,10 +495,10 @@ export default function AdminAnalytics() {
               <div className="flex flex-wrap gap-2">
                 <Select value={martFilter} onValueChange={setMartFilter}>
                   <SelectTrigger className="w-[160px] bg-muted/30 border-none">
-                    <SelectValue placeholder="All Marts" />
+                    <SelectValue placeholder={t("all_marts")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Marts</SelectItem>
+                    <SelectItem value="all">{t("all_marts")}</SelectItem>
                     {data.martAnalytics.map((m) => (
                       <SelectItem key={m.martId} value={m.martId}>
                         {m.martName}
@@ -510,10 +511,10 @@ export default function AdminAnalytics() {
                   onValueChange={setCategoryFilter}
                 >
                   <SelectTrigger className="w-[160px] bg-muted/30 border-none">
-                    <SelectValue placeholder="Category" />
+                    <SelectValue placeholder={t("category")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
+                    <SelectItem value="all">{t("all_categories")}</SelectItem>
                     {data.categoryDistribution.map((c) => (
                       <SelectItem key={c.category} value={c.category}>
                         {c.category}
@@ -523,13 +524,13 @@ export default function AdminAnalytics() {
                 </Select>
                 <Select value={stockFilter} onValueChange={setStockFilter}>
                   <SelectTrigger className="w-[150px] bg-muted/30 border-none">
-                    <SelectValue placeholder="Stock Status" />
+                    <SelectValue placeholder={t("stock_status")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Stock</SelectItem>
-                    <SelectItem value="in_stock">In Stock</SelectItem>
-                    <SelectItem value="low_stock">Low Stock</SelectItem>
-                    <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+                    <SelectItem value="all">{t("all_stock")}</SelectItem>
+                    <SelectItem value="in_stock">{t("in_stock")}</SelectItem>
+                    <SelectItem value="low_stock">{t("low_stock")}</SelectItem>
+                    <SelectItem value="out_of_stock">{t("out_of_stock")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -540,28 +541,28 @@ export default function AdminAnalytics() {
                 <TableHeader className="bg-muted/30">
                   <TableRow className="hover:bg-transparent border-border/50">
                     <TableHead className="text-xs font-semibold">
-                      Product
+                      {t("product")}
                     </TableHead>
                     <TableHead className="text-xs font-semibold">
-                      Category
+                      {t("category")}
                     </TableHead>
                     <TableHead className="text-xs font-semibold">
-                      Mart
+                      {t("mart")}
                     </TableHead>
                     <TableHead className="text-right text-xs font-semibold">
-                      Purchase
+                      {t("purchase_price")}
                     </TableHead>
                     <TableHead className="text-right text-xs font-semibold">
-                      Selling
+                      {t("selling_price")}
                     </TableHead>
                     <TableHead className="text-right text-xs font-semibold">
-                      Margin
+                      {t("margin")}
                     </TableHead>
                     <TableHead className="text-right text-xs font-semibold">
-                      Qty
+                      {t("qty")}
                     </TableHead>
                     <TableHead className="text-center text-xs font-semibold">
-                      Status
+                      {t("status")}
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -613,15 +614,15 @@ export default function AdminAnalytics() {
                             variant="destructive"
                             className="text-[10px] px-2 py-0 h-5"
                           >
-                            Out
+                            {t("out")}
                           </Badge>
                         ) : pr.stockStatus === "low_stock" ? (
                           <Badge className="bg-warning/10 text-warning border-warning/20 text-[10px] px-2 py-0 h-5">
-                            Low
+                            {t("low")}
                           </Badge>
                         ) : (
                           <Badge className="bg-success/10 text-success border-success/20 text-[10px] px-2 py-0 h-5">
-                            OK
+                            {t("ok")}
                           </Badge>
                         )}
                       </TableCell>
@@ -635,7 +636,7 @@ export default function AdminAnalytics() {
                       >
                         <div className="flex flex-col items-center gap-2">
                           <Package className="h-8 w-8 opacity-20" />
-                          <p>No products found matching your filters</p>
+                          <p>{t("no_products_found_filters")}</p>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -647,15 +648,15 @@ export default function AdminAnalytics() {
             {totalPages > 1 && (
               <div className="flex items-center justify-between mt-6">
                 <p className="text-xs text-muted-foreground">
-                  Showing{" "}
+                  {t("showing")}{" "}
                   <span className="font-medium text-foreground">
                     {paginatedProducts.length}
                   </span>{" "}
-                  of{" "}
+                  {t("of")}{" "}
                   <span className="font-medium text-foreground">
                     {filteredProducts.length}
                   </span>{" "}
-                  products
+                  {t("products")}
                 </p>
                 <div className="flex items-center gap-1">
                   <button
@@ -663,15 +664,15 @@ export default function AdminAnalytics() {
                     disabled={page === 1}
                     className="p-1.5 text-xs font-medium rounded-md disabled:opacity-30 hover:bg-muted/50 transition-colors border border-border/50"
                   >
-                    Prev
+                    {t("prev")}
                   </button>
                   <div className="flex items-center px-3">
                     <span className="text-xs text-muted-foreground">
-                      Page{" "}
+                      {t("page")}{" "}
                       <span className="font-medium text-foreground">
                         {page}
                       </span>{" "}
-                      of {totalPages}
+                      {t("of")} {totalPages}
                     </span>
                   </div>
                   <button
@@ -679,7 +680,7 @@ export default function AdminAnalytics() {
                     disabled={page === totalPages}
                     className="p-1.5 text-xs font-medium rounded-md disabled:opacity-30 hover:bg-muted/50 transition-colors border border-border/50"
                   >
-                    Next
+                    {t("next")}
                   </button>
                 </div>
               </div>
@@ -692,7 +693,7 @@ export default function AdminAnalytics() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-primary" />
-                Top Margin Products
+                {t("top_margin_products")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -723,7 +724,7 @@ export default function AdminAnalytics() {
                     <Tooltip
                       contentStyle={tooltipStyle}
                       cursor={{ fill: "hsl(var(--success)/0.05)" }}
-                      formatter={(v: number) => [`${v.toFixed(1)}%`, "Margin"]}
+                      formatter={(v: number) => [`${v.toFixed(1)}%`, t("margin")]}
                     />
                     <Bar
                       dataKey="margin"
@@ -741,7 +742,7 @@ export default function AdminAnalytics() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <DollarSign className="h-4 w-4 text-primary" />
-                Most Expensive Products
+                {t("most_expensive_products")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -750,16 +751,16 @@ export default function AdminAnalytics() {
                   <TableHeader className="bg-muted/30 sticky top-0 z-10">
                     <TableRow className="hover:bg-transparent border-border/50">
                       <TableHead className="text-xs font-semibold">
-                        Product
+                        {t("product")}
                       </TableHead>
                       <TableHead className="text-xs font-semibold">
-                        Mart
+                        {t("mart")}
                       </TableHead>
                       <TableHead className="text-right text-xs font-semibold">
-                        Purchase
+                        {t("purchase_price")}
                       </TableHead>
                       <TableHead className="text-right text-xs font-semibold">
-                        Selling
+                        {t("selling_price")}
                       </TableHead>
                     </TableRow>
                   </TableHeader>
@@ -794,7 +795,7 @@ export default function AdminAnalytics() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Building2 className="h-4 w-4 text-primary" />
-              Mart Comparison
+              {t("mart_comparison")}
               <Badge
                 variant="secondary"
                 className="ml-1 bg-primary/10 text-primary border-none"
@@ -809,34 +810,34 @@ export default function AdminAnalytics() {
                 <TableHeader className="bg-muted/30">
                   <TableRow className="hover:bg-transparent border-border/50">
                     <TableHead className="text-xs font-semibold">
-                      Mart
+                      {t("mart")}
                     </TableHead>
                     <TableHead className="text-center text-xs font-semibold">
-                      Products
+                      {t("products")}
                     </TableHead>
                     <TableHead className="text-center text-xs font-semibold">
-                      Users
+                      {t("users")}
                     </TableHead>
                     <TableHead className="text-right text-xs font-semibold">
-                      Inventory
+                      {t("inventory_value")}
                     </TableHead>
                     <TableHead className="text-right text-xs font-semibold">
-                      Selling
+                      {t("selling_value")}
                     </TableHead>
                     <TableHead className="text-right text-xs font-semibold">
-                      Avg Margin
+                      {t("avg_margin")}
                     </TableHead>
                     <TableHead className="text-right text-xs font-semibold">
-                      Revenue
+                      {t("revenue")}
                     </TableHead>
                     <TableHead className="text-right text-xs font-semibold">
-                      Expenses
+                      {t("expenses")}
                     </TableHead>
                     <TableHead className="text-right text-xs font-semibold">
-                      Profit
+                      {t("profit")}
                     </TableHead>
                     <TableHead className="text-center text-xs font-semibold">
-                      Actions
+                      {t("actions")}
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -923,7 +924,7 @@ export default function AdminAnalytics() {
                         colSpan={10}
                         className="text-center text-muted-foreground py-12"
                       >
-                        No marts found
+                        {t("no_marts_found")}
                       </TableCell>
                     </TableRow>
                   )}
@@ -934,7 +935,7 @@ export default function AdminAnalytics() {
               <div className="relative w-full max-w-[240px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search markets..."
+                  placeholder={t("search_marts")}
                   className="pl-9 h-9 bg-muted/30 border-none focus-visible:ring-primary/20"
                   value={martSearch}
                   onChange={(e) => setMartSearch(e.target.value)}
