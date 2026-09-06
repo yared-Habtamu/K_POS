@@ -259,6 +259,7 @@ export default function CustomerManagement() {
       .toLowerCase();
     const balanceStatus = String(appliedFilters.balanceStatus || "all");
     const sortBy = String(appliedFilters.sortBy || "name_asc");
+    const cashierFilter = String(appliedFilters.cashierId || "all");
 
     const rows = (customers as CustomerRow[]).filter((customer) => {
       const matchesQuery =
@@ -284,7 +285,18 @@ export default function CustomerManagement() {
       const matchesCashierScope =
         !isCashier || Number(customer.cashierCredit || 0) > 0;
 
-      return matchesQuery && matchesCity && matchesBalanceStatus && matchesCashierScope;
+      // "Credit Given By Staff" filter (owner/manager): only show customers
+      // who actually received credit from the selected staff member.
+      const matchesCashierFilter =
+        cashierFilter === "all" || Number(customer.cashierCredit || 0) > 0;
+
+      return (
+        matchesQuery &&
+        matchesCity &&
+        matchesBalanceStatus &&
+        matchesCashierScope &&
+        matchesCashierFilter
+      );
     });
 
     const [sortField, sortDirection] = sortBy.split("_");

@@ -47,12 +47,15 @@ import {
   Edit,
   Trash2,
   Image as ImageIcon,
+  ImagePlus,
+  X,
   Loader2,
   Printer,
   RotateCw,
   ScanBarcode,
   ArrowLeftRight,
 } from "lucide-react";
+import { getImageUrl, handleImageError } from "@/utils/imageUrl";
 import { BarcodeScanner } from "@/components/barcode/BarcodeScanner";
 import { BarcodePreview } from "@/components/barcode/BarcodePreview";
 import { BarcodePrintDialog } from "@/components/barcode/BarcodePrintDialog";
@@ -102,43 +105,32 @@ export default function ProductManagement() {
     })();
   }, []);
 
-  // Fetch sales to compute sold counts per product (so we can show remaining = quantity - sold)
+  // Fetch sold counts per product (lightweight aggregation) so we can show
+  // remaining = quantity - sold without loading every sale in the mart.
   useEffect(() => {
     let mounted = true;
     const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
     const token = useAuthStore.getState().user?.token;
     const martId = useAuthStore.getState().user?.martId;
 
-    async function loadSales() {
+    async function loadSoldCounts() {
       if (!martId) return;
       try {
-        const res = await fetch(`${API_BASE}/api/sales?martId=${martId}`, {
-          headers: { Authorization: token ? `Bearer ${token}` : "" },
-        });
+        const res = await fetch(
+          `${API_BASE}/api/sales/sold-counts?martId=${martId}`,
+          { headers: { Authorization: token ? `Bearer ${token}` : "" } },
+        );
         if (!res.ok) return;
-        const sales = await res.json();
-        const map: Record<string, number> = {};
-        for (const s of sales || []) {
-          for (const it of s.items || []) {
-            const pid = (
-              it.productId ||
-              it.product?._id ||
-              it.product?.id ||
-              it.id ||
-              ""
-            ).toString();
-            map[pid] = (map[pid] || 0) + Number(it.quantity || 0);
-          }
-        }
+        const counts = await res.json();
         if (!mounted) return;
-        setSoldMap(map);
+        setSoldMap(counts || {});
       } catch (err) {
         // ignore
       }
     }
 
     // run on mount and whenever products change (so UI updates after product list refresh)
-    loadSales();
+    loadSoldCounts();
     return () => {
       mounted = false;
     };
@@ -187,6 +179,8 @@ export default function ProductManagement() {
     expiryDate: "",
     barcodes: [] as string[],
     barcodeInput: "",
+    imageFile: null as File | null,
+    imagePreview: "",
   });
 
   const [barcodeConflictOpen, setBarcodeConflictOpen] = useState(false);
@@ -322,6 +316,8 @@ export default function ProductManagement() {
       expiryDate: "",
       barcodes: [],
       barcodeInput: "",
+      imageFile: null,
+      imagePreview: "",
     });
     setEditingProduct(null);
   };
@@ -353,8 +349,50 @@ export default function ProductManagement() {
           ? [product.barcode]
           : [],
       barcodeInput: "",
+      imageFile: null,
+      imagePreview: getImageUrl(
+        product.pictureUrl ||
+          product.imageUrl ||
+          product.secure_url ||
+          product.url ||
+          "",
+      ),
     });
     setIsDialogOpen(true);
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Please select an image file", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm((prev) => ({
+        ...prev,
+        imageFile: file,
+        imagePreview: String(reader.result || ""),
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearImage = () => {
+    setForm((prev) => ({
+      ...prev,
+      imageFile: null,
+      imagePreview: editingProduct
+        ? getImageUrl(
+            editingProduct.pictureUrl ||
+              editingProduct.imageUrl ||
+              editingProduct.secure_url ||
+              editingProduct.url ||
+              "",
+          )
+        : "",
+    }));
   };
 
   const handleDelete = async (id: string) => {
@@ -546,7 +584,27 @@ export default function ProductManagement() {
 
     try {
       if (editingProduct) {
-        const result: any = await updateProduct(editingProduct.id, productData);
+        let payload: Record<string, unknown> | FormData = productData;
+        if (form.imageFile) {
+          // multipart upload so the backend can push the image to Cloudinary
+          const fd = new FormData();
+          for (const [k, v] of Object.entries(productData)) {
+            if (v === undefined || v === null) continue;
+            if (Array.isArray(v)) {
+              // backend expects barcodes as an array; only one barcode allowed
+              fd.append("barcode", v.length === 1 ? String(v[0]) : "");
+              continue;
+            }
+            if (v instanceof Date) {
+              fd.append(k, v.toISOString());
+              continue;
+            }
+            fd.append(k, String(v));
+          }
+          fd.append("image", form.imageFile);
+          payload = fd;
+        }
+        const result: any = await updateProduct(editingProduct.id, payload);
         if (result?.status === 202) {
           toast({
             title: "Sent for approval",
@@ -667,6 +725,59 @@ export default function ProductManagement() {
                 </DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
+                {editingProduct && (
+                  <div className="space-y-2">
+                    <Label>Product Image</Label>
+                    <div className="flex items-center gap-4">
+                      <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border bg-muted">
+                        {form.imagePreview ? (
+                          <img
+                            src={form.imagePreview}
+                            alt={form.name || "Product"}
+                            className="h-full w-full object-cover"
+                            onError={handleImageError}
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                            <ImageIcon className="h-6 w-6" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Label
+                          htmlFor="product-image"
+                          className="cursor-pointer"
+                        >
+                          <span className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent">
+                            <ImagePlus className="h-4 w-4" />
+                            {form.imageFile
+                              ? "Change image"
+                              : "Upload image"}
+                          </span>
+                          <Input
+                            id="product-image"
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleImageChange}
+                          />
+                        </Label>
+                        {form.imageFile && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={clearImage}
+                            className="h-8 gap-1 px-2 text-xs"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="name">{t("product_name")} *</Label>

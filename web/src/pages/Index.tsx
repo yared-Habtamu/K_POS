@@ -553,7 +553,6 @@ export default function Index() {
                 { icon: Users, title: t("feature_role_access"), desc: t("feature_role_access_desc") },
                 { icon: Globe, title: t("feature_multi_language"), desc: t("feature_multi_language_desc") },
                 { icon: Package, title: t("feature_realtime_inventory"), desc: t("feature_realtime_inventory_desc") },
-                { icon: Shield, title: t("feature_offline_first"), desc: t("feature_offline_first_desc") },
               ].map((f) => (
                 <motion.div
                   key={f.title}

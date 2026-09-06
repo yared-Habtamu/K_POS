@@ -31,6 +31,9 @@ export interface Product {
   category: string;
   unit: ProductUnit;
   pictureUrl?: string;
+  imageUrl?: string; // legacy/backend alias
+  secure_url?: string; // legacy Cloudinary alias
+  url?: string; // legacy Cloudinary alias
   purchasePrice: number;
   sellingPrice: number;
   quantity: number;
@@ -114,7 +117,8 @@ export interface Sale {
 export interface Customer {
   id: string;
   name: string;
-  phone?: string;
+  phoneNumber?: string;
+  phone?: string; // legacy alias
   email?: string;
   city?: string;
   shopId: string;
@@ -351,6 +355,7 @@ export interface Receipt {
   cashierName: string;
   customerId?: string;
   customerName?: string;
+  customerPhone?: string;
   amountPaid?: number;
   creditAmount?: number;
   date: Date;

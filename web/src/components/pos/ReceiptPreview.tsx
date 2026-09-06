@@ -9,14 +9,23 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/stores/authStore";
 import { toast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import type { Receipt } from "@/types";
-import { Printer, Download, MessageSquare, CheckCircle2 } from "lucide-react";
+import {
+  Printer,
+  Download,
+  MessageSquare,
+  CheckCircle2,
+  Loader2,
+} from "lucide-react";
 import { format } from "date-fns";
 import printNodeBridge from "@/services/printBridge/printNodeBridge";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 
 import { buildReceiptEscPos } from "@/services/printBridge/escpos";
 
@@ -33,6 +42,10 @@ const SYSTEM_PROVIDER_PHONE =
 export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
   const { t } = useTranslation();
   const currentRole = useAuthStore.getState().user?.role || null;
+
+  const [smsDialogOpen, setSmsDialogOpen] = useState(false);
+  const [smsPhone, setSmsPhone] = useState("+251");
+  const [sendingSms, setSendingSms] = useState(false);
 
   const handlePrint = async () => {
     try {
@@ -68,20 +81,117 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
     }
   };
 
-  const handleWhatsApp = () => {
-    const customerPhone = receipt.customerPhone;
-    if (!customerPhone) {
+  const handleDownloadPdf = async () => {
+    const el = document.querySelector(".receipt-preview") as HTMLElement | null;
+    if (!el) return;
+    try {
+      const canvas = await html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+      });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+      let imgW = pageW - margin * 2;
+      let imgH = (canvas.height * imgW) / canvas.width;
+      if (imgH > pageH - margin * 2) {
+        imgH = pageH - margin * 2;
+        imgW = (canvas.width * imgH) / canvas.height;
+      }
+      pdf.addImage(imgData, "PNG", (pageW - imgW) / 2, margin, imgW, imgH);
+      pdf.save(`${receipt.id || "receipt"}.pdf`);
+      toast({
+        title: t("download_pdf"),
+        description: `${receipt.id || "receipt"}.pdf`,
+      });
+    } catch (err) {
+      console.error("PDF generation failed", err);
       toast({
         variant: "destructive",
-        title: t("no_phone_number"),
-        description: t("customer_no_phone"),
+        title: t("pdf_failed"),
+        description: err instanceof Error ? err.message : "Could not generate PDF",
+      });
+    }
+  };
+
+  const buildSmsMessage = () => {
+    const items = (receipt.items || [])
+      .slice(0, 6)
+      .map((it) => {
+        const name = it.product?.name || it.name || "Item";
+        const qty = it.quantity || 1;
+        const lineTotal = Number(
+          it.subtotal || (it.product?.sellingPrice || 0) * qty
+        ).toFixed(0);
+        return `${name} x${qty} ${lineTotal}ETB`;
+      })
+      .join("; ");
+    return `Receipt ${receipt.id} - ${receipt.shopName}. Total: ${Number(
+      receipt.total
+    ).toFixed(2)} ETB. Items: ${items}. Thank you!`;
+  };
+
+  const sendSms = async (phone: string) => {
+    const normalized = String(phone).replace(/[^0-9+]/g, "");
+    if (!/^\+?[0-9]{7,15}$/.test(normalized)) {
+      toast({
+        variant: "destructive",
+        title: t("sms_failed"),
+        description: t("invalid_phone"),
       });
       return;
     }
-    const el = document.querySelector(".receipt-preview") as HTMLElement | null;
-    const receiptText = el?.innerText || "";
-    const encoded = encodeURIComponent(receiptText);
-    window.open(`https://wa.me/${customerPhone}?text=${encoded}`, "_blank");
+    setSendingSms(true);
+    try {
+      const API_BASE = import.meta.env.VITE_API_URL || "";
+      const token = useAuthStore.getState().user?.token;
+      const res = await fetch(`${API_BASE}/api/notifications/sms`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ phone: normalized, message: buildSmsMessage() }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || "Failed to send SMS");
+      }
+      toast({
+        title: t("sms_sent"),
+        description: `${t("receipt_sent_to")} ${normalized}`,
+      });
+      setSmsDialogOpen(false);
+    } catch (err) {
+      console.error("SMS send failed", err);
+      toast({
+        variant: "destructive",
+        title: t("sms_failed"),
+        description: err instanceof Error ? err.message : t("sms_send_failed"),
+      });
+    } finally {
+      setSendingSms(false);
+    }
+  };
+
+  const normalizePhoneDigits = (phone: string) => {
+    let digits = String(phone || "").replace(/\D/g, "");
+    if (digits.startsWith("251")) digits = digits.slice(3);
+    else if (digits.startsWith("0")) digits = digits.slice(1);
+    return digits;
+  };
+
+  const handleSms = () => {
+    const customerPhone = receipt.customerPhone;
+    setSmsPhone(customerPhone ? normalizePhoneDigits(customerPhone) : "");
+    setSmsDialogOpen(true);
+  };
+
+  const handleSendSms = () => {
+    void sendSms("+251" + smsPhone);
   };
 
   return (
@@ -253,43 +363,87 @@ export function ReceiptPreview({ receipt, onDone }: ReceiptPreviewProps) {
               variant="outline"
               size="sm"
               className="flex-1"
-              onClick={handleWhatsApp}
-            >
-              <MessageSquare className="h-4 w-4 mr-2" />
-              {t("whatsapp")}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1"
-              onClick={() => {
-                const el = document.querySelector(
-                  ".receipt-preview"
-                ) as HTMLElement | null;
-                if (!el) return;
-                const w = window.open("", "_blank", "toolbar=0,location=0,menubar=0");
-                if (w) {
-                  w.document.write(
-                    `<html><head><title>Receipt</title><style>@page{size:auto;margin:0}body{margin:0;padding:10px;font-family:sans-serif;}</style></head><body>${el.outerHTML}</body></html>`
-                  );
-                  w.document.close();
-                }
-              }}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              {t("view")}
-            </Button>
-            <Button
-              size="sm"
-              className="flex-1"
               onClick={handlePrint}
             >
               <Printer className="h-4 w-4 mr-2" />
               {t("print_btn")}
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={handleDownloadPdf}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {t("pdf")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={handleSms}
+            >
+              <MessageSquare className="h-4 w-4 mr-2" />
+              {t("sms")}
+            </Button>
+            <Button size="sm" className="flex-1" onClick={onDone}>
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              {t("done")}
+            </Button>
           </DialogFooter>
         </div>
       </DialogContent>
+
+      {/* SMS phone number dialog (walk-in / no customer phone) */}
+      <Dialog open={smsDialogOpen} onOpenChange={setSmsDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogTitle>{t("send_receipt_via_sms")}</DialogTitle>
+          <DialogDescription>{t("enter_phone_number")}</DialogDescription>
+          <div className="space-y-2">
+            <Label htmlFor="sms-phone">{t("phone_number")}</Label>
+            <div className="flex gap-2">
+              <Input
+                value="+251"
+                readOnly
+                className="w-20 text-center font-semibold bg-muted"
+                aria-label="+251"
+              />
+              <Input
+                id="sms-phone"
+                value={smsPhone}
+                onChange={(e) =>
+                  setSmsPhone(e.target.value.replace(/\D/g, ""))
+                }
+                placeholder="9X XXX XXXX"
+                inputMode="tel"
+                className="flex-1"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setSmsDialogOpen(false)}
+              disabled={sendingSms}
+            >
+              {t("cancel")}
+            </Button>
+            <Button onClick={handleSendSms} disabled={sendingSms}>
+              {sendingSms ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {t("sending")}
+                </>
+              ) : (
+                <>
+                  <MessageSquare className="mr-2 h-4 w-4" />
+                  {t("send")}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

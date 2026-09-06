@@ -26,6 +26,28 @@ function escapeRegex(value = "") {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// Compare two values loosely (numbers vs numeric strings, Date vs ISO string,
+// arrays by element) so we can detect which fields actually changed.
+function valuesEqual(a, b) {
+  if (a === null || a === undefined || b === null || b === undefined) {
+    return (a === null || a === undefined) && (b === null || b === undefined);
+  }
+  if (a instanceof Date || b instanceof Date) {
+    const da = a instanceof Date ? a.getTime() : new Date(a).getTime();
+    const db = b instanceof Date ? b.getTime() : new Date(b).getTime();
+    return da === db;
+  }
+  if (Array.isArray(a) || Array.isArray(b)) {
+    const aa = Array.isArray(a) ? a : [];
+    const bb = Array.isArray(b) ? b : [];
+    return (
+      aa.length === bb.length &&
+      aa.every((v, i) => String(v) === String(bb[i]))
+    );
+  }
+  return String(a) === String(b);
+}
+
 // Use memory storage so we can send buffer directly to Cloudinary for media storage
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -397,6 +419,15 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
     for (const k of allowed)
       if (req.body[k] !== undefined) update[k] = req.body[k];
 
+    // FormData (multipart) sends all values as strings – coerce numeric fields
+    // back to numbers so Prisma doesn't reject them on Float columns.
+    for (const k of ["purchasePrice", "sellingPrice", "lowStockThreshold"]) {
+      if (update[k] !== undefined) {
+        const value = Number(update[k]);
+        update[k] = Number.isFinite(value) ? value : update[k];
+      }
+    }
+
     if (Object.prototype.hasOwnProperty.call(update, "expiryDate")) {
       update.expiryDate = normalizeExpiryDate(update.expiryDate);
     }
@@ -502,7 +533,31 @@ router.put("/:id", authenticate, upload.single("image"), async (req, res) => {
       delete update.barcode;
     }
 
-    if (String(user.role || "").toLowerCase() !== "systemadmin") {
+    // Detect which fields actually changed vs the existing product.
+    const realChanges = {};
+    for (const k of Object.keys(update)) {
+      if (!valuesEqual(update[k], product[k])) {
+        realChanges[k] = update[k];
+      }
+    }
+    const isImageOnly =
+      Object.keys(realChanges).length === 1 &&
+      realChanges.imageUrl !== undefined;
+
+    // systemAdmin always applies changes directly.
+    if (requesterRole === "systemadmin") {
+      const updated = await productRepository.update(id, update);
+      return res.json(updated);
+    }
+
+    // Owner: image-only edits apply immediately; edits that also touch other
+    // fields go through the manager approval flow below.
+    if (requesterRole === "owner" && isImageOnly) {
+      const updated = await productRepository.update(id, update);
+      return res.json(updated);
+    }
+
+    if (requesterRole === "owner") {
       const changes = { ...update };
       if (Object.keys(changes).length === 0) {
         return res.status(400).json({ message: "No changes supplied" });
