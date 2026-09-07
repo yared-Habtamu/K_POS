@@ -156,15 +156,21 @@ export default function SubscriptionSelection() {
   const activeHardware = hardwareProducts.filter((h) => h.active !== false);
 
   const handleProceedToRegistration = () => {
+    const hardwareDetails = activeHardware
+      .filter((h) => (counts[h.id] || 0) > 0)
+      .map((h) => ({
+        id: h.id,
+        name: h.name,
+        count: counts[h.id] || 0,
+        unitPrice: h.unitPrice,
+      }));
+
     navigate("/owner/register", {
       state: {
         packageName: selectedPackage.name,
         packageMonths: selectedPackage.months,
         packagePrice: selectedPackage.price,
-        scannersCount: counts["scanner"] || 0,
-        printersCount: counts["printer"] || 0,
-        scannerUnitPrice: hardwareProducts.find((h) => h.id === "scanner")?.unitPrice || 20000,
-        printerUnitPrice: hardwareProducts.find((h) => h.id === "printer")?.unitPrice || 30000,
+        hardwareDetails,
       },
     });
   };

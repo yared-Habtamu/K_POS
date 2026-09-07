@@ -93,7 +93,7 @@ export default function StoreKeeperApprovals() {
       setTransferRequests(Array.isArray(transferData) ? transferData : []);
     } catch (err) {
       console.error("Failed to load store keeper approvals", err);
-      toast({ title: "Failed to load approvals", variant: "destructive" });
+      toast({ title: t("failed_to_load_approvals"), variant: "destructive" });
       setAddRequests([]);
       setEditRequests([]);
       setTransferRequests([]);
@@ -134,7 +134,10 @@ export default function StoreKeeperApprovals() {
       }
 
       toast({
-        title: action === "approve" ? "Request approved" : "Request rejected",
+        title:
+          action === "approve"
+            ? t("request_approved_success")
+            : t("request_rejected_success"),
       });
       await fetchRequests();
       // Notify open pages (e.g. manager product table) to reload and show a
@@ -148,9 +151,9 @@ export default function StoreKeeperApprovals() {
       }
     } catch (err: unknown) {
       const description =
-        err instanceof Error ? err.message : "Please try again";
+        err instanceof Error ? err.message : t("please_try_again");
       toast({
-        title: "Action failed",
+        title: t("action_failed"),
         description,
         variant: "destructive",
       });
@@ -189,7 +192,8 @@ export default function StoreKeeperApprovals() {
           <div>
             <h1 className="text-2xl font-bold">{t("pending_requests") || "Approvals"}</h1>
             <p className="text-muted-foreground">
-              {t("staff_workflow_history") || "Review owner product add requests for stock additions."}
+              {t("storekeeper_approvals_subtitle") ||
+                "Review owner product add requests for stock additions."}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -254,7 +258,7 @@ export default function StoreKeeperApprovals() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ClipboardList className="h-5 w-5" />
-              Stock Transfer Requests
+              {t("stock_transfer_requests")}
               <Badge variant="secondary">{transferRequests.length}</Badge>
             </CardTitle>
           </CardHeader>
@@ -263,15 +267,15 @@ export default function StoreKeeperApprovals() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-12">Image</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Price</TableHead>
-                    <TableHead>Direction</TableHead>
-                    <TableHead className="text-right">Quantity</TableHead>
-                    <TableHead>Requester</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="w-12">{t("image")}</TableHead>
+                    <TableHead>{t("product")}</TableHead>
+                    <TableHead>{t("category")}</TableHead>
+                    <TableHead>{t("price")}</TableHead>
+                    <TableHead>{t("direction")}</TableHead>
+                    <TableHead className="text-right">{t("quantity")}</TableHead>
+                    <TableHead>{t("requester")}</TableHead>
+                    <TableHead>{t("status")}</TableHead>
+                    <TableHead className="text-right">{t("actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -320,9 +324,9 @@ export default function StoreKeeperApprovals() {
                           : "-";
 
                       const fromLabel =
-                        request.fromLocation === "mart" ? "Mart" : "Store";
+                        request.fromLocation === "mart" ? t("mart") : t("store");
                       const toLabel =
-                        request.toLocation === "store" ? "Store" : "Mart";
+                        request.toLocation === "store" ? t("store") : t("mart");
 
                       return (
                         <TableRow key={id}>
@@ -349,7 +353,7 @@ export default function StoreKeeperApprovals() {
                             {Number(request.quantity || 0)}
                           </TableCell>
                           <TableCell>
-                            {request.requesterName || "Owner"}
+                            {request.requesterName || t("owner")}
                           </TableCell>
                           <TableCell>
                             <Badge
@@ -361,7 +365,11 @@ export default function StoreKeeperApprovals() {
                                     : "secondary"
                               }
                             >
-                              {request.status}
+                              {request.status === "approved"
+                                ? t("approved")
+                                : request.status === "rejected"
+                                  ? t("rejected")
+                                  : t("pending")}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
@@ -375,12 +383,12 @@ export default function StoreKeeperApprovals() {
                                       type: "transfer",
                                       id,
                                       action: "reject",
-                                      itemLabel: "this transfer request",
+                                      itemLabel: t("this_transfer_request"),
                                     })
                                   }
                                 >
                                   <X className="mr-1 h-4 w-4" />
-                                  Reject
+                                  {t("reject")}
                                 </Button>
                                 <Button
                                   size="sm"
@@ -389,19 +397,21 @@ export default function StoreKeeperApprovals() {
                                       type: "transfer",
                                       id,
                                       action: "approve",
-                                      itemLabel: "this transfer request",
+                                      itemLabel: t("this_transfer_request"),
                                     })
                                   }
                                 >
                                   <Check className="mr-1 h-4 w-4" />
-                                  Approve
+                                  {t("approve")}
                                 </Button>
                               </div>
                             ) : (
                               <span className="text-xs text-muted-foreground">
                                 {request.approverName
-                                  ? `By ${request.approverName}`
-                                  : "Processed"}
+                                  ? t("by_approver", {
+                                      name: request.approverName,
+                                    })
+                                  : t("processed")}
                               </span>
                             )}
                           </TableCell>
@@ -414,7 +424,7 @@ export default function StoreKeeperApprovals() {
                         colSpan={9}
                         className="py-6 text-center text-muted-foreground"
                       >
-                        No stock transfer requests found.
+                        {t("no_stock_transfer_requests")}
                       </TableCell>
                     </TableRow>
                   )}
@@ -428,7 +438,7 @@ export default function StoreKeeperApprovals() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ClipboardList className="h-5 w-5" />
-              Product Add Requests
+              {t("product_add_requests")}
               <Badge variant="secondary">{addRequests.length}</Badge>
             </CardTitle>
           </CardHeader>
@@ -437,15 +447,15 @@ export default function StoreKeeperApprovals() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-12">Image</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Price</TableHead>
-                    <TableHead>Requester</TableHead>
-                    <TableHead className="text-right">Stock Qty</TableHead>
-                    <TableHead className="text-right">Mart Qty</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="w-12">{t("image")}</TableHead>
+                    <TableHead>{t("product")}</TableHead>
+                    <TableHead>{t("category")}</TableHead>
+                    <TableHead>{t("price")}</TableHead>
+                    <TableHead>{t("requester")}</TableHead>
+                    <TableHead className="text-right">{t("store_qty")}</TableHead>
+                    <TableHead className="text-right">{t("mart_qty")}</TableHead>
+                    <TableHead>{t("status")}</TableHead>
+                    <TableHead className="text-right">{t("actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -487,7 +497,7 @@ export default function StoreKeeperApprovals() {
                             {price}
                           </TableCell>
                           <TableCell>
-                            {request.requesterName || "Owner"}
+                            {request.requesterName || t("owner")}
                           </TableCell>
                           <TableCell className="text-right">
                             {stockQty}
@@ -505,7 +515,11 @@ export default function StoreKeeperApprovals() {
                                     : "secondary"
                               }
                             >
-                              {request.status}
+                              {request.status === "approved"
+                                ? t("approved")
+                                : request.status === "rejected"
+                                  ? t("rejected")
+                                  : t("pending")}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
@@ -520,13 +534,13 @@ export default function StoreKeeperApprovals() {
                                       id,
                                       action: "reject",
                                       itemLabel: String(
-                                        payload.name || "product",
+                                        payload.name || t("product"),
                                       ),
                                     })
                                   }
                                 >
                                   <X className="mr-1 h-4 w-4" />
-                                  Reject
+                                  {t("reject")}
                                 </Button>
                                 <Button
                                   size="sm"
@@ -536,20 +550,22 @@ export default function StoreKeeperApprovals() {
                                       id,
                                       action: "approve",
                                       itemLabel: String(
-                                        payload.name || "product",
+                                        payload.name || t("product"),
                                       ),
                                     })
                                   }
                                 >
                                   <Check className="mr-1 h-4 w-4" />
-                                  Approve
+                                  {t("approve")}
                                 </Button>
                               </div>
                             ) : (
                               <span className="text-xs text-muted-foreground">
                                 {request.approverName
-                                  ? `By ${request.approverName}`
-                                  : "Processed"}
+                                  ? t("by_approver", {
+                                      name: request.approverName,
+                                    })
+                                  : t("processed")}
                               </span>
                             )}
                           </TableCell>
@@ -562,7 +578,7 @@ export default function StoreKeeperApprovals() {
                         colSpan={9}
                         className="py-6 text-center text-muted-foreground"
                       >
-                        No product add requests found.
+                        {t("no_product_add_requests")}
                       </TableCell>
                     </TableRow>
                   )}
@@ -576,7 +592,7 @@ export default function StoreKeeperApprovals() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ClipboardList className="h-5 w-5" />
-              Product Edit Requests
+              {t("product_edit_requests")}
               <Badge variant="secondary">{editRequests.length}</Badge>
             </CardTitle>
           </CardHeader>
@@ -585,14 +601,14 @@ export default function StoreKeeperApprovals() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-12">Image</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Price</TableHead>
-                    <TableHead>Requester</TableHead>
-                    <TableHead>Changed Fields</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="w-12">{t("image")}</TableHead>
+                    <TableHead>{t("product")}</TableHead>
+                    <TableHead>{t("category")}</TableHead>
+                    <TableHead>{t("price")}</TableHead>
+                    <TableHead>{t("requester")}</TableHead>
+                    <TableHead>{t("changed_fields")}</TableHead>
+                    <TableHead>{t("status")}</TableHead>
+                    <TableHead className="text-right">{t("actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -664,12 +680,12 @@ export default function StoreKeeperApprovals() {
                             {price}
                           </TableCell>
                           <TableCell>
-                            {request.requesterName || "Owner"}
+                            {request.requesterName || t("owner")}
                           </TableCell>
                           <TableCell>
                             {changedKeys.length > 0
                               ? changedKeys.join(", ")
-                              : "No field details"}
+                              : t("no_field_details")}
                           </TableCell>
                           <TableCell>
                             <Badge
@@ -681,7 +697,11 @@ export default function StoreKeeperApprovals() {
                                     : "secondary"
                               }
                             >
-                              {request.status}
+                              {request.status === "approved"
+                                ? t("approved")
+                                : request.status === "rejected"
+                                  ? t("rejected")
+                                  : t("pending")}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
@@ -695,12 +715,12 @@ export default function StoreKeeperApprovals() {
                                       type: "edit",
                                       id,
                                       action: "reject",
-                                      itemLabel: "this edit request",
+                                      itemLabel: t("this_edit_request"),
                                     })
                                   }
                                 >
                                   <X className="mr-1 h-4 w-4" />
-                                  Reject
+                                  {t("reject")}
                                 </Button>
                                 <Button
                                   size="sm"
@@ -709,19 +729,21 @@ export default function StoreKeeperApprovals() {
                                       type: "edit",
                                       id,
                                       action: "approve",
-                                      itemLabel: "this edit request",
+                                      itemLabel: t("this_edit_request"),
                                     })
                                   }
                                 >
                                   <Check className="mr-1 h-4 w-4" />
-                                  Approve
+                                  {t("approve")}
                                 </Button>
                               </div>
                             ) : (
                               <span className="text-xs text-muted-foreground">
                                 {request.approverName
-                                  ? `By ${request.approverName}`
-                                  : "Processed"}
+                                  ? t("by_approver", {
+                                      name: request.approverName,
+                                    })
+                                  : t("processed")}
                               </span>
                             )}
                           </TableCell>
@@ -734,7 +756,7 @@ export default function StoreKeeperApprovals() {
                         colSpan={8}
                         className="py-6 text-center text-muted-foreground"
                       >
-                        No product edit requests found.
+                        {t("no_product_edit_requests")}
                       </TableCell>
                     </TableRow>
                   )}
@@ -752,17 +774,21 @@ export default function StoreKeeperApprovals() {
             <AlertDialogHeader>
               <AlertDialogTitle>
                 {pendingDecision?.action === "approve"
-                  ? "Approve request"
-                  : "Reject request"}
+                  ? t("approve_request_title")
+                  : t("reject_request_title")}
               </AlertDialogTitle>
               <AlertDialogDescription>
                 {pendingDecision?.action === "approve"
-                  ? `Approve ${pendingDecision?.itemLabel || "this request"}?`
-                  : `Reject ${pendingDecision?.itemLabel || "this request"}?`}
+                  ? t("approve_item_question", {
+                      item: pendingDecision?.itemLabel || t("this_request"),
+                    })
+                  : t("reject_item_question", {
+                      item: pendingDecision?.itemLabel || t("this_request"),
+                    })}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
               <AlertDialogAction
                 disabled={isDeciding}
                 onClick={(e) => {
@@ -773,7 +799,7 @@ export default function StoreKeeperApprovals() {
                 {isDeciding ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
-                Confirm
+                {t("confirm")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { getImageUrl } from "@/utils/imageUrl";
 import {
   CreditCard,
   Building2,
@@ -19,11 +18,6 @@ import {
   Loader2,
   ShieldCheck,
   Sparkles,
-  QrCode,
-  Printer,
-  Plus,
-  Minus,
-  Package,
 } from "lucide-react";
 
 type PaymentMethod = {
@@ -42,15 +36,6 @@ type HardwareDetail = {
   unitPrice: number;
 };
 
-type HardwareProduct = {
-  id: string;
-  name: string;
-  description: string;
-  unitPrice: number;
-  active: boolean;
-  imageUrl?: string;
-};
-
 export default function CheckoutPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -64,11 +49,6 @@ export default function CheckoutPage() {
     packagePrice = 1000,
     hardwareDetails = [] as HardwareDetail[],
   } = state;
-
-  // Load hardware products from API
-  const [hardwareProducts, setHardwareProducts] = useState<HardwareProduct[]>([]);
-  const [hardwareCounts, setHardwareCounts] = useState<Record<string, number>>({});
-  const [loadingHardware, setLoadingHardware] = useState(true);
 
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
@@ -100,45 +80,12 @@ export default function CheckoutPage() {
     fetchMethods();
   }, [API_BASE]);
 
-  // Fetch hardware products and initialize counts
-  useEffect(() => {
-    const loadHardwareProducts = async () => {
-      try {
-        setLoadingHardware(true);
-        const res = await fetch(`${API_BASE}/api/subscriptions/hardware-products`);
-        if (res.ok) {
-          const data = await res.json();
-          const products = Array.isArray(data) ? data : [];
-          const activeProducts = products.filter((p: HardwareProduct) => p.active);
-          setHardwareProducts(activeProducts);
-
-          // Initialize counts from hardwareDetails or default to 0
-          const initialCounts: Record<string, number> = {};
-          activeProducts.forEach((p: HardwareProduct) => {
-            const detail = hardwareDetails.find((hd) => hd.id === p.id);
-            initialCounts[p.id] = detail ? detail.count : 0;
-          });
-          setHardwareCounts(initialCounts);
-        }
-      } catch (error) {
-        console.error("Failed to load hardware products:", error);
-      } finally {
-        setLoadingHardware(false);
-      }
-    };
-
-    loadHardwareProducts();
-  }, [API_BASE, hardwareDetails]);
-
   const isFreePackage = Number(packageMonths) === 0;
   
-  // Calculate hardware total
-  const hardwareTotal = hardwareProducts.reduce((sum, product) => {
-    const count = hardwareCounts[product.id] || 0;
-    return sum + count * product.unitPrice;
-  }, 0);
+  // Calculate hardware total from the hardware selected earlier in the flow
+  const hardwareTotal = hardwareDetails.reduce((sum, hd) => sum + hd.count * hd.unitPrice, 0);
   
-  const hasHardware = Object.values(hardwareCounts).some(count => count > 0);
+  const hasHardware = hardwareDetails.length > 0;
   const grandTotal = packagePrice + hardwareTotal;
   // Free package with no hardware requires no payment/screenshot
   const skipPayment = isFreePackage && !hasHardware;
@@ -167,16 +114,8 @@ export default function CheckoutPage() {
       formData.append("paymentMethod", selectedMethod ? selectedMethod.method : "Bank Transfer");
       formData.append("paymentReference", paymentReference);
       
-      // Send hardware details as JSON
-      const currentHardwareDetails = hardwareProducts
-        .filter(product => hardwareCounts[product.id] > 0)
-        .map(product => ({
-          id: product.id,
-          name: product.name,
-          count: hardwareCounts[product.id],
-          unitPrice: product.unitPrice,
-        }));
-      formData.append("hardwareDetails", JSON.stringify(currentHardwareDetails));
+      // Send hardware details as JSON (selected earlier in the flow)
+      formData.append("hardwareDetails", JSON.stringify(hardwareDetails));
       
       if (withReceipt && receiptFile) {
         formData.append("receipt", receiptFile);
@@ -285,10 +224,7 @@ export default function CheckoutPage() {
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">Hardware Add-ons:</span>
                     <span className="font-medium">
-                      {hardwareProducts
-                        .filter(p => hardwareCounts[p.id] > 0)
-                        .map(p => `${hardwareCounts[p.id]} ${p.name}`)
-                        .join(', ')}
+                      {hardwareDetails.map(hd => `${hd.count} ${hd.name}`).join(', ')}
                     </span>
                   </div>
                 )}
@@ -349,71 +285,26 @@ export default function CheckoutPage() {
                   <p className="font-bold text-sm">{packagePrice.toLocaleString()} ETB</p>
                 </div>
 
-                {/* Hardware Add-on Counters */}
+                {/* Hardware Add-ons (read-only summary) */}
                 <div className="space-y-3 pt-2 border-b border-border/50 pb-3">
                   <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Hardware Add-ons</p>
                   
-                  {loadingHardware ? (
-                    <div className="flex items-center justify-center py-4 text-muted-foreground gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" /> Loading hardware...
-                    </div>
-                  ) : hardwareProducts.length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center py-4">No hardware products available</p>
-                  ) : (
-                    hardwareProducts.map((product) => (
-                      <div key={product.id} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {product.imageUrl ? (
-                            <img 
-                              src={getImageUrl(product.imageUrl)} 
-                              alt={product.name} 
-                              className="w-8 h-8 rounded-lg object-cover border border-border"
-                            />
-                          ) : (
-                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                              {product.id.includes('scanner') ? <QrCode className="w-4 h-4" /> :
-                               product.id.includes('printer') ? <Printer className="w-4 h-4" /> :
-                               <Package className="w-4 h-4" />}
-                            </div>
-                          )}
-                          <div>
-                            <p className="text-xs font-semibold">{product.name}</p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {product.unitPrice.toLocaleString()} ETB / unit
-                            </p>
-                          </div>
+                  {hasHardware ? (
+                    hardwareDetails.map((hd) => (
+                      <div key={hd.id} className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-semibold">{hd.name}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {hd.unitPrice.toLocaleString()} ETB / unit
+                          </p>
                         </div>
-                        <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-lg">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => setHardwareCounts(prev => ({
-                              ...prev,
-                              [product.id]: Math.max(0, (prev[product.id] || 0) - 1)
-                            }))}
-                          >
-                            <Minus className="w-3 h-3" />
-                          </Button>
-                          <span className="text-xs font-bold w-4 text-center">
-                            {hardwareCounts[product.id] || 0}
-                          </span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => setHardwareCounts(prev => ({
-                              ...prev,
-                              [product.id]: (prev[product.id] || 0) + 1
-                            }))}
-                          >
-                            <Plus className="w-3 h-3" />
-                          </Button>
-                        </div>
+                        <p className="text-xs font-bold">
+                          {hd.count} × {hd.unitPrice.toLocaleString()} ETB
+                        </p>
                       </div>
                     ))
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-4">No hardware add-ons selected</p>
                   )}
                 </div>
 
@@ -425,10 +316,7 @@ export default function CheckoutPage() {
                   </span>
                   <p className="text-[11px] text-muted-foreground">
                     Includes {packageName} Subscription {packagePrice > 0 ? `(${packagePrice.toLocaleString()} ETB)` : "(Free)"}
-                    {hardwareProducts
-                      .filter(p => hardwareCounts[p.id] > 0)
-                      .map(p => ` + ${p.name} (${(hardwareCounts[p.id] * p.unitPrice).toLocaleString()} ETB)`)
-                      .join('')}
+                    {hardwareDetails.map(hd => ` + ${hd.name} (${(hd.count * hd.unitPrice).toLocaleString()} ETB)`).join('')}
                   </p>
                 </div>
               </CardContent>

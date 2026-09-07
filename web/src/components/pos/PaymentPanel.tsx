@@ -554,6 +554,9 @@ export function PaymentPanel() {
       cashierName: user?.name || "Unknown",
       customerId: customerId || undefined,
       customerName: selectedCustomerObj ? selectedCustomerObj.name : undefined,
+      customerPhone: selectedCustomerObj
+        ? selectedCustomerObj.phoneNumber || selectedCustomerObj.phone
+        : undefined,
       amountPaid: paidUpfront,
       creditAmount: remainingCredit,
       date: new Date(),
