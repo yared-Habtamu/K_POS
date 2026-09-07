@@ -13,6 +13,7 @@ import {
   Users,
   Check,
   CheckCheck,
+  ArrowLeft,
 } from "lucide-react";
 import type { UserRole } from "@/types";
 
@@ -419,9 +420,15 @@ export default function ChatPage() {
 
   return (
     <RoleLayout allowedRoles={allowedRoles}>
-      <div className="flex h-[calc(100vh-4rem)] -m-3 sm:-m-4 md:-m-6">
+      <div className="flex h-[calc(100dvh-4rem)] -m-3 sm:-m-4 md:-m-6">
         {/* Conversation List */}
-        <div className="w-72 sm:w-80 border-r border-border flex flex-col bg-background">
+        <div
+          className={cn(
+            "border-r border-border flex-col bg-background",
+            "w-full md:w-72 lg:w-80",
+            showNewChat || activeConvId ? "hidden md:flex" : "flex",
+          )}
+        >
           <div className="p-3 border-b border-border flex items-center justify-between gap-2">
             <h2 className="font-semibold text-base flex items-center gap-2">
               <MessageSquare className="w-5 h-5" />
@@ -501,7 +508,12 @@ export default function ChatPage() {
         </div>
 
         {/* Message Area / New Conversation Panel */}
-        <div className="flex-1 flex flex-col bg-background">
+        <div
+          className={cn(
+            "flex-1 flex-col bg-background",
+            !showNewChat && !activeConvId ? "hidden md:flex" : "flex",
+          )}
+        >
           {showNewChat ? (
             <div className="flex-1 flex flex-col">
               <div className="px-4 py-3 border-b border-border flex items-center justify-between">
@@ -580,6 +592,17 @@ export default function ChatPage() {
             <>
               {/* Chat Header */}
               <div className="px-4 py-3 border-b border-border flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    setActiveConvId(null);
+                    setShowNewChat(false);
+                  }}
+                  className="md:hidden h-8 w-8 rounded-lg flex items-center justify-center hover:bg-accent transition-colors shrink-0"
+                  title={t("back")}
+                  aria-label={t("back")}
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
                 <Avatar
                   name={otherUser?.name || "?"}
                   userId={activeConvId}
@@ -613,14 +636,14 @@ export default function ChatPage() {
                           isMe ? "justify-end" : "justify-start",
                         )}
                       >
-                        <div
-                          className={cn(
-                            "max-w-[70%] rounded-xl px-3 py-2 text-sm",
-                            isMe
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted",
-                          )}
-                        >
+<div
+                            className={cn(
+                              "max-w-[85%] md:max-w-[70%] rounded-xl px-3 py-2 text-sm",
+                              isMe
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted",
+                            )}
+                          >
                           <p className="break-words">{msg.message}</p>
                           <p
                             className={cn(
