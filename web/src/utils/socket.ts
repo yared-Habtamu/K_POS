@@ -50,6 +50,12 @@ export function initSocket(token?: string) {
     } catch (e) {}
   });
 
+  socket.on('chat_read', (payload: { conversationId: string; readerId: string; readAt: string }) => {
+    try {
+      window.dispatchEvent(new CustomEvent('chat_read', { detail: payload }));
+    } catch (e) {}
+  });
+
   socket.connect();
 }
 

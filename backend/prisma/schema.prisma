@@ -128,9 +128,9 @@ model User {
   saleCancellationRequestsApproved  SaleCancellationRequest[] @relation("SaleCancelReqApprover")
 
   // Chat relations
-  chatConversationsAsManager ChatConversation[] @relation("ChatManager")
-  chatConversationsAsCashier ChatConversation[] @relation("ChatCashier")
-  chatMessagesSent           ChatMessage[]      @relation("ChatSender")
+  chatConversationsAsUser1 ChatConversation[] @relation("ChatParticipant1")
+  chatConversationsAsUser2 ChatConversation[] @relation("ChatParticipant2")
+  chatMessagesSent         ChatMessage[]      @relation("ChatSender")
 
   // Subscription Payment relations
   subscriptionPaymentsRequested SubscriptionPayment[] @relation("SubPayRequester")
@@ -771,21 +771,21 @@ model SaleCancellationRequest {
 model ChatConversation {
   id        String   @id @default(uuid())
   martId    String
-  managerId String
-  cashierId String
+  user1Id   String
+  user2Id   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
   mart     Mart          @relation(fields: [martId], references: [id])
-  manager  User          @relation("ChatManager", fields: [managerId], references: [id])
-  cashier  User          @relation("ChatCashier", fields: [cashierId], references: [id])
+  user1    User          @relation("ChatParticipant1", fields: [user1Id], references: [id])
+  user2    User          @relation("ChatParticipant2", fields: [user2Id], references: [id])
   messages ChatMessage[]
 
-  @@unique([martId, managerId, cashierId])
+  @@unique([martId, user1Id, user2Id])
   @@index([martId])
-  @@index([managerId])
-  @@index([cashierId])
+  @@index([user1Id])
+  @@index([user2Id])
   @@map("chat_conversations")
 }
 

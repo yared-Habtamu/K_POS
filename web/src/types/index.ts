@@ -443,17 +443,26 @@ export interface BankAccountDTO {
   accountNumber: string;
 }
 
+/** Chat User (conversation participant) */
+export interface ChatUserDTO {
+  id: string;
+  name: string;
+  role: UserRole;
+}
+
 /** Chat Conversation */
 export interface ChatConversationDTO {
   id: string;
   martId: string;
-  managerId: string;
-  cashierId: string;
+  user1Id: string;
+  user2Id: string;
   createdAt: string;
   updatedAt: string;
   // Joined fields
-  managerName?: string;
-  cashierName?: string;
+  user1?: ChatUserDTO;
+  user2?: ChatUserDTO;
+  user1Name?: string;
+  user2Name?: string;
   lastMessage?: string;
   lastMessageAt?: string;
   unreadCount?: number;
