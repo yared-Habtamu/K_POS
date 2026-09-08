@@ -5,13 +5,13 @@ import { useSettingsStore } from "@/stores/settingsStore";
 /** Physical label: 40mm wide. Height reduced by 3mm to compensate for printer gap. */
 const LABEL_DPI = 203;
 const LABEL_WIDTH_MM = 40;
-const LABEL_HEIGHT_MM = 27; // 30 - 3 to reduce gap
+const LABEL_HEIGHT_MM = 10;
 
-/** Printable content area for ESC/POS bitmap: 30mm wide, 20mm tall */
+/** Printable content area for ESC/POS bitmap: 30mm wide, 10mm tall (tight fit) */
 const PRINTABLE_WIDTH_MM = 30;
-const PRINTABLE_HEIGHT_MM = 20;
+const PRINTABLE_HEIGHT_MM = 10;
 const PRINTABLE_WIDTH_DOTS = Math.round((PRINTABLE_WIDTH_MM / 25.4) * LABEL_DPI);  // ~240
-const PRINTABLE_HEIGHT_DOTS = Math.round((PRINTABLE_HEIGHT_MM / 25.4) * LABEL_DPI); // ~160
+const PRINTABLE_HEIGHT_DOTS = Math.round((PRINTABLE_HEIGHT_MM / 25.4) * LABEL_DPI); // ~80
 const PRINTABLE_WIDTH_BYTES = Math.ceil(PRINTABLE_WIDTH_DOTS / 8); // 30
 
 export async function generateUniqueBarcode(
@@ -157,12 +157,9 @@ function buildBarcodeLabelEscPos(params: {
   // Center align
   cmds.push(`${ESC}a\x01`);
 
-  // Print barcode bitmap (scaled to 30mm width)
+  // Print barcode bitmap (scaled to 30mm width, max 10mm tall)
   const bitmapCmds = canvasToEscPosBitmap(barcodeCanvas);
   cmds.push(...bitmapCmds);
-
-  // Tiny gap
-  cmds.push(`${ESC}d\x01`);
 
   // Shop name (small, centered, bold)
   if (shopName) {
@@ -197,8 +194,10 @@ function buildBarcodeLabelEscPos(params: {
     }
   }
 
-  // Feed and cut — no extra feed, let printer gap sensor handle spacing
-  cmds.push(`${GS}V\x41\x03`);
+  // Feed ~8mm (one finger width) for tear space, no cut
+  // ESC d n feeds n lines, each line ≈ 4.2mm
+  // Feed exactly 15mm (120 dots at 203 DPI), no cut
+  cmds.push(`${ESC}J\x78`);
 
   return cmds;
 }
@@ -214,11 +213,11 @@ function generateBarcodeCanvas(barcode: string): HTMLCanvasElement | null {
     JsBarcode(canvas, barcode, {
       format: "CODE128",
       width: 1,
-      height: 30,
+      height: 20,
       displayValue: true,
-      fontSize: 7,
-      textMargin: 1,
-      margin: 2,
+      fontSize: 6,
+      textMargin: 0,
+      margin: 1,
       background: "transparent",
       lineColor: "#000000",
     });
@@ -239,11 +238,11 @@ function generatePrintBarcodeDataUrl(barcode: string): string {
     JsBarcode(canvas, barcode, {
       format: "CODE128",
       width: 1,
-      height: 30,
+      height: 20,
       displayValue: true,
-      fontSize: 7,
-      textMargin: 1,
-      margin: 2,
+      fontSize: 6,
+      textMargin: 0,
+      margin: 1,
       background: "#ffffff",
       lineColor: "#000000",
     });
@@ -384,7 +383,7 @@ function printViaBrowser(params: {
           }
           img {
             max-width: ${LABEL_WIDTH_MM - sidePad * 2 - 2}mm;
-            max-height: 15mm;
+            max-height: 8mm;
             display: block;
             margin: 0.3mm auto;
           }
