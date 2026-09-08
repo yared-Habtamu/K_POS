@@ -30,8 +30,8 @@ export async function generateUniqueBarcode(
 }
 
 /**
- * Generate a barcode data URL sized for 30x20mm printable area.
- * Smaller bar width and height to fit inside the content area.
+ * Generate a barcode data URL for FRONTEND PREVIEW only.
+ * Large size for screen display. NOT used for printing.
  */
 export function generateBarcodeDataUrl(barcode: string): string {
   if (!barcode) return "";
@@ -39,13 +39,12 @@ export function generateBarcodeDataUrl(barcode: string): string {
   try {
     JsBarcode(canvas, barcode, {
       format: "CODE128",
-      width: 1,
-      height: 30,
+      width: 2,
+      height: 80,
       displayValue: true,
-      fontSize: 7,
-      textMargin: 1,
-      margin: 2,
-      background: "transparent",
+      fontSize: 14,
+      margin: 10,
+      background: "#ffffff",
       lineColor: "#000000",
     });
     return canvas.toDataURL("image/png");
@@ -225,6 +224,31 @@ function generateBarcodeCanvas(barcode: string): HTMLCanvasElement | null {
     return canvas;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Generate a small barcode data URL for browser-fallback printing.
+ * Sized to fit 30x20mm printable area.
+ */
+function generatePrintBarcodeDataUrl(barcode: string): string {
+  if (!barcode) return "";
+  const canvas = document.createElement("canvas");
+  try {
+    JsBarcode(canvas, barcode, {
+      format: "CODE128",
+      width: 1,
+      height: 30,
+      displayValue: true,
+      fontSize: 7,
+      textMargin: 1,
+      margin: 2,
+      background: "#ffffff",
+      lineColor: "#000000",
+    });
+    return canvas.toDataURL("image/png");
+  } catch {
+    return "";
   }
 }
 
@@ -466,7 +490,7 @@ export async function printBarcodeLabel(params: {
   if (printnodeOk) return;
 
   // Fallback: browser print
-  const dataUrl = generateBarcodeDataUrl(barcode);
+  const dataUrl = generatePrintBarcodeDataUrl(barcode);
   if (!dataUrl) return;
 
   printViaBrowser({
