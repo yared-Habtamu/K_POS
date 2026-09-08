@@ -195,8 +195,8 @@ function buildBarcodeLabelEscPos(params: {
     }
   }
 
-  // Feed and cut
-  cmds.push(`${ESC}d\x03`);
+  // Feed and cut (minimal feed for tight label spacing)
+  cmds.push(`${ESC}d\x01`);
   cmds.push(`${GS}V\x41\x03`);
 
   return cmds;
@@ -326,21 +326,22 @@ function printViaBrowser(params: {
   const showPrice = Number.isFinite(parsedPrice);
   const priceLabel = showPrice ? `${parsedPrice.toFixed(2)} ETB` : "";
 
-  // Margins: (40-30)/2 = 5mm horizontal, (30-20)/2 = 5mm vertical
-  const marginH = (LABEL_WIDTH_MM - PRINTABLE_WIDTH_MM) / 2;
-  const marginV = (LABEL_HEIGHT_MM - PRINTABLE_HEIGHT_MM) / 2;
+  // 40x30mm is the TOTAL pitch (label + gap).
+  // Actual printable content starts ~3mm from top, leaves ~3mm gap at bottom.
+  // Content area: ~34mm wide x ~24mm tall, centered horizontally.
+  const contentWidth = 34; // mm
+  const contentTopPad = 3; // mm from top of label
+  const contentBottomPad = 3; // mm gap at bottom for label separation
 
   let labelsHtml = "";
   for (let i = 0; i < quantity; i++) {
     labelsHtml += `
       <div class="label">
-        <div class="content">
-          ${safeShopName ? `<div class="shop">${safeShopName}</div>` : ""}
-          <img src="${dataUrl}" alt="Barcode" />
-          <div class="meta">
-            ${safeProductName ? `<div class="product">${safeProductName}</div>` : ""}
-            ${showPrice ? `<div class="price">${priceLabel}</div>` : ""}
-          </div>
+        ${safeShopName ? `<div class="shop">${safeShopName}</div>` : ""}
+        <img src="${dataUrl}" alt="Barcode" />
+        <div class="meta">
+          ${safeProductName ? `<div class="product">${safeProductName}</div>` : ""}
+          ${showPrice ? `<div class="price">${priceLabel}</div>` : ""}
         </div>
       </div>
     `;
@@ -357,69 +358,61 @@ function printViaBrowser(params: {
             size: ${LABEL_WIDTH_MM}mm ${LABEL_HEIGHT_MM}mm;
             margin: 0;
           }
-          @media print {
-            body { margin: 0; padding: 0; }
-            .label {
-              page-break-after: always;
-              page-break-inside: avoid;
-            }
-            .label:last-child {
-              page-break-after: auto;
-            }
-          }
           * { box-sizing: border-box; margin: 0; padding: 0; }
           body {
             font-family: Arial, Helvetica, sans-serif;
             color: #000;
             background: transparent;
+            margin: 0;
+            padding: 0;
           }
           .label {
             width: ${LABEL_WIDTH_MM}mm;
             height: ${LABEL_HEIGHT_MM}mm;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: transparent;
-          }
-          .content {
-            width: ${PRINTABLE_WIDTH_MM}mm;
-            height: ${PRINTABLE_HEIGHT_MM}mm;
+            padding-top: ${contentTopPad}mm;
+            padding-left: ${(LABEL_WIDTH_MM - contentWidth) / 2}mm;
+            padding-right: ${(LABEL_WIDTH_MM - contentWidth) / 2}mm;
+            padding-bottom: ${contentBottomPad}mm;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            padding: 0.5mm;
-            overflow: hidden;
+            justify-content: flex-start;
+            page-break-after: always;
+            page-break-inside: avoid;
+          }
+          .label:last-child {
+            page-break-after: auto;
           }
           .shop {
-            font-size: 4.5pt;
+            font-size: 5pt;
             font-weight: 700;
             text-align: center;
-            line-height: 1;
-            max-height: 2.5mm;
-            overflow: hidden;
+            line-height: 1.1;
+            margin-bottom: 0.5mm;
           }
           img {
-            max-width: ${PRINTABLE_WIDTH_MM - 2}mm;
-            max-height: 11mm;
+            max-width: ${contentWidth - 4}mm;
+            max-height: 14mm;
             display: block;
-            margin: 0.3mm auto;
+            margin: 0.5mm auto;
           }
           .meta {
             text-align: center;
             line-height: 1.1;
+            margin-top: auto;
           }
           .product {
-            font-size: 4pt;
+            font-size: 4.5pt;
             font-weight: 600;
             max-height: 3mm;
             overflow: hidden;
             word-break: break-word;
           }
           .price {
-            font-size: 5pt;
+            font-size: 5.5pt;
             font-weight: 700;
-            margin-top: 0.2mm;
+            margin-top: 0.3mm;
           }
         </style>
       </head>
