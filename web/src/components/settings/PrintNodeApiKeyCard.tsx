@@ -187,11 +187,11 @@ export function PrintNodeApiKeyCard() {
               {t("how_to_get_key", { defaultValue: "How to get your PrintNode API Key:" })}
             </p>
             <ol className="text-xs text-blue-600 dark:text-blue-500 list-decimal list-inside space-y-1">
-              <li>{t("step1", { defaultValue: "Go to printnode.com and create a free account" })}</li>
-              <li>{t("step2", { defaultValue: "Install PrintNode Client on each cashier's computer" })}</li>
-              <li>{t("step3", { defaultValue: "Connect your receipt printer to each computer" })}</li>
-              <li>{t("step4", { defaultValue: "Go to Account > API Keys and copy your key" })}</li>
-              <li>{t("step5", { defaultValue: "Paste the key here and click Save & Verify" })}</li>
+              <li>{t("api_step1", { defaultValue: "Go to printnode.com and create a free account" })}</li>
+              <li>{t("api_step2", { defaultValue: "Install PrintNode Client on each cashier's computer" })}</li>
+              <li>{t("api_step3", { defaultValue: "Connect your receipt printer to each computer" })}</li>
+              <li>{t("api_step4", { defaultValue: "Go to Account > API Keys and copy your key" })}</li>
+              <li>{t("api_step5", { defaultValue: "Paste the key here and click Save & Verify" })}</li>
             </ol>
           </div>
         </div>

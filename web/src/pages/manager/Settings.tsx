@@ -23,10 +23,10 @@ export default function ManagerSettings() {
           <div className="w-full overflow-x-auto pb-1">
             <TabsList className="inline-flex min-w-max justify-start gap-2">
               <TabsTrigger value="general" className="shrink-0">
-                General
+                {t("general")}
               </TabsTrigger>
               <TabsTrigger value="printer" className="shrink-0">
-                Printer
+                {t("printer_tab")}
               </TabsTrigger>
             </TabsList>
           </div>
@@ -45,8 +45,8 @@ export default function ManagerSettings() {
           <TabsContent value="printer" className="mt-4">
             <PrinterSettingsCard
               role="manager"
-              title="Manager Printer"
-              description="Set the printer used from manager workstations."
+              title={t("manager_printer")}
+              description={t("manager_printer_desc")}
             />
           </TabsContent>
         </Tabs>
