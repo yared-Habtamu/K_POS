@@ -782,8 +782,8 @@ model SaleCancellationRequest {
 model ChatConversation {
   id        String   @id @default(uuid())
   martId    String
-  user1Id   String?  @default("")
-  user2Id   String?  @default("")
+  user1Id   String?
+  user2Id   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -793,7 +793,6 @@ model ChatConversation {
   user2    User?         @relation("ChatParticipant2", fields: [user2Id], references: [id])
   messages ChatMessage[]
 
-  @@unique([martId, user1Id, user2Id])
   @@index([martId])
   @@index([user1Id])
   @@index([user2Id])
