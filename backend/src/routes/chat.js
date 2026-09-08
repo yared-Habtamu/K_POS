@@ -3,6 +3,7 @@ const router = express.Router();
 const prisma = require("../repositories/prismaClient");
 const { authenticate } = require("../middleware/auth");
 const { emitToUser } = require("../socket");
+const { createNotification } = require("../services/notification.service");
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -13,49 +14,51 @@ function requireAuth(req, res, next) {
   return next();
 }
 
-function requireManagerOrCashier(req, res, next) {
-  if (!["manager", "cashier"].includes(req.user.role)) {
+// Any logged-in user assigned to a mart may use the internal chat.
+function requireParty(req, res, next) {
+  if (req.user.role !== "systemAdmin" && !req.user.martId) {
     return res
       .status(403)
-      .json({ message: "Only managers and cashiers can use chat" });
+      .json({ message: "User is not assigned to any market" });
   }
   return next();
 }
 
+// Stable ordering of two participants so the unique key is (martId, user1Id, user2Id).
+function pair(userAId, userBId) {
+  const [u1, u2] = [String(userAId), String(userBId)].sort();
+  return { user1Id: u1, user2Id: u2 };
+}
+
 // ─── GET /api/chat/conversations ─────────────────────────────────────────────
-// List conversations for the current user.
-// Managers see all conversations in their mart.
-// Cashiers see only their conversation with the manager.
+// List conversations the current user is a participant in (within their mart).
 
 router.get(
   "/conversations",
   authenticate,
   requireAuth,
-  requireManagerOrCashier,
+  requireParty,
   async (req, res) => {
     try {
-      const { martId, id: userId, role } = req.user;
-
-      const where = { martId };
-      if (role === "cashier") {
-        where.cashierId = userId;
-      }
+      const { martId, id: userId } = req.user;
 
       const conversations = await prisma.chatConversation.findMany({
-        where,
+        where: {
+          martId,
+          OR: [{ user1Id: userId }, { user2Id: userId }],
+        },
         include: {
-          manager: { select: { id: true, name: true } },
-          cashier: { select: { id: true, name: true } },
+          user1: { select: { id: true, name: true, role: true } },
+          user2: { select: { id: true, name: true, role: true } },
           messages: {
             orderBy: { createdAt: "desc" },
             take: 1,
-            include: { sender: { select: { id: true, name: true } } },
+            include: { sender: { select: { id: true, name: true, role: true } } },
           },
         },
         orderBy: { updatedAt: "desc" },
       });
 
-      // Get unread counts
       const conversationsWithUnread = await Promise.all(
         conversations.map(async (conv) => {
           const unreadCount = await prisma.chatMessage.count({
@@ -83,53 +86,60 @@ router.get(
 );
 
 // ─── POST /api/chat/conversations ────────────────────────────────────────────
-// Get or create a conversation between manager and cashier.
+// Get or create a conversation between the current user and any other user
+// in the same mart.
 
 router.post(
   "/conversations",
   authenticate,
   requireAuth,
-  requireManagerOrCashier,
+  requireParty,
   async (req, res) => {
     try {
-      const { martId, id: userId, role } = req.user;
-      const { cashierId, managerId } = req.body;
+      const { martId, id: userId } = req.user;
+      const { otherUserId } = req.body;
 
-      let resolvedManagerId, resolvedCashierId;
-
-      if (role === "manager") {
-        resolvedManagerId = userId;
-        resolvedCashierId = cashierId;
-      } else {
-        // cashier
-        resolvedCashierId = userId;
-        resolvedManagerId = managerId;
-      }
-
-      if (!resolvedManagerId || !resolvedCashierId) {
+      if (!otherUserId) {
         return res
           .status(400)
-          .json({ message: "Both managerId and cashierId are required" });
+          .json({ message: "otherUserId is required" });
       }
 
-      // Upsert conversation
+      if (String(otherUserId) === String(userId)) {
+        return res
+          .status(400)
+          .json({ message: "Cannot start a conversation with yourself" });
+      }
+
+      // Recipient must belong to the same mart and be an active user.
+      const other = await prisma.user.findFirst({
+        where: {
+          id: otherUserId,
+          martId,
+          active: true,
+          isDeleted: false,
+        },
+        select: { id: true, name: true, role: true },
+      });
+      if (!other) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const { user1Id, user2Id } = pair(userId, other.id);
+
       const conversation = await prisma.chatConversation.upsert({
         where: {
-          martId_managerId_cashierId: {
-            martId,
-            managerId: resolvedManagerId,
-            cashierId: resolvedCashierId,
-          },
+          martId_user1Id_user2Id: { martId, user1Id, user2Id },
         },
         create: {
           martId,
-          managerId: resolvedManagerId,
-          cashierId: resolvedCashierId,
+          user1Id,
+          user2Id,
         },
         update: {},
         include: {
-          manager: { select: { id: true, name: true } },
-          cashier: { select: { id: true, name: true } },
+          user1: { select: { id: true, name: true, role: true } },
+          user2: { select: { id: true, name: true, role: true } },
         },
       });
 
@@ -142,13 +152,13 @@ router.post(
 );
 
 // ─── GET /api/chat/conversations/:id/messages ────────────────────────────────
-// Get messages for a conversation with pagination.
+// Get messages for a conversation with pagination. Only participants may list.
 
 router.get(
   "/conversations/:id/messages",
   authenticate,
   requireAuth,
-  requireManagerOrCashier,
+  requireParty,
   async (req, res) => {
     try {
       const { id: userId } = req.user;
@@ -156,6 +166,17 @@ router.get(
       const { before, limit = "50" } = req.query;
 
       const pageSize = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
+
+      const conversation = await prisma.chatConversation.findUnique({
+        where: { id },
+        select: { user1Id: true, user2Id: true },
+      });
+      if (
+        !conversation ||
+        (conversation.user1Id !== userId && conversation.user2Id !== userId)
+      ) {
+        return res.status(403).json({ message: "Not a conversation participant" });
+      }
 
       const where = { conversationId: id };
       if (before) {
@@ -192,13 +213,13 @@ router.get(
 );
 
 // ─── POST /api/chat/conversations/:id/messages ───────────────────────────────
-// Send a message in a conversation.
+// Send a message in a conversation. Only participants may send.
 
 router.post(
   "/conversations/:id/messages",
   authenticate,
   requireAuth,
-  requireManagerOrCashier,
+  requireParty,
   async (req, res) => {
     try {
       const { id: userId } = req.user;
@@ -209,12 +230,15 @@ router.post(
         return res.status(400).json({ message: "Message cannot be empty" });
       }
 
-      // Verify conversation exists
       const conversation = await prisma.chatConversation.findUnique({
         where: { id: conversationId },
+        select: { id: true, martId: true, user1Id: true, user2Id: true },
       });
-      if (!conversation) {
-        return res.status(404).json({ message: "Conversation not found" });
+      if (
+        !conversation ||
+        (conversation.user1Id !== userId && conversation.user2Id !== userId)
+      ) {
+        return res.status(403).json({ message: "Not a conversation participant" });
       }
 
       const newMessage = await prisma.chatMessage.create({
@@ -236,9 +260,9 @@ router.post(
 
       // Emit to the other participant via Socket.IO
       const recipientId =
-        userId === conversation.managerId
-          ? conversation.cashierId
-          : conversation.managerId;
+        userId === conversation.user1Id
+          ? conversation.user2Id
+          : conversation.user1Id;
 
       try {
         emitToUser(recipientId, "chat_message", {
@@ -246,8 +270,22 @@ router.post(
           message: newMessage,
         });
       } catch (socketErr) {
-        // Socket might not be initialized; ignore
         console.warn("[chat] Socket emit failed:", socketErr.message);
+      }
+
+      // Create an in-app notification for the recipient so the message
+      // shows up in the notification bell and can deep-link to this chat.
+      try {
+        await createNotification({
+          martId: conversation.martId,
+          userId: recipientId,
+          type: "chat_message",
+          title: newMessage.sender.name || "New message",
+          message: newMessage.message,
+          metadata: { conversationId },
+        });
+      } catch (notifErr) {
+        console.warn("[chat] Notification creation failed:", notifErr.message);
       }
 
       return res.status(201).json(newMessage);
@@ -265,13 +303,24 @@ router.put(
   "/conversations/:id/read",
   authenticate,
   requireAuth,
-  requireManagerOrCashier,
+  requireParty,
   async (req, res) => {
     try {
       const { id: userId } = req.user;
       const { id: conversationId } = req.params;
 
-      await prisma.chatMessage.updateMany({
+      const conversation = await prisma.chatConversation.findUnique({
+        where: { id: conversationId },
+        select: { user1Id: true, user2Id: true },
+      });
+      if (
+        !conversation ||
+        (conversation.user1Id !== userId && conversation.user2Id !== userId)
+      ) {
+        return res.status(403).json({ message: "Not a conversation participant" });
+      }
+
+      const result = await prisma.chatMessage.updateMany({
         where: {
           conversationId,
           senderId: { not: userId },
@@ -279,6 +328,44 @@ router.put(
         },
         data: { readAt: new Date() },
       });
+
+      // Notify the other participant in realtime so their "sent" ticks
+      // can flip to "read" without a page refresh.
+      if (result.count > 0) {
+        const otherUserId =
+          conversation.user1Id === userId
+            ? conversation.user2Id
+            : conversation.user1Id;
+        try {
+          emitToUser(otherUserId, "chat_read", {
+            conversationId,
+            readerId: userId,
+            readAt: new Date(),
+          });
+        } catch (socketErr) {
+          console.warn("[chat] Read emit failed:", socketErr.message);
+        }
+      }
+
+      // Mark this conversation's chat notifications as read so the
+      // notification bell badge stays in sync with the chat unread count.
+      try {
+        await prisma.notification.updateMany({
+          where: {
+            userId,
+            type: "chat_message",
+            read: false,
+            data: { path: ["conversationId"], equals: conversationId },
+          },
+          data: { read: true },
+        });
+        const { sseManager } = require("../utils/sse");
+        const { getUnreadCount } = require("../services/notification.service");
+        const count = await getUnreadCount(userId, req.user.martId);
+        sseManager.sendUnreadCountUpdate(userId, count);
+      } catch (notifErr) {
+        console.warn("[chat] Notification read sync failed:", notifErr.message);
+      }
 
       return res.json({ success: true });
     } catch (err) {
@@ -288,35 +375,35 @@ router.put(
   },
 );
 
-// ─── GET /api/chat/cashiers ──────────────────────────────────────────────
-// List cashiers in the same mart (for starting a new conversation).
+// ─── GET /api/chat/users ─────────────────────────────────────────────────────
+// List other active users in the same mart (for starting a new conversation).
 
 router.get(
-  "/cashiers",
+  "/users",
   authenticate,
   requireAuth,
-  requireManagerOrCashier,
+  requireParty,
   async (req, res) => {
     try {
-      const { martId } = req.user;
+      const { martId, id: userId } = req.user;
       if (!martId) {
         return res.json({ data: [] });
       }
 
-      const cashiers = await prisma.user.findMany({
+      const users = await prisma.user.findMany({
         where: {
           martId,
-          role: "cashier",
           active: true,
           isDeleted: false,
+          id: { not: userId },
         },
-        select: { id: true, name: true },
+        select: { id: true, name: true, role: true },
         orderBy: { name: "asc" },
       });
 
-      return res.json({ data: cashiers });
+      return res.json({ data: users });
     } catch (err) {
-      console.error("[chat] GET cashiers error:", err);
+      console.error("[chat] GET users error:", err);
       return res.status(500).json({ message: "Server error" });
     }
   },

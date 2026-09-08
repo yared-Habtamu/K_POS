@@ -190,6 +190,7 @@ const App = () => {
             />
             <Route path="/owner/reports" element={<ReportPage />} />
             <Route path="/owner/today-sales" element={<TodaysSales />} />
+            <Route path="/owner/chat" element={<ChatPage />} />
             <Route path="/owner/assets" element={<OwnerAssets />} />
             <Route path="/owner/open-cash" element={<OwnerOpenCashPage />} />
             <Route path="/owner/sale-cancellations" element={<SaleCancellationsPage />} />
@@ -253,6 +254,7 @@ const App = () => {
               path="/store-keeper/products"
               element={<StoreKeeperProductManagement />}
             />
+            <Route path="/store-keeper/chat" element={<ChatPage />} />
             <Route
               path="/store-keeper/approvals"
               element={<StoreKeeperApprovals />}

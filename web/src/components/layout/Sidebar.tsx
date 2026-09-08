@@ -231,6 +231,7 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
       items: [
         { label: "reports", icon: BarChart3, path: "/owner/reports" },
         { label: "sales_report", icon: Receipt, path: "/owner/today-sales" },
+        { label: "chat", icon: MessageSquare, path: "/owner/chat" },
         {
           label: "alerts",
           icon: AlertTriangle,
@@ -273,6 +274,7 @@ const roleNavGroups: Record<UserRole, NavGroup[]> = {
         },
         { label: "barcode", icon: Barcode, path: "/store-keeper/barcode" },
         { label: "products", icon: Image, path: "/store-keeper/products" },
+        { label: "chat", icon: MessageSquare, path: "/store-keeper/chat" },
         { label: "alerts", icon: AlertTriangle, path: "/alerts" },
         { label: "settings", icon: Settings, path: "/store-keeper/settings" },
       ],

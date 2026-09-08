@@ -18,6 +18,15 @@ export function getNotificationUrl(notification: any, userRole?: string): string
   const isCashier = role === "cashier";
   const isAdmin = role === "admin" || role === "system_admin";
 
+  const chatRouteForRole = (suffix = "") => {
+    const query = suffix ? `?${suffix}` : "";
+    if (isManager) return `/manager/chat${query}`;
+    if (isCashier) return `/cashier/chat${query}`;
+    if (isOwner) return `/owner/chat${query}`;
+    if (isStoreKeeper) return `/store-keeper/chat${query}`;
+    return `/manager/chat${query}`;
+  };
+
   // Admin routing
   if (isAdmin) {
     if (text.includes("mart") || text.includes("shop") || text.includes("register")) {
@@ -27,6 +36,14 @@ export function getNotificationUrl(notification: any, userRole?: string): string
       return "/admin/subscriptions";
     }
     return "/admin";
+  }
+
+  // Chat messages deep-link directly to the conversation
+  if (type.includes("chat") || type.includes("message") || notification.data?.conversationId) {
+    if (notification.data?.conversationId) {
+      return chatRouteForRole(`conv=${encodeURIComponent(notification.data.conversationId)}`);
+    }
+    return chatRouteForRole();
   }
 
   // 2. Expense & Expense Action Requests
@@ -94,19 +111,12 @@ export function getNotificationUrl(notification: any, userRole?: string): string
     return "/inventory";
   }
 
-  // 10. Products
+  // 11. Products (legacy fallback)
   if (text.includes("product")) {
     if (isOwner) return "/owner/products";
     if (isManager) return "/manager/products";
     if (isStoreKeeper) return "/store-keeper/products";
     return "/owner/products";
-  }
-
-  // 11. Chat & Messages
-  if (text.includes("chat") || text.includes("message")) {
-    if (isManager) return "/manager/chat";
-    if (isCashier) return "/cashier/chat";
-    return "/manager/chat";
   }
 
   // 12. Customers / Credit
