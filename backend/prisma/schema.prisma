@@ -782,8 +782,8 @@ model SaleCancellationRequest {
 model ChatConversation {
   id        String   @id @default(uuid())
   martId    String
-  user1Id   String
-  user2Id   String
+  user1Id   String  @default("")
+  user2Id   String  @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
