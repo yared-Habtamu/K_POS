@@ -6,10 +6,12 @@ type SettingsState = {
   preferredPrinter?: string | null;
   printerByRole: Partial<Record<UserRole, string | null>>;
   printNodeId: number | null;
+  _syncedFromDB: boolean;
   getPreferredPrinter: (role?: UserRole | null) => string | null;
   setPreferredPrinter: (name: string | null) => void;
   setPrinterForRole: (role: UserRole, name: string | null) => void;
   setPrintNodeId: (id: number | null) => void;
+  syncFromDB: (printNodeId: number | null) => void;
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -18,6 +20,7 @@ export const useSettingsStore = create<SettingsState>()(
       preferredPrinter: null,
       printerByRole: {},
       printNodeId: null,
+      _syncedFromDB: false,
       getPreferredPrinter: (role) => {
         if (role && get().printerByRole[role])
           return get().printerByRole[role] || null;
@@ -29,7 +32,18 @@ export const useSettingsStore = create<SettingsState>()(
           printerByRole: { ...state.printerByRole, [role]: name },
           preferredPrinter: state.preferredPrinter || name,
         })),
-      setPrintNodeId: (id) => set({ printNodeId: id }),
+      setPrintNodeId: (id) => set({ printNodeId: typeof id === "number" ? id : null }),
+      syncFromDB: (printNodeId) => {
+        const safeId = typeof printNodeId === "number" ? printNodeId : null;
+        const current = get().printNodeId;
+        if (safeId !== null) {
+          set({ printNodeId: safeId, _syncedFromDB: true });
+        } else if (current === null) {
+          set({ _syncedFromDB: true });
+        } else {
+          set({ _syncedFromDB: true });
+        }
+      },
     }),
     {
       name: "kiya-pos-settings",
@@ -39,6 +53,14 @@ export const useSettingsStore = create<SettingsState>()(
         printerByRole: s.printerByRole,
         printNodeId: s.printNodeId,
       }),
+      merge: (persistedState, currentState) => {
+        const stored = persistedState as Record<string, any> | undefined;
+        return {
+          ...currentState,
+          ...(stored || {}),
+          printNodeId: typeof stored?.printNodeId === "number" ? stored.printNodeId : null,
+        };
+      },
     },
   ),
 );

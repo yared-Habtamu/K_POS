@@ -90,6 +90,11 @@ model User {
   permissions       String[] @default([])
   active            Boolean  @default(true)
   isDeleted         Boolean  @default(false)
+
+  // Per-user printer selection (PrintNode printer ID)
+  printNodeId       Int?
+  printerName       String? // Custom name for the user's printer (e.g. "Cashier 1 Printer")
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -160,6 +165,12 @@ model Mart {
   receiptHeader  String?
   receiptMessage String?
   shopLogoUrl    String?
+
+  // PrintNode per-shop API key (each shop owner creates their own PrintNode account)
+  printNodeApiKey String?
+
+  // Custom printer labels: { [printNodeId: number]: string } e.g. { 75787817: "Front Desk Printer" }
+  printerLabels Json?
 
   // Payments and currency
   currency            String  @default("ETB")

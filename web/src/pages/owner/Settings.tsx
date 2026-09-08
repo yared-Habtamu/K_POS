@@ -49,6 +49,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { PrinterSettingsCard } from "@/components/settings/PrinterSettingsCard";
+import { PrintNodeApiKeyCard } from "@/components/settings/PrintNodeApiKeyCard";
 
 type ConfiguredPaymentType = {
   _id?: string;
@@ -1735,11 +1736,12 @@ export default function OwnerSettings() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="printer" className="mt-4">
+          <TabsContent value="printer" className="mt-4 space-y-4">
+            <PrintNodeApiKeyCard />
             <PrinterSettingsCard
               role="owner"
               title={t("owner_printer", { defaultValue: "Owner Printer" })}
-              description={t("owner_printer_desc", { defaultValue: "Set the printer used for owner actions on this device." })}
+              description={t("owner_printer_desc", { defaultValue: "Configure printers for your shop. Set up PrintNode API key, assign printers to staff, and manage printer settings." })}
             />
           </TabsContent>
         </Tabs>

@@ -1,17 +1,17 @@
 /**
- * PrintNode Bridge for Kiya POS
+ * PrintNode Bridge for Kiya POS (Multi-Tenant)
  *
  * Sends print jobs to PrintNode via the backend API.
- * The backend proxies requests to PrintNode Cloud API,
- * keeping the API key secret.
+ * The backend proxies requests to PrintNode Cloud API per-shop,
+ * keeping each shop's API key secret.
  *
  * Architecture:
- *   Frontend → POST /api/printnode/print → Backend → PrintNode API → PrintNode Client → Printer
+ *   Frontend → POST /api/printnode/print → Backend (per-mart API key) → PrintNode API → PrintNode Client → Printer
  *
- * Usage:
- *   import printNodeBridge from "./printNodeBridge";
- *   await printNodeBridge.printRaw(commands, { printerId: 12345 });
+ * Each user's printer selection is saved in the database (not localStorage).
  */
+
+import { useAuthStore } from "@/stores/authStore";
 
 const API_BASE =
   (import.meta.env.VITE_API_URL as string | undefined) ||
@@ -20,13 +20,15 @@ const API_BASE =
 
 const ENDPOINT = `${API_BASE}/api/printnode`;
 
+function getAuthHeaders(): Record<string, string> {
+  const token = useAuthStore.getState().user?.token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 /* ------------------------------------------------------------------ */
 /*  Health Check                                                        */
 /* ------------------------------------------------------------------ */
 
-/**
- * Check if PrintNode is configured and reachable.
- */
 export async function isPrintNodeAvailable(): Promise<boolean> {
   try {
     const controller = new AbortController();
@@ -34,6 +36,7 @@ export async function isPrintNodeAvailable(): Promise<boolean> {
 
     const res = await fetch(`${ENDPOINT}/health`, {
       method: "GET",
+      headers: getAuthHeaders(),
       signal: controller.signal,
     });
     clearTimeout(timeout);
@@ -53,12 +56,11 @@ export interface PrintNodeHealth {
   defaultProvider?: string;
 }
 
-/**
- * Get PrintNode health status.
- */
 export async function getPrintNodeHealth(): Promise<PrintNodeHealth> {
   try {
-    const res = await fetch(`${ENDPOINT}/health`);
+    const res = await fetch(`${ENDPOINT}/health`, {
+      headers: getAuthHeaders(),
+    });
     return await res.json();
   } catch {
     return { configured: false, reachable: false, error: "Cannot reach backend" };
@@ -77,12 +79,12 @@ export interface PrintNodePrinter {
   caps?: string[];
 }
 
-/**
- * List printers available on PrintNode.
- */
 export async function listPrinters(): Promise<PrintNodePrinter[]> {
   try {
-    const res = await fetch(`${ENDPOINT}/printers`, { method: "POST" });
+    const res = await fetch(`${ENDPOINT}/printers`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+    });
     if (!res.ok) return [];
     const data = await res.json();
     return data.printers || [];
@@ -92,18 +94,141 @@ export async function listPrinters(): Promise<PrintNodePrinter[]> {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Auto-detect Printer                                                 */
+/*  User Printer (saved in DB per user)                                 */
 /* ------------------------------------------------------------------ */
 
 /**
- * Auto-detect the first available printer from PrintNode.
- * Returns the printer ID if found, null otherwise.
+ * Get the current user's saved printer ID and name from the database.
  */
+export async function getUserPrinter(): Promise<{ printNodeId: number | null; printerName: string | null }> {
+  try {
+    const res = await fetch(`${ENDPOINT}/printer`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) return { printNodeId: null, printerName: null };
+    const data = await res.json();
+    const id = typeof data.printNodeId === "number" ? data.printNodeId : null;
+    const name = typeof data.printerName === "string" ? data.printerName : null;
+    return { printNodeId: id, printerName: name };
+  } catch {
+    return { printNodeId: null, printerName: null };
+  }
+}
+
+/**
+ * Save the current user's printer ID and optional name to the database.
+ */
+export async function saveUserPrinter(printerId: number, printerName?: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${ENDPOINT}/printer`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify({ printerId, printerName }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Mart Printers (owner/manager view)                                  */
+/* ------------------------------------------------------------------ */
+
+export interface MartPrinterAssignment {
+  id: string;
+  name: string;
+  username: string;
+  role: string;
+  printNodeId: number | null;
+  printerName: string | null;
+}
+
+/**
+ * Get all printer assignments for the current mart (owner/manager view).
+ */
+export async function getMartPrinterAssignments(): Promise<MartPrinterAssignment[]> {
+  try {
+    const res = await fetch(`${ENDPOINT}/mart-printers`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.assignments || [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Update a specific user's printer assignment (owner/manager).
+ */
+export async function updateMartPrinter(
+  userId: string,
+  printerId: number,
+  printerName?: string
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${ENDPOINT}/mart-printers/${userId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify({ printerId, printerName }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Mart Printer Labels (shared across all staff in a mart)            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Get custom printer labels for the current mart.
+ * Returns a map like { "75787817": "Front Desk Printer" }
+ */
+export async function getPrinterLabels(): Promise<Record<string, string>> {
+  try {
+    const res = await fetch(`${ENDPOINT}/printer-labels`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) return {};
+    const data = await res.json();
+    return data.labels && typeof data.labels === "object" ? data.labels : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Save a custom label for a specific printer (owner/manager only).
+ * This label is visible to ALL staff in the mart.
+ */
+export async function savePrinterLabel(printerId: number, label: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${ENDPOINT}/printer-labels`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify({ printerId, label }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Auto-detect Printer                                                 */
+/* ------------------------------------------------------------------ */
+
 export async function autoDetectPrinter(): Promise<number | null> {
   try {
     const printers = await listPrinters();
     if (printers.length > 0) {
-      // Return the first printer's ID
       return printers[0].id;
     }
     return null;
@@ -118,9 +243,7 @@ export async function autoDetectPrinter(): Promise<number | null> {
 
 /**
  * Print raw ESC/POS commands via PrintNode.
- *
- * @param commands - Array of ESC/POS command strings
- * @param options.printerId - PrintNode printer ID (optional, auto-detects if not set)
+ * Uses the user's saved printer from DB if no printerId is provided.
  */
 export async function printRaw(
   commands: string[],
@@ -128,24 +251,34 @@ export async function printRaw(
 ): Promise<void> {
   let { printerId } = options;
 
-  // If no printer ID provided, try to auto-detect
+  // If no printer ID provided, try user's saved printer from DB
   if (!printerId) {
     try {
-      printerId = await autoDetectPrinter() || undefined;
+      const saved = await getUserPrinter();
+      printerId = saved.printNodeId || undefined;
     } catch {
-      // Ignore auto-detect errors
+      // Ignore errors
+    }
+  }
+
+  // If still no printer ID, try auto-detect
+  if (!printerId) {
+    try {
+      printerId = (await autoDetectPrinter()) || undefined;
+    } catch {
+      // Ignore errors
     }
   }
 
   if (!printerId) {
     throw new Error(
-      "No PrintNode printer found. Ensure PrintNode Client is running and a printer is connected."
+      "No PrintNode printer found. Select a printer in your settings."
     );
   }
 
   const res = await fetch(`${ENDPOINT}/print`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({
       printerId,
       commands,
@@ -162,16 +295,11 @@ export async function printRaw(
 
 /**
  * Print HTML content via PrintNode.
- * Converts HTML to raw text ESC/POS for thermal printers.
- *
- * @param html - HTML string to print
- * @param options.printerId - PrintNode printer ID (required)
  */
 export async function printHtml(
   html: string,
   options: { printerId?: number } = {}
 ): Promise<void> {
-  // Convert HTML to plain text for thermal printer
   const text = html
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
@@ -183,7 +311,6 @@ export async function printHtml(
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  // Build ESC/POS from text
   const lines = text.split("\n");
   const ESC = "\x1B";
   const GS = "\x1D";
@@ -196,16 +323,16 @@ export async function printHtml(
       continue;
     }
     if (trimmed.length < 30) {
-      commands.push(`${ESC}a\x01`); // Center
+      commands.push(`${ESC}a\x01`);
       commands.push(trimmed + "\n");
-      commands.push(`${ESC}a\x00`); // Left
+      commands.push(`${ESC}a\x00`);
     } else {
       commands.push(trimmed + "\n");
     }
   }
 
-  commands.push(`${ESC}d\x05`); // Feed 5
-  commands.push(`${GS}V\x41\x03`); // Cut
+  commands.push(`${ESC}d\x05`);
+  commands.push(`${GS}V\x41\x03`);
 
   return printRaw(commands, options);
 }
@@ -218,6 +345,12 @@ export default {
   isPrintNodeAvailable,
   getPrintNodeHealth,
   listPrinters,
+  getUserPrinter,
+  saveUserPrinter,
+  getMartPrinterAssignments,
+  updateMartPrinter,
+  getPrinterLabels,
+  savePrinterLabel,
   printRaw,
   printHtml,
 };
