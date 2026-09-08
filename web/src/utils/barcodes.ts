@@ -195,8 +195,7 @@ function buildBarcodeLabelEscPos(params: {
     }
   }
 
-  // Feed and cut (minimal feed for tight label spacing)
-  cmds.push(`${ESC}d\x01`);
+  // Feed and cut — no extra feed, let printer gap sensor handle spacing
   cmds.push(`${GS}V\x41\x03`);
 
   return cmds;
@@ -326,12 +325,10 @@ function printViaBrowser(params: {
   const showPrice = Number.isFinite(parsedPrice);
   const priceLabel = showPrice ? `${parsedPrice.toFixed(2)} ETB` : "";
 
-  // 40x30mm is the TOTAL pitch (label + gap).
-  // Actual printable content starts ~3mm from top, leaves ~3mm gap at bottom.
-  // Content area: ~34mm wide x ~24mm tall, centered horizontally.
-  const contentWidth = 34; // mm
-  const contentTopPad = 3; // mm from top of label
-  const contentBottomPad = 3; // mm gap at bottom for label separation
+  // 40x30mm is the total pitch (label + gap).
+  // Phomemo printer gap sensor handles label separation automatically.
+  // NO page-break CSS — just stack labels at exact 30mm height each.
+  const sidePad = 3; // mm each side → 34mm content width
 
   let labelsHtml = "";
   for (let i = 0; i < quantity; i++) {
@@ -354,35 +351,27 @@ function printViaBrowser(params: {
       <head>
         <title>Barcode Labels</title>
         <style>
-          @page {
-            size: ${LABEL_WIDTH_MM}mm ${LABEL_HEIGHT_MM}mm;
-            margin: 0;
-          }
           * { box-sizing: border-box; margin: 0; padding: 0; }
+          html, body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
           body {
             font-family: Arial, Helvetica, sans-serif;
             color: #000;
-            background: transparent;
-            margin: 0;
-            padding: 0;
           }
           .label {
             width: ${LABEL_WIDTH_MM}mm;
             height: ${LABEL_HEIGHT_MM}mm;
-            padding-top: ${contentTopPad}mm;
-            padding-left: ${(LABEL_WIDTH_MM - contentWidth) / 2}mm;
-            padding-right: ${(LABEL_WIDTH_MM - contentWidth) / 2}mm;
-            padding-bottom: ${contentBottomPad}mm;
+            padding: 2mm ${sidePad}mm 0;
             overflow: hidden;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: flex-start;
-            page-break-after: always;
-            page-break-inside: avoid;
-          }
-          .label:last-child {
-            page-break-after: auto;
           }
           .shop {
             font-size: 5pt;
@@ -392,10 +381,10 @@ function printViaBrowser(params: {
             margin-bottom: 0.5mm;
           }
           img {
-            max-width: ${contentWidth - 4}mm;
-            max-height: 14mm;
+            max-width: ${LABEL_WIDTH_MM - sidePad * 2 - 2}mm;
+            max-height: 15mm;
             display: block;
-            margin: 0.5mm auto;
+            margin: 0.3mm auto;
           }
           .meta {
             text-align: center;
