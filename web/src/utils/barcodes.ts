@@ -2,10 +2,12 @@ import JsBarcode from "jsbarcode";
 import printNodeBridge from "@/services/printBridge/printNodeBridge";
 import { useSettingsStore } from "@/stores/settingsStore";
 
-/** Physical label: 40x30mm. Printable content area: 30x20mm (centered). */
+/** Physical label: 40mm wide. Height reduced by 3mm to compensate for printer gap. */
 const LABEL_DPI = 203;
 const LABEL_WIDTH_MM = 40;
-const LABEL_HEIGHT_MM = 30;
+const LABEL_HEIGHT_MM = 27; // 30 - 3 to reduce gap
+
+/** Printable content area for ESC/POS bitmap: 30mm wide, 20mm tall */
 const PRINTABLE_WIDTH_MM = 30;
 const PRINTABLE_HEIGHT_MM = 20;
 const PRINTABLE_WIDTH_DOTS = Math.round((PRINTABLE_WIDTH_MM / 25.4) * LABEL_DPI);  // ~240
