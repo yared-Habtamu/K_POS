@@ -1385,7 +1385,6 @@ const resources = {
       store_keeper_printer: "Store Keeper Printer",
       store_keeper_printer_desc: "Set the printer used from store keeper workstations.",
       manager_settings_desc: "Manager-specific settings can be added here later. Printer configuration is available now.",
-      manager_settings_desc: "Manager-specific settings can be added here later. Printer configuration is available now.",
       banknote_cash: "Banknote (Cash)",
       credit_card: "Credit Card",
       landmark_bank: "Landmark (Bank/Transfer)",

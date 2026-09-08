@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Printer, Download } from "lucide-react";
+import { Printer, Download, Minus, Plus } from "lucide-react";
 import { printBarcodeLabel, generateBarcodeDataUrl } from "@/utils/barcodes";
 import {
   Dialog,
@@ -30,9 +30,8 @@ export function BarcodePrintDialog({
   dataUrl: externalDataUrl,
 }: BarcodePrintDialogProps) {
   const { t } = useTranslation();
+  const [quantity, setQuantity] = useState(1);
 
-  // Synchronous generation — no useEffect, no timing issues, no loading state.
-  // useMemo recalculates only when `barcode` changes.
   const generatedDataUrl = useMemo(
     () => generateBarcodeDataUrl(barcode),
     [barcode],
@@ -46,6 +45,7 @@ export function BarcodePrintDialog({
       productName,
       price,
       shopName: t("kiya_pos_system"),
+      quantity,
     });
   };
 
@@ -81,6 +81,33 @@ export function BarcodePrintDialog({
             )}
           </div>
         </div>
+
+        {/* Quantity selector */}
+        <div className="flex items-center justify-center gap-3 py-2">
+          <span className="text-sm font-medium text-muted-foreground">
+            {t("quantity") || "Quantity"}:
+          </span>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+          >
+            <Minus className="h-3 w-3" />
+          </Button>
+          <span className="w-10 text-center font-semibold text-lg tabular-nums">
+            {quantity}
+          </span>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setQuantity((q) => Math.min(999, q + 1))}
+          >
+            <Plus className="h-3 w-3" />
+          </Button>
+        </div>
+
         <DialogFooter className="flex sm:justify-between gap-2">
           <Button variant="outline" onClick={handleDownload} className="flex-1">
             <Download className="mr-2 h-4 w-4" />
@@ -89,6 +116,7 @@ export function BarcodePrintDialog({
           <Button onClick={handlePrint} className="flex-1">
             <Printer className="mr-2 h-4 w-4" />
             {t("print") || "Print"}
+            {quantity > 1 && ` (${quantity})`}
           </Button>
         </DialogFooter>
       </DialogContent>
