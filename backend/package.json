@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "build": "echo 'No build step required'",
-    "start": "node src/index.js",
+    "start": "prisma migrate deploy && node src/index.js",
     "dev": "nodemon src/index.js",
     "prisma:seed": "tsx prisma/seed/seed-users.ts && tsx prisma/seed/seed-dummy-data.ts",
     "test": "echo \"Error: no test specified\" && exit 1",

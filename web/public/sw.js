@@ -6,7 +6,15 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  if (event.request.url.includes("/api/")) return;
+  // API and Socket.IO calls must always reach the network.  Returning a
+  // synthetic offline response for Socket.IO makes the client repeatedly fail
+  // its polling handshake even while the backend is available.
+  if (
+    event.request.url.includes("/api/") ||
+    event.request.url.includes("/socket.io/")
+  ) {
+    return;
+  }
   event.respondWith(
     fetch(event.request).catch(async () => {
       const cached = await caches.match(event.request);
